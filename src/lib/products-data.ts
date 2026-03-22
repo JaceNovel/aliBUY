@@ -412,6 +412,9 @@ export const products: ProductCatalogItem[] = [
       "https://s.alicdn.com/@sc04/kf/H5d39629cd6374a32bea7368985f32f7aR.jpg_350x350.jpg",
       "https://s.alicdn.com/@sc04/kf/He21b090337c74bbaa1212b233936914aa.jpg_350x350.jpg"
     ],
+    packaging: "Carton export KD plat",
+    itemWeightGrams: 16800,
+    lotCbm: "0.296 m3 / lot de 1 set",
     minUsd: 20.64,
     maxUsd: 25.79,
     moq: 20,
@@ -460,6 +463,9 @@ export const products: ProductCatalogItem[] = [
       "https://s.alicdn.com/@sc04/kf/H097752b8b24344aebcabb135315e1a8d2.jpg_350x350.jpg",
       "https://s.alicdn.com/@sc04/kf/H9d54069b496a4915a948cb6d88ed0435j.jpg_350x350.jpg"
     ],
+    packaging: "Tube kraft + carton export",
+    itemWeightGrams: 520,
+    lotCbm: "0.118 m3 / lot de 80 pcs",
     minUsd: 3.61,
     maxUsd: 4.57,
     moq: 100,
@@ -508,6 +514,9 @@ export const products: ProductCatalogItem[] = [
       "https://s.alicdn.com/@sc04/kf/H097752b8b24344aebcabb135315e1a8d2.jpg_350x350.jpg",
       "https://s.alicdn.com/@sc04/kf/A9b5ae44e0d0c4feba3f2670fe576e8eck.jpg_350x350.jpg"
     ],
+    packaging: "Boite couleur combo + carton master",
+    itemWeightGrams: 1180,
+    lotCbm: "0.164 m3 / lot de 20 jeux",
     minUsd: 10.5,
     maxUsd: 11.39,
     moq: 20,
