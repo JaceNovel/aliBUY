@@ -1,6 +1,6 @@
-import { getAlibabaSourcingCatalog, createAlibabaSourcingQuote, createSourcingIds, formatFcfa, type SourcingCheckoutInput, type SourcingOrder, type SourcingSeaContainer, type SourcingSettings } from "@/lib/alibaba-sourcing";
+import { getAlibabaSourcingCatalog, createAlibabaSourcingQuote, formatFcfa, type SourcingCheckoutInput, type SourcingOrder, type SourcingSeaContainer, type SourcingSettings } from "@/lib/alibaba-sourcing";
 import { runAlibabaSupplierAutomation } from "@/lib/alibaba-open-platform-client";
-import { createAlibabaIntegrationLog, getAlibabaCatalogMappings, getSourcingOrders, getSourcingSeaContainers, getSourcingSettings, saveSourcingOrder, saveSourcingSeaContainer, saveSourcingSettings } from "@/lib/sourcing-store";
+import { createAlibabaIntegrationLog, createSourcingIds, getAlibabaCatalogMappings, getSourcingOrders, getSourcingSeaContainers, getSourcingSettings, saveSourcingOrder, saveSourcingSeaContainer, saveSourcingSettings } from "@/lib/sourcing-store";
 
 function nowIso() {
   return new Date().toISOString();
