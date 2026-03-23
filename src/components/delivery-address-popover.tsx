@@ -136,38 +136,39 @@ export function DeliveryAddressPopover({
 
       <div
         className={[
-          "absolute top-[calc(100%+12px)] z-[120] w-[392px] rounded-[16px] border border-[#d9d9d9] bg-white p-5 shadow-[0_20px_40px_rgba(0,0,0,0.16)] transition-all duration-150",
+          "absolute top-[calc(100%+10px)] z-[120] rounded-[16px] border border-[#d9d9d9] bg-white shadow-[0_20px_40px_rgba(0,0,0,0.16)] transition-all duration-150",
+          compact ? "w-[min(340px,calc(100vw-24px))] p-3.5" : "w-[392px] p-5",
           alignmentClassName,
           isOpen ? "visible translate-y-0 opacity-100" : "invisible -translate-y-1 opacity-0",
         ].join(" ")}
       >
         <div className={["absolute -top-2 h-4 w-4 rotate-45 border-l border-t border-[#d9d9d9] bg-white", arrowClassName].join(" ")} />
 
-        <h3 className="text-[18px] font-bold tracking-[-0.03em] text-[#333]">{messages.deliveryPopover.title}</h3>
-        <p className="mt-2 max-w-[320px] text-[14px] leading-7 text-[#4d4d4d]">
+        <h3 className={compact ? "text-[16px] font-bold tracking-[-0.03em] text-[#333]" : "text-[18px] font-bold tracking-[-0.03em] text-[#333]"}>{messages.deliveryPopover.title}</h3>
+        <p className={compact ? "mt-1.5 max-w-[280px] text-[12px] leading-5 text-[#4d4d4d]" : "mt-2 max-w-[320px] text-[14px] leading-7 text-[#4d4d4d]"}>
           {messages.deliveryPopover.description}
         </p>
 
         <button
           type="button"
-          className="mt-5 flex h-11 w-full items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[15px] font-semibold text-white hover:bg-[#ef6100]"
+          className={compact ? "mt-3 flex h-10 w-full items-center justify-center rounded-full bg-[#ff6a00] px-5 text-[14px] font-semibold text-white hover:bg-[#ef6100]" : "mt-5 flex h-11 w-full items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[15px] font-semibold text-white hover:bg-[#ef6100]"}
         >
           {messages.deliveryPopover.addAddress}
         </button>
 
-        <div className="my-4 flex items-center gap-4 text-[13px] text-[#666]">
+        <div className={compact ? "my-3 flex items-center gap-3 text-[12px] text-[#666]" : "my-4 flex items-center gap-4 text-[13px] text-[#666]"}>
           <div className="h-px flex-1 bg-[#dfdfdf]" />
           <span>{messages.deliveryPopover.or}</span>
           <div className="h-px flex-1 bg-[#dfdfdf]" />
         </div>
 
-        <div className="space-y-3">
-          <label className="block text-[12px] font-semibold uppercase tracking-[0.12em] text-[#777]">
+        <div className={compact ? "space-y-2.5" : "space-y-3"}>
+          <label className={compact ? "block text-[11px] font-semibold uppercase tracking-[0.1em] text-[#777]" : "block text-[12px] font-semibold uppercase tracking-[0.12em] text-[#777]"}>
             {messages.deliveryPopover.country}
             <select
               value={selectedCountry}
               onChange={(event) => setSelectedCountry(event.target.value)}
-              className="mt-2 h-11 w-full rounded-[8px] border border-[#d7dce5] bg-white px-4 text-[15px] font-medium text-[#333] outline-none focus:border-[#ff6a00]"
+              className={compact ? "mt-1.5 h-10 w-full rounded-[10px] border border-[#d7dce5] bg-white px-3 text-[14px] font-medium text-[#333] outline-none focus:border-[#ff6a00]" : "mt-2 h-11 w-full rounded-[8px] border border-[#d7dce5] bg-white px-4 text-[15px] font-medium text-[#333] outline-none focus:border-[#ff6a00]"}
             >
               {DELIVERY_COUNTRY_OPTIONS.map((option) => (
                 <option key={option.code} value={option.code}>
@@ -177,12 +178,12 @@ export function DeliveryAddressPopover({
             </select>
           </label>
 
-          <label className="block text-[12px] font-semibold uppercase tracking-[0.12em] text-[#777]">
+          <label className={compact ? "block text-[11px] font-semibold uppercase tracking-[0.1em] text-[#777]" : "block text-[12px] font-semibold uppercase tracking-[0.12em] text-[#777]"}>
             {messages.deliveryPopover.currency}
             <select
               value={selectedCurrency}
               onChange={(event) => setSelectedCurrency(event.target.value as CurrencyCode)}
-              className="mt-2 h-11 w-full rounded-[8px] border border-[#d7dce5] bg-white px-4 text-[15px] font-medium text-[#333] outline-none focus:border-[#ff6a00]"
+              className={compact ? "mt-1.5 h-10 w-full rounded-[10px] border border-[#d7dce5] bg-white px-3 text-[14px] font-medium text-[#333] outline-none focus:border-[#ff6a00]" : "mt-2 h-11 w-full rounded-[8px] border border-[#d7dce5] bg-white px-4 text-[15px] font-medium text-[#333] outline-none focus:border-[#ff6a00]"}
             >
               {CURRENCY_OPTIONS.map((option) => (
                 <option key={option.code} value={option.code}>
@@ -196,7 +197,7 @@ export function DeliveryAddressPopover({
         <button
           type="button"
           onClick={handleSave}
-          className="mt-5 flex h-11 w-full items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[15px] font-semibold text-white hover:bg-[#ef6100] disabled:cursor-not-allowed disabled:opacity-70"
+          className={compact ? "mt-3 flex h-10 w-full items-center justify-center rounded-full bg-[#ff6a00] px-5 text-[14px] font-semibold text-white hover:bg-[#ef6100] disabled:cursor-not-allowed disabled:opacity-70" : "mt-5 flex h-11 w-full items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[15px] font-semibold text-white hover:bg-[#ef6100] disabled:cursor-not-allowed disabled:opacity-70"}
           disabled={isPending}
         >
           {isPending ? messages.deliveryPopover.saving : messages.deliveryPopover.save}

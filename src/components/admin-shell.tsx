@@ -3,6 +3,7 @@
 import {
   BadgePercent,
   Bell,
+  Boxes,
   ChevronDown,
   ChevronRight,
   FileText,
@@ -37,6 +38,7 @@ const iconMap = {
   "ship-wheel": ShipWheel,
   star: Star,
   settings: Settings,
+  boxes: Boxes,
   "shopping-cart": ShoppingCart,
   "file-text": FileText,
 };

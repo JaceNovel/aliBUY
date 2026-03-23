@@ -16,7 +16,7 @@ const profileItems = [
   { label: "Messages", href: "/messages" },
   { label: "Demandes de devis", href: "/quotes" },
   { label: "Favoris", href: "/favorites" },
-  { label: "Compte", href: "/account" },
+  { label: "Compte", href: "/account/compte" },
 ];
 
 export function ProfileMenu({ className = "", align = "right", userName = "jace" }: ProfileMenuProps) {

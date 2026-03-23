@@ -135,6 +135,10 @@ export function InternalPageShell({ pricing, children }: InternalPageShellProps)
             <div className="hidden xl:flex xl:flex-row xl:items-center xl:justify-between">
               <nav className="flex flex-wrap items-center gap-x-8 gap-y-2 text-[#222]">
               <CategoryMegaMenu languageCode={pricing.languageCode} triggerClassName="inline-flex items-center gap-2 py-1 font-medium" panelClassName="top-[calc(100%+12px)]" widthClassName="w-[1360px]" />
+              <Link href="/products" className="font-medium text-[#444] transition hover:text-[#ff6a00]">Produits</Link>
+              <Link href="/trends" className="font-medium text-[#444] transition hover:text-[#ff6a00]">Tendances</Link>
+              <Link href="/pricing" className="font-medium text-[#444] transition hover:text-[#ff6a00]">Tarifs</Link>
+              <Link href="/mode" className="font-medium text-[#444] transition hover:text-[#ff6a00]">Mode</Link>
               <OrderProtectionMenu languageCode={pricing.languageCode} triggerClassName="inline-flex items-center py-1 font-medium text-[#444]" panelClassName="top-[calc(100%+12px)]" widthClassName="w-[1120px]" />
               </nav>
               <nav className="flex flex-wrap items-center gap-x-8 gap-y-2 text-[#444]">

@@ -11,14 +11,13 @@ import {
   MessageCircle,
   ReceiptText,
   Search,
-  SlidersHorizontal,
   Star,
   TicketPercent,
   Truck,
   Volume2,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { getOrderChatHref, getOrderTrackingHref, orderTabs, orders, pendingProofDefaultOrder, sidebarItems, type OrderRecord, type OrderTab } from "@/lib/orders-data";
+import { getOrderChatHref, getOrderConfirmReceiptHref, getOrderDeliveryProofHref, getOrderPaymentHref, getOrderTrackingHref, orderTabs, orders, pendingProofDefaultOrder, sidebarItems, type OrderRecord, type OrderTab } from "@/lib/orders-data";
 
 const dateOptions = [
   { value: "all", label: "Date de la commande" },
@@ -56,7 +55,7 @@ function getOrderActions(order: OrderRecord) {
   if (order.status === "Paiement en attente") {
     return {
       primaryLabel: "Payer maintenant",
-      primaryHref: null,
+      primaryHref: getOrderPaymentHref(order),
       secondaryLabel: "Soumettre une preuve de virement",
       secondaryHref: `/orders/remittance-proof?orderId=${encodeURIComponent(order.id)}`,
     };
@@ -66,7 +65,7 @@ function getOrderActions(order: OrderRecord) {
     return {
       primaryLabel: "Suivre l'expedition",
       primaryHref: getOrderTrackingHref(order),
-      secondaryLabel: "Voir les details de la commande",
+      secondaryLabel: null,
       secondaryHref: null,
     };
   }
@@ -76,14 +75,14 @@ function getOrderActions(order: OrderRecord) {
       primaryLabel: "Suivre la livraison",
       primaryHref: getOrderTrackingHref(order),
       secondaryLabel: "Confirmer la reception",
-      secondaryHref: null,
+      secondaryHref: getOrderConfirmReceiptHref(order),
     };
   }
 
   return {
     primaryLabel: "Voir la preuve de livraison",
-    primaryHref: null,
-    secondaryLabel: "Voir les details de la commande",
+    primaryHref: getOrderDeliveryProofHref(order),
+    secondaryLabel: null,
     secondaryHref: null,
   };
 }
@@ -389,25 +388,22 @@ export function OrdersClient() {
                           </button>
                         )}
 
-                        {actions.secondaryHref ? (
-                          <Link href={actions.secondaryHref} className="flex h-10 w-full items-center justify-center rounded-full border border-[#222] px-3 text-center text-[12px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-12 sm:px-5 sm:text-[14px]">
-                            <span className="sm:hidden">{getMobileSecondaryLabel(actions.secondaryLabel)}</span>
-                            <span className="hidden sm:inline">{actions.secondaryLabel}</span>
-                          </Link>
-                        ) : (
-                          <button className="flex h-10 w-full items-center justify-center rounded-full border border-[#222] px-3 text-center text-[12px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-12 sm:px-5 sm:text-[14px]">
-                            <span className="sm:hidden">{getMobileSecondaryLabel(actions.secondaryLabel)}</span>
-                            <span className="hidden sm:inline">{actions.secondaryLabel}</span>
-                          </button>
-                        )}
+                        {actions.secondaryLabel ? (
+                          actions.secondaryHref ? (
+                            <Link href={actions.secondaryHref} className="flex h-10 w-full items-center justify-center rounded-full border border-[#222] px-3 text-center text-[12px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-12 sm:px-5 sm:text-[14px]">
+                              <span className="sm:hidden">{getMobileSecondaryLabel(actions.secondaryLabel)}</span>
+                              <span className="hidden sm:inline">{actions.secondaryLabel}</span>
+                            </Link>
+                          ) : (
+                            <button className="flex h-10 w-full items-center justify-center rounded-full border border-[#222] px-3 text-center text-[12px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-12 sm:px-5 sm:text-[14px]">
+                              <span className="sm:hidden">{getMobileSecondaryLabel(actions.secondaryLabel)}</span>
+                              <span className="hidden sm:inline">{actions.secondaryLabel}</span>
+                            </button>
+                          )
+                        ) : null}
                       </>
                     );
                   })()}
-                  <button className="mx-auto flex items-center gap-2 text-[13px] font-semibold text-[#333] sm:text-[14px]">
-                    <SlidersHorizontal className="h-4 w-4 sm:hidden" />
-                    Plus
-                    <ChevronDown className="h-4 w-4" />
-                  </button>
                 </div>
               </div>
             </article>

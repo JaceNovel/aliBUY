@@ -28,7 +28,7 @@ const mobileProfileLinks = [
   { label: "Messages", href: "/messages" },
   { label: "Demandes de devis", href: "/quotes" },
   { label: "Favoris", href: "/favorites" },
-  { label: "Compte", href: "/account" },
+  { label: "Compte", href: "/account/compte" },
 ];
 
 export default async function AccountPage() {

@@ -54,7 +54,7 @@ export function ModePromoHero({ slides }: ModePromoHeroProps) {
 
   return (
     <section
-      className="relative overflow-hidden rounded-[32px] bg-[#ff0a68] text-white shadow-[0_28px_70px_rgba(255,10,104,0.32)]"
+      className="relative overflow-hidden rounded-[22px] bg-[#ff0a68] text-white shadow-[0_18px_40px_rgba(255,10,104,0.24)] sm:rounded-[32px] sm:shadow-[0_28px_70px_rgba(255,10,104,0.32)]"
       onPointerDown={(event) => {
         pointerStartX.current = event.clientX;
       }}
@@ -93,50 +93,50 @@ export function ModePromoHero({ slides }: ModePromoHeroProps) {
             ].join(" ")}
             aria-hidden={!isActive}
           >
-            <div className="px-6 py-6 sm:px-8 lg:px-10 lg:py-8">
+            <div className="px-4 py-4 sm:px-8 lg:px-10 lg:py-8">
               <LiveCountdownBadge
                 endsAt={slide.endsAt}
                 prefix={slide.deadlinePrefix}
-                className="inline-flex items-center gap-3 rounded-full bg-white/14 px-4 py-2 text-[16px] font-bold tracking-[-0.03em] text-white/95 ring-1 ring-white/18 backdrop-blur-sm"
-                iconClassName="h-5 w-5"
+                className="inline-flex items-center gap-2 rounded-full bg-white/14 px-3 py-1.5 text-[12px] font-bold tracking-[-0.03em] text-white/95 ring-1 ring-white/18 backdrop-blur-sm sm:gap-3 sm:px-4 sm:py-2 sm:text-[16px]"
+                iconClassName="h-4 w-4 sm:h-5 sm:w-5"
               />
-              <div className="mt-3 flex items-center gap-4">
-                <h1 className="text-[46px] font-black uppercase tracking-[-0.06em] sm:text-[68px]">{slide.headline}</h1>
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#ff0a68]">
-                  <ChevronRight className="h-7 w-7" />
+              <div className="mt-3 flex items-center gap-3 sm:gap-4">
+                <h1 className="text-[30px] font-black uppercase tracking-[-0.06em] sm:text-[68px]">{slide.headline}</h1>
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#ff0a68] sm:h-12 sm:w-12">
+                  <ChevronRight className="h-5 w-5 sm:h-7 sm:w-7" />
                 </div>
               </div>
 
-              <div className="mt-7 grid gap-4 lg:grid-cols-[1.45fr_0.75fr]">
-                <div className="grid gap-0 rounded-[18px] border-[4px] border-white bg-white text-[#ff0a68] sm:grid-cols-3">
+              <div className="mt-4 grid gap-3 sm:mt-7 sm:gap-4 lg:grid-cols-[1.45fr_0.75fr]">
+                <div className="grid gap-0 rounded-[16px] border-[3px] border-white bg-white text-[#ff0a68] sm:rounded-[18px] sm:border-[4px] sm:grid-cols-3">
                   {slide.coupons.map((coupon, couponIndex) => (
-                    <div key={coupon.code} className={["relative px-4 py-5 text-center", couponIndex < slide.coupons.length - 1 ? "border-b border-[#ffd7e7] sm:border-b-0 sm:border-r" : ""].join(" ")}>
-                      <div className="text-[20px] font-black sm:text-[30px]">{coupon.value}</div>
-                      <div className="mt-1 text-[15px] text-[#ff7aa9]">{coupon.limit}</div>
-                      <div className="mt-4 text-[16px] font-bold">Code:{coupon.code}</div>
+                    <div key={coupon.code} className={["relative px-3 py-3 text-center sm:px-4 sm:py-5", couponIndex < slide.coupons.length - 1 ? "border-b border-[#ffd7e7] sm:border-b-0 sm:border-r" : ""].join(" ")}>
+                      <div className="text-[16px] font-black sm:text-[30px]">{coupon.value}</div>
+                      <div className="mt-1 text-[11px] text-[#ff7aa9] sm:text-[15px]">{coupon.limit}</div>
+                      <div className="mt-2 text-[12px] font-bold sm:mt-4 sm:text-[16px]">Code:{coupon.code}</div>
                     </div>
                   ))}
                 </div>
 
-                <Link href={slide.spotlightHref} className="group relative grid min-h-[170px] grid-cols-[132px_1fr] overflow-hidden rounded-[22px] bg-[linear-gradient(135deg,#c6def9_0%,#b8d2f4_100%)] text-[#0f416e] ring-1 ring-white/35 transition hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(15,65,110,0.16)]">
-                  <div className="relative m-4 overflow-hidden rounded-[18px] bg-white/72 shadow-[0_14px_26px_rgba(255,255,255,0.24)]">
+                <Link href={slide.spotlightHref} className="group relative grid min-h-[132px] grid-cols-[92px_1fr] overflow-hidden rounded-[18px] bg-[linear-gradient(135deg,#c6def9_0%,#b8d2f4_100%)] text-[#0f416e] ring-1 ring-white/35 transition hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(15,65,110,0.16)] sm:min-h-[170px] sm:grid-cols-[132px_1fr] sm:rounded-[22px]">
+                  <div className="relative m-3 overflow-hidden rounded-[14px] bg-white/72 shadow-[0_14px_26px_rgba(255,255,255,0.24)] sm:m-4 sm:rounded-[18px]">
                     <Image src={slide.spotlightImage} alt={slide.spotlightTitle} fill sizes="160px" className="object-contain p-3 transition-transform duration-300 group-hover:scale-[1.04]" />
                   </div>
-                  <div className="flex flex-col justify-between px-3 py-4 pr-4">
+                  <div className="flex flex-col justify-between px-2 py-3 pr-3 sm:px-3 sm:py-4 sm:pr-4">
                     <div>
-                      <div className="inline-flex rounded-full bg-white/55 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#275784]">
+                      <div className="inline-flex rounded-full bg-white/55 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.1em] text-[#275784] sm:px-3 sm:text-[11px] sm:tracking-[0.14em]">
                         Spotlight deal
                       </div>
-                      <div className="mt-3 line-clamp-2 text-[18px] font-black leading-7 tracking-[-0.04em] text-[#22537d]">
+                      <div className="mt-2 line-clamp-2 text-[14px] font-black leading-5 tracking-[-0.04em] text-[#22537d] sm:mt-3 sm:text-[18px] sm:leading-7">
                         {slide.spotlightTitle}
                       </div>
                     </div>
                     <div className="flex items-end justify-between gap-3">
-                      <div className="inline-flex items-center rounded-[10px] bg-[#4c617a] px-3 py-2 text-[16px] font-black text-white shadow-[0_10px_20px_rgba(34,53,74,0.18)]">
+                      <div className="inline-flex items-center rounded-[10px] bg-[#4c617a] px-2.5 py-1.5 text-[12px] font-black text-white shadow-[0_10px_20px_rgba(34,53,74,0.18)] sm:px-3 sm:py-2 sm:text-[16px]">
                         {slide.spotlightPrice}
                       </div>
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#2d5a83] shadow-[0_10px_20px_rgba(34,53,74,0.12)] transition-transform duration-300 group-hover:translate-x-0.5">
-                        <ChevronRight className="h-5 w-5" />
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#2d5a83] shadow-[0_10px_20px_rgba(34,53,74,0.12)] transition-transform duration-300 group-hover:translate-x-0.5 sm:h-10 sm:w-10">
+                        <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
                       </div>
                     </div>
                   </div>
@@ -183,15 +183,15 @@ export function ModePromoHero({ slides }: ModePromoHeroProps) {
         <ChevronRight className="h-6 w-6" />
       </button>
 
-      <div className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 items-center justify-center gap-3">
+      <div className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center justify-center gap-2 sm:bottom-6 sm:gap-3">
         {slides.map((slide, index) => (
           <button
             key={slide.id}
             type="button"
             aria-label={`Afficher la slide ${index + 1}`}
             className={[
-              "h-[6px] rounded-full transition-all duration-300",
-              index === activeIndex ? "w-10 bg-white" : "w-10 bg-white/45 hover:bg-white/70",
+              "h-[5px] rounded-full transition-all duration-300 sm:h-[6px]",
+              index === activeIndex ? "w-7 bg-white sm:w-10" : "w-7 bg-white/45 hover:bg-white/70 sm:w-10",
             ].join(" ")}
             onClick={() => setActiveIndex(index)}
           />

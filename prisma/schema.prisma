@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model SourcingSettings {
+  id                     String   @id @default(cuid())
+  currencyCode           String   @default("XOF")
+  airRatePerKgFcfa       Int
+  airEstimatedDays       String
+  seaRealCostPerCbmFcfa  Int
+  seaSellRatePerCbmFcfa  Int
+  seaEstimatedDays       String
+  freeAirThresholdFcfa   Int
+  freeAirEnabled         Boolean  @default(true)
+  airWeightThresholdKg   Decimal  @db.Decimal(10, 3)
+  containerTargetCbm     Decimal  @db.Decimal(10, 4)
+  defaultMarginMode      String
+  defaultMarginValue     Decimal  @db.Decimal(12, 2)
+  updatedAt              DateTime @updatedAt
+  createdAt              DateTime @default(now())
+}
+
+model SourcingSeaContainer {
+  id               String          @id @default(cuid())
+  code             String          @unique
+  targetCbm        Decimal         @db.Decimal(10, 4)
+  currentCbm       Decimal         @db.Decimal(10, 4)
+  fillPercent      Int
+  status           String
+  orderCount       Int             @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  readyToShipAt    DateTime?
+  shipmentTriggeredAt DateTime?
+  orders           SourcingOrder[]
+}
+
+model SourcingOrder {
+  id                    String                  @id @default(cuid())
+  orderNumber           String                  @unique
+  customerName          String
+  customerEmail         String
+  customerPhone         String
+  addressLine1          String
+  addressLine2          String?
+  city                  String
+  state                 String
+  postalCode            String?
+  countryCode           String
+  shippingMethod        String
+  shippingCostFcfa      Int
+  cartProductsTotalFcfa Int
+  totalPriceFcfa        Int
+  totalWeightKg         Decimal                 @db.Decimal(10, 3)
+  totalVolumeCbm        Decimal                 @db.Decimal(10, 4)
+  status                String
+  freightStatus         String
+  supplierOrderStatus   String
+  alibabaTradeIds       Json?
+  freightPayload        Json?
+  supplierOrderPayload  Json?
+  notes                 String?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  containerId           String?
+  container             SourcingSeaContainer?   @relation(fields: [containerId], references: [id])
+  items                 SourcingOrderItem[]
+  integrationLogs       AlibabaIntegrationLog[]
+
+  @@index([createdAt])
+  @@index([status])
+  @@index([shippingMethod])
+}
+
+model SourcingOrderItem {
+  id                 String        @id @default(cuid())
+  orderId            String
+  order              SourcingOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productSlug        String
+  productName        String
+  quantity           Int
+  supplierPriceFcfa  Int
+  marginMode         String
+  marginValue        Decimal       @db.Decimal(12, 2)
+  marginAmountFcfa   Int
+  finalUnitPriceFcfa Int
+  finalLinePriceFcfa Int
+  weightKg           Decimal       @db.Decimal(10, 3)
+  volumeCbm          Decimal       @db.Decimal(10, 4)
+  image              String
+}
+
+model AlibabaIntegrationLog {
+  id           String         @id @default(cuid())
+  orderId      String?
+  order        SourcingOrder? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  action       String
+  endpoint     String
+  status       String
+  requestBody  Json?
+  responseBody Json?
+  createdAt    DateTime       @default(now())
+
+  @@index([createdAt])
+  @@index([status])
+}

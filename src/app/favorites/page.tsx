@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { Heart, Sparkles } from "lucide-react";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
@@ -9,21 +10,25 @@ const favoriteItems = [
     title: "Chaise gaming OEM RGB en cuir synthetique",
     image: "https://s.alicdn.com/@sc04/kf/He21b090337c74bbaa1212b233936914aa.jpg_350x350.jpg",
     price: "24,20 - 31,40",
+    slug: "fauteuil-gaming-rgb-oem-luxe",
   },
   {
     title: "Bureau gaming LED fibre carbone",
     image: "https://s.alicdn.com/@sc04/kf/H5d39629cd6374a32bea7368985f32f7aR.jpg_350x350.jpg",
     price: "19,80 - 37,20",
+    slug: "bureau-gaming-fibre-carbone-led",
   },
   {
     title: "Combo clavier souris RGB personnalisable",
     image: "https://s.alicdn.com/@sc04/kf/H9d54069b496a4915a948cb6d88ed0435j.jpg_350x350.jpg",
     price: "4,60 - 12,80",
+    slug: "combo-clavier-souris-onikuma-rgb",
   },
   {
     title: "Casques VR pour revendeurs et bundles gaming",
     image: "https://s.alicdn.com/@sc04/kf/Hade212866dcd410fa307eb672830a249i.jpg_350x350.jpg",
     price: "11,90 - 29,40",
+    slug: "lunettes-vr-3d-metavers-hifi",
   },
 ];
 
@@ -57,9 +62,9 @@ export default async function FavoritesPage() {
               <div className="p-2.5 sm:p-5">
                 <div className="line-clamp-3 min-h-[48px] text-[12px] font-semibold leading-4 text-[#222] sm:min-h-[84px] sm:text-[20px] sm:leading-7">{item.title}</div>
                 <div className="mt-2 text-[14px] font-bold tracking-[-0.04em] text-[#d85300] sm:mt-4 sm:text-[24px]">{pricing.currency.code} {item.price}</div>
-                <button className="mt-3 inline-flex h-9 items-center justify-center rounded-full border border-[#222] px-4 text-[12px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:mt-5 sm:h-12 sm:px-6 sm:text-[15px]">
+                <Link href={`/products/${item.slug}`} className="mt-3 inline-flex h-9 items-center justify-center rounded-full border border-[#222] px-4 text-[12px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:mt-5 sm:h-12 sm:px-6 sm:text-[15px]">
                   Voir le produit
-                </button>
+                </Link>
               </div>
             </article>
           ))}

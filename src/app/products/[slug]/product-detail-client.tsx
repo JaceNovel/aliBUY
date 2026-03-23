@@ -2,8 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronRight, Heart, Minus, Play, Plus, ShieldCheck, ShoppingCart, X } from "lucide-react";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { ChevronDown, ChevronRight, Heart, Minus, Play, Plus, Share2, ShieldCheck, ShoppingCart, Store, TicketPercent, Truck, X } from "lucide-react";
+import { useRef, useState } from "react";
+
+import { useCart } from "@/components/cart-provider";
 
 type DetailVariantGroup = {
   label: string;
@@ -64,12 +67,18 @@ type ProductDetailClientProps = {
 };
 
 export function ProductDetailClient({ product, relatedProducts }: ProductDetailClientProps) {
+  const router = useRouter();
+  const { addItem } = useCart();
   const [activeImage, setActiveImage] = useState(0);
   const [activeMedia, setActiveMedia] = useState<"photo" | "video">("photo");
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"overview" | "details" | "related">("overview");
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoritePulse, setFavoritePulse] = useState(false);
+  const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+  const [sharePulse, setSharePulse] = useState(false);
   const [shippingMethod, setShippingMethod] = useState<"air" | "sea" | null>(null);
+  const touchStartXRef = useRef<number | null>(null);
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>(() => {
     return Object.fromEntries(product.variantGroups.map((group) => [group.label, group.values[0] ?? ""]));
   });
@@ -95,6 +104,29 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
       { label: "CBM d'un lot", value: product.lotCbm },
       { label: "Livraison", value: product.shippingLabel },
     ],
+  ];
+  const characteristics = characteristicRows.flat();
+  const paymentMethods = [
+    {
+      label: "PayPal",
+      icon: "https://img.icons8.com/?size=100&id=13611&format=png&color=000000",
+      alt: "Icône PayPal",
+    },
+    {
+      label: "Mobile Money",
+      icon: "https://img.icons8.com/?size=100&id=YsVvEs0F7slI&format=png&color=000000",
+      alt: "Icône Mobile Money",
+    },
+    {
+      label: "Carte bancaire",
+      icon: "https://img.icons8.com/?size=100&id=44779&format=png&color=000000",
+      alt: "Icône carte bancaire",
+    },
+  ];
+  const mobileServices = [
+    product.shippingLabel,
+    product.overview[0] ?? "Support fournisseur dédié.",
+    product.overview[1] ?? "Suivi de commande et assistance après-vente.",
   ];
   const formatMoney = (amount: number) => {
     return new Intl.NumberFormat(product.locale, {
@@ -143,10 +175,459 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
     }, 320);
   };
   const canSubmitOrder = totalSelectedQuantity > 0 && shippingMethod !== null;
+  const openOrderModal = () => {
+    setIsOrderModalOpen(true);
+  };
+  const addSelectionToCart = () => {
+    if (!canSubmitOrder) {
+      return;
+    }
+
+    addItem(product.slug, totalSelectedQuantity);
+    setIsOrderModalOpen(false);
+    setShareFeedback("Produit ajouté au panier sourcing.");
+  };
+  const proceedToCheckout = () => {
+    if (!canSubmitOrder) {
+      return;
+    }
+
+    addItem(product.slug, totalSelectedQuantity);
+    setIsOrderModalOpen(false);
+    router.push("/cart");
+  };
+  const goToNextImage = () => {
+    setActiveMedia("photo");
+    setActiveImage((current) => (current + 1) % product.gallery.length);
+  };
+  const goToPreviousImage = () => {
+    setActiveMedia("photo");
+    setActiveImage((current) => (current - 1 + product.gallery.length) % product.gallery.length);
+  };
+  const handleImageTouchStart = (clientX: number) => {
+    touchStartXRef.current = clientX;
+  };
+  const handleImageTouchEnd = (clientX: number) => {
+    if (touchStartXRef.current === null || activeMedia !== "photo" || product.gallery.length < 2) {
+      touchStartXRef.current = null;
+      return;
+    }
+
+    const deltaX = clientX - touchStartXRef.current;
+    touchStartXRef.current = null;
+
+    if (Math.abs(deltaX) < 40) {
+      return;
+    }
+
+    if (deltaX < 0) {
+      goToNextImage();
+      return;
+    }
+
+    goToPreviousImage();
+  };
+  const triggerShareFeedback = (message: string) => {
+    setSharePulse(true);
+    setShareFeedback(message);
+    window.setTimeout(() => {
+      setSharePulse(false);
+    }, 320);
+    window.setTimeout(() => {
+      setShareFeedback((current) => (current === message ? null : current));
+    }, 1800);
+  };
+  const shareProduct = async () => {
+    const shareUrl = typeof window !== "undefined" ? window.location.href : `/products/${product.slug}`;
+
+    try {
+      if (typeof navigator !== "undefined" && "share" in navigator) {
+        await navigator.share({
+          title: product.title,
+          text: product.shortTitle,
+          url: shareUrl,
+        });
+        triggerShareFeedback("Produit partagé");
+        return;
+      }
+
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        triggerShareFeedback("Lien copié");
+        return;
+      }
+
+      triggerShareFeedback("Partage indisponible");
+    } catch {
+      triggerShareFeedback("Partage annulé");
+    }
+  };
 
   return (
     <>
-    <div className="space-y-6">
+    <div className="space-y-6 pb-28 sm:pb-0">
+      <div className="space-y-4 sm:hidden">
+        <section className="overflow-hidden rounded-[28px] bg-white shadow-[0_18px_42px_rgba(24,39,75,0.08)] ring-1 ring-black/5">
+          <div
+            className="relative aspect-[1/0.92] w-full overflow-hidden bg-[#f4f4f4]"
+            onTouchStart={(event) => handleImageTouchStart(event.touches[0]?.clientX ?? 0)}
+            onTouchEnd={(event) => handleImageTouchEnd(event.changedTouches[0]?.clientX ?? 0)}
+          >
+            {product.badge ? (
+              <div className="absolute left-3 top-3 z-10 rounded-full bg-[#de0505] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white">
+                {product.badge}
+              </div>
+            ) : null}
+            <div className="absolute right-3 top-3 z-10 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={toggleFavorite}
+                className={[
+                  "relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-white text-[#222] shadow-[0_10px_22px_rgba(0,0,0,0.14)] transition duration-300 active:scale-90",
+                  favoritePulse ? "scale-[1.08] shadow-[0_14px_28px_rgba(255,106,0,0.22)]" : "scale-100",
+                ].join(" ")}
+              >
+                <span
+                  className={[
+                    "absolute inset-0 rounded-full bg-[#ff6a00]/12 transition duration-300",
+                    favoritePulse ? "scale-[1.35] opacity-100" : "scale-75 opacity-0",
+                  ].join(" ")}
+                />
+                <span
+                  className={[
+                    "absolute h-7 w-7 rounded-full border border-[#ff6a00]/35 transition duration-300",
+                    favoritePulse ? "scale-[1.85] opacity-100" : "scale-75 opacity-0",
+                  ].join(" ")}
+                />
+                <Heart className={[
+                  "relative z-[1] h-5 w-5 transition duration-300",
+                  isFavorite ? "fill-current text-[#ff6a00]" : "fill-transparent",
+                  favoritePulse ? "scale-[1.28] rotate-[-10deg]" : "scale-100 rotate-0",
+                ].join(" ")} />
+              </button>
+              <button
+                type="button"
+                onClick={shareProduct}
+                className={[
+                  "relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-white text-[#222] shadow-[0_10px_22px_rgba(0,0,0,0.14)] transition duration-300 active:scale-90",
+                  sharePulse ? "scale-[1.08] shadow-[0_14px_28px_rgba(34,34,34,0.20)]" : "scale-100",
+                ].join(" ")}
+              >
+                <span
+                  className={[
+                    "absolute inset-0 rounded-full bg-[#222]/8 transition duration-300",
+                    sharePulse ? "scale-[1.35] opacity-100" : "scale-75 opacity-0",
+                  ].join(" ")}
+                />
+                <span
+                  className={[
+                    "absolute h-7 w-7 rounded-full border border-[#222]/20 transition duration-300",
+                    sharePulse ? "scale-[1.85] opacity-100" : "scale-75 opacity-0",
+                  ].join(" ")}
+                />
+                <Share2 className={[
+                  "relative z-[1] h-5 w-5 transition duration-300",
+                  sharePulse ? "scale-[1.22] rotate-[14deg]" : "scale-100 rotate-0",
+                ].join(" ")} />
+              </button>
+            </div>
+            {shareFeedback ? (
+              <div className="absolute right-3 top-[112px] z-10 rounded-full bg-[#222]/90 px-3 py-1.5 text-[11px] font-semibold text-white shadow-[0_10px_22px_rgba(0,0,0,0.16)] backdrop-blur-sm">
+                {shareFeedback}
+              </div>
+            ) : null}
+
+            {activeMedia === "video" && product.videoUrl ? (
+              <video
+                key={product.videoUrl}
+                controls
+                poster={product.videoPoster}
+                className="h-full w-full object-cover"
+                preload="metadata"
+              >
+                <source src={product.videoUrl} type="video/mp4" />
+              </video>
+            ) : (
+              <Image
+                src={product.gallery[activeImage] ?? product.gallery[0]}
+                alt={product.title}
+                fill
+                sizes="100vw"
+                className="object-cover"
+              />
+            )}
+
+            <div className="absolute inset-x-0 bottom-3 z-10 flex justify-center px-3">
+              <div className="inline-flex items-center gap-1 rounded-full bg-[#2f2d2a]/92 p-1 text-white shadow-[0_10px_24px_rgba(0,0,0,0.18)] backdrop-blur-sm">
+                <button
+                  type="button"
+                  onClick={() => setActiveMedia("photo")}
+                  className={[
+                    "rounded-full px-3 py-1.5 text-[11px] font-semibold transition",
+                    activeMedia === "photo" ? "bg-white text-[#222]" : "text-white/82",
+                  ].join(" ")}
+                >
+                  Photos {activeImage + 1}/{product.gallery.length}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileTab("overview")}
+                  className={[
+                    "rounded-full px-3 py-1.5 text-[11px] font-semibold transition",
+                    mobileTab === "overview" ? "bg-white text-[#222]" : "text-white/82",
+                  ].join(" ")}
+                >
+                  Points forts
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileTab("details")}
+                  className={[
+                    "rounded-full px-3 py-1.5 text-[11px] font-semibold transition",
+                    mobileTab === "details" ? "bg-white text-[#222]" : "text-white/82",
+                  ].join(" ")}
+                >
+                  Service
+                </button>
+              </div>
+            </div>
+
+            {activeMedia === "photo" && product.gallery.length > 1 ? (
+              <div className="absolute inset-x-0 bottom-16 z-10 flex justify-center gap-1.5 px-3">
+                {product.gallery.map((image, index) => (
+                  <button
+                    key={`${image}-dot-${index}`}
+                    type="button"
+                    aria-label={`Afficher la photo ${index + 1}`}
+                    onClick={() => {
+                      setActiveMedia("photo");
+                      setActiveImage(index);
+                    }}
+                    className={[
+                      "h-1.5 rounded-full transition-all duration-300",
+                      activeImage === index ? "w-5 bg-white" : "w-1.5 bg-white/55",
+                    ].join(" ")}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto px-3 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {product.gallery.map((image, index) => {
+              const isActive = activeImage === index;
+
+              return (
+                <button
+                  key={`${image}-${index}`}
+                  type="button"
+                  onClick={() => {
+                    setActiveMedia("photo");
+                    setActiveImage(index);
+                  }}
+                  className={[
+                    "relative h-[60px] min-w-[60px] overflow-hidden rounded-[14px] bg-[#f6f6f6] ring-1 transition",
+                    isActive && activeMedia === "photo" ? "ring-[#ff6a00] shadow-[0_10px_18px_rgba(255,106,0,0.15)]" : "ring-black/5",
+                  ].join(" ")}
+                >
+                  <Image src={image} alt={`${product.shortTitle} ${index + 1}`} fill sizes="60px" className="object-cover" />
+                </button>
+              );
+            })}
+            {product.videoUrl ? (
+              <button
+                type="button"
+                onClick={() => setActiveMedia("video")}
+                className={[
+                  "relative h-[60px] min-w-[60px] overflow-hidden rounded-[14px] bg-[#111] ring-1 transition",
+                  activeMedia === "video" ? "ring-[#ff6a00] shadow-[0_10px_18px_rgba(255,106,0,0.15)]" : "ring-black/5",
+                ].join(" ")}
+              >
+                {product.videoPoster ? (
+                  <Image src={product.videoPoster} alt={`${product.shortTitle} video`} fill sizes="60px" className="object-cover opacity-75" />
+                ) : null}
+                <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#111]">
+                    <Play className="ml-0.5 h-3.5 w-3.5 fill-current" />
+                  </div>
+                </div>
+              </button>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="rounded-[26px] bg-white px-3 py-4 shadow-[0_16px_34px_rgba(24,39,75,0.06)] ring-1 ring-black/5">
+          <div className="grid grid-cols-2 gap-2 rounded-[22px] bg-[#f7f4f1] p-2">
+            {product.tiers.slice(0, 2).map((tier, index) => (
+              <div key={tier.quantityLabel} className="rounded-[18px] bg-white px-3 py-3 text-[#222] shadow-[0_8px_18px_rgba(17,24,39,0.05)]">
+                <div className="text-[13px] font-black tracking-[-0.04em] text-[#111]">
+                  {tier.formattedPrice}
+                </div>
+                <div className="mt-1 text-[11px] text-[#555]">
+                  {index === 0 ? `Commande minimale : ${product.moq} unité` : tier.quantityLabel}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#fff1ea] px-3 py-2 text-[11px] font-semibold text-[#e25c12] ring-1 ring-[#ffd9c1]">
+            <TicketPercent className="h-4 w-4" />
+            Réduction disponible sur la première commande
+          </div>
+
+          <div className="mt-3 flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-[18px] font-semibold leading-6 tracking-[-0.04em] text-[#222]">
+                {product.title}
+              </h1>
+            </div>
+            <button type="button" className="mt-1 text-[#222]">
+              <ChevronDown className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="mt-3 inline-flex items-center rounded-full bg-[#fff5e8] px-3 py-2 text-[11px] font-semibold text-[#b77518] ring-1 ring-[#f3dfb8]">
+            N°19 des plus populaires dans sa catégorie
+          </div>
+
+          <div className="mt-3 rounded-[18px] bg-[#faf7f3] px-3 py-3 text-[11px] text-[#666] ring-1 ring-[#efe7df]">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="font-medium text-[#444]">Paiements pris en charge :</span>
+              {paymentMethods.map((method) => (
+                <div key={method.label} className="inline-flex items-center gap-1.5 rounded-[10px] bg-white px-2.5 py-1.5 ring-1 ring-black/5">
+                  <Image src={method.icon} alt={method.alt} width={16} height={16} unoptimized className="h-4 w-4 object-contain" />
+                  <span className="font-semibold text-[#2e3b52]">{method.label}</span>
+                </div>
+              ))}
+              <div className="inline-flex items-center gap-1.5 rounded-[10px] bg-white px-2.5 py-1.5 ring-1 ring-black/5">
+                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ff6a00] px-1 text-[9px] font-black text-white">
+                  3X
+                </span>
+                <span className="font-semibold text-[#2e3b52]">Paiement en 3X</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-2 border-b border-[#eee7e0] pb-3 text-center">
+            {[
+              { key: "overview", label: "Aperçu" },
+              { key: "details", label: "Détails" },
+              { key: "related", label: "Autres produits" },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setMobileTab(tab.key as "overview" | "details" | "related")}
+                className={[
+                  "pb-2 text-[13px] font-semibold transition",
+                  mobileTab === tab.key ? "border-b-2 border-[#222] text-[#222]" : "text-[#7a726b]",
+                ].join(" ")}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {mobileTab === "overview" ? (
+            <div className="space-y-4 pt-4">
+              <div className="rounded-[20px] bg-[#fbfbfb] px-4 py-4 ring-1 ring-black/5">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#777]">Points forts</div>
+                <div className="mt-3 space-y-3">
+                  {product.overview.map((point) => (
+                    <div key={point} className="flex items-start gap-3">
+                      <div className="mt-1 h-2.5 w-2.5 rounded-full bg-[#ff6a00]" />
+                      <p className="text-[14px] leading-6 text-[#444]">{point}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-[20px] bg-white px-4 py-4 ring-1 ring-black/5">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-[#fff3ea] text-[#d85a00]">
+                    <Store className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#d85a00]">Verified Fournisseur</div>
+                    <div className="mt-1 text-[18px] font-bold tracking-[-0.04em] text-[#222]">{product.supplierName}</div>
+                    <div className="mt-1 text-[13px] text-[#666]">{product.supplierLocation} · {product.yearsInBusiness} ans</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {mobileTab === "details" ? (
+            <div className="space-y-4 pt-4">
+              <div className="rounded-[20px] bg-[#fafafa] px-4 py-4 ring-1 ring-black/5">
+                <h2 className="text-[17px] font-bold tracking-[-0.04em] text-[#222]">Caractéristiques</h2>
+                <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-5 rounded-[18px] bg-white px-4 py-4 ring-1 ring-[#eee]">
+                  {characteristics.slice(0, 6).map((item) => (
+                    <div key={`${item.label}-${item.value}`} className="min-w-0">
+                      <div className="text-[11px] text-[#888]">{item.label}</div>
+                      <div className="mt-1 text-[14px] font-semibold leading-5 text-[#222]">{item.value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-[20px] bg-white px-4 py-4 ring-1 ring-black/5">
+                <div className="text-[17px] font-bold tracking-[-0.04em] text-[#222]">Service</div>
+                <div className="mt-3 space-y-3">
+                  {mobileServices.map((item) => (
+                    <div key={item} className="rounded-[16px] bg-[#fafafa] px-3 py-3 ring-1 ring-[#efefef]">
+                      <div className="flex items-start gap-3">
+                        <Truck className="mt-0.5 h-4 w-4 text-[#222]" />
+                        <div className="text-[14px] leading-5 text-[#222]">{item}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-[20px] bg-white px-4 py-4 ring-1 ring-black/5">
+                <div className="text-[17px] font-bold tracking-[-0.04em] text-[#222]">Adresse de livraison {product.currencyCode}</div>
+                <div className="mt-3 rounded-[18px] bg-[#fafafa] px-4 py-4 ring-1 ring-[#efefef]">
+                  <div className="text-[12px] text-[#777]">Temps de traitement</div>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-[16px] font-black text-[#111]">{product.responseTime}</div>
+                      <div className="mt-1 text-[13px] text-[#666]">1 unité</div>
+                    </div>
+                    <div>
+                      <div className="text-[16px] font-black text-[#111]">Fixe</div>
+                      <div className="mt-1 text-[13px] text-[#666]">1+ unité</div>
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-3 text-[14px] leading-6 text-[#444]">
+                  Frais d&apos;expédition et date de livraison fixes. Passez commande maintenant pour finaliser votre achat.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {mobileTab === "related" ? (
+            <div className="space-y-4 pt-4">
+              <div className="text-[17px] font-bold tracking-[-0.04em] text-[#222]">Autres produits du moment</div>
+              <div className="-mx-3 flex snap-x snap-mandatory gap-3 overflow-x-auto px-3 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {relatedProducts.map((relatedProduct) => (
+                  <Link key={relatedProduct.slug} href={`/products/${relatedProduct.slug}`} className="group min-w-[164px] snap-start overflow-hidden rounded-[20px] bg-white p-2.5 shadow-[0_14px_28px_rgba(17,24,39,0.08)] ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-[0_18px_34px_rgba(17,24,39,0.12)]">
+                    <div className="relative aspect-[0.95] overflow-hidden rounded-[16px] bg-[#f4f4f4]">
+                      <Image src={relatedProduct.image} alt={relatedProduct.title} fill sizes="44vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                    </div>
+                    <div className="mt-2 line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-4 text-[#222]">{relatedProduct.title}</div>
+                    <div className="mt-2 text-[14px] font-bold text-[#f05a00]">{relatedProduct.formattedPrice}</div>
+                    <div className="mt-1 text-[10px] text-[#666]">{relatedProduct.moqLabel}</div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </section>
+      </div>
+
+      <div className="hidden sm:block">
       <div className="flex flex-wrap items-center gap-2 text-[13px] text-[#666]">
         <Link href="/" className="transition hover:text-[#ff6a00]">Accueil</Link>
         <ChevronRight className="h-3.5 w-3.5" />
@@ -412,6 +893,26 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
           ))}
         </div>
       </section>
+      </div>
+
+      <div className="fixed inset-x-0 bottom-[72px] z-[95] border-t border-black/10 bg-white/96 px-4 py-3 backdrop-blur sm:hidden">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={openOrderModal}
+            className="inline-flex h-12 flex-1 items-center justify-center rounded-full border border-[#222] bg-white px-4 text-[15px] font-semibold text-[#222]"
+          >
+            Ajouter au panier
+          </button>
+          <button
+            type="button"
+            onClick={openOrderModal}
+            className="inline-flex h-12 flex-[1.08] items-center justify-center rounded-full bg-[#e85b0c] px-4 text-[15px] font-semibold text-white shadow-[0_14px_26px_rgba(232,91,12,0.28)]"
+          >
+            Commander
+          </button>
+        </div>
+      </div>
     </div>
 
     {isOrderModalOpen ? (
@@ -545,10 +1046,10 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
                 <div className="mt-1 text-[14px] text-[#666]">Expédition: {shippingMethod === "air" ? "Par avion" : shippingMethod === "sea" ? "Par bateau" : "à choisir"}</div>
               </div>
               <div className="grid gap-3 sm:min-w-[360px] sm:grid-cols-2">
-                <button type="button" disabled={!canSubmitOrder} className="inline-flex h-13 items-center justify-center rounded-full bg-[#ff5b1f] px-6 text-[18px] font-semibold text-white transition hover:bg-[#ec510f] disabled:cursor-not-allowed disabled:bg-[#ffc09f]">
+                <button type="button" onClick={proceedToCheckout} disabled={!canSubmitOrder} className="inline-flex h-13 items-center justify-center rounded-full bg-[#ff5b1f] px-6 text-[18px] font-semibold text-white transition hover:bg-[#ec510f] disabled:cursor-not-allowed disabled:bg-[#ffc09f]">
                   Commander
                 </button>
-                <button type="button" disabled={!canSubmitOrder} className="inline-flex h-13 items-center justify-center rounded-full border border-[#222] px-6 text-[18px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:border-[#d8d8d8] disabled:text-[#b0b0b0]">
+                <button type="button" onClick={addSelectionToCart} disabled={!canSubmitOrder} className="inline-flex h-13 items-center justify-center rounded-full border border-[#222] px-6 text-[18px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:border-[#d8d8d8] disabled:text-[#b0b0b0]">
                   Ajouter au panier
                 </button>
               </div>

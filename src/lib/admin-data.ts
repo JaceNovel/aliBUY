@@ -12,6 +12,7 @@ export type AdminSectionSlug =
   | "email"
   | "support"
   | "imports"
+  | "alibaba-sourcing"
   | "reviews"
   | "settings";
 
@@ -63,6 +64,7 @@ export const adminNavItems: AdminNavItem[] = [
   { slug: "email", label: "Email", icon: "mail", description: "Campagnes de relance et communication B2B.", href: "/admin/email", publicHref: "/messages" },
   { slug: "support", label: "Support Client", icon: "headset", description: "Tickets prioritaires et conversations agents.", href: "/admin/support", publicHref: "/messages?tab=service" },
   { slug: "imports", label: "Demandes d'Importation", icon: "ship-wheel", description: "Dossiers d'import et suivi logistique.", href: "/admin/imports", publicHref: "/orders" },
+  { slug: "alibaba-sourcing", label: "Alibaba Sourcing", icon: "boxes", description: "Automatisation achat fournisseur, import produits Alibaba, prix finaux FCFA et groupage mer.", href: "/admin/alibaba-sourcing", publicHref: "/cart" },
   { slug: "reviews", label: "Avis Clients", icon: "star", description: "Qualite percue et retours terrain.", href: "/admin/reviews", publicHref: "/favorites" },
   { slug: "settings", label: "Parametres", icon: "settings", description: "Pays, devise, langue et regles operationnelles.", href: "/admin/settings", publicHref: "/pricing" },
 ];

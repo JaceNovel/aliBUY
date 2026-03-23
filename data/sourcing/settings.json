@@ -1,0 +1,15 @@
+{
+  "currencyCode": "XOF",
+  "airRatePerKgFcfa": 10000,
+  "airEstimatedDays": "5-10 jours",
+  "seaRealCostPerCbmFcfa": 180000,
+  "seaSellRatePerCbmFcfa": 210000,
+  "seaEstimatedDays": "20-40 jours",
+  "freeAirThresholdFcfa": 15000,
+  "freeAirEnabled": true,
+  "airWeightThresholdKg": 1,
+  "containerTargetCbm": 1,
+  "defaultMarginMode": "percent",
+  "defaultMarginValue": 10,
+  "updatedAt": "2026-03-23T00:00:00.000Z"
+}

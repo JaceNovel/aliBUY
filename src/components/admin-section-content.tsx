@@ -137,6 +137,16 @@ export function AdminSectionContent({ slug, pricing }: { slug: string; pricing: 
       }));
       break;
     }
+    case "alibaba-sourcing": {
+      summaryValue = "Marge 10% + fret air/mer";
+      columns = ["Bloc", "Fonction", "Route"];
+      rows = [
+        { key: "catalog", values: ["Import produits", "Prix fournisseur, poids, CBM, marge site", "/admin/alibaba-sourcing"], href: "/admin/alibaba-sourcing" },
+        { key: "cart", values: ["Checkout sourcing", "Panier FCFA, avion, bateau, livraison offerte", "/cart"], href: "/cart" },
+        { key: "api", values: ["Cockpit Alibaba API", "OAuth, catalog, orders, shipping, webhooks", "/admin/imports/239826786001021591"], href: "/admin/imports/239826786001021591" },
+      ];
+      break;
+    }
     case "reviews": {
       const reviews = getAdminReviews();
       summaryValue = `${reviews.length} retours produits`;

@@ -1,36 +1,99 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+This is a Next.js 16 marketplace with a sourcing, pricing, and logistics layer for importing products from Alibaba and reselling them in Africa in FCFA.
+
+## Stack
+
+- Frontend: Next.js 16 App Router + React 19
+- Backend: Route Handlers inside Next.js
+- ORM: Prisma 6.16.x
+- Database target: PostgreSQL via Prisma datasource
+- Local fallback persistence: `data/sourcing/*.json`
 
 ## Getting Started
 
-First, run the development server:
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Copy the environment file and adjust values:
+
+```bash
+cp .env.example .env
+```
+
+3. Generate Prisma client:
+
+```bash
+npm run prisma:generate
+```
+
+4. If you want database persistence instead of the local JSON fallback, configure `DATABASE_URL` and push the schema:
+
+```bash
+npm run prisma:push
+```
+
+5. Start the dev server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Sourcing System
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Implemented business rules:
 
-## Learn More
+- Air shipping: `10 000 FCFA / kg`
+- Sea shipping real cost: `180 000 FCFA / CBM`
+- Sea shipping sell price: `210 000 FCFA / CBM`
+- Free air shipping threshold: `15 000 FCFA`
+- Default shipping decision:
+	- `<= 1 kg`: air
+	- `> 1 kg`: air and sea shown
+- Default margin is persisted server-side and configurable from admin.
 
-To learn more about Next.js, take a look at the following resources:
+Main files:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Pricing and logistics engine: `src/lib/alibaba-sourcing.ts`
+- Persistence and repositories: `src/lib/sourcing-store.ts`
+- Business workflow: `src/lib/sourcing-service.ts`
+- Alibaba server integration: `src/lib/alibaba-open-platform-client.ts`
+- Prisma schema: `prisma/schema.prisma`
+- SQL schema and seed: `database/mysql/schema.sql`, `database/mysql/seed.sql`
+- Sample persisted data: `data/sourcing/`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Admin and Checkout
 
-## Deploy on Vercel
+- Admin sourcing dashboard: `/admin/alibaba-sourcing`
+- Cart: `/cart`
+- Checkout without payment: `/checkout`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The checkout creates an internal sourcing order, computes freight, and prepares supplier order creation via Alibaba Open Platform. Payment is intentionally left out for now.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Alibaba Integration
+
+The server integration is ready for:
+
+- Freight verification via `/order/freight/calculate`
+- Supplier order creation via `/buynow/order/create`
+
+Required environment variables:
+
+- `ALIBABA_OPEN_PLATFORM_APP_KEY`
+- `ALIBABA_OPEN_PLATFORM_APP_SECRET`
+- `ALIBABA_OPEN_PLATFORM_ACCESS_TOKEN`
+
+Important:
+
+- Real upstream calls also require valid catalog mapping data in `data/sourcing/catalog-mapping.json`
+- If credentials or mappings are missing, the system creates the internal order and logs the Alibaba step as skipped instead of failing the checkout.
+
+## Notes
+
+- If `DATABASE_URL` is not set, the sourcing layer falls back to JSON persistence so the project remains runnable locally.
+- The current Prisma schema is configured for PostgreSQL because the active database endpoint is PostgreSQL.
+- The repo currently contains other unrelated work-in-progress changes; they were not reverted.
+

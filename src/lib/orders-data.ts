@@ -279,6 +279,18 @@ export function getOrderTrackingHref(order: OrderRecord) {
   return `/orders/tracking?orderId=${encodeURIComponent(order.id)}&tracking=${encodeURIComponent(getOrderTrackingNumber(order))}`;
 }
 
+export function getOrderPaymentHref(order: OrderRecord) {
+  return `/orders/payment?orderId=${encodeURIComponent(order.id)}`;
+}
+
+export function getOrderConfirmReceiptHref(order: OrderRecord) {
+  return `/orders/confirm-reception?orderId=${encodeURIComponent(order.id)}`;
+}
+
+export function getOrderDeliveryProofHref(order: OrderRecord) {
+  return `/orders/delivery-proof?orderId=${encodeURIComponent(order.id)}`;
+}
+
 export function getOrderById(orderId?: string | null) {
   if (!orderId) {
     return null;
