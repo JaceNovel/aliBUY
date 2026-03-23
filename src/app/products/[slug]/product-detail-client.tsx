@@ -237,13 +237,21 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
       setShareFeedback((current) => (current === message ? null : current));
     }, 1800);
   };
+
   const shareProduct = async () => {
+    type ShareCapableNavigator = Navigator & {
+      clipboard?: Clipboard;
+      share?: (data?: ShareData) => Promise<void>;
+    };
+
     const shareUrl = typeof window !== "undefined" ? window.location.href : `/products/${product.slug}`;
-    const browserNavigator = typeof window !== "undefined" ? window.navigator : undefined;
-    const clipboard = browserNavigator ? (browserNavigator as Navigator & { clipboard?: Clipboard }).clipboard : undefined;
+    const browserNavigator: ShareCapableNavigator | undefined = typeof window !== "undefined"
+      ? (window.navigator as ShareCapableNavigator)
+      : undefined;
+    const clipboard = browserNavigator?.clipboard;
 
     try {
-      if (browserNavigator && "share" in browserNavigator) {
+      if (browserNavigator?.share) {
         await browserNavigator.share({
           title: product.title,
           text: product.shortTitle,
