@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import { ProductDetailClient } from "@/app/products/[slug]/product-detail-client";
 import { InternalPageShell } from "@/components/internal-page-shell";
-import { getProductBySlug, getRelatedProducts, products } from "@/lib/products-data";
+import { getCatalogProductBySlug, getCatalogProducts, getCatalogRelatedProducts } from "@/lib/catalog-service";
 import { getPricingContext } from "@/lib/pricing";
 
 function formatPriceRange(
@@ -17,7 +17,8 @@ function formatPriceRange(
   return formatPrice(minUsd);
 }
 
-export function generateStaticParams() {
+export async function generateStaticParams() {
+  const products = await getCatalogProducts();
   return products.map((product) => ({ slug: product.slug }));
 }
 
@@ -28,13 +29,13 @@ export default async function ProductPage({
 }) {
   const pricing = await getPricingContext();
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const product = await getCatalogProductBySlug(slug);
 
   if (!product) {
     notFound();
   }
 
-  const relatedProducts = getRelatedProducts(product.slug).map((relatedProduct) => ({
+  const relatedProducts = (await getCatalogRelatedProducts(product.slug)).map((relatedProduct) => ({
     slug: relatedProduct.slug,
     title: relatedProduct.shortTitle,
     image: relatedProduct.image,

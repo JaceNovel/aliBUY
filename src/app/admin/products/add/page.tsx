@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { FileUp, Plus, Save } from "lucide-react";
 
+import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { catalogCategories } from "@/lib/catalog-taxonomy";
-import { products } from "@/lib/products-data";
 import { getPricingContext } from "@/lib/pricing";
 
 export default async function AdminProductsAddPage() {
   const pricing = await getPricingContext();
-  const featuredProducts = products.slice(0, 3);
+  const featuredProducts = (await getAlibabaImportedProducts()).slice(0, 3);
 
   return (
     <div className="space-y-5">
@@ -86,14 +86,14 @@ export default async function AdminProductsAddPage() {
           </article>
 
           <article className="rounded-[20px] border border-[#e6eaf0] bg-white px-5 py-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
-            <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Exemples existants</div>
+            <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Imports existants</div>
             <div className="mt-4 space-y-3">
-              {featuredProducts.map((product) => (
+              {featuredProducts.length > 0 ? featuredProducts.map((product) => (
                 <Link key={product.slug} href={`/products/${product.slug}`} className="block rounded-[14px] bg-[#f8f9fb] px-4 py-3 transition hover:bg-[#fff2ed]">
                   <div className="text-[13px] font-bold text-[#1f2937]">{product.shortTitle}</div>
                   <div className="mt-1 text-[12px] text-[#667085]">{product.supplierName}</div>
                 </Link>
-              ))}
+              )) : <div className="rounded-[14px] bg-[#fff7ed] px-4 py-3 text-[13px] text-[#9a3412]">Aucun produit importe pour le moment. Les exemples seed ont ete retires.</div>}
             </div>
           </article>
         </aside>

@@ -1,0 +1,22 @@
+[
+  {
+    "countryCode": "CI",
+    "countryName": "Cote d'Ivoire",
+    "currencyCode": "XOF",
+    "defaultCarrierCode": "EX_ASP_JYC_FEDEX",
+    "importTaxRate": 18,
+    "customsMode": "business",
+    "clearanceCodeLabel": "RCCM / NIF",
+    "enabled": true
+  },
+  {
+    "countryCode": "SN",
+    "countryName": "Senegal",
+    "currencyCode": "XOF",
+    "defaultCarrierCode": "EX_ASP_JYC_FEDEX",
+    "importTaxRate": 18,
+    "customsMode": "business",
+    "clearanceCodeLabel": "NINEA",
+    "enabled": true
+  }
+]

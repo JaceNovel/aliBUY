@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Ship, ShoppingCart, Truck } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -23,6 +24,7 @@ const defaultForm = {
 export function SourcingCheckoutClient() {
   const { items, clearCart } = useCart();
   const { quote, isLoading } = useCartQuote();
+  const router = useRouter();
   const [form, setForm] = useState(defaultForm);
   const [selectedShipping, setSelectedShipping] = useState<"air" | "sea">("air");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -65,7 +67,7 @@ export function SourcingCheckoutClient() {
 
     const payload = await response.json();
     clearCart();
-    setSuccessMessage(`Commande ${payload.order.orderNumber} créée. Freight: ${payload.order.freightStatus}. Supplier order: ${payload.order.supplierOrderStatus}.`);
+    router.push(`/orders/payment?orderId=${encodeURIComponent(payload.order.id)}`);
   };
 
   if (items.length === 0) {
@@ -86,7 +88,7 @@ export function SourcingCheckoutClient() {
       <section className="rounded-[28px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)] sm:p-7">
         <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Checkout sourcing</div>
         <h1 className="mt-2 text-[30px] font-black tracking-[-0.05em] text-[#1f2937]">Adresse de livraison et création de commande</h1>
-        <p className="mt-3 text-[14px] leading-6 text-[#667085]">Le paiement n&apos;est pas encore déclenché. Cette étape crée la commande sourcing, calcule le freight et prépare la création fournisseur Alibaba côté serveur.</p>
+        <p className="mt-3 text-[14px] leading-6 text-[#667085]">Cette étape crée la commande sourcing, calcule le freight, prépare la création fournisseur Alibaba puis vous redirige vers la page de paiement Moneroo.</p>
 
         {successMessage ? <div className="mt-4 rounded-[18px] bg-[#edf8f1] px-4 py-4 text-[13px] font-semibold text-[#127a46]">{successMessage}</div> : null}
         {errorMessage ? <div className="mt-4 rounded-[18px] bg-[#fde8e8] px-4 py-4 text-[13px] font-semibold text-[#b42318]">{errorMessage}</div> : null}
@@ -192,7 +194,7 @@ export function SourcingCheckoutClient() {
             </div>
           </div>
           <button type="button" onClick={submitOrder} disabled={isSubmitting || isLoading || !selectedOption} className="mt-5 inline-flex h-12 w-full items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[15px] font-semibold text-white transition hover:bg-[#e55e00] disabled:cursor-not-allowed disabled:opacity-70">
-            {isSubmitting ? "Création en cours..." : "Créer la commande sourcing"}
+            {isSubmitting ? "Création en cours..." : "Continuer vers le paiement"}
           </button>
           <Link href="/cart" className="mt-3 inline-flex h-12 w-full items-center justify-center rounded-full border border-[#d9dfe8] px-6 text-[15px] font-semibold text-[#344054] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">Retour au panier</Link>
         </section>

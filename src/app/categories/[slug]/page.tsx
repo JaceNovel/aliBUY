@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { catalogCategories, getCatalogCategoryBySlug } from "@/lib/catalog-taxonomy";
-import { getProductsBySlugs } from "@/lib/products-data";
+import { getCatalogProductsBySlugs } from "@/lib/catalog-service";
 import { getPricingContext } from "@/lib/pricing";
 
 function formatPriceRange(
@@ -37,7 +37,7 @@ export default async function CategoryPage({
     notFound();
   }
 
-  const products = getProductsBySlugs(category.productSlugs);
+  const products = await getCatalogProductsBySlugs(category.productSlugs);
 
   return (
     <InternalPageShell pricing={pricing}>
@@ -90,6 +90,7 @@ export default async function CategoryPage({
           </div>
         </section>
 
+        {products.length > 0 ? (
         <section className="grid grid-cols-2 gap-2.5 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
           {products.map((product) => (
             <Link key={product.slug} href={`/products/${product.slug}`} className="group rounded-[16px] bg-white p-2.5 shadow-[0_10px_30px_rgba(17,24,39,0.06)] ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-[0_20px_44px_rgba(17,24,39,0.12)] sm:rounded-[20px] sm:p-3">
@@ -106,6 +107,17 @@ export default async function CategoryPage({
             </Link>
           ))}
         </section>
+        ) : (
+          <section className="rounded-[28px] bg-white px-6 py-8 text-center shadow-[0_14px_34px_rgba(17,24,39,0.06)] ring-1 ring-black/5">
+            <h2 className="text-[28px] font-bold tracking-[-0.05em] text-[#222]">Categorie vide</h2>
+            <p className="mx-auto mt-3 max-w-[720px] text-[15px] leading-7 text-[#666]">
+              Les produits de demonstration ont ete retires. Cette categorie affichera tes propres articles une fois importes, publies et relies a cette famille.
+            </p>
+            <Link href="/admin/alibaba-sourcing/import-catalog" className="mt-6 inline-flex h-12 items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[15px] font-semibold text-white transition hover:bg-[#ec6100]">
+              Importer mes produits
+            </Link>
+          </section>
+        )}
 
         <section className="rounded-[30px] bg-white px-7 py-7 shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

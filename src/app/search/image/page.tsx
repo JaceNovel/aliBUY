@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Camera, Search } from "lucide-react";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
-import { getProductsBySlugs } from "@/lib/products-data";
+import { getCatalogProductsBySlugs } from "@/lib/catalog-service";
 import { getPricingContext } from "@/lib/pricing";
 
 function formatPriceRange(
@@ -29,7 +29,7 @@ export default async function ImageSearchPage({
     .split(",")
     .map((slug) => slug.trim())
     .filter(Boolean);
-  const results = getProductsBySlugs(resultSlugs);
+  const results = await getCatalogProductsBySlugs(resultSlugs);
 
   return (
     <InternalPageShell pricing={pricing}>
@@ -82,7 +82,7 @@ export default async function ImageSearchPage({
           <section className="rounded-[30px] bg-white px-6 py-8 text-center shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5">
             <h2 className="text-[30px] font-bold tracking-[-0.04em] text-[#222]">Aucun resultat visuel</h2>
             <p className="mx-auto mt-3 max-w-[620px] text-[16px] leading-8 text-[#555]">
-              Importez une autre image plus nette ou revenez a la recherche texte pour explorer le catalogue.
+              Aucun produit importe et publie ne correspond encore a cette image. Importez vos articles depuis l&apos;admin Alibaba puis relancez la recherche.
             </p>
             <Link href="/" className="mt-6 inline-flex h-13 items-center justify-center rounded-full bg-[#ff6a00] px-7 text-[16px] font-semibold text-white transition hover:bg-[#ec6100]">
               Retour a l&apos;accueil

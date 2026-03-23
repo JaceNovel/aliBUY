@@ -93,6 +93,17 @@ export const adminNavSubItems: Partial<Record<AdminSectionSlug, AdminNavSubItem[
     { label: "Rôles & Permissions", href: "/admin/settings" },
     { label: "Site Web", href: "/admin/settings/site-web" },
   ],
+  "alibaba-sourcing": [
+    { label: "Tableau de bord", href: "/admin/alibaba-sourcing" },
+    { label: "Comptes fournisseurs", href: "/admin/alibaba-sourcing/accounts" },
+    { label: "Import catalogue", href: "/admin/alibaba-sourcing/import-catalog" },
+    { label: "Pays", href: "/admin/alibaba-sourcing/countries" },
+    { label: "Adresses reception", href: "/admin/alibaba-sourcing/addresses" },
+    { label: "Mappings produit-source", href: "/admin/alibaba-sourcing/mappings" },
+    { label: "Demandes", href: "/admin/alibaba-sourcing/requests" },
+    { label: "Lots d'achat", href: "/admin/alibaba-sourcing/lots" },
+    { label: "Receptions", href: "/admin/alibaba-sourcing/receptions" },
+  ],
 };
 
 function parseUsdAmount(total: string) {

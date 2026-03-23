@@ -72,7 +72,7 @@ export function CartPageClient() {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <div className="text-[17px] font-semibold text-[#1f2937]">{item.title}</div>
-                      <div className="mt-1 text-[13px] text-[#667085]">Prix fournisseur: {formatFcfa(item.supplierPriceFcfa)} · Expédition estimée/unité: {formatFcfa(item.estimatedShippingPerUnitFcfa)}</div>
+                      <div className="mt-1 text-[13px] text-[#667085]">Prix fournisseur: {formatFcfa(item.supplierPriceFcfa)} · Marge/unité: {formatFcfa(item.marginAmountFcfa)}</div>
                       <div className="mt-1 text-[13px] text-[#667085]">{item.weightKg.toFixed(2)} kg/unité · {item.volumeCbm.toFixed(4)} CBM/unité</div>
                     </div>
                     <div className="text-[18px] font-black tracking-[-0.04em] text-[#1f2937]">{formatFcfa(item.finalLinePriceFcfa)}</div>
@@ -130,11 +130,11 @@ export function CartPageClient() {
             <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Groupage maritime</div>
             <div className="mt-3 text-[14px] leading-6 text-[#667085]">Si vous choisissez le bateau, votre commande entre dans le conteneur en attente jusqu’à 1 CBM.</div>
             <div className="mt-4 h-3 overflow-hidden rounded-full bg-[#edf1f6]">
-              <div className="h-full rounded-full bg-[linear-gradient(90deg,#2f67f6_0%,#61a7ff_100%)]" style={{ width: `${quote.container.fillPercent}%` }} />
+              <div className="h-full rounded-full bg-[linear-gradient(90deg,#2f67f6_0%,#61a7ff_100%)]" style={{ width: `${quote.containerProjection.projectedFillPercent}%` }} />
             </div>
             <div className="mt-3 flex items-center justify-between text-[13px] text-[#667085]">
-              <span>{quote.container.currentCbm.toFixed(4)} / {quote.container.targetCbm.toFixed(2)} CBM</span>
-              <span>{quote.container.fillPercent}% rempli</span>
+              <span>{quote.containerProjection.projectedCbm.toFixed(4)} / {quote.containerProjection.targetCbm.toFixed(2)} CBM</span>
+              <span>{quote.containerProjection.projectedFillPercent}% rempli</span>
             </div>
           </section>
 

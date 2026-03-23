@@ -1,0 +1,234 @@
+import type { ProductCatalogItem } from "@/lib/products-data";
+
+export const ALIBABA_PANEL_SLUGS = [
+  "dashboard",
+  "accounts",
+  "import-catalog",
+  "countries",
+  "addresses",
+  "mappings",
+  "requests",
+  "lots",
+  "receptions",
+] as const;
+
+export type AlibabaPanelSlug = (typeof ALIBABA_PANEL_SLUGS)[number];
+export type AlibabaImportJobStatus = "draft" | "running" | "completed" | "failed";
+export type AlibabaImportedProductStatus = "imported" | "published" | "archived";
+export type AlibabaPurchaseOrderStatus = "draft" | "freight_verified" | "order_created" | "payment_pending" | "paid" | "failed";
+export type AlibabaPaymentStatus = "not_started" | "pay_url_generated" | "pending" | "paid" | "failed" | "skipped";
+export type AlibabaAccountStatus = "connected" | "needs_auth" | "disabled";
+export type AlibabaFulfillmentChannel = "standard_us" | "crossborder" | "fast_us" | "mexico" | "best_seller_us" | "best_seller_mexico";
+
+export const ALIBABA_DEFAULT_AUTHORIZE_URL = "https://openapi-auth.alibaba.com/oauth/authorize";
+export const ALIBABA_DEFAULT_TOKEN_URL = "https://openapi-api.alibaba.com/rest/auth/token/create";
+export const ALIBABA_DEFAULT_REFRESH_URL = "https://openapi-api.alibaba.com/rest/auth/token/refresh";
+export const ALIBABA_DEFAULT_API_BASE_URL = "https://openapi-api.alibaba.com";
+
+export type AlibabaImportJob = {
+  id: string;
+  query: string;
+  limit: number;
+  fulfillmentChannel: AlibabaFulfillmentChannel;
+  autoPublish: boolean;
+  status: AlibabaImportJobStatus;
+  importedCount: number;
+  errorMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+  productIds: string[];
+};
+
+export type AlibabaImportedProduct = {
+  id: string;
+  sourceProductId: string;
+  slug: string;
+  title: string;
+  shortTitle: string;
+  description: string;
+  query: string;
+  keywords: string[];
+  image: string;
+  gallery: string[];
+  videoUrl?: string;
+  videoPoster?: string;
+  packaging: string;
+  itemWeightGrams: number;
+  lotCbm: string;
+  minUsd: number;
+  maxUsd?: number;
+  moq: number;
+  unit: string;
+  badge?: string;
+  supplierName: string;
+  supplierLocation: string;
+  supplierCompanyId?: string;
+  responseTime: string;
+  yearsInBusiness: number;
+  transactionsLabel: string;
+  soldLabel: string;
+  customizationLabel: string;
+  shippingLabel: string;
+  overview: string[];
+  variantGroups: Array<{ label: string; values: string[] }>;
+  tiers: Array<{ quantityLabel: string; priceUsd: number; note?: string }>;
+  specs: Array<{ label: string; value: string }>;
+  inventory: number;
+  status: AlibabaImportedProductStatus;
+  publishedToSite: boolean;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt?: string;
+  rawPayload?: unknown;
+};
+
+export type AlibabaSupplierAccount = {
+  id: string;
+  name: string;
+  email: string;
+  accountPlatform: "buyer" | "seller" | "isv";
+  countryCode: string;
+  defaultDispatchLocation: string;
+  status: AlibabaAccountStatus;
+  memberId?: string;
+  resourceOwner?: string;
+  appKey?: string;
+  appSecret?: string;
+  authorizeUrl?: string;
+  tokenUrl?: string;
+  refreshUrl?: string;
+  apiBaseUrl?: string;
+  accessToken?: string;
+  refreshToken?: string;
+  accessTokenExpiresAt?: string;
+  refreshTokenExpiresAt?: string;
+  accountId?: string;
+  accountLogin?: string;
+  accountName?: string;
+  oauthCountry?: string;
+  isActive?: boolean;
+  hasAppSecret?: boolean;
+  hasAccessToken?: boolean;
+  hasRefreshToken?: boolean;
+  lastAuthorizedAt?: string;
+  lastError?: string;
+  accessTokenHint?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AlibabaCountryProfile = {
+  countryCode: string;
+  countryName: string;
+  currencyCode: string;
+  defaultCarrierCode: string;
+  importTaxRate: number;
+  customsMode: "personal" | "business";
+  clearanceCodeLabel: string;
+  enabled: boolean;
+};
+
+export type AlibabaReceptionAddress = {
+  id: string;
+  label: string;
+  contactName: string;
+  phone: string;
+  email: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  postalCode?: string;
+  countryCode: string;
+  port?: string;
+  portCode?: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AlibabaPurchaseOrder = {
+  id: string;
+  sourceImportedProductId: string;
+  sourceProductId: string;
+  productTitle: string;
+  supplierName: string;
+  supplierCompanyId?: string;
+  quantity: number;
+  shippingAddressId: string;
+  logisticsPayload: Record<string, unknown>;
+  buyNowPayload: Record<string, unknown>;
+  freightStatus: "not_requested" | "verified" | "failed" | "skipped";
+  orderStatus: AlibabaPurchaseOrderStatus;
+  paymentStatus: AlibabaPaymentStatus;
+  tradeId?: string;
+  payUrl?: string;
+  payFailureReason?: string;
+  amountUsd: number;
+  createdAt: string;
+  updatedAt: string;
+  rawFreightResponse?: unknown;
+  rawOrderResponse?: unknown;
+  rawPaymentResponse?: unknown;
+};
+
+export type AlibabaReceptionRecord = {
+  id: string;
+  purchaseOrderId: string;
+  productTitle: string;
+  quantityExpected: number;
+  quantityReceived: number;
+  status: "pending" | "partial" | "received";
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function normalizePanelSlug(value: string | undefined): AlibabaPanelSlug {
+  return ALIBABA_PANEL_SLUGS.includes((value ?? "dashboard") as AlibabaPanelSlug)
+    ? ((value ?? "dashboard") as AlibabaPanelSlug)
+    : "dashboard";
+}
+
+export function slugifyImportedTitle(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 72) || `alibaba-${Date.now()}`;
+}
+
+export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogItem {
+  return {
+    slug: item.slug,
+    title: item.title,
+    shortTitle: item.shortTitle,
+    keywords: item.keywords,
+    image: item.image,
+    gallery: item.gallery.length > 0 ? item.gallery : [item.image],
+    videoUrl: item.videoUrl,
+    videoPoster: item.videoPoster,
+    packaging: item.packaging,
+    itemWeightGrams: item.itemWeightGrams,
+    lotCbm: item.lotCbm,
+    minUsd: item.minUsd,
+    maxUsd: item.maxUsd,
+    moq: item.moq,
+    unit: item.unit,
+    badge: item.badge,
+    supplierName: item.supplierName,
+    supplierLocation: item.supplierLocation,
+    responseTime: item.responseTime,
+    yearsInBusiness: item.yearsInBusiness,
+    transactionsLabel: item.transactionsLabel,
+    soldLabel: item.soldLabel,
+    customizationLabel: item.customizationLabel,
+    shippingLabel: item.shippingLabel,
+    overview: item.overview,
+    variantGroups: item.variantGroups,
+    tiers: item.tiers,
+    specs: item.specs,
+  };
+}

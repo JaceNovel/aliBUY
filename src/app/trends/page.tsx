@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Flame, PackageCheck, Sparkles } from "lucide-react";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
-import { products } from "@/lib/products-data";
+import { getCatalogProducts } from "@/lib/catalog-service";
 import { getPricingContext } from "@/lib/pricing";
 
 function formatPriceRange(
@@ -18,16 +18,14 @@ function formatPriceRange(
   return formatPrice(minUsd);
 }
 
-const trendingPromoSlugs = products.filter((product) => product.badge === "Promo").map((product) => product.slug);
-const trendingStockSlugs = products.filter((product) => product.badge === "En stock" || product.badge === "Livraison rapide").map((product) => product.slug);
-const trendProducts = products
-  .filter((product) => product.badge === "En stock" || product.badge === "Promo" || product.badge === "Livraison rapide" || product.badge === "Offre mise en avant")
-  .concat(products.filter((product) => !(product.badge === "En stock" || product.badge === "Promo" || product.badge === "Livraison rapide" || product.badge === "Offre mise en avant")));
-
 export default async function TrendsPage() {
   const pricing = await getPricingContext();
-  const promoProducts = products.filter((product) => trendingPromoSlugs.includes(product.slug));
-  const stockProducts = products.filter((product) => trendingStockSlugs.includes(product.slug));
+  const products = await getCatalogProducts();
+  const promoProducts = products.filter((product) => product.badge === "Promo");
+  const stockProducts = products.filter((product) => product.badge === "En stock" || product.badge === "Livraison rapide");
+  const trendProducts = products
+    .filter((product) => product.badge === "En stock" || product.badge === "Promo" || product.badge === "Livraison rapide" || product.badge === "Offre mise en avant")
+    .concat(products.filter((product) => !(product.badge === "En stock" || product.badge === "Promo" || product.badge === "Livraison rapide" || product.badge === "Offre mise en avant")));
 
   return (
     <InternalPageShell pricing={pricing}>
@@ -62,6 +60,7 @@ export default async function TrendsPage() {
               </div>
             </div>
           </div>
+          {trendProducts.length > 0 ? (
           <div className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-5 sm:gap-3 lg:grid-cols-4 xl:grid-cols-6">
             {trendProducts.map((product) => {
               const isPromo = product.badge === "Promo" || product.badge === "Offre mise en avant";
@@ -120,6 +119,17 @@ export default async function TrendsPage() {
               );
             })}
           </div>
+          ) : (
+            <div className="mt-5 rounded-[24px] bg-[#fff7f2] px-5 py-8 text-center ring-1 ring-[#f4d8c6]">
+              <h2 className="text-[26px] font-bold tracking-[-0.04em] text-[#222]">Aucune tendance publiee</h2>
+              <p className="mx-auto mt-3 max-w-[680px] text-[15px] leading-7 text-[#666]">
+                Les articles de demonstration ont ete retires. Cette page affichera uniquement tes produits Alibaba une fois importes puis publies sur le site.
+              </p>
+              <Link href="/admin/alibaba-sourcing/import-catalog" className="mt-6 inline-flex h-12 items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[15px] font-semibold text-white transition hover:bg-[#ec6100]">
+                Ouvrir l&apos;import Alibaba
+              </Link>
+            </div>
+          )}
         </section>
       </div>
     </InternalPageShell>

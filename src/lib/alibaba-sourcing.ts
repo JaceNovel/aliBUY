@@ -5,6 +5,7 @@ export type ShippingMethodKey = "air" | "sea";
 export type SourcingOrderStatus = "checkout_created" | "grouped_sea" | "ready_to_ship" | "submitted_to_supplier" | "shipment_triggered";
 export type FreightStatus = "not_requested" | "skipped" | "verified" | "failed";
 export type SupplierOrderStatus = "not_created" | "skipped" | "created" | "failed";
+export type PaymentStatus = "unpaid" | "initialized" | "pending" | "paid" | "failed" | "cancelled";
 export type SeaContainerStatus = "pending" | "ready_to_ship" | "shipped";
 
 export type SourcingSettings = {
@@ -100,9 +101,19 @@ export type SourcingOrder = SourcingCheckoutAddress & {
   status: SourcingOrderStatus;
   freightStatus: FreightStatus;
   supplierOrderStatus: SupplierOrderStatus;
+  paymentStatus: PaymentStatus;
+  paymentProvider?: "moneroo";
+  paymentCurrency: string;
   alibabaTradeIds: string[];
   freightPayload?: unknown;
   supplierOrderPayload?: unknown;
+  monerooPaymentId?: string;
+  monerooCheckoutUrl?: string;
+  monerooPaymentStatus?: string;
+  monerooPaymentPayload?: unknown;
+  monerooInitializedAt?: string;
+  monerooVerifiedAt?: string;
+  paidAt?: string;
   containerId?: string;
   notes?: string;
   createdAt: string;

@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type {
   AlibabaCatalogMapping,
@@ -51,6 +52,27 @@ function toNumber(value: unknown) {
   return Number(value ?? 0);
 }
 
+function toIsoString(value: unknown, fallback?: string) {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (typeof value === "string") {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : date.toISOString();
+  }
+
+  return fallback ?? new Date().toISOString();
+}
+
+function toPrismaJson(value: unknown): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined {
+  if (typeof value === "undefined") {
+    return undefined;
+  }
+
+  return value as Prisma.InputJsonValue;
+}
+
 function normalizeSettings(record: Record<string, unknown>): SourcingSettings {
   return {
     currencyCode: String(record.currencyCode ?? "XOF"),
@@ -65,7 +87,7 @@ function normalizeSettings(record: Record<string, unknown>): SourcingSettings {
     containerTargetCbm: toNumber(record.containerTargetCbm),
     defaultMarginMode: record.defaultMarginMode === "fixed" ? "fixed" : "percent",
     defaultMarginValue: toNumber(record.defaultMarginValue),
-    updatedAt: String(record.updatedAt ?? new Date().toISOString()),
+    updatedAt: toIsoString(record.updatedAt),
   };
 }
 
@@ -91,13 +113,23 @@ function normalizeOrder(record: Record<string, unknown>): SourcingOrder {
     status: String(record.status) as SourcingOrder["status"],
     freightStatus: String(record.freightStatus) as SourcingOrder["freightStatus"],
     supplierOrderStatus: String(record.supplierOrderStatus) as SourcingOrder["supplierOrderStatus"],
+    paymentStatus: String(record.paymentStatus ?? "unpaid") as SourcingOrder["paymentStatus"],
+    paymentProvider: record.paymentProvider === "moneroo" ? "moneroo" : undefined,
+    paymentCurrency: String(record.paymentCurrency ?? "XOF"),
     alibabaTradeIds: Array.isArray(record.alibabaTradeIds) ? record.alibabaTradeIds.map((item) => String(item)) : [],
     freightPayload: record.freightPayload,
     supplierOrderPayload: record.supplierOrderPayload,
+    monerooPaymentId: record.monerooPaymentId ? String(record.monerooPaymentId) : undefined,
+    monerooCheckoutUrl: record.monerooCheckoutUrl ? String(record.monerooCheckoutUrl) : undefined,
+    monerooPaymentStatus: record.monerooPaymentStatus ? String(record.monerooPaymentStatus) : undefined,
+    monerooPaymentPayload: record.monerooPaymentPayload,
+    monerooInitializedAt: record.monerooInitializedAt ? toIsoString(record.monerooInitializedAt) : undefined,
+    monerooVerifiedAt: record.monerooVerifiedAt ? toIsoString(record.monerooVerifiedAt) : undefined,
+    paidAt: record.paidAt ? toIsoString(record.paidAt) : undefined,
     containerId: record.containerId ? String(record.containerId) : undefined,
     notes: record.notes ? String(record.notes) : undefined,
-    createdAt: String(record.createdAt),
-    updatedAt: String(record.updatedAt),
+    createdAt: toIsoString(record.createdAt),
+    updatedAt: toIsoString(record.updatedAt),
     items: Array.isArray(record.items) ? record.items.map((item) => ({
       slug: String((item as Record<string, unknown>).slug),
       title: String((item as Record<string, unknown>).title),
@@ -125,10 +157,10 @@ function normalizeContainer(record: Record<string, unknown>): SourcingSeaContain
     status: String(record.status) as SourcingSeaContainer["status"],
     orderIds: Array.isArray(record.orderIds) ? record.orderIds.map((item) => String(item)) : [],
     orderCount: toNumber(record.orderCount),
-    createdAt: String(record.createdAt),
-    updatedAt: String(record.updatedAt),
-    readyToShipAt: record.readyToShipAt ? String(record.readyToShipAt) : undefined,
-    shipmentTriggeredAt: record.shipmentTriggeredAt ? String(record.shipmentTriggeredAt) : undefined,
+    createdAt: toIsoString(record.createdAt),
+    updatedAt: toIsoString(record.updatedAt),
+    readyToShipAt: record.readyToShipAt ? toIsoString(record.readyToShipAt) : undefined,
+    shipmentTriggeredAt: record.shipmentTriggeredAt ? toIsoString(record.shipmentTriggeredAt) : undefined,
   };
 }
 
@@ -141,7 +173,7 @@ function normalizeLog(record: Record<string, unknown>): AlibabaIntegrationLog {
     status: String(record.status),
     requestBody: record.requestBody,
     responseBody: record.responseBody,
-    createdAt: String(record.createdAt),
+    createdAt: toIsoString(record.createdAt),
   };
 }
 
@@ -212,6 +244,34 @@ export async function getSourcingOrders() {
   return records.map(normalizeOrder).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
+export async function getSourcingOrderById(orderId: string) {
+  if (!orderId) {
+    return null;
+  }
+
+  if (hasDatabase()) {
+    const record = await prisma.sourcingOrder.findUnique({ where: { id: orderId }, include: { items: true } });
+    return record ? normalizeOrder(record as unknown as Record<string, unknown>) : null;
+  }
+
+  const orders = await getSourcingOrders();
+  return orders.find((entry) => entry.id === orderId) ?? null;
+}
+
+export async function getSourcingOrderByMonerooPaymentId(paymentId: string) {
+  if (!paymentId) {
+    return null;
+  }
+
+  if (hasDatabase()) {
+    const record = await prisma.sourcingOrder.findFirst({ where: { monerooPaymentId: paymentId }, include: { items: true } });
+    return record ? normalizeOrder(record as unknown as Record<string, unknown>) : null;
+  }
+
+  const orders = await getSourcingOrders();
+  return orders.find((entry) => entry.monerooPaymentId === paymentId) ?? null;
+}
+
 export async function saveSourcingOrder(order: SourcingOrder) {
   if (hasDatabase()) {
     await prisma.sourcingOrder.upsert({
@@ -235,9 +295,19 @@ export async function saveSourcingOrder(order: SourcingOrder) {
         status: order.status,
         freightStatus: order.freightStatus,
         supplierOrderStatus: order.supplierOrderStatus,
+        paymentStatus: order.paymentStatus,
+        paymentProvider: order.paymentProvider,
+        paymentCurrency: order.paymentCurrency,
         alibabaTradeIds: order.alibabaTradeIds,
-        freightPayload: order.freightPayload,
-        supplierOrderPayload: order.supplierOrderPayload,
+        freightPayload: toPrismaJson(order.freightPayload),
+        supplierOrderPayload: toPrismaJson(order.supplierOrderPayload),
+        monerooPaymentId: order.monerooPaymentId,
+        monerooCheckoutUrl: order.monerooCheckoutUrl,
+        monerooPaymentStatus: order.monerooPaymentStatus,
+        monerooPaymentPayload: toPrismaJson(order.monerooPaymentPayload),
+        monerooInitializedAt: order.monerooInitializedAt ? new Date(order.monerooInitializedAt) : null,
+        monerooVerifiedAt: order.monerooVerifiedAt ? new Date(order.monerooVerifiedAt) : null,
+        paidAt: order.paidAt ? new Date(order.paidAt) : null,
         notes: order.notes,
         containerId: order.containerId,
         items: {
@@ -279,9 +349,19 @@ export async function saveSourcingOrder(order: SourcingOrder) {
         status: order.status,
         freightStatus: order.freightStatus,
         supplierOrderStatus: order.supplierOrderStatus,
+        paymentStatus: order.paymentStatus,
+        paymentProvider: order.paymentProvider,
+        paymentCurrency: order.paymentCurrency,
         alibabaTradeIds: order.alibabaTradeIds,
-        freightPayload: order.freightPayload,
-        supplierOrderPayload: order.supplierOrderPayload,
+        freightPayload: toPrismaJson(order.freightPayload),
+        supplierOrderPayload: toPrismaJson(order.supplierOrderPayload),
+        monerooPaymentId: order.monerooPaymentId,
+        monerooCheckoutUrl: order.monerooCheckoutUrl,
+        monerooPaymentStatus: order.monerooPaymentStatus,
+        monerooPaymentPayload: toPrismaJson(order.monerooPaymentPayload),
+        monerooInitializedAt: order.monerooInitializedAt ? new Date(order.monerooInitializedAt) : null,
+        monerooVerifiedAt: order.monerooVerifiedAt ? new Date(order.monerooVerifiedAt) : null,
+        paidAt: order.paidAt ? new Date(order.paidAt) : null,
         notes: order.notes,
         createdAt: order.createdAt,
         updatedAt: order.updatedAt,
@@ -380,7 +460,13 @@ export async function createAlibabaIntegrationLog(input: Omit<AlibabaIntegration
   };
 
   if (hasDatabase()) {
-    await prisma.alibabaIntegrationLog.create({ data: log });
+    await prisma.alibabaIntegrationLog.create({
+      data: {
+        ...log,
+        requestBody: toPrismaJson(log.requestBody),
+        responseBody: toPrismaJson(log.responseBody),
+      },
+    });
   }
 
   const logs = await getAlibabaIntegrationLogs();

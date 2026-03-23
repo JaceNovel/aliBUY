@@ -22,7 +22,7 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { adminNavItems, adminNavSubItems, adminQuickLinks } from "@/lib/admin-data";
 
@@ -49,6 +49,15 @@ type AdminShellProps = {
 
 export function AdminShell({ children }: AdminShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const logout = async () => {
+    await fetch("/api/admin/auth/logout", {
+      method: "POST",
+    });
+    router.replace("/admin/login");
+    router.refresh();
+  };
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-[#1d2738]">
@@ -158,6 +167,9 @@ export function AdminShell({ children }: AdminShellProps) {
                 <Bell className="h-4.5 w-4.5" />
                 <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[#ff3b30]" />
               </Link>
+              <button type="button" onClick={logout} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#e7e9ef] px-3 text-[12px] font-semibold text-[#202938] transition hover:bg-[#f8f9fb]">
+                Deconnexion
+              </button>
               <Link href="/account" className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-[#0b8b7d] text-[11px] font-black text-white shadow-[0_12px_24px_rgba(11,139,125,0.24)]">
                 AP
               </Link>

@@ -239,10 +239,12 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
   };
   const shareProduct = async () => {
     const shareUrl = typeof window !== "undefined" ? window.location.href : `/products/${product.slug}`;
+    const browserNavigator = typeof window !== "undefined" ? window.navigator : undefined;
+    const clipboard = browserNavigator ? (browserNavigator as Navigator & { clipboard?: Clipboard }).clipboard : undefined;
 
     try {
-      if (typeof navigator !== "undefined" && "share" in navigator) {
-        await navigator.share({
+      if (browserNavigator && "share" in browserNavigator) {
+        await browserNavigator.share({
           title: product.title,
           text: product.shortTitle,
           url: shareUrl,
@@ -251,8 +253,8 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
         return;
       }
 
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(shareUrl);
+      if (clipboard?.writeText) {
+        await clipboard.writeText(shareUrl);
         triggerShareFeedback("Lien copié");
         return;
       }

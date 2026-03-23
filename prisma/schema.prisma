@@ -61,9 +61,19 @@ model SourcingOrder {
   status                String
   freightStatus         String
   supplierOrderStatus   String
+  paymentStatus         String                  @default("unpaid")
+  paymentProvider       String?
+  paymentCurrency       String                  @default("XOF")
   alibabaTradeIds       Json?
   freightPayload        Json?
   supplierOrderPayload  Json?
+  monerooPaymentId      String?                 @unique
+  monerooCheckoutUrl    String?
+  monerooPaymentStatus  String?
+  monerooPaymentPayload Json?
+  monerooInitializedAt  DateTime?
+  monerooVerifiedAt     DateTime?
+  paidAt                DateTime?
   notes                 String?
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
@@ -75,6 +85,7 @@ model SourcingOrder {
   @@index([createdAt])
   @@index([status])
   @@index([shippingMethod])
+  @@index([paymentStatus])
 }
 
 model SourcingOrderItem {

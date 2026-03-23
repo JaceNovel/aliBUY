@@ -3,29 +3,8 @@ import Link from "next/link";
 import { ArrowRight, Bolt, Clock3, Flame, Sparkles, TicketPercent } from "lucide-react";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
-import { getProductsBySlugs } from "@/lib/products-data";
+import { getCatalogProducts } from "@/lib/catalog-service";
 import { getPricingContext } from "@/lib/pricing";
-
-const heroDealSlugs = [
-  "hoodie-oversize-coton-unisexe",
-  "ensemble-sport-femme-deux-pieces",
-  "souris-gaming-g502x-rgb-usb",
-  "lunettes-vr-3d-metavers-hifi",
-];
-
-const rushDealSlugs = [
-  "combo-clavier-souris-onikuma-rgb",
-  "piercing-g23-titane-zircon",
-  "bean-bag-gaming-oxford",
-  "machine-vr-9d-moviepower",
-];
-
-const lastChanceSlugs = [
-  "bureau-gaming-fibre-carbone-led",
-  "fauteuil-gaming-rgb-oem-luxe",
-  "tapis-souris-clavier-rgb-chauffant",
-  "bureau-esport-design-simple",
-];
 
 function formatPriceRange(
   formatPrice: (amountUsd: number) => string,
@@ -41,9 +20,10 @@ function formatPriceRange(
 
 export default async function DealsFlashPage() {
   const pricing = await getPricingContext();
-  const heroDeals = getProductsBySlugs(heroDealSlugs);
-  const rushDeals = getProductsBySlugs(rushDealSlugs);
-  const lastChanceDeals = getProductsBySlugs(lastChanceSlugs);
+  const products = await getCatalogProducts();
+  const heroDeals = products.slice(0, 4);
+  const rushDeals = products.slice(4, 8).length > 0 ? products.slice(4, 8) : products.slice(0, 4);
+  const lastChanceDeals = products.slice(8, 12).length > 0 ? products.slice(8, 12) : products.slice(0, 4);
   const spotlight = heroDeals[0] ?? rushDeals[0] ?? lastChanceDeals[0];
 
   return (
@@ -127,6 +107,8 @@ export default async function DealsFlashPage() {
           </div>
         </section>
 
+        {products.length > 0 ? (
+        <>
         <section id="selection-flash" className="space-y-3 sm:space-y-6">
           <div className="flex items-end justify-between gap-3">
             <div>
@@ -242,6 +224,18 @@ export default async function DealsFlashPage() {
             ))}
           </div>
         </section>
+        </>
+        ) : (
+          <section className="rounded-[28px] bg-white px-6 py-8 text-center shadow-[0_18px_40px_rgba(17,24,39,0.06)] ring-1 ring-black/5 sm:px-8 sm:py-10">
+            <h2 className="text-[28px] font-black tracking-[-0.05em] text-[#222]">Aucun deal flash publie</h2>
+            <p className="mx-auto mt-3 max-w-[700px] text-[15px] leading-7 text-[#666]">
+              Les articles de test ont ete retires. Les deals flash apparaitront ici quand tu auras importe puis publie tes propres produits Alibaba.
+            </p>
+            <Link href="/admin/alibaba-sourcing/import-catalog" className="mt-6 inline-flex h-12 items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[15px] font-semibold text-white transition hover:bg-[#ec6100]">
+              Importer des produits
+            </Link>
+          </section>
+        )}
       </div>
     </InternalPageShell>
   );

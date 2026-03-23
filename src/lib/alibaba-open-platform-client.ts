@@ -1,13 +1,34 @@
 import { createHmac } from "node:crypto";
 
+import {
+  ALIBABA_DEFAULT_API_BASE_URL,
+  ALIBABA_DEFAULT_AUTHORIZE_URL,
+  ALIBABA_DEFAULT_REFRESH_URL,
+  ALIBABA_DEFAULT_TOKEN_URL,
+  type AlibabaFulfillmentChannel,
+  type AlibabaSupplierAccount,
+} from "@/lib/alibaba-operations";
 import type { SourcingOrder, AlibabaCatalogMapping } from "@/lib/alibaba-sourcing";
+import type { ProductCatalogItem } from "@/lib/products-data";
+import { getAlibabaSupplierAccounts, saveAlibabaSupplierAccount } from "@/lib/alibaba-operations-store";
 import { createAlibabaIntegrationLog } from "@/lib/sourcing-store";
 
 type AlibabaCredentials = {
+  accountId?: string;
   appKey: string;
   appSecret: string;
   accessToken?: string;
+  refreshToken?: string;
   apiBaseUrl: string;
+  authorizeUrl: string;
+  tokenUrl: string;
+  refreshUrl: string;
+};
+
+type AlibabaSearchProduct = ProductCatalogItem & {
+  sourceProductId: string;
+  supplierCompanyId?: string;
+  rawPayload: unknown;
 };
 
 type AlibabaCallResult = {
@@ -15,9 +36,32 @@ type AlibabaCallResult = {
   endpoint: string;
   requestBody: Record<string, unknown>;
   responseBody: unknown;
+  status: number;
 };
 
-function getAlibabaCredentials(): AlibabaCredentials | null {
+function normalizeBaseUrl(value: string) {
+  return value.replace(/\/+$/, "").replace(/\/rest$/, "");
+}
+
+function getAccountCredentials(account?: AlibabaSupplierAccount | null): AlibabaCredentials | null {
+  if (!account?.appKey || !account?.appSecret) {
+    return null;
+  }
+
+  return {
+    accountId: account.id,
+    appKey: account.appKey,
+    appSecret: account.appSecret,
+    accessToken: account.accessToken,
+    refreshToken: account.refreshToken,
+    apiBaseUrl: normalizeBaseUrl(account.apiBaseUrl || ALIBABA_DEFAULT_API_BASE_URL),
+    authorizeUrl: account.authorizeUrl || ALIBABA_DEFAULT_AUTHORIZE_URL,
+    tokenUrl: account.tokenUrl || ALIBABA_DEFAULT_TOKEN_URL,
+    refreshUrl: account.refreshUrl || ALIBABA_DEFAULT_REFRESH_URL,
+  };
+}
+
+function getEnvCredentials(): AlibabaCredentials | null {
   const appKey = process.env.ALIBABA_OPEN_PLATFORM_APP_KEY;
   const appSecret = process.env.ALIBABA_OPEN_PLATFORM_APP_SECRET;
 
@@ -29,8 +73,35 @@ function getAlibabaCredentials(): AlibabaCredentials | null {
     appKey,
     appSecret,
     accessToken: process.env.ALIBABA_OPEN_PLATFORM_ACCESS_TOKEN,
-    apiBaseUrl: process.env.ALIBABA_OPEN_PLATFORM_API_BASE_URL ?? "https://openapi-api.alibaba.com",
+    apiBaseUrl: normalizeBaseUrl(process.env.ALIBABA_OPEN_PLATFORM_API_BASE_URL ?? ALIBABA_DEFAULT_API_BASE_URL),
+    authorizeUrl: process.env.ALIBABA_OAUTH_AUTHORIZE_URL ?? ALIBABA_DEFAULT_AUTHORIZE_URL,
+    tokenUrl: process.env.ALIBABA_OAUTH_TOKEN_URL ?? ALIBABA_DEFAULT_TOKEN_URL,
+    refreshUrl: process.env.ALIBABA_OAUTH_REFRESH_URL ?? ALIBABA_DEFAULT_REFRESH_URL,
   };
+}
+
+async function resolveAlibabaCredentials() {
+  const accounts = await getAlibabaSupplierAccounts();
+  const eligible = accounts.filter((account) => account.status !== "disabled" && account.appKey && account.appSecret);
+  const preferredAccount = eligible.find((account) => account.isActive && account.status === "connected")
+    ?? eligible.find((account) => account.status === "connected")
+    ?? eligible.find((account) => account.isActive)
+    ?? eligible[0]
+    ?? null;
+  return getAccountCredentials(preferredAccount) ?? getEnvCredentials();
+}
+
+function isTokenExpiringSoon(expiresAt?: string, thresholdMs = 2 * 60 * 1000) {
+  if (!expiresAt) {
+    return false;
+  }
+
+  const expiresAtMs = new Date(expiresAt).getTime();
+  if (!Number.isFinite(expiresAtMs)) {
+    return false;
+  }
+
+  return expiresAtMs - Date.now() <= thresholdMs;
 }
 
 function serializeValue(value: unknown) {
@@ -56,32 +127,220 @@ function signAlibabaRequest(pathname: string, params: URLSearchParams, secret: s
   return createHmac("sha256", secret).update(baseString, "utf8").digest("hex").toUpperCase();
 }
 
-async function callAlibabaEndpoint(pathname: string, payload: Record<string, unknown>, accessToken?: string): Promise<AlibabaCallResult> {
-  const credentials = getAlibabaCredentials();
+function resolveEndpoint(input: { pathOrUrl: string; apiBaseUrl: string }) {
+  if (input.pathOrUrl.startsWith("http://") || input.pathOrUrl.startsWith("https://")) {
+    const url = new URL(input.pathOrUrl);
+    const apiPath = url.pathname.startsWith("/rest/") ? url.pathname.slice(5) : url.pathname;
+    return {
+      requestUrl: `${url.origin}${url.pathname}`,
+      apiPath: apiPath.startsWith("/") ? apiPath : `/${apiPath}`,
+    };
+  }
+
+  const apiPath = input.pathOrUrl.startsWith("/") ? input.pathOrUrl : `/${input.pathOrUrl}`;
+  return {
+    requestUrl: `${normalizeBaseUrl(input.apiBaseUrl)}/rest${apiPath}`,
+    apiPath,
+  };
+}
+
+function getStringValue(candidate: unknown): string | undefined {
+  if (typeof candidate === "string") {
+    const trimmed = candidate.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  if (typeof candidate === "number" && Number.isFinite(candidate)) {
+    return String(candidate);
+  }
+
+  return undefined;
+}
+
+function getNumberValue(...candidates: unknown[]) {
+  for (const candidate of candidates) {
+    if (typeof candidate === "number" && Number.isFinite(candidate)) {
+      return candidate;
+    }
+
+    if (typeof candidate === "string") {
+      const normalized = Number(candidate.replace(/[^0-9.\-]/g, ""));
+      if (Number.isFinite(normalized) && normalized > 0) {
+        return normalized;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function collectStrings(value: unknown): string[] {
+  if (!value) {
+    return [];
+  }
+
+  if (typeof value === "string") {
+    return value.trim() ? [value.trim()] : [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => collectStrings(entry));
+  }
+
+  if (typeof value === "object") {
+    return Object.values(value as Record<string, unknown>).flatMap((entry) => collectStrings(entry));
+  }
+
+  return [];
+}
+
+function uniqueStrings(values: string[]) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function mapAlibabaSearchResultToProduct(raw: Record<string, unknown>, query: string): AlibabaSearchProduct | null {
+  const sourceProductId = getStringValue(raw.product_id)
+    ?? getStringValue(raw.productId)
+    ?? getStringValue(raw.offer_id)
+    ?? getStringValue(raw.offerId)
+    ?? getStringValue(raw.item_id)
+    ?? getStringValue(raw.itemId);
+
+  const title = getStringValue(raw.subject)
+    ?? getStringValue(raw.title)
+    ?? getStringValue(raw.product_title)
+    ?? getStringValue(raw.name);
+
+  const images = uniqueStrings([
+    ...collectStrings(raw.main_image_url),
+    ...collectStrings(raw.image_url),
+    ...collectStrings(raw.display_big_image_url),
+    ...collectStrings(raw.mainImageUrl),
+    ...collectStrings(raw.images),
+    ...collectStrings(raw.image),
+    ...collectStrings(raw.product_image),
+    ...collectStrings(raw.productImage),
+    ...collectStrings(raw.gallery),
+  ]).filter((entry) => entry.startsWith("http") || entry.startsWith("/"));
+
+  if (!sourceProductId || !title || images.length === 0) {
+    return null;
+  }
+
+  const minUsd = getNumberValue(
+    raw.min_price,
+    raw.minPrice,
+    raw.price,
+    raw.sale_price,
+    (raw.priceRange as { min?: unknown } | undefined)?.min,
+    (raw.price_range as { min?: unknown } | undefined)?.min,
+  ) ?? 1;
+  const maxUsd = getNumberValue(
+    raw.max_price,
+    raw.maxPrice,
+    (raw.priceRange as { max?: unknown } | undefined)?.max,
+    (raw.price_range as { max?: unknown } | undefined)?.max,
+  );
+  const moq = Math.max(1, Math.round(getNumberValue(raw.moq, raw.min_order_quantity, raw.minOrderQuantity) ?? 1));
+  const unit = getStringValue(raw.unit) ?? getStringValue(raw.unit_name) ?? "piece";
+  const supplierName = getStringValue(raw.company_name)
+    ?? getStringValue(raw.supplier_name)
+    ?? getStringValue(raw.seller_name)
+    ?? getStringValue(raw.company)
+    ?? "Fournisseur Alibaba";
+  const supplierLocation = getStringValue(raw.country)
+    ?? getStringValue(raw.country_code)
+    ?? getStringValue(raw.supplier_country)
+    ?? "CN";
+  const keywords = uniqueStrings(query.split(/[\s,;]+/g).map((entry) => entry.trim().toLowerCase()).filter(Boolean));
+  const specs = Array.isArray(raw.attributes)
+    ? (raw.attributes as Array<Record<string, unknown>>).slice(0, 8).map((attribute, index) => ({
+        label: getStringValue(attribute.attribute_name) ?? getStringValue(attribute.name) ?? `Spec ${index + 1}`,
+        value: getStringValue(attribute.attribute_value) ?? getStringValue(attribute.value) ?? "-",
+      }))
+    : [];
+  const overview = uniqueStrings([
+    getStringValue(raw.description) ?? "",
+    getStringValue(raw.brief) ?? "",
+    `Import Alibaba live pour ${title}.`,
+    `Recherche source: ${query}.`,
+  ]).slice(0, 4);
+  const supplierCompanyId = getStringValue(raw.supplier_company_id)
+    ?? getStringValue(raw.company_id)
+    ?? getStringValue(raw.seller_member_id);
+
+  return {
+    sourceProductId,
+    slug: sourceProductId,
+    title,
+    shortTitle: title.length > 72 ? `${title.slice(0, 69)}...` : title,
+    keywords,
+    image: images[0],
+    gallery: images,
+    videoUrl: getStringValue(raw.video_url) ?? getStringValue(raw.videoUrl),
+    videoPoster: images[0],
+    packaging: getStringValue(raw.packaging) ?? "Carton export standard",
+    itemWeightGrams: Math.round((getNumberValue(raw.weight, raw.weight_grams, raw.weightGrams) ?? 0) * (Number(raw.weight) && Number(raw.weight) < 10 ? 1000 : 1)),
+    lotCbm: getStringValue(raw.cbm) ?? "0.01",
+    minUsd,
+    maxUsd,
+    moq,
+    unit,
+    badge: "Alibaba Import",
+    supplierName,
+    supplierLocation,
+    supplierCompanyId,
+    responseTime: getStringValue(raw.response_time) ?? "Sous 24 h",
+    yearsInBusiness: Math.round(getNumberValue(raw.years_in_business, raw.yearsInBusiness) ?? 1),
+    transactionsLabel: getStringValue(raw.transactions_label) ?? "Alibaba live",
+    soldLabel: getStringValue(raw.sold_label) ?? `MOQ ${moq} ${unit}`,
+    customizationLabel: getStringValue(raw.customization_label) ?? "Selon fiche fournisseur",
+    shippingLabel: getStringValue(raw.shipping_label) ?? "Transport a configurer",
+    overview,
+    variantGroups: [],
+    tiers: [{ quantityLabel: `${moq}+`, priceUsd: minUsd }],
+    specs,
+    rawPayload: raw,
+  };
+}
+
+async function callAlibabaEndpoint(pathOrUrl: string, payload: Record<string, unknown>, options?: {
+  accessToken?: string;
+  includeAccessToken?: boolean;
+  credentials?: AlibabaCredentials | null;
+}): Promise<AlibabaCallResult> {
+  const credentials = options?.credentials ?? (options?.includeAccessToken === false ? await resolveAlibabaCredentials() : await resolveAlibabaCredentialsForLiveCall());
   if (!credentials) {
     return {
       ok: false,
-      endpoint: pathname,
+      endpoint: pathOrUrl,
       requestBody: payload,
       responseBody: { message: "Alibaba credentials are missing" },
+      status: 400,
     };
   }
+
+  const endpoint = resolveEndpoint({
+    pathOrUrl,
+    apiBaseUrl: credentials.apiBaseUrl,
+  });
 
   const params = new URLSearchParams();
   params.set("app_key", credentials.appKey);
   params.set("timestamp", String(Date.now()));
-  params.set("sign_method", "HMAC_SHA256");
-  if (accessToken ?? credentials.accessToken) {
-    params.set("access_token", accessToken ?? credentials.accessToken ?? "");
+  params.set("sign_method", "sha256");
+  params.set("simplify", "true");
+  if (options?.includeAccessToken !== false && (options?.accessToken ?? credentials.accessToken)) {
+    params.set("access_token", options?.accessToken ?? credentials.accessToken ?? "");
   }
 
   for (const [key, value] of Object.entries(payload)) {
     params.set(key, serializeValue(value));
   }
 
-  params.set("sign", signAlibabaRequest(pathname, params, credentials.appSecret));
+  params.set("sign", signAlibabaRequest(endpoint.apiPath, params, credentials.appSecret));
 
-  const response = await fetch(`${credentials.apiBaseUrl}${pathname}`, {
+  const response = await fetch(endpoint.requestUrl, {
     method: "POST",
     headers: {
       "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
@@ -100,10 +359,275 @@ async function callAlibabaEndpoint(pathname: string, payload: Record<string, unk
 
   return {
     ok: response.ok,
-    endpoint: pathname,
+    endpoint: endpoint.apiPath,
     requestBody: payload,
     responseBody: parsed,
+    status: response.status,
   };
+}
+
+async function refreshAlibabaAccountTokens(account: AlibabaSupplierAccount) {
+  const credentials = getAccountCredentials(account);
+  if (!credentials?.refreshToken) {
+    throw new Error("Aucun refresh token Alibaba disponible.");
+  }
+
+  const result = await callAlibabaEndpoint(account.refreshUrl || credentials.refreshUrl, {
+    refresh_token: credentials.refreshToken,
+  }, {
+    includeAccessToken: false,
+    credentials,
+  });
+
+  if (!result.ok) {
+    throw new Error("Refresh du token Alibaba impossible.");
+  }
+
+  const body = result.responseBody as {
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: string | number;
+    refresh_expires_in?: string | number;
+    country?: string;
+    account_id?: string;
+    account?: string;
+    user_info?: { loginId?: string; seller_id?: string; user_id?: string };
+  };
+
+  const nextAccount: AlibabaSupplierAccount = {
+    ...account,
+    accessToken: body.access_token ?? account.accessToken,
+    refreshToken: body.refresh_token ?? account.refreshToken,
+    accessTokenExpiresAt: body.expires_in ? new Date(Date.now() + Number(body.expires_in) * 1000).toISOString() : account.accessTokenExpiresAt,
+    refreshTokenExpiresAt: body.refresh_expires_in ? new Date(Date.now() + Number(body.refresh_expires_in) * 1000).toISOString() : account.refreshTokenExpiresAt,
+    oauthCountry: body.country ?? account.oauthCountry,
+    accountId: body.account_id ?? account.accountId,
+    accountLogin: body.account ?? body.user_info?.loginId ?? account.accountLogin,
+    accountName: body.user_info?.loginId ?? account.accountName,
+    memberId: body.user_info?.seller_id ?? body.user_info?.user_id ?? account.memberId,
+    status: "connected",
+    lastAuthorizedAt: new Date().toISOString(),
+    lastError: undefined,
+    accessTokenHint: body.access_token ? `${body.access_token.slice(0, 10)}...` : account.accessTokenHint,
+    hasAccessToken: Boolean(body.access_token ?? account.accessToken),
+    hasRefreshToken: Boolean(body.refresh_token ?? account.refreshToken),
+    updatedAt: new Date().toISOString(),
+  };
+
+  await saveAlibabaSupplierAccount(nextAccount);
+  return nextAccount;
+}
+
+async function resolveAlibabaCredentialsForLiveCall() {
+  const accounts = await getAlibabaSupplierAccounts();
+  const eligible = accounts.filter((account) => account.status !== "disabled" && account.appKey && account.appSecret);
+  const preferredAccount = eligible.find((account) => account.isActive && account.status === "connected")
+    ?? eligible.find((account) => account.status === "connected")
+    ?? null;
+
+  if (!preferredAccount) {
+    return getEnvCredentials();
+  }
+
+  if ((!preferredAccount.accessToken || isTokenExpiringSoon(preferredAccount.accessTokenExpiresAt)) && preferredAccount.refreshToken) {
+    const refreshedAccount = await refreshAlibabaAccountTokens(preferredAccount);
+    return getAccountCredentials(refreshedAccount);
+  }
+
+  return getAccountCredentials(preferredAccount) ?? getEnvCredentials();
+}
+
+function resolveDropshippingPoolId(channel: AlibabaFulfillmentChannel) {
+  switch (channel) {
+    case "standard_us":
+      return "906124611";
+    case "crossborder":
+      return "906168847";
+    case "fast_us":
+      return "907135637";
+    case "mexico":
+      return "907732810";
+    case "best_seller_us":
+      return "907180667";
+    case "best_seller_mexico":
+      return "907180664";
+    default:
+      return "906168847";
+  }
+}
+
+export async function searchAlibabaProducts(input: {
+  query: string;
+  limit: number;
+  fulfillmentChannel: AlibabaFulfillmentChannel;
+}) {
+  const payload = {
+    search_word: input.query,
+    page_size: Math.min(Math.max(input.limit, 1), 100),
+    page_no: 1,
+    product_pool_id: resolveDropshippingPoolId(input.fulfillmentChannel),
+  };
+
+  const result = await callAlibabaEndpoint("/eco/buyer/product/search", payload, {
+    credentials: await resolveAlibabaCredentialsForLiveCall(),
+  });
+  const response = result.responseBody as { products?: unknown[]; value?: { products?: unknown[]; data?: unknown[] }; data?: unknown[] };
+  const candidates = Array.isArray(response?.value?.products)
+    ? response.value.products
+    : Array.isArray(response?.value?.data)
+      ? response.value.data
+      : Array.isArray(response?.data)
+        ? response.data
+    : Array.isArray(response?.products)
+      ? response.products
+      : [];
+  const products = candidates
+    .map((candidate) => mapAlibabaSearchResultToProduct((candidate ?? {}) as Record<string, unknown>, input.query))
+    .filter((candidate): candidate is AlibabaSearchProduct => candidate !== null)
+    .slice(0, Math.min(Math.max(input.limit, 1), 100));
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      endpoint: "/eco/buyer/product/search",
+      responseBody: result.responseBody,
+      products: [] as AlibabaSearchProduct[],
+      errorMessage: "La recherche Alibaba live a echoue.",
+    };
+  }
+
+  if (products.length === 0) {
+    return {
+      ok: false,
+      endpoint: "/eco/buyer/product/search",
+      responseBody: result.responseBody,
+      products: [] as AlibabaSearchProduct[],
+      errorMessage: "Alibaba n'a renvoye aucun produit exploitable pour cette recherche.",
+    };
+  }
+
+  return {
+    ok: true,
+    endpoint: "/eco/buyer/product/search",
+    responseBody: result.responseBody,
+    products,
+  };
+}
+
+export async function createAlibabaBuyNowOrder(payload: Record<string, unknown>) {
+  return callAlibabaEndpoint("/buynow/order/create", payload, {
+    credentials: await resolveAlibabaCredentialsForLiveCall(),
+  });
+}
+
+export async function createAlibabaDropshippingPayment(input: { tradeId: string }) {
+  return callAlibabaEndpoint("/alibaba/dropshipping/order/pay", {
+    trade_id: input.tradeId,
+  }, {
+    credentials: await resolveAlibabaCredentialsForLiveCall(),
+  });
+}
+
+export async function queryAlibabaPaymentResult(input: { tradeId: string }) {
+  return callAlibabaEndpoint("/alibaba/order/pay/result/query", {
+    trade_id: input.tradeId,
+  }, {
+    credentials: await resolveAlibabaCredentialsForLiveCall(),
+  });
+}
+
+export async function buildAlibabaAuthorizationUrl(input: {
+  account: AlibabaSupplierAccount;
+  redirectUri: string;
+}) {
+  if (!input.account.appKey) {
+    throw new Error("Ajoute l'App Key avant de lancer l'autorisation OAuth.");
+  }
+
+  const authorizeUrl = new URL(input.account.authorizeUrl || ALIBABA_DEFAULT_AUTHORIZE_URL);
+  authorizeUrl.searchParams.set("client_id", input.account.appKey);
+  authorizeUrl.searchParams.set("redirect_uri", input.redirectUri);
+  authorizeUrl.searchParams.set("state", input.account.id);
+
+  return authorizeUrl.toString();
+}
+
+export async function exchangeAlibabaOAuthCode(input: { accountId: string; code: string }) {
+  const accounts = await getAlibabaSupplierAccounts();
+  const account = accounts.find((entry) => entry.id === input.accountId);
+  const credentials = getAccountCredentials(account);
+
+  if (!account || !credentials) {
+    throw new Error("Compte Alibaba introuvable ou incomplet.");
+  }
+
+  const result = await callAlibabaEndpoint(account.tokenUrl || credentials.tokenUrl, {
+    code: input.code,
+  }, {
+    includeAccessToken: false,
+    credentials,
+  });
+
+  if (!result.ok) {
+    throw new Error("Generation du token d'acces Alibaba impossible.");
+  }
+
+  const body = result.responseBody as {
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: string | number;
+    refresh_expires_in?: string | number;
+    country?: string;
+    account_id?: string;
+    account?: string;
+    user_info?: { loginId?: string; seller_id?: string; user_id?: string };
+  };
+
+  const nextAccount: AlibabaSupplierAccount = {
+    ...account,
+    accessToken: body.access_token,
+    refreshToken: body.refresh_token,
+    accessTokenExpiresAt: body.expires_in ? new Date(Date.now() + Number(body.expires_in) * 1000).toISOString() : account.accessTokenExpiresAt,
+    refreshTokenExpiresAt: body.refresh_expires_in ? new Date(Date.now() + Number(body.refresh_expires_in) * 1000).toISOString() : account.refreshTokenExpiresAt,
+    oauthCountry: body.country ?? account.oauthCountry,
+    accountId: body.account_id ?? account.accountId,
+    accountLogin: body.account ?? body.user_info?.loginId ?? account.accountLogin,
+    accountName: body.user_info?.loginId ?? account.accountName,
+    memberId: body.user_info?.seller_id ?? body.user_info?.user_id ?? account.memberId,
+    status: "connected",
+    isActive: true,
+    lastAuthorizedAt: new Date().toISOString(),
+    lastError: undefined,
+    accessTokenHint: body.access_token ? `${body.access_token.slice(0, 10)}...` : account.accessTokenHint,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await Promise.all(accounts.filter((entry) => entry.id !== nextAccount.id && entry.isActive).map((entry) => saveAlibabaSupplierAccount({
+    ...entry,
+    isActive: false,
+    updatedAt: nextAccount.updatedAt,
+  })));
+  await saveAlibabaSupplierAccount(nextAccount);
+
+  return {
+    account: nextAccount,
+    responseBody: result.responseBody,
+  };
+}
+
+export async function refreshAlibabaOAuthAccessToken(input?: { accountId?: string }) {
+  const accounts = await getAlibabaSupplierAccounts();
+  const account = input?.accountId
+    ? accounts.find((entry) => entry.id === input.accountId) ?? null
+    : accounts.find((entry) => entry.isActive && entry.status !== "disabled" && entry.appKey && entry.appSecret)
+      ?? accounts.find((entry) => entry.status === "connected" && entry.appKey && entry.appSecret)
+      ?? null;
+
+  if (!account?.refreshToken) {
+    throw new Error("Aucun refresh token Alibaba disponible.");
+  }
+
+  return refreshAlibabaAccountTokens(account);
 }
 
 function groupMappingsForOrder(order: SourcingOrder, mappings: AlibabaCatalogMapping[]) {
@@ -131,7 +655,7 @@ function groupMappingsForOrder(order: SourcingOrder, mappings: AlibabaCatalogMap
 }
 
 export async function runAlibabaSupplierAutomation(order: SourcingOrder, mappings: AlibabaCatalogMapping[]) {
-  const credentials = getAlibabaCredentials();
+  const credentials = await resolveAlibabaCredentials();
   const { missingMappings, groups } = groupMappingsForOrder(order, mappings);
 
   if (!credentials) {
@@ -212,31 +736,38 @@ export async function runAlibabaSupplierAutomation(order: SourcingOrder, mapping
     }
 
     const supplierPayload = {
-      country: order.countryCode,
-      flow: "general",
+      channel_refer_id: order.orderNumber,
       logistics_detail: {
         dispatch_location: group[0]?.mapping?.dispatchLocation ?? "CN",
         shipment_address: {
           address: order.addressLine1,
-          address2: order.addressLine2 ?? "",
+          alternate_address: order.addressLine2 ?? "",
           city: order.city,
           province: order.state,
           country: order.countryCode,
+          country_code: order.countryCode,
           zip: order.postalCode ?? "",
-          phone: order.customerPhone,
-          full_name: order.customerName,
+          contact_person: order.customerName,
+          telephone: {
+            country: order.countryCode,
+            area: "",
+            number: order.customerPhone,
+          },
         },
       },
       product_list: group.map((entry) => ({
         product_id: entry.mapping?.alibabaProductId,
         sku_id: entry.mapping?.skuId ?? "",
-        quantity: entry.item.quantity,
+        quantity: String(entry.item.quantity),
       })),
+      properties: {
+        platform: "CommerceHQ",
+        orderId: order.orderNumber,
+      },
       remark: `Internal order ${order.orderNumber}`,
-      external_reference: order.orderNumber,
     };
 
-    const supplierResult = await callAlibabaEndpoint("/buynow/order/create", supplierPayload);
+    const supplierResult = await createAlibabaBuyNowOrder(supplierPayload);
     supplierResponses.push(supplierResult.responseBody);
     await createAlibabaIntegrationLog({
       orderId: order.id,

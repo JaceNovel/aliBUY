@@ -42,6 +42,18 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+## Admin Access
+
+Admin routes under `/admin` are protected by a dedicated login page at `/admin/login`.
+
+Environment variables:
+
+- `ADMIN_EMAIL` defaults to `afripay@gmail.com`
+- `ADMIN_PASSWORD_HASH` is a SHA-256 password hash
+- `ADMIN_SESSION_SECRET` is optional and strengthens the session cookie signature
+
+Current configured password hash in `.env.example` matches the password `mamanbri32@@`.
+
 ## Sourcing System
 
 Implemented business rules:
@@ -69,9 +81,31 @@ Main files:
 
 - Admin sourcing dashboard: `/admin/alibaba-sourcing`
 - Cart: `/cart`
-- Checkout without payment: `/checkout`
+- Checkout sourcing: `/checkout`
+- Moneroo payment page: `/orders/payment?orderId=<sourcing-order-id>`
 
-The checkout creates an internal sourcing order, computes freight, and prepares supplier order creation via Alibaba Open Platform. Payment is intentionally left out for now.
+The checkout creates an internal sourcing order, computes freight, prepares supplier order creation via Alibaba Open Platform, then redirects to a Moneroo-backed payment page.
+
+## Moneroo Integration
+
+Required environment variables:
+
+- `MONEROO_SECRET_KEY`
+- `MONEROO_WEBHOOK_SECRET`
+- `MONEROO_API_BASE_URL` optional, defaults to `https://api.moneroo.io`
+- `MONEROO_PAYMENT_METHODS` optional comma-separated list, for example `card_xof,orange_ci`
+
+Implemented routes:
+
+- `POST /api/payments/moneroo/initialize`
+- `POST /api/payments/moneroo/verify`
+- `POST /api/payments/moneroo/webhook`
+
+Notes:
+
+- Configure Moneroo to redirect back to your site through the `return_url` sent during initialization.
+- Configure the webhook URL in Moneroo dashboard to point to `/api/payments/moneroo/webhook`.
+- Payment status is persisted on sourcing orders using the Moneroo payment id and latest verification payload.
 
 ## Alibaba Integration
 

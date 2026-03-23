@@ -4,7 +4,7 @@ import { Search, Sparkles } from "lucide-react";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { SearchSuggestionInput } from "@/components/search-suggestion-input";
-import { products, searchProducts } from "@/lib/products-data";
+import { getCatalogProducts, searchCatalogProducts } from "@/lib/catalog-service";
 import { getPricingContext } from "@/lib/pricing";
 
 function formatPriceRange(
@@ -27,7 +27,7 @@ export default async function ProductsPage({
   const pricing = await getPricingContext();
   const { q = "" } = await searchParams;
   const query = q.trim();
-  const visibleProducts = query ? searchProducts(query) : products;
+  const visibleProducts = query ? await searchCatalogProducts(query) : await getCatalogProducts();
 
   return (
     <InternalPageShell pricing={pricing}>

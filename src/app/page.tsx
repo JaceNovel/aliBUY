@@ -15,57 +15,24 @@ import { ScrollNavbar } from "@/components/scroll-navbar";
 import { SupportMenu } from "@/components/support-menu";
 import { UnavailableLink } from "@/components/unavailable-link";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
+import { getCatalogProducts } from "@/lib/catalog-service";
+import { catalogQuickSearchLinks } from "@/lib/catalog-taxonomy";
 import { getMessages } from "@/lib/messages";
-import {
-  discoveryExploreGroups,
-  discoveryHistorySlugs,
-  getProductBySlug,
-  getProductsBySlugs,
-  historyProductSlugs,
-  recommendationProductSlugs,
-  type ProductCatalogItem,
-} from "@/lib/products-data";
+import { type ProductCatalogItem } from "@/lib/products-data";
 import { getPricingContext } from "@/lib/pricing";
 
-type RecommendationCard = {
-  slug: string;
-  title: string;
-  eyebrow: string;
-  eta: string;
-};
+const HOME_HERO_NAV_ITEMS: ReadonlyArray<{ label: string; href: string; active?: boolean }> = [
+  { label: "Mode", href: "/mode" },
+  { label: "Produits", href: "/products", active: true },
+  { label: "Tendances", href: "/trends" },
+  { label: "Tarifs", href: "/pricing" },
+];
 
 type QuickAction = {
   title: string;
   icon: LucideIcon;
   href: string;
 };
-
-const recommendationItems: RecommendationCard[] = [
-  {
-    slug: "fauteuil-gaming-rgb-oem-luxe",
-    eyebrow: "Pour votre sourcing",
-    title: "Fauteuils gaming RGB avec expédition accélérée vers votre pays",
-    eta: "Départ sous 5 jours",
-  },
-  {
-    slug: "combo-clavier-souris-onikuma-rgb",
-    eyebrow: "Tendance usines",
-    title: "Accessoires PC OEM et kits souris-clavier prêts à personnaliser",
-    eta: "MOQ souple",
-  },
-  {
-    slug: "bureau-gaming-fibre-carbone-led",
-    eyebrow: "Volume B2B",
-    title: "Mobilier gaming et bureaux fibre carbone avec faible MOQ",
-    eta: "Devis usine en 24 h",
-  },
-  {
-    slug: "lunettes-vr-3d-metavers-hifi",
-    eyebrow: "Assemblage rapide",
-    title: "Casques et lunettes VR pour revendeurs, salles d'arcade et bundles gaming",
-    eta: "Échantillon disponible",
-  },
-];
 
 function formatPriceRange(
   formatPrice: (amountUsd: number) => string,
@@ -143,9 +110,12 @@ function QuickActionItem({ item }: { item: QuickAction }) {
 export default async function Home() {
   const pricing = await getPricingContext();
   const messages = getMessages(pricing.languageCode);
-  const historyItems = getProductsBySlugs(historyProductSlugs);
-  const recommendationProducts = getProductsBySlugs(recommendationProductSlugs);
-  const discoveryHistoryItems = getProductsBySlugs(discoveryHistorySlugs);
+  const catalogProducts = await getCatalogProducts();
+  const historyItems = catalogProducts.slice(0, 5);
+  const recommendationProducts = catalogProducts.slice(5, 9).length > 0 ? catalogProducts.slice(5, 9) : catalogProducts.slice(0, 4);
+  const discoveryHistoryItems = catalogProducts.slice(0, 4);
+  const showcaseProducts = catalogProducts.slice(0, 9);
+  const hasPublishedProducts = catalogProducts.length > 0;
   const quickActions: QuickAction[] = [
     {
       title: messages.quickActions.quote,
@@ -163,40 +133,60 @@ export default async function Home() {
       href: "/account",
     },
   ];
-  const discoveryExploreCards = discoveryExploreGroups.map((group) => ({
-    id: group.id,
-    title: group.title,
-    subtitle: group.subtitle,
-    items: group.items.map((entry, index) => {
-      const product = getProductBySlug(entry.slug);
-
-      if (!product) {
-        return {
-          title: `${group.id}-${index}`,
-          image: discoveryHistoryItems[0]?.image ?? "",
-          price: pricing.formatPrice(entry.priceUsd),
-        };
-      }
-
-      return {
-        title: `${product.title}-${index}`,
-        image: product.image,
-        price: pricing.formatPrice(entry.priceUsd),
-        href: `/products/${product.slug}`,
-      };
-    }),
-  }));
-  const discoverySlides = [
+  const discoveryExploreCards = [
     {
-      id: "coup-de-coeur-1",
-      image: "https://s.alicdn.com/@sc04/kf/He21b090337c74bbaa1212b233936914aa.jpg_350x350.jpg",
-      alt: "Selection premium AfriPay",
-      eyebrow: "AfriPay Selection",
-      title: "Choix premium du moment",
-      subtitle: "Mobilier gaming, accessoires et visuels phares du catalogue.",
-      buttonLabel: "En savoir plus",
-      href: "/favorites",
+      id: "latest-imports",
+      title: "Nouveaux imports",
+      subtitle: "Produits publies apres import Alibaba.",
+      items: showcaseProducts.slice(0, 3).map((product) => ({
+        title: product.title,
+        image: product.image,
+        price: pricing.formatPrice(product.minUsd),
+        href: `/products/${product.slug}`,
+      })),
     },
+    {
+      id: "catalog-ready",
+      title: "Prets pour la vente",
+      subtitle: "References visibles sur le site public.",
+      items: showcaseProducts.slice(3, 6).map((product) => ({
+        title: product.title,
+        image: product.image,
+        price: pricing.formatPrice(product.minUsd),
+        href: `/products/${product.slug}`,
+      })),
+    },
+    {
+      id: "recent-publications",
+      title: "Dernieres publications",
+      subtitle: "Articles importes avec medias et prix actifs.",
+      items: showcaseProducts.slice(6, 9).map((product) => ({
+        title: product.title,
+        image: product.image,
+        price: pricing.formatPrice(product.minUsd),
+        href: `/products/${product.slug}`,
+      })),
+    },
+  ].filter((group) => group.items.length > 0);
+  const discoverySlides = discoveryHistoryItems[0]
+    ? [
+        {
+          id: discoveryHistoryItems[0].slug,
+          image: discoveryHistoryItems[0].image,
+          alt: discoveryHistoryItems[0].title,
+          eyebrow: "Catalogue importe",
+          title: discoveryHistoryItems[0].shortTitle,
+          subtitle: "Produit publie depuis ton cockpit Alibaba.",
+          buttonLabel: "Voir le produit",
+          href: `/products/${discoveryHistoryItems[0].slug}`,
+        },
+      ]
+    : [];
+  const recommendationCopy = [
+    { eyebrow: "Pour ton sourcing", eta: "Publication recente" },
+    { eyebrow: "Catalogue live", eta: "Media et prix actifs" },
+    { eyebrow: "Selection publiee", eta: "Pret pour commande" },
+    { eyebrow: "Import valide", eta: "Visible sur le site" },
   ];
   return (
     <main className="min-h-screen bg-[#f4f4f4] pb-24 text-[#222] md:pb-0">
@@ -301,8 +291,17 @@ export default async function Home() {
                   panelClassName="top-[calc(100%+12px)]"
                   widthClassName="w-[1360px]"
                 />
-                <Link href="/" className="font-medium text-[#444]">
-                  {messages.nav.localSections}
+                <Link href="/mode" className="font-medium text-[#444] transition hover:text-[#ff6a00]">
+                  Mode
+                </Link>
+                <Link href="/products" className="font-medium text-[#444] transition hover:text-[#ff6a00]">
+                  Produits
+                </Link>
+                <Link href="/trends" className="font-medium text-[#444] transition hover:text-[#ff6a00]">
+                  Tendances
+                </Link>
+                <Link href="/pricing" className="font-medium text-[#444] transition hover:text-[#ff6a00]">
+                  Tarifs
                 </Link>
                 <OrderProtectionMenu
                   languageCode={pricing.languageCode}
@@ -327,6 +326,23 @@ export default async function Home() {
 
           <div className="flex min-h-[248px] items-start justify-center py-4 sm:min-h-[360px] sm:items-center sm:py-10">
             <div className="w-full max-w-[960px]">
+              <nav className="mb-7 hidden items-center justify-center gap-14 xl:flex">
+                {HOME_HERO_NAV_ITEMS.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="group relative inline-flex -translate-y-0 items-center justify-center pb-4 text-[28px] font-black tracking-[-0.06em] text-[#1f2430] transition duration-300 ease-out hover:-translate-y-1 hover:text-[#111]"
+                  >
+                    <span>{item.label}</span>
+                    <span
+                      className={[
+                        "absolute bottom-0 left-1/2 h-[5px] -translate-x-1/2 rounded-full bg-[#ff6a00] shadow-[0_6px_18px_rgba(255,106,0,0.28)] transition-all duration-300 ease-out",
+                        item.active ? "w-16 opacity-100 group-hover:w-20" : "w-0 opacity-0 group-hover:w-16 group-hover:opacity-100",
+                      ].join(" ")}
+                    />
+                  </Link>
+                ))}
+              </nav>
               <HomeSearchForm
                 defaultQuery=""
                 placeholderText="Rechercher des produits"
@@ -354,22 +370,39 @@ export default async function Home() {
         </div>
       </section>
       <div className="mx-auto max-w-[1580px] px-4 pb-16 pt-6 sm:px-6 sm:pt-8 xl:px-10">
-        <HomeDiscoveryShowcase
-          historyCard={discoveryHistoryItems[0] ? {
-            title: discoveryHistoryItems[0].title,
-            image: discoveryHistoryItems[0].image,
-            price: pricing.formatPrice(discoveryHistoryItems[0].minUsd),
-            href: `/products/${discoveryHistoryItems[0].slug}`,
-          } : undefined}
-          historyCards={discoveryHistoryItems.map((item) => ({
-            title: item.title,
-            image: item.image,
-            price: pricing.formatPrice(item.minUsd),
-            href: `/products/${item.slug}`,
-          }))}
-          exploreCards={discoveryExploreCards}
-          slides={discoverySlides}
-        />
+        {hasPublishedProducts ? (
+          <HomeDiscoveryShowcase
+            categories={catalogQuickSearchLinks.slice(0, 8).map((entry) => ({
+              title: entry.title,
+              href: `/products?q=${encodeURIComponent(entry.query)}`,
+            }))}
+            historyCard={discoveryHistoryItems[0] ? {
+              title: discoveryHistoryItems[0].title,
+              image: discoveryHistoryItems[0].image,
+              price: pricing.formatPrice(discoveryHistoryItems[0].minUsd),
+              href: `/products/${discoveryHistoryItems[0].slug}`,
+            } : undefined}
+            historyCards={discoveryHistoryItems.map((item) => ({
+              title: item.title,
+              image: item.image,
+              price: pricing.formatPrice(item.minUsd),
+              href: `/products/${item.slug}`,
+            }))}
+            exploreCards={discoveryExploreCards}
+            slides={discoverySlides}
+          />
+        ) : (
+          <section className="rounded-[28px] bg-white px-6 py-8 text-center shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 sm:px-8 sm:py-10">
+            <div className="inline-flex items-center gap-2 rounded-full bg-[#fff2e9] px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85300]">
+              <Sparkles className="h-4 w-4" />
+              Catalogue en attente
+            </div>
+            <h2 className="mt-4 text-[30px] font-bold tracking-[-0.05em] text-[#222] sm:text-[38px]">Pas d&apos;articles pour le moment</h2>
+            <p className="mx-auto mt-3 max-w-[760px] text-[15px] leading-7 text-[#666]">
+              Notre catalogue est en cours de mise a jour. Revenez bientot pour decouvrir les nouveaux articles disponibles.
+            </p>
+          </section>
+        )}
 
         <section className="mt-10 bg-transparent px-0 py-0 shadow-none ring-0 sm:rounded-[28px] sm:bg-white sm:px-6 sm:py-7 sm:shadow-[0_12px_36px_rgba(24,39,75,0.06)] sm:ring-1 sm:ring-black/5 lg:px-8">
           <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -396,6 +429,7 @@ export default async function Home() {
             </div>
           </div>
 
+          {historyItems.length > 0 ? (
           <div className="grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-5">
             {historyItems.map((item) => (
               <ProductCardItem
@@ -408,12 +442,17 @@ export default async function Home() {
               />
             ))}
           </div>
+          ) : (
+            <div className="rounded-[22px] bg-[#fff7f2] px-5 py-7 text-center ring-1 ring-[#f2dacb]">
+              <p className="text-[15px] leading-7 text-[#666]">Aucun produit publie pour le moment. Cette section se remplira automatiquement apres tes imports.</p>
+            </div>
+          )}
 
           <div className="mt-8 flex justify-center">
-            <button className="inline-flex items-center gap-2 rounded-full bg-[#ff6a00] px-6 py-3 text-[15px] font-semibold text-white shadow-[0_10px_20px_rgba(255,106,0,0.25)] transition hover:bg-[#e35f00]">
+            <Link href="/decouvrir-afripay" className="inline-flex items-center gap-2 rounded-full bg-[#ff6a00] px-6 py-3 text-[15px] font-semibold text-white shadow-[0_10px_20px_rgba(255,106,0,0.25)] transition hover:bg-[#e35f00]">
               {messages.common.learnMore}
               <ArrowRight className="h-4 w-4" />
-            </button>
+            </Link>
           </div>
         </section>
 
@@ -458,36 +497,32 @@ export default async function Home() {
               </div>
             </article>
 
-            {recommendationItems.map((item) => {
-              const product = recommendationProducts.find((entry) => entry.slug === item.slug);
-
-              if (!product) {
-                return null;
-              }
+            {recommendationProducts.map((product, index) => {
+              const copy = recommendationCopy[index] ?? recommendationCopy[recommendationCopy.length - 1];
 
               return (
               <Link
-                key={item.slug}
+                key={product.slug}
                 href={`/products/${product.slug}`}
                 className="overflow-hidden rounded-[18px] bg-white shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 sm:rounded-[24px]"
               >
                 <div className="relative aspect-[1/1.02] overflow-hidden bg-[#f3f3f3]">
                   <Image
                     src={product.image}
-                    alt={item.title}
+                    alt={product.title}
                     fill
                     sizes="(min-width: 1280px) 17vw, (min-width: 1024px) 22vw, (min-width: 640px) 35vw, 92vw"
                     className="object-cover"
                   />
                   <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_15%,rgba(0,0,0,0.45)_100%)]" />
                   <div className="absolute left-3 top-3 rounded-full bg-white/92 px-2.5 py-1 text-[10px] font-semibold text-[#222] sm:left-4 sm:top-4 sm:px-3 sm:text-[11px]">
-                    {item.eyebrow}
+                    {copy.eyebrow}
                   </div>
                 </div>
                 <div className="p-3 sm:p-5">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#767676] sm:text-[11px] sm:tracking-[0.14em]">{item.eta}</div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#767676] sm:text-[11px] sm:tracking-[0.14em]">{copy.eta}</div>
                   <div className="mt-2 line-clamp-3 min-h-[56px] text-[14px] font-semibold leading-5 tracking-[-0.03em] text-[#222] sm:mt-3 sm:min-h-[72px] sm:text-[20px] sm:leading-6">
-                    {item.title}
+                    {product.title}
                   </div>
                   <div className="mt-3 whitespace-nowrap text-[13px] font-bold tracking-[-0.04em] text-[#d64000] sm:mt-4 sm:text-[15px] xl:text-[16px]">
                     {formatPriceRange(pricing.formatPrice, product.minUsd, product.maxUsd)}

@@ -1,10 +1,10 @@
 import { ChevronDown, Plus } from "lucide-react";
 
 import { catalogCategories } from "@/lib/catalog-taxonomy";
-import { products } from "@/lib/products-data";
+import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 
-export default function AdminOffersAddPage() {
-  const selectedProducts = products.slice(0, 3);
+export default async function AdminOffersAddPage() {
+  const selectedProducts = (await getAlibabaImportedProducts()).filter((product) => product.publishedToSite).slice(0, 3);
 
   return (
     <div className="space-y-5">
@@ -44,11 +44,11 @@ export default function AdminOffersAddPage() {
           <div>
             <div className="text-[13px] font-semibold text-[#101828]">Produits sélectionnés</div>
             <div className="mt-3 space-y-2">
-              {selectedProducts.map((product) => (
+              {selectedProducts.length > 0 ? selectedProducts.map((product) => (
                 <div key={product.slug} className="rounded-[12px] bg-[#f8fafc] px-4 py-3 text-[13px] text-[#475467]">
                   {product.shortTitle}
                 </div>
-              ))}
+              )) : <div className="rounded-[12px] bg-[#fff7ed] px-4 py-3 text-[13px] text-[#9a3412]">Aucun produit importe/publie disponible. Lance un import Alibaba avant de creer une offre.</div>}
             </div>
           </div>
 

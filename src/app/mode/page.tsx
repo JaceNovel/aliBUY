@@ -5,61 +5,8 @@ import { ChevronRight, Gift, PackageCheck, RefreshCcw, ShieldCheck, TicketPercen
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { LiveCountdownBadge } from "@/components/live-countdown-badge";
 import { ModePromoHero } from "@/components/mode-promo-hero";
-import { getProductsBySlugs } from "@/lib/products-data";
+import { getCatalogProducts } from "@/lib/catalog-service";
 import { getPricingContext } from "@/lib/pricing";
-
-const groupedOfferSlugs = [
-  "bean-bag-gaming-oxford",
-  "combo-clavier-souris-onikuma-rgb",
-  "tapis-souris-clavier-rgb-chauffant",
-];
-
-const dailyDealSlugs = [
-  "fauteuil-gaming-rgb-oem-luxe",
-  "bureau-gaming-fibre-carbone-led",
-  "lunettes-vr-3d-metavers-hifi",
-];
-
-const premiumSelectionSlugs = [
-  "souris-gaming-g502x-rgb-usb",
-  "machine-vr-9d-moviepower",
-  "hoodie-oversize-coton-unisexe",
-  "ensemble-sport-femme-deux-pieces",
-  "bureau-esport-design-simple",
-  "piercing-g23-titane-zircon",
-];
-
-const choiceDealsSlugs = [
-  "souris-gaming-g502x-rgb-usb",
-  "combo-clavier-souris-onikuma-rgb",
-  "bureau-esport-design-simple",
-  "hoodie-oversize-coton-unisexe",
-];
-
-const trendPromoSlugs = [
-  "ensemble-sport-femme-deux-pieces",
-  "piercing-g23-titane-zircon",
-  "bean-bag-gaming-oxford",
-  "machine-vr-9d-moviepower",
-];
-
-const flashRushSlugs = [
-  "hoodie-oversize-coton-unisexe",
-  "ensemble-sport-femme-deux-pieces",
-  "souris-gaming-g502x-rgb-usb",
-  "lunettes-vr-3d-metavers-hifi",
-  "combo-clavier-souris-onikuma-rgb",
-  "piercing-g23-titane-zircon",
-];
-
-const finalDropSlugs = [
-  "bureau-gaming-fibre-carbone-led",
-  "bean-bag-gaming-oxford",
-  "tapis-souris-clavier-rgb-chauffant",
-  "machine-vr-9d-moviepower",
-  "fauteuil-gaming-rgb-oem-luxe",
-  "hoodie-oversize-coton-unisexe",
-];
 
 function formatPriceRange(
   formatPrice: (amountUsd: number) => string,
@@ -75,13 +22,14 @@ function formatPriceRange(
 
 export default async function ModePage() {
   const pricing = await getPricingContext();
-  const groupedOffers = getProductsBySlugs(groupedOfferSlugs);
-  const dailyDeals = getProductsBySlugs(dailyDealSlugs);
-  const premiumSelection = getProductsBySlugs(premiumSelectionSlugs);
-  const choiceDeals = getProductsBySlugs(choiceDealsSlugs);
-  const trendPromos = getProductsBySlugs(trendPromoSlugs);
-  const flashRushProducts = getProductsBySlugs(flashRushSlugs);
-  const finalDropProducts = getProductsBySlugs(finalDropSlugs);
+  const catalogProducts = await getCatalogProducts();
+  const groupedOffers = catalogProducts.slice(0, 3);
+  const dailyDeals = catalogProducts.slice(3, 6).length > 0 ? catalogProducts.slice(3, 6) : catalogProducts.slice(0, 3);
+  const premiumSelection = catalogProducts.slice(0, 6);
+  const choiceDeals = catalogProducts.slice(6, 10).length > 0 ? catalogProducts.slice(6, 10) : catalogProducts.slice(0, 4);
+  const trendPromos = catalogProducts.slice(10, 14).length > 0 ? catalogProducts.slice(10, 14) : catalogProducts.slice(0, 4);
+  const flashRushProducts = catalogProducts.slice(0, 6);
+  const finalDropProducts = catalogProducts.slice(6, 12).length > 0 ? catalogProducts.slice(6, 12) : catalogProducts.slice(0, 6);
   const heroSpotlight = dailyDeals[0] ?? groupedOffers[0];
   const heroSlides = [
     {
@@ -117,6 +65,25 @@ export default async function ModePage() {
       ],
     },
   ];
+
+  if (catalogProducts.length === 0) {
+    return (
+      <InternalPageShell pricing={pricing}>
+        <div className="space-y-6">
+          <ModePromoHero slides={heroSlides} />
+          <section className="rounded-[28px] bg-white px-6 py-8 text-center shadow-[0_18px_40px_rgba(17,24,39,0.06)] ring-1 ring-black/5 sm:px-8 sm:py-10">
+            <h1 className="text-[30px] font-black tracking-[-0.05em] text-[#222]">Mode vide pour l&apos;instant</h1>
+            <p className="mx-auto mt-3 max-w-[760px] text-[15px] leading-7 text-[#666]">
+              Les articles de demonstration ont ete retires du site public. Cette page affichera uniquement tes produits importes puis publies depuis l&apos;admin Alibaba.
+            </p>
+            <Link href="/admin/alibaba-sourcing/import-catalog" className="mt-6 inline-flex h-12 items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[15px] font-semibold text-white transition hover:bg-[#ec6100]">
+              Importer mes produits
+            </Link>
+          </section>
+        </div>
+      </InternalPageShell>
+    );
+  }
 
   return (
     <InternalPageShell pricing={pricing}>
