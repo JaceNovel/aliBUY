@@ -30,13 +30,13 @@ export function AdminLoginForm({ nextPath }: AdminLoginFormProps) {
       const payload = await response.json().catch(() => null);
 
       if (!response.ok) {
-        throw new Error(payload?.message || "Connexion admin impossible.");
+        throw new Error(payload?.message || "Connexion impossible.");
       }
 
       router.replace(nextPath && nextPath.startsWith("/admin") ? nextPath : "/admin");
       router.refresh();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Connexion admin impossible.");
+      setErrorMessage(error instanceof Error ? error.message : "Connexion impossible.");
     } finally {
       setIsSubmitting(false);
     }
@@ -45,7 +45,7 @@ export function AdminLoginForm({ nextPath }: AdminLoginFormProps) {
   return (
     <form onSubmit={submit} className="space-y-4">
       <label className="block text-[13px] font-semibold text-[#344054]">
-        Email admin
+        Email
         <input
           value={email}
           onChange={(event) => setEmail(event.target.value)}
@@ -59,7 +59,7 @@ export function AdminLoginForm({ nextPath }: AdminLoginFormProps) {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           type="password"
-          placeholder="Mot de passe admin"
+          placeholder="Votre mot de passe"
           className="mt-2 h-12 w-full rounded-[16px] border border-[#d7dce5] px-4 text-[15px] text-[#111827] outline-none transition focus:border-[#ff6a00]"
         />
       </label>
