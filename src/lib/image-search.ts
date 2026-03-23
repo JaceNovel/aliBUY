@@ -2,7 +2,8 @@ import sharp from "sharp";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { products, type ProductCatalogItem } from "@/lib/products-data";
+import { getCatalogProducts } from "@/lib/catalog-service";
+import { type ProductCatalogItem } from "@/lib/products-data";
 
 const SIGNATURE_SIZE = 16;
 
@@ -93,6 +94,7 @@ function compareSignatures(left: Float32Array, right: Float32Array) {
 export async function searchProductsByImage(imageBuffer: Buffer, limit = 6, hint?: string) {
   const inputSignature = await buildSignature(imageBuffer);
   const hintKeywords = getIntentKeywords(hint);
+  const products = await getCatalogProducts();
   const rankedMatches = await Promise.all(
     products.map(async (product) => {
       try {

@@ -1,7 +1,9 @@
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { ConfirmReceptionClient } from "@/app/orders/confirm-reception/confirm-reception-client";
-import { getOrderById, orders } from "@/lib/orders-data";
+import { getUserOrderRecordById } from "@/lib/order-service";
 import { getPricingContext } from "@/lib/pricing";
+import { getCurrentUser } from "@/lib/user-auth";
+import { notFound, redirect } from "next/navigation";
 
 export default async function ConfirmReceptionPage({
   searchParams,
@@ -9,8 +11,18 @@ export default async function ConfirmReceptionPage({
   searchParams: Promise<{ orderId?: string }>;
 }) {
   const pricing = await getPricingContext();
+  const user = await getCurrentUser();
+
+  if (!user) {
+    redirect("/login?next=/orders/confirm-reception");
+  }
+
   const resolvedSearchParams = await searchParams;
-  const order = getOrderById(resolvedSearchParams.orderId) ?? orders[0];
+  const order = await getUserOrderRecordById(user, resolvedSearchParams.orderId);
+
+  if (!order) {
+    notFound();
+  }
 
   return (
     <InternalPageShell pricing={pricing}>

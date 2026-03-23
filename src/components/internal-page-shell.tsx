@@ -11,6 +11,7 @@ import { OrderProtectionMenu } from "@/components/order-protection-menu";
 import { SearchSuggestionInput } from "@/components/search-suggestion-input";
 import { SupportMenu } from "@/components/support-menu";
 import { UnavailableLink } from "@/components/unavailable-link";
+import { getCurrentUser } from "@/lib/user-auth";
 import { getMessages } from "@/lib/messages";
 
 type InternalPageShellProps = {
@@ -25,8 +26,9 @@ type InternalPageShellProps = {
   children: React.ReactNode;
 };
 
-export function InternalPageShell({ pricing, children }: InternalPageShellProps) {
+export async function InternalPageShell({ pricing, children }: InternalPageShellProps) {
   const messages = getMessages(pricing.languageCode);
+  const user = await getCurrentUser();
 
   return (
     <main className="min-h-screen overflow-x-clip bg-[#f7f7f7] pb-24 text-[#222] md:pb-0">
@@ -127,7 +129,7 @@ export function InternalPageShell({ pricing, children }: InternalPageShellProps)
               <div className="hidden sm:block">
                 <LanguageSelectorPopover languageCode={pricing.languageCode} languageLabel={pricing.languageLabel} align="right" />
               </div>
-              <HeaderActionGroup className="flex items-center gap-3 text-[#222] sm:gap-4" iconClassName="h-5 w-5 sm:h-6 sm:w-6" />
+              <HeaderActionGroup className="flex items-center gap-3 text-[#222] sm:gap-4" iconClassName="h-5 w-5 sm:h-6 sm:w-6" user={user ? { displayName: user.displayName, firstName: user.firstName } : null} />
             </div>
           </div>
 

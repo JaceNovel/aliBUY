@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { parseUserSessionToken, USER_SESSION_COOKIE } from "@/lib/user-session";
+
 const ADMIN_SESSION_COOKIE = "afripay_admin_session";
-const DEFAULT_ADMIN_EMAIL = "afripay@gmail.com";
-const DEFAULT_ADMIN_PASSWORD_HASH = "ab2fd8441f2f7aaf64ccc6a886ff55fb2297ab754b63220b86896a36eab51501";
 
 function encoder() {
   return new TextEncoder();
@@ -16,18 +16,26 @@ async function sha256Hex(value: string) {
 }
 
 function getAdminEmail() {
-  return process.env.ADMIN_EMAIL?.trim() || DEFAULT_ADMIN_EMAIL;
+  return process.env.ADMIN_EMAIL?.trim() || "";
 }
 
 function getAdminPasswordHash() {
-  return process.env.ADMIN_PASSWORD_HASH?.trim() || DEFAULT_ADMIN_PASSWORD_HASH;
+  return process.env.ADMIN_PASSWORD_HASH?.trim() || "";
 }
 
 function getAdminSessionSecret() {
-  return process.env.ADMIN_SESSION_SECRET?.trim() || process.env.APP_KEY?.trim() || getAdminPasswordHash();
+  return process.env.ADMIN_SESSION_SECRET?.trim() || process.env.APP_KEY?.trim() || "";
+}
+
+function isAdminAuthConfigured() {
+  return Boolean(getAdminEmail() && getAdminPasswordHash() && getAdminSessionSecret());
 }
 
 async function createAdminSessionToken() {
+  if (!isAdminAuthConfigured()) {
+    return "";
+  }
+
   return sha256Hex(`${getAdminEmail()}:${getAdminPasswordHash()}:${getAdminSessionSecret()}:afripay-admin`);
 }
 
@@ -42,11 +50,32 @@ function isApiPath(pathname: string) {
   return pathname.startsWith("/api/");
 }
 
+function isUserAuthPage(pathname: string) {
+  return pathname === "/login" || pathname === "/register";
+}
+
+function isProtectedUserPath(pathname: string) {
+  return pathname === "/account"
+    || pathname.startsWith("/account/")
+    || pathname === "/checkout"
+    || pathname.startsWith("/checkout/")
+    || pathname === "/orders"
+    || pathname.startsWith("/orders/")
+    || pathname === "/messages"
+    || pathname.startsWith("/messages/")
+    || pathname === "/quotes"
+    || pathname.startsWith("/quotes/")
+    || pathname === "/favorites"
+    || pathname.startsWith("/favorites/");
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
   const cookieToken = request.cookies.get(ADMIN_SESSION_COOKIE)?.value;
-  const isAuthenticated = cookieToken === await createAdminSessionToken();
+  const isAuthenticated = isAdminAuthConfigured() && cookieToken === await createAdminSessionToken();
+  const userSession = await parseUserSessionToken(request.cookies.get(USER_SESSION_COOKIE)?.value);
+  const isUserAuthenticated = Boolean(userSession);
 
   if (pathname === "/admin/login" && isAuthenticated) {
     return NextResponse.redirect(new URL("/admin", request.url));
@@ -54,6 +83,16 @@ export async function middleware(request: NextRequest) {
 
   if (isAllowedWithoutAuth(pathname)) {
     return NextResponse.next();
+  }
+
+  if (isUserAuthPage(pathname) && isUserAuthenticated) {
+    return NextResponse.redirect(new URL("/account", request.url));
+  }
+
+  if (isProtectedUserPath(pathname) && !isUserAuthenticated) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("next", `${pathname}${search}`);
+    return NextResponse.redirect(loginUrl);
   }
 
   if (isAuthenticated) {
@@ -70,5 +109,16 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/api/admin/:path*"],
+  matcher: [
+    "/admin/:path*",
+    "/api/admin/:path*",
+    "/login",
+    "/register",
+    "/account/:path*",
+    "/checkout/:path*",
+    "/orders/:path*",
+    "/messages/:path*",
+    "/quotes/:path*",
+    "/favorites/:path*",
+  ],
 };

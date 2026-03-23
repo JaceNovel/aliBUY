@@ -4,9 +4,6 @@ import { cookies } from "next/headers";
 
 export const ADMIN_SESSION_COOKIE = "afripay_admin_session";
 
-const DEFAULT_ADMIN_EMAIL = "afripay@gmail.com";
-const DEFAULT_ADMIN_PASSWORD_HASH = "ab2fd8441f2f7aaf64ccc6a886ff55fb2297ab754b63220b86896a36eab51501";
-
 function encoder() {
   return new TextEncoder();
 }
@@ -19,15 +16,19 @@ async function sha256Hex(value: string) {
 }
 
 export function getAdminEmail() {
-  return process.env.ADMIN_EMAIL?.trim() || DEFAULT_ADMIN_EMAIL;
+  return process.env.ADMIN_EMAIL?.trim() || "";
 }
 
 export function getAdminPasswordHash() {
-  return process.env.ADMIN_PASSWORD_HASH?.trim() || DEFAULT_ADMIN_PASSWORD_HASH;
+  return process.env.ADMIN_PASSWORD_HASH?.trim() || "";
 }
 
 function getAdminSessionSecret() {
-  return process.env.ADMIN_SESSION_SECRET?.trim() || process.env.APP_KEY?.trim() || getAdminPasswordHash();
+  return process.env.ADMIN_SESSION_SECRET?.trim() || process.env.APP_KEY?.trim() || "";
+}
+
+export function isAdminAuthConfigured() {
+  return Boolean(getAdminEmail() && getAdminPasswordHash() && getAdminSessionSecret());
 }
 
 export async function hashAdminPassword(password: string) {
@@ -35,10 +36,18 @@ export async function hashAdminPassword(password: string) {
 }
 
 export async function createAdminSessionToken() {
+  if (!isAdminAuthConfigured()) {
+    return "";
+  }
+
   return sha256Hex(`${getAdminEmail()}:${getAdminPasswordHash()}:${getAdminSessionSecret()}:afripay-admin`);
 }
 
 export async function validateAdminCredentials(email: string, password: string) {
+  if (!isAdminAuthConfigured()) {
+    throw new Error("Configuration admin incomplète. Définissez ADMIN_EMAIL, ADMIN_PASSWORD_HASH et ADMIN_SESSION_SECRET.");
+  }
+
   const submittedEmail = email.trim();
   const submittedPasswordHash = await hashAdminPassword(password);
 
@@ -46,7 +55,7 @@ export async function validateAdminCredentials(email: string, password: string) 
 }
 
 export async function isValidAdminSessionToken(token?: string | null) {
-  if (!token) {
+  if (!token || !isAdminAuthConfigured()) {
     return false;
   }
 

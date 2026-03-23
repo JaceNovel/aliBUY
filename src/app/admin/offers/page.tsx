@@ -6,7 +6,7 @@ import { getPricingContext } from "@/lib/pricing";
 
 export default async function AdminOffersPage() {
   const pricing = await getPricingContext();
-  const offers = getAdminOffers().slice(0, 4);
+  const offers = (await getAdminOffers()).slice(0, 4);
 
   return (
     <div className="space-y-5">

@@ -21,11 +21,22 @@ const defaultForm = {
   notes: "",
 };
 
-export function SourcingCheckoutClient() {
+type SourcingCheckoutClientProps = {
+  initialUser: {
+    displayName: string;
+    email: string;
+  };
+};
+
+export function SourcingCheckoutClient({ initialUser }: SourcingCheckoutClientProps) {
   const { items, clearCart } = useCart();
   const { quote, isLoading } = useCartQuote();
   const router = useRouter();
-  const [form, setForm] = useState(defaultForm);
+  const [form, setForm] = useState({
+    ...defaultForm,
+    customerName: initialUser.displayName,
+    customerEmail: initialUser.email,
+  });
   const [selectedShipping, setSelectedShipping] = useState<"air" | "sea">("air");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -61,6 +72,11 @@ export function SourcingCheckoutClient() {
     setIsSubmitting(false);
 
     if (!response.ok) {
+      if (response.status === 401) {
+        router.push(`/login?next=${encodeURIComponent("/checkout")}`);
+        return;
+      }
+
       setErrorMessage("Impossible de créer la commande sourcing.");
       return;
     }

@@ -95,6 +95,7 @@ function normalizeOrder(record: Record<string, unknown>): SourcingOrder {
   return {
     id: String(record.id),
     orderNumber: String(record.orderNumber),
+    userId: record.userId ? String(record.userId) : undefined,
     customerName: String(record.customerName),
     customerEmail: String(record.customerEmail),
     customerPhone: String(record.customerPhone),
@@ -277,6 +278,7 @@ export async function saveSourcingOrder(order: SourcingOrder) {
     await prisma.sourcingOrder.upsert({
       where: { id: order.id },
       update: {
+        userId: order.userId ?? null,
         customerName: order.customerName,
         customerEmail: order.customerEmail,
         customerPhone: order.customerPhone,
@@ -331,6 +333,7 @@ export async function saveSourcingOrder(order: SourcingOrder) {
       create: {
         id: order.id,
         orderNumber: order.orderNumber,
+        userId: order.userId ?? null,
         customerName: order.customerName,
         customerEmail: order.customerEmail,
         customerPhone: order.customerPhone,
@@ -392,6 +395,13 @@ export async function saveSourcingOrder(order: SourcingOrder) {
     : [order, ...orders];
   await writeJsonFile(ORDERS_PATH, nextOrders);
   return order;
+}
+
+export async function getUserSourcingOrders(input: { userId: string; email: string }) {
+  const orders = await getSourcingOrders();
+  const normalizedEmail = input.email.trim().toLowerCase();
+
+  return orders.filter((order) => order.userId === input.userId || order.customerEmail.trim().toLowerCase() === normalizedEmail);
 }
 
 export async function getSourcingSeaContainers() {

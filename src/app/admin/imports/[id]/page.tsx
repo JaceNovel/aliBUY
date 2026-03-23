@@ -23,7 +23,7 @@ function statusClass(status: string) {
 
 export default async function AdminImportDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const request = getAdminImportRequestById(id);
+  const request = await getAdminImportRequestById(id);
 
   if (!request) {
     notFound();

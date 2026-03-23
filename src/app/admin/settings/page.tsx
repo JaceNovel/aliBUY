@@ -36,8 +36,8 @@ const roleCards = [
   },
 ];
 
-export default function AdminSettingsPage() {
-  const users = getAdminSuppliers().slice(0, 5).map((supplier, index) => ({
+export default async function AdminSettingsPage() {
+  const users = (await getAdminSuppliers()).slice(0, 5).map((supplier, index) => ({
     name: supplier.name.split(" ").slice(0, 2).join(" "),
     email: `${supplier.name.toLowerCase().replace(/[^a-z]+/g, ".").replace(/^\.|\.$/g, "")}@gmail.com`,
     status: index % 2 === 0 ? "Actif" : "En attente",

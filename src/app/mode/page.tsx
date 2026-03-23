@@ -74,11 +74,8 @@ export default async function ModePage() {
           <section className="rounded-[28px] bg-white px-6 py-8 text-center shadow-[0_18px_40px_rgba(17,24,39,0.06)] ring-1 ring-black/5 sm:px-8 sm:py-10">
             <h1 className="text-[30px] font-black tracking-[-0.05em] text-[#222]">Mode vide pour l&apos;instant</h1>
             <p className="mx-auto mt-3 max-w-[760px] text-[15px] leading-7 text-[#666]">
-              Les articles de demonstration ont ete retires du site public. Cette page affichera uniquement tes produits importes puis publies depuis l&apos;admin Alibaba.
+              Les articles de demonstration ont ete retires du site public. Cette page affichera uniquement les produits publies sur le site.
             </p>
-            <Link href="/admin/alibaba-sourcing/import-catalog" className="mt-6 inline-flex h-12 items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[15px] font-semibold text-white transition hover:bg-[#ec6100]">
-              Importer mes produits
-            </Link>
           </section>
         </div>
       </InternalPageShell>

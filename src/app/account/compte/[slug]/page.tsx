@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { ArrowLeft, ChevronRight, ShieldCheck } from "lucide-react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { accountPageMeta, type AccountPageSlug } from "@/app/account/compte/account-links";
 import { InternalPageShell } from "@/components/internal-page-shell";
+import { getCurrentUser } from "@/lib/user-auth";
 import { getPricingContext } from "@/lib/pricing";
 
 export async function generateStaticParams() {
@@ -16,8 +17,13 @@ export default async function AccountSettingDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const pricing = await getPricingContext();
+  const user = await getCurrentUser();
   const { slug } = await params;
   const page = accountPageMeta[slug as AccountPageSlug];
+
+  if (!user) {
+    redirect(`/login?next=/account/compte/${slug}`);
+  }
 
   if (!page) {
     notFound();

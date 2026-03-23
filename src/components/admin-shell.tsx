@@ -24,7 +24,7 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
-import { adminNavItems, adminNavSubItems, adminQuickLinks } from "@/lib/admin-data";
+import { adminNavItems, adminNavSubItems, adminQuickLinks } from "@/lib/admin-config";
 
 const iconMap = {
   users: Users,

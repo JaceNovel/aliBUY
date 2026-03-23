@@ -1,13 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { User } from "lucide-react";
+
+import { UserLogoutButton } from "@/components/user-logout-button";
 
 type ProfileMenuProps = {
   className?: string;
   align?: "left" | "center" | "right";
-  userName?: string;
+  user?: {
+    displayName: string;
+    firstName: string;
+  } | null;
 };
 
 const profileItems = [
@@ -19,9 +25,10 @@ const profileItems = [
   { label: "Compte", href: "/account/compte" },
 ];
 
-export function ProfileMenu({ className = "", align = "right", userName = "jace" }: ProfileMenuProps) {
+export function ProfileMenu({ className = "", align = "right", user = null }: ProfileMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const closeTimeoutRef = useRef<number | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     return () => {
@@ -55,6 +62,11 @@ export function ProfileMenu({ className = "", align = "right", userName = "jace"
     }
 
     setIsOpen((current) => !current);
+  };
+
+  const handleNavigation = () => {
+    setIsOpen(false);
+    router.refresh();
   };
 
   const alignmentClassName =
@@ -91,28 +103,50 @@ export function ProfileMenu({ className = "", align = "right", userName = "jace"
       >
         <div className={["absolute -top-2 h-4 w-4 rotate-45 border-l border-t border-[#e6e6e6] bg-white", arrowClassName].join(" ")} />
 
-        <div className="flex items-center gap-3 border-b border-[#ededed] pb-5">
-          <div className="text-[18px] font-semibold text-[#222]">Bonjour, {userName}</div>
-          <span className="inline-flex rounded-sm bg-[#2ca5c5] px-2 py-0.5 text-[12px] font-semibold text-white">Seed</span>
-        </div>
+        {user ? (
+          <>
+            <div className="flex items-center gap-3 border-b border-[#ededed] pb-5">
+              <div className="text-[18px] font-semibold text-[#222]">Bonjour, {user.firstName}</div>
+            </div>
 
-        <div className="space-y-1 py-5">
-          {profileItems.map((item) => (
-            <Link
-              key={item.label}
-              href={item.href}
-              className="block rounded-[12px] px-2 py-2 text-[18px] text-[#222] transition hover:bg-[#f7f7f7]"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </div>
+            <div className="space-y-1 py-5">
+              {profileItems.map((item) => (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  onClick={handleNavigation}
+                  className="block rounded-[12px] px-2 py-2 text-[18px] text-[#222] transition hover:bg-[#f7f7f7]"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
 
-        <div className="border-t border-[#ededed] pt-5">
-          <button type="button" className="text-[18px] text-[#222] transition hover:text-[#ff6a00]">
-            Se deconnecter
-          </button>
-        </div>
+            <div className="border-t border-[#ededed] pt-5">
+              <UserLogoutButton className="text-[18px] text-[#222] transition hover:text-[#ff6a00]">
+                Se deconnecter
+              </UserLogoutButton>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="border-b border-[#ededed] pb-5">
+              <div className="text-[22px] font-semibold tracking-[-0.03em] text-[#222]">Mon compte</div>
+              <p className="mt-2 text-[14px] leading-6 text-[#666]">
+                Creez votre compte ou connectez-vous pour acceder a vos commandes, devis, messages et favoris personnels.
+              </p>
+            </div>
+
+            <div className="space-y-3 py-5">
+              <Link href="/login" onClick={handleNavigation} className="inline-flex h-12 w-full items-center justify-center rounded-[14px] bg-[#ff6a00] px-5 text-[16px] font-semibold text-white transition hover:bg-[#eb6100]">
+                Se connecter
+              </Link>
+              <Link href="/register" onClick={handleNavigation} className="inline-flex h-12 w-full items-center justify-center rounded-[14px] border border-[#d7dce5] px-5 text-[16px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
+                S'inscrire
+              </Link>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

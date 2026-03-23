@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight, ExternalLink } from "lucide-react";
 import { notFound } from "next/navigation";
 
+import { getAdminSectionMeta } from "@/lib/admin-config";
 import {
   adminEmailCampaigns,
   adminPromoCodes,
@@ -11,12 +12,11 @@ import {
   getAdminPromotions,
   getAdminRecentOrders,
   getAdminReviews,
-  getAdminSectionMeta,
   getAdminSuppliers,
   getAdminSupportTickets,
 } from "@/lib/admin-data";
 import { catalogCategories } from "@/lib/catalog-taxonomy";
-import { products } from "@/lib/products-data";
+import { getCatalogProducts } from "@/lib/catalog-service";
 
 type PricingLike = {
   formatPrice: (amountUsd: number) => string;
@@ -30,7 +30,7 @@ function formatPriceRange(formatPrice: (amountUsd: number) => string, minUsd: nu
   return formatPrice(minUsd);
 }
 
-export function AdminSectionContent({ slug, pricing }: { slug: string; pricing: PricingLike }) {
+export async function AdminSectionContent({ slug, pricing }: { slug: string; pricing: PricingLike }) {
   const meta = getAdminSectionMeta(slug as never);
 
   if (!meta) {
@@ -40,11 +40,12 @@ export function AdminSectionContent({ slug, pricing }: { slug: string; pricing: 
   let summaryValue = "";
   let columns: string[] = [];
   let rows: Array<{ key: string; values: string[]; href?: string }> = [];
+  const catalogProducts = await getCatalogProducts();
 
   switch (meta.slug) {
     case "users": {
-      const suppliers = getAdminSuppliers();
-      summaryValue = `${suppliers.length} fournisseurs actifs`;
+      const suppliers = await getAdminSuppliers();
+      summaryValue = `${suppliers.length} comptes reperes`;
       columns = ["Nom", "Localisation", "Produits", "Reponse", "Statut"];
       rows = suppliers.map((supplier) => ({
         key: supplier.name,
@@ -54,9 +55,9 @@ export function AdminSectionContent({ slug, pricing }: { slug: string; pricing: 
       break;
     }
     case "products": {
-      summaryValue = `${products.length} references catalogue`;
+      summaryValue = `${catalogProducts.length} references catalogue`;
       columns = ["Produit", "Fournisseur", "Prix", "MOQ", "Badge"];
-      rows = products.map((product) => ({
+      rows = catalogProducts.map((product) => ({
         key: product.slug,
         values: [product.shortTitle, product.supplierName, formatPriceRange(pricing.formatPrice, product.minUsd, product.maxUsd), `${product.moq} ${product.unit}`, product.badge ?? "Catalogue"],
         href: `/products/${product.slug}`,
@@ -74,7 +75,7 @@ export function AdminSectionContent({ slug, pricing }: { slug: string; pricing: 
       break;
     }
     case "promotions": {
-      const promotions = getAdminPromotions();
+      const promotions = await getAdminPromotions();
       summaryValue = `${promotions.length} promotions visibles`;
       columns = ["Promotion", "Badge", "Prix", "Destination"];
       rows = promotions.map((promotion) => ({
@@ -95,7 +96,7 @@ export function AdminSectionContent({ slug, pricing }: { slug: string; pricing: 
       break;
     }
     case "offers": {
-      const offers = getAdminOffers();
+      const offers = await getAdminOffers();
       summaryValue = `${offers.length} offres operationnelles`;
       columns = ["Offre", "Fournisseur", "MOQ", "Prix"];
       rows = offers.map((offer) => ({
@@ -116,7 +117,7 @@ export function AdminSectionContent({ slug, pricing }: { slug: string; pricing: 
       break;
     }
     case "support": {
-      const tickets = getAdminSupportTickets();
+      const tickets = await getAdminSupportTickets();
       summaryValue = `${tickets.length} tickets relies aux commandes`;
       columns = ["Sujet", "Agent", "Priorite", "Statut"];
       rows = tickets.map((ticket) => ({
@@ -127,7 +128,7 @@ export function AdminSectionContent({ slug, pricing }: { slug: string; pricing: 
       break;
     }
     case "imports": {
-      const imports = getAdminImportRequests();
+      const imports = await getAdminImportRequests();
       summaryValue = `${imports.length} dossiers en cours`;
       columns = ["Commande", "Corridor", "Tracking", "Agent"];
       rows = imports.map((entry) => ({
@@ -143,7 +144,7 @@ export function AdminSectionContent({ slug, pricing }: { slug: string; pricing: 
       rows = [
         { key: "catalog", values: ["Import produits", "Prix fournisseur, poids, CBM, marge site", "/admin/alibaba-sourcing"], href: "/admin/alibaba-sourcing" },
         { key: "cart", values: ["Checkout sourcing", "Panier FCFA, avion, bateau, livraison offerte", "/cart"], href: "/cart" },
-        { key: "api", values: ["Cockpit Alibaba API", "OAuth, catalog, orders, shipping, webhooks", "/admin/imports/239826786001021591"], href: "/admin/imports/239826786001021591" },
+        { key: "api", values: ["Cockpit Alibaba API", "OAuth, catalog, orders, shipping, webhooks", "/admin/imports"], href: "/admin/imports" },
       ];
       break;
     }
@@ -170,7 +171,7 @@ export function AdminSectionContent({ slug, pricing }: { slug: string; pricing: 
     }
   }
 
-  const recentOrders = getAdminRecentOrders(3);
+  const recentOrders = await getAdminRecentOrders(3);
 
   return (
     <div className="space-y-5">

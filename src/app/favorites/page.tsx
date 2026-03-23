@@ -3,37 +3,16 @@ import Link from "next/link";
 import { Heart, Sparkles } from "lucide-react";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
+import { getCatalogProductsBySlugs } from "@/lib/catalog-service";
+import { getUserFavoriteSlugs } from "@/lib/customer-data-store";
 import { getPricingContext } from "@/lib/pricing";
-
-const favoriteItems = [
-  {
-    title: "Chaise gaming OEM RGB en cuir synthetique",
-    image: "https://s.alicdn.com/@sc04/kf/He21b090337c74bbaa1212b233936914aa.jpg_350x350.jpg",
-    price: "24,20 - 31,40",
-    slug: "fauteuil-gaming-rgb-oem-luxe",
-  },
-  {
-    title: "Bureau gaming LED fibre carbone",
-    image: "https://s.alicdn.com/@sc04/kf/H5d39629cd6374a32bea7368985f32f7aR.jpg_350x350.jpg",
-    price: "19,80 - 37,20",
-    slug: "bureau-gaming-fibre-carbone-led",
-  },
-  {
-    title: "Combo clavier souris RGB personnalisable",
-    image: "https://s.alicdn.com/@sc04/kf/H9d54069b496a4915a948cb6d88ed0435j.jpg_350x350.jpg",
-    price: "4,60 - 12,80",
-    slug: "combo-clavier-souris-onikuma-rgb",
-  },
-  {
-    title: "Casques VR pour revendeurs et bundles gaming",
-    image: "https://s.alicdn.com/@sc04/kf/Hade212866dcd410fa307eb672830a249i.jpg_350x350.jpg",
-    price: "11,90 - 29,40",
-    slug: "lunettes-vr-3d-metavers-hifi",
-  },
-];
+import { getCurrentUser } from "@/lib/user-auth";
 
 export default async function FavoritesPage() {
   const pricing = await getPricingContext();
+  const user = await getCurrentUser();
+  const favoriteSlugs = user ? await getUserFavoriteSlugs(user.id) : [];
+  const favoriteItems = await getCatalogProductsBySlugs(favoriteSlugs);
 
   return (
     <InternalPageShell pricing={pricing}>
@@ -53,6 +32,17 @@ export default async function FavoritesPage() {
           </div>
         </div>
 
+        {favoriteItems.length === 0 ? (
+          <div className="mt-8 rounded-[22px] bg-[#fafafa] px-5 py-8 text-center ring-1 ring-black/5">
+            <div className="text-[20px] font-semibold text-[#222]">Aucun favori enregistre</div>
+            <p className="mx-auto mt-3 max-w-[620px] text-[14px] leading-7 text-[#666]">
+              Ajoutez des produits a vos favoris depuis les fiches produit. Votre liste sera propre a votre compte.
+            </p>
+            <Link href="/products" className="mt-5 inline-flex h-11 items-center justify-center rounded-full border border-[#222] px-5 text-[14px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
+              Parcourir le catalogue
+            </Link>
+          </div>
+        ) : (
         <div className="mt-8 grid grid-cols-2 gap-2.5 sm:gap-5 xl:grid-cols-4">
           {favoriteItems.map((item) => (
             <article key={item.title} className="overflow-hidden rounded-[16px] bg-white shadow-[0_8px_24px_rgba(24,39,75,0.05)] ring-1 ring-black/5 sm:rounded-[24px]">
@@ -61,7 +51,7 @@ export default async function FavoritesPage() {
               </div>
               <div className="p-2.5 sm:p-5">
                 <div className="line-clamp-3 min-h-[48px] text-[12px] font-semibold leading-4 text-[#222] sm:min-h-[84px] sm:text-[20px] sm:leading-7">{item.title}</div>
-                <div className="mt-2 text-[14px] font-bold tracking-[-0.04em] text-[#d85300] sm:mt-4 sm:text-[24px]">{pricing.currency.code} {item.price}</div>
+                <div className="mt-2 text-[14px] font-bold tracking-[-0.04em] text-[#d85300] sm:mt-4 sm:text-[24px]">{pricing.formatPrice(item.minUsd)}{typeof item.maxUsd === "number" ? ` - ${pricing.formatPrice(item.maxUsd)}` : ""}</div>
                 <Link href={`/products/${item.slug}`} className="mt-3 inline-flex h-9 items-center justify-center rounded-full border border-[#222] px-4 text-[12px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:mt-5 sm:h-12 sm:px-6 sm:text-[15px]">
                   Voir le produit
                 </Link>
@@ -69,6 +59,7 @@ export default async function FavoritesPage() {
             </article>
           ))}
         </div>
+        )}
       </section>
     </InternalPageShell>
   );

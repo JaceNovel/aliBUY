@@ -1,8 +1,12 @@
 import Link from "next/link";
 import { Camera, ChevronRight, Copy, Settings, ShieldCheck, UserCircle2 } from "lucide-react";
+import { redirect } from "next/navigation";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
+import { UserLogoutButton } from "@/components/user-logout-button";
+import { getCurrentUser } from "@/lib/user-auth";
 import { getPricingContext } from "@/lib/pricing";
+import { getDisplayInitial, getMaskedEmail } from "@/lib/user-session";
 
 const accountSections = [
   {
@@ -33,6 +37,14 @@ const mobileProfileLinks = [
 
 export default async function AccountPage() {
   const pricing = await getPricingContext();
+  const user = await getCurrentUser();
+
+  if (!user) {
+    redirect("/login?next=/account");
+  }
+
+  const displayInitial = getDisplayInitial(user.displayName).toLowerCase();
+  const maskedEmail = getMaskedEmail(user.email);
 
   return (
     <InternalPageShell pricing={pricing}>
@@ -40,14 +52,14 @@ export default async function AccountPage() {
         <div className="border-b border-[#ececec] px-5 py-5">
           <div className="flex items-center gap-4">
             <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-[#ffe8dc] text-[30px] font-semibold text-[#ff6a00]">
-              j
+              {displayInitial}
               <button className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full border border-[#e8e8e8] bg-white text-[#777]">
                 <Camera className="h-3.5 w-3.5" />
               </button>
             </div>
             <div className="min-w-0">
-              <h1 className="text-[24px] font-semibold tracking-[-0.04em] text-[#222]">jace novel</h1>
-              <p className="mt-1 text-[13px] text-[#666]">jac***@gmail.com</p>
+              <h1 className="text-[24px] font-semibold tracking-[-0.04em] text-[#222]">{user.displayName}</h1>
+              <p className="mt-1 text-[13px] text-[#666]">{maskedEmail}</p>
             </div>
           </div>
         </div>
@@ -66,9 +78,9 @@ export default async function AccountPage() {
         </div>
 
         <div className="border-t border-[#ececec] px-5 py-6">
-          <button type="button" className="text-[16px] font-medium text-[#111]">
+          <UserLogoutButton className="text-[16px] font-medium text-[#111]">
             Se deconnecter
-          </button>
+          </UserLogoutButton>
         </div>
       </section>
 
@@ -76,21 +88,21 @@ export default async function AccountPage() {
         <div className="flex flex-col gap-8 xl:flex-row xl:items-start xl:justify-between">
           <div className="flex flex-col items-start gap-5 sm:flex-row sm:gap-8">
             <div className="relative flex h-[104px] w-[104px] items-center justify-center rounded-full bg-[#ffe8dc] text-[52px] font-semibold text-[#ff6a00] sm:h-[132px] sm:w-[132px] sm:text-[68px]">
-              j
+              {displayInitial}
               <button className="absolute bottom-2 right-1 flex h-9 w-9 items-center justify-center rounded-full border border-[#e8e8e8] bg-white text-[#777]">
                 <Camera className="h-4 w-4" />
               </button>
             </div>
             <div>
-              <h1 className="text-[30px] font-bold tracking-[-0.05em] text-[#222] sm:text-[44px]">jace novel</h1>
+              <h1 className="text-[30px] font-bold tracking-[-0.05em] text-[#222] sm:text-[44px]">{user.displayName}</h1>
               <div className="mt-4 space-y-3 text-[15px] text-[#555] sm:text-[18px]">
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
                   <span className="min-w-28 text-[#666]">E-mail</span>
-                  <span>jac***@gmail.com</span>
+                  <span>{maskedEmail}</span>
                 </div>
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
                   <span className="min-w-28 text-[#666]">Identifiant de membre</span>
-                  <span>tg29123033694xajy</span>
+                  <span>{user.id}</span>
                   <Copy className="h-4 w-4 text-[#777]" />
                 </div>
               </div>
@@ -101,7 +113,7 @@ export default async function AccountPage() {
             <button className="inline-flex h-12 items-center justify-center rounded-full bg-[#222] px-8 text-[15px] font-semibold text-white transition hover:bg-black sm:h-14 sm:text-[18px]">
               Modifier mon profil
             </button>
-            <button className="text-left text-[15px] font-semibold text-[#222] transition hover:text-[#ff6a00] sm:text-[18px]">Se deconnecter</button>
+            <UserLogoutButton className="text-left text-[15px] font-semibold text-[#222] transition hover:text-[#ff6a00] sm:text-[18px]">Se deconnecter</UserLogoutButton>
           </div>
         </div>
 

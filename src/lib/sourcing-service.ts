@@ -1,4 +1,5 @@
-import { getAlibabaSourcingCatalog, createAlibabaSourcingQuote, formatFcfa, type SourcingCheckoutInput, type SourcingOrder, type SourcingSeaContainer, type SourcingSettings } from "@/lib/alibaba-sourcing";
+import { formatFcfa, type SourcingCheckoutInput, type SourcingOrder, type SourcingSeaContainer, type SourcingSettings } from "@/lib/alibaba-sourcing";
+import { createAlibabaSourcingQuote, getAlibabaSourcingCatalog } from "@/lib/alibaba-sourcing-server";
 import { runAlibabaSupplierAutomation } from "@/lib/alibaba-open-platform-client";
 import { createAlibabaIntegrationLog, createSourcingIds, getAlibabaCatalogMappings, getSourcingOrders, getSourcingSeaContainers, getSourcingSettings, saveSourcingOrder, saveSourcingSeaContainer, saveSourcingSettings } from "@/lib/sourcing-store";
 
@@ -27,7 +28,7 @@ export async function getSourcingDashboardData() {
     settings,
     orders,
     containers,
-    catalog: getAlibabaSourcingCatalog(settings).slice(0, 8),
+    catalog: (await getAlibabaSourcingCatalog(settings)).slice(0, 8),
   };
 }
 
@@ -80,7 +81,7 @@ async function assignOrderToSeaContainer(order: SourcingOrder, settings: Sourcin
 
 export async function createCheckoutOrder(input: SourcingCheckoutInput) {
   const settings = await getSourcingSettings();
-  const quote = createAlibabaSourcingQuote(input.items, settings);
+  const quote = await createAlibabaSourcingQuote(input.items, settings);
   const shippingOption = quote.shippingOptions.find((option) => option.key === input.shippingMethod);
 
   if (!shippingOption) {
@@ -93,6 +94,7 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
   let order: SourcingOrder = {
     id: createSourcingIds(),
     orderNumber: createOrderNumber(existingOrders.length),
+    userId: input.userId,
     customerName: input.customerName,
     customerEmail: input.customerEmail,
     customerPhone: input.customerPhone,

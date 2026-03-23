@@ -1,18 +1,25 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ChevronLeft, ImagePlus, MessageSquareText, Paperclip, Search, SendHorizonal, SmilePlus, Star } from "lucide-react";
-import {
-  getMessageEntriesByTab,
-  isLogisticsConversationId,
-  messageEntries,
-  messageTabs,
-  type MessageBubble,
-  type MessageStatus,
-  type MessageTab,
-} from "@/lib/message-conversations";
-import { getOrderById } from "@/lib/orders-data";
+
+type MessageBubble = {
+  side: "left" | "right";
+  text: string;
+};
+
+type MessageStatus = "en ligne" | "en transit" | "dossier clos";
+
+type MessageEntry = {
+  id: string;
+  name: string;
+  email?: string;
+  role: string;
+  preview: string;
+  time: string;
+  status: MessageStatus;
+  messages: MessageBubble[];
+};
 
 function getStatusStyles(status: MessageStatus) {
   if (status === "en ligne") {
@@ -27,69 +34,82 @@ function getStatusStyles(status: MessageStatus) {
 }
 
 type MessagesClientProps = {
+  conversations: MessageEntry[];
   initialConversationId: string | null;
-  initialOrderId: string | null;
-  initialTab: MessageTab;
 };
 
-export function MessagesClient({ initialConversationId, initialOrderId, initialTab }: MessagesClientProps) {
-  const orderContext = getOrderById(initialOrderId);
-  const fallbackConversationId = initialConversationId && messageEntries.some((entry) => entry.id === initialConversationId) ? initialConversationId : null;
-  const defaultConversationId = fallbackConversationId ?? (initialTab === "agents" ? orderContext?.logistics.agentId ?? "zach-cargo" : getMessageEntriesByTab("service")[0]?.id ?? "support-franck");
+export function MessagesClient({ conversations, initialConversationId }: MessagesClientProps) {
+  const fallbackConversationId = initialConversationId && conversations.some((entry) => entry.id === initialConversationId) ? initialConversationId : null;
+  const defaultConversationId = fallbackConversationId ?? conversations[0]?.id ?? null;
 
-  const [activeTab, setActiveTab] = useState<MessageTab>(initialTab);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedConversationId, setSelectedConversationId] = useState(defaultConversationId);
   const [mobileView, setMobileView] = useState<"list" | "chat">(initialConversationId ? "chat" : "list");
-  const [draftMessage, setDraftMessage] = useState(
-    initialTab === "agents" && orderContext && orderContext.logistics.merchantPickupCompleted
-      ? `Bonjour, je souhaite une mise a jour sur ma commande ${orderContext.id} et le tracking ${orderContext.logistics.trackingCode}.`
-      : initialTab === "agents" && orderContext
-        ? `Bonjour, je souhaite suivre la prise en charge de ma commande ${orderContext.id}.`
-        : "",
-  );
+  const [draftMessage, setDraftMessage] = useState("");
   const [conversationMessages, setConversationMessages] = useState<Record<string, MessageBubble[]>>(() => {
-    return Object.fromEntries(messageEntries.map((entry) => [entry.id, entry.messages]));
+    return Object.fromEntries(conversations.map((entry) => [entry.id, entry.messages]));
   });
 
   const filteredEntries = useMemo(() => {
     const normalizedQuery = searchTerm.trim().toLowerCase();
 
-    return messageEntries.filter((entry) => {
-      if (entry.tab !== activeTab) {
-        return false;
-      }
-
+    return conversations.filter((entry) => {
       if (!normalizedQuery) {
         return true;
       }
 
       return `${entry.name} ${entry.role} ${entry.preview}`.toLowerCase().includes(normalizedQuery);
     });
-  }, [activeTab, searchTerm]);
+  }, [conversations, searchTerm]);
 
   const selectedConversation =
-    filteredEntries.find((entry) => entry.id === selectedConversationId) ?? filteredEntries[0] ?? messageEntries[0];
+    filteredEntries.find((entry) => entry.id === selectedConversationId) ?? filteredEntries[0] ?? conversations[0];
+
+  if (!selectedConversation) {
+    return (
+      <section className="rounded-[24px] bg-white px-6 py-8 shadow-[0_8px_30px_rgba(24,39,75,0.05)] ring-1 ring-black/5">
+        <h1 className="text-[24px] font-bold text-[#222]">Messages</h1>
+        <p className="mt-3 text-[15px] text-[#666]">Aucune conversation n&apos;est encore disponible pour ce compte.</p>
+      </section>
+    );
+  }
 
   const selectedMessages = conversationMessages[selectedConversation.id] ?? selectedConversation.messages;
   const isClosedConversation = selectedConversation.status === "dossier clos";
-  const contextualOrder = orderContext && isLogisticsConversationId(selectedConversation.id) && selectedConversation.id === orderContext.logistics.agentId ? orderContext : null;
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const nextMessage = draftMessage.trim();
 
     if (!nextMessage || isClosedConversation) {
       return;
     }
 
+    const optimisticMessages = [
+      ...selectedMessages,
+      { side: "right" as const, text: nextMessage },
+    ];
+
     setConversationMessages((current) => ({
       ...current,
-      [selectedConversation.id]: [
-        ...(current[selectedConversation.id] ?? selectedConversation.messages),
-        { side: "right", text: nextMessage },
-      ],
+      [selectedConversation.id]: optimisticMessages,
     }));
     setDraftMessage("");
+
+    const response = await fetch("/api/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ conversationId: selectedConversation.id, text: nextMessage }),
+    });
+
+    if (!response.ok) {
+      setConversationMessages((current) => ({
+        ...current,
+        [selectedConversation.id]: selectedMessages,
+      }));
+      setDraftMessage(nextMessage);
+    }
   };
 
   return (
@@ -127,30 +147,7 @@ export function MessagesClient({ initialConversationId, initialOrderId, initialT
           <h1 className="text-[20px] font-bold tracking-[-0.05em] text-[#222] sm:text-[30px]">Messages</h1>
           <Star className="h-4 w-4 text-[#ff6a00] sm:h-5 sm:w-5" />
         </div>
-        <p className="mt-2 text-[13px] leading-5 text-[#666] sm:mt-3 sm:text-[15px] sm:leading-7">Service AfriPay et agents logistique pour le suivi de vos expeditions.</p>
-
-        <div className="mt-4 flex rounded-[14px] bg-[#f5f5f5] p-1 sm:mt-5 sm:rounded-[16px] sm:p-1.5">
-          {messageTabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => {
-                setActiveTab(tab.id);
-                setDraftMessage("");
-                const firstTabEntry = messageEntries.find((entry) => entry.tab === tab.id);
-                if (firstTabEntry) {
-                  setSelectedConversationId(firstTabEntry.id);
-                }
-              }}
-              className={[
-                "flex-1 rounded-[10px] px-3 py-2.5 text-[12px] font-semibold transition sm:rounded-[12px] sm:px-4 sm:py-3 sm:text-[15px]",
-                activeTab === tab.id ? "bg-white text-[#222] shadow-[0_2px_8px_rgba(0,0,0,0.06)]" : "text-[#666] hover:text-[#222]",
-              ].join(" ")}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <p className="mt-2 text-[13px] leading-5 text-[#666] sm:mt-3 sm:text-[15px] sm:leading-7">Conversations reelles associees a votre compte utilisateur.</p>
 
         <label className="mt-4 flex h-10 items-center gap-2.5 rounded-[14px] bg-[#f6f6f6] px-3.5 text-[#888] sm:mt-5 sm:h-12 sm:gap-3 sm:px-4">
           <Search className="h-4 w-4" />
@@ -226,39 +223,6 @@ export function MessagesClient({ initialConversationId, initialOrderId, initialT
             Chat Direct
           </div>
         </div>
-
-        {contextualOrder ? (
-          <div className="mt-3 rounded-[16px] border border-[#ffe0ca] bg-[#fff7f1] px-3 py-3 text-[#3b2a1f] sm:rounded-[18px] sm:px-3.5">
-            <div className="flex flex-col gap-2.5 xl:flex-row xl:items-start xl:justify-between">
-              <div>
-                <div className="text-[13px] font-semibold text-[#222] sm:text-[15px]">Colis attribue a {selectedConversation.name}</div>
-                <p className="mt-1 max-w-[760px] text-[11px] leading-4 text-[#6b5545] sm:text-[12px] sm:leading-5">
-                  Commande {contextualOrder.id} sur le corridor {contextualOrder.logistics.corridorLabel}. {contextualOrder.logistics.transitMode}.
-                </p>
-                <p className="mt-1 text-[11px] leading-4 text-[#6b5545] sm:text-[12px] sm:leading-5">{contextualOrder.logistics.lastUpdate}</p>
-              </div>
-              <div className="rounded-[14px] bg-white px-3 py-2.5 text-[10px] text-[#4a3b31] ring-1 ring-[#ffd5b6] xl:min-w-[240px] sm:text-[11px]">
-                <div className="font-semibold text-[#222]">Tracking du colis</div>
-                <div className="mt-1 break-all text-[12px] font-bold tracking-[0.04em] text-[#ea5c00] sm:text-[15px] sm:tracking-[0.05em]">
-                  {contextualOrder.logistics.trackingCode ?? "En attente de recuperation chez le marchand"}
-                </div>
-                <div className="mt-1 text-[10px] leading-4 text-[#6b5545] sm:text-[11px]">
-                  {contextualOrder.logistics.merchantPickupCompleted
-                    ? "Le tracking a deja ete emis par l'agent de transit."
-                    : "Le tracking sera emis automatiquement une fois le colis recupere par l'agent."}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] text-[#5e4b3e] sm:text-[11px]">
-              <div className="rounded-full bg-white px-2 py-1 ring-1 ring-[#ffd5b6] sm:px-2.5">Destination: {contextualOrder.logistics.destinationCountry}</div>
-              <div className="rounded-full bg-white px-2 py-1 ring-1 ring-[#ffd5b6] sm:px-2.5">Statut: {contextualOrder.status}</div>
-              <Link href="/orders" className="rounded-full bg-white px-2 py-1 font-semibold text-[#222] ring-1 ring-[#ffd5b6] transition hover:text-[#ff6a00] sm:px-2.5">
-                Retour aux commandes
-              </Link>
-            </div>
-          </div>
-        ) : null}
 
         <div className="min-h-0 flex-1 overflow-y-auto py-4 pr-1 [scrollbar-gutter:stable] sm:py-6 sm:pr-3">
           <div className="space-y-3.5 sm:space-y-5">

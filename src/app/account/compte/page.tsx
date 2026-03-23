@@ -1,12 +1,20 @@
 import Link from "next/link";
 import { ChevronRight, Mail, ShieldCheck, Trash2 } from "lucide-react";
+import { redirect } from "next/navigation";
 
 import { accountCards } from "@/app/account/compte/account-links";
 import { InternalPageShell } from "@/components/internal-page-shell";
+import { getCurrentUser } from "@/lib/user-auth";
 import { getPricingContext } from "@/lib/pricing";
+import { getMaskedEmail } from "@/lib/user-session";
 
 export default async function AccountSettingsPage() {
   const pricing = await getPricingContext();
+  const user = await getCurrentUser();
+
+  if (!user) {
+    redirect("/login?next=/account/compte");
+  }
 
   return (
     <InternalPageShell pricing={pricing}>
@@ -67,7 +75,7 @@ export default async function AccountSettingsPage() {
                 </div>
                 <div>
                   <div className="text-[15px] font-semibold sm:text-[17px]">Adresse e-mail actuelle</div>
-                  <div className="text-[13px] text-[#666] sm:text-[15px]">jac***@gmail.com</div>
+                  <div className="text-[13px] text-[#666] sm:text-[15px]">{getMaskedEmail(user.email)}</div>
                 </div>
               </div>
               <Link href="/account/compte/changer-adresse-email" className="inline-flex h-11 items-center justify-center rounded-full border border-[#222] px-5 text-[14px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-12 sm:px-6 sm:text-[15px]">

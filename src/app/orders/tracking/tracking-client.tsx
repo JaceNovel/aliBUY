@@ -3,15 +3,19 @@
 import { useMemo, useState } from "react";
 import { CheckCheck, CircleAlert, ClipboardList, PackageCheck, Search, Truck } from "lucide-react";
 
-import { getOrderById, getOrderByTracking, getOrderTrackingNumber, orders, type OrderRecord } from "@/lib/orders-data";
+import { getOrderTrackingNumber, type OrderRecord } from "@/lib/orders-data";
 
 type TrackingClientProps = {
+  orders: OrderRecord[];
   initialOrderId?: string;
   initialTracking?: string;
 };
 
-function resolveTrackingOrder(orderId?: string, tracking?: string) {
-  return getOrderById(orderId) ?? getOrderByTracking(tracking) ?? orders[0] ?? null;
+function resolveTrackingOrder(orders: OrderRecord[], orderId?: string, tracking?: string) {
+  return orders.find((order) => order.id === orderId)
+    ?? orders.find((order) => getOrderTrackingNumber(order) === tracking)
+    ?? orders[0]
+    ?? null;
 }
 
 function getTrackingSteps(order: OrderRecord) {
@@ -56,15 +60,16 @@ function getTrackingSteps(order: OrderRecord) {
   ] as const;
 }
 
-export function TrackingClient({ initialOrderId, initialTracking }: TrackingClientProps) {
-  const initialOrder = resolveTrackingOrder(initialOrderId, initialTracking);
+export function TrackingClient({ orders, initialOrderId, initialTracking }: TrackingClientProps) {
+  const initialOrder = resolveTrackingOrder(orders, initialOrderId, initialTracking);
   const [trackingValue, setTrackingValue] = useState(initialOrder ? getOrderTrackingNumber(initialOrder) : initialTracking ?? "");
   const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(initialOrder);
 
   const steps = useMemo(() => (selectedOrder ? getTrackingSteps(selectedOrder) : []), [selectedOrder]);
 
   const handleSearch = () => {
-    const nextOrder = getOrderByTracking(trackingValue) ?? getOrderById(trackingValue);
+    const nextOrder = orders.find((order) => getOrderTrackingNumber(order) === trackingValue)
+      ?? orders.find((order) => order.id === trackingValue);
 
     if (nextOrder) {
       setSelectedOrder(nextOrder);
@@ -118,7 +123,7 @@ export function TrackingClient({ initialOrderId, initialTracking }: TrackingClie
           <div>
             <div className="text-[13px] text-[#7b8794]">Livraison estimee</div>
             <div className="mt-1 text-[18px] font-semibold text-[#111] sm:text-[22px]">
-              {selectedOrder.status === "Commande Livré" ? selectedOrder.dateLabel.split(",")[0] : "26 mars 2025"}
+              {selectedOrder.status === "Commande Livree" ? selectedOrder.dateLabel.split(",")[0] : "26 mars 2025"}
             </div>
           </div>
         </div>

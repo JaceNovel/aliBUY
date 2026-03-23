@@ -4,7 +4,22 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { EllipsisVertical, ImagePlus, MessageCircleMore, Plus, Search, SendHorizontal, Smile } from "lucide-react";
 
-import { getMessageEntriesByTab, type MessageBubble } from "@/lib/message-conversations";
+type MessageBubble = {
+  side: "left" | "right";
+  text: string;
+};
+
+type SupportConversation = {
+  id: string;
+  name: string;
+  email?: string;
+  preview: string;
+  time: string;
+  status: string;
+  role: string;
+  aiEnabled?: boolean;
+  messages: MessageBubble[];
+};
 
 function statusPill(status: string) {
   if (status === "dossier clos") {
@@ -18,8 +33,7 @@ function statusPill(status: string) {
   return "bg-[#dcfae6] text-[#16a34a]";
 }
 
-export function AdminSupportClient() {
-  const serviceConversations = getMessageEntriesByTab("service");
+export function AdminSupportClient({ serviceConversations }: { serviceConversations: SupportConversation[] }) {
   const [query, setQuery] = useState("");
   const [selectedConversationId, setSelectedConversationId] = useState(serviceConversations[0]?.id ?? "");
   const [draftMessage, setDraftMessage] = useState("");
@@ -130,6 +144,7 @@ export function AdminSupportClient() {
             <div>
               <div className="text-[13px] font-semibold text-[#101828]">{activeConversation.role}</div>
               <div className="mt-1 text-[12px] text-[#667085]">Cette conversation est la même que dans la page Messages, onglet Service AfriPay.</div>
+              <div className="mt-1 text-[12px] text-[#667085]">Cette conversation provient du support reconfigure pour les comptes utilisateurs reels.</div>
             </div>
             <div className={["inline-flex rounded-full px-3 py-1 text-[12px] font-semibold uppercase tracking-[0.08em]", statusPill(activeConversation.status)].join(" ")}>{activeConversation.status}</div>
           </div>

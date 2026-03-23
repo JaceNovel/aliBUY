@@ -42,7 +42,7 @@ const messages = {
       imageSearch: "Recherche par image",
     },
     welcome: {
-      title: "Bienvenue sur AfriPay, jace",
+      title: "Bienvenue sur AfriPay",
     },
     hero: {
       dynamicSelection: "Selection dynamique",
@@ -185,7 +185,7 @@ const messages = {
       imageSearch: "Search by image",
     },
     welcome: {
-      title: "Welcome to AfriPay, jace",
+      title: "Welcome to AfriPay",
     },
     hero: {
       dynamicSelection: "Dynamic selection",

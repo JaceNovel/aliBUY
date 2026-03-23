@@ -96,19 +96,7 @@ export function MessagesPopover({ className = "", align = "right" }: MessagesPop
             </div>
           </div>
 
-          <p className="mt-6 text-[15px] text-[#444]">Discutez avec le service AfriPay et vos agents logistique dedies.</p>
-
-          <div className="mt-5 flex flex-wrap justify-center gap-2">
-            {[
-              "Zach Cargo",
-              "Estrelia",
-              "NIF cargo",
-            ].map((agent) => (
-              <span key={agent} className="rounded-full bg-[#fff3ea] px-3 py-1 text-[13px] font-semibold text-[#d85300]">
-                {agent}
-              </span>
-            ))}
-          </div>
+          <p className="mt-6 text-[15px] text-[#444]">Accedez a vos conversations support liees a votre propre compte utilisateur.</p>
 
           <Link
             href="/messages"

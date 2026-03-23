@@ -111,11 +111,8 @@ export default async function CategoryPage({
           <section className="rounded-[28px] bg-white px-6 py-8 text-center shadow-[0_14px_34px_rgba(17,24,39,0.06)] ring-1 ring-black/5">
             <h2 className="text-[28px] font-bold tracking-[-0.05em] text-[#222]">Categorie vide</h2>
             <p className="mx-auto mt-3 max-w-[720px] text-[15px] leading-7 text-[#666]">
-              Les produits de demonstration ont ete retires. Cette categorie affichera tes propres articles une fois importes, publies et relies a cette famille.
+              Les produits de demonstration ont ete retires. Cette categorie affichera uniquement les articles publies et relies a cette famille.
             </p>
-            <Link href="/admin/alibaba-sourcing/import-catalog" className="mt-6 inline-flex h-12 items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[15px] font-semibold text-white transition hover:bg-[#ec6100]">
-              Importer mes produits
-            </Link>
           </section>
         )}
 

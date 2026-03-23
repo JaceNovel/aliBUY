@@ -9,12 +9,17 @@ type HeaderActionGroupProps = {
   className?: string;
   iconClassName?: string;
   align?: "left" | "center" | "right";
+  user?: {
+    displayName: string;
+    firstName: string;
+  } | null;
 };
 
 export function HeaderActionGroup({
   className = "flex items-center gap-3 text-[#222]",
   iconClassName = "h-5 w-5",
   align = "right",
+  user = null,
 }: HeaderActionGroupProps) {
   return (
     <div className={className}>
@@ -27,7 +32,7 @@ export function HeaderActionGroup({
         <Heart className={iconClassName} />
       </Link>
       <CartPopover className={iconClassName} align={align} />
-      <ProfileMenu className={iconClassName} align={align} />
+      <ProfileMenu className={iconClassName} align={align} user={user} />
     </div>
   );
 }

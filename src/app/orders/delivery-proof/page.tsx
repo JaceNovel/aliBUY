@@ -3,8 +3,11 @@ import Link from "next/link";
 import { CheckCheck, ImageIcon, ShieldCheck } from "lucide-react";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
-import { getOrderById, getOrderTrackingHref, orders } from "@/lib/orders-data";
+import { getOrderTrackingHref } from "@/lib/orders-data";
+import { getUserOrderRecordById } from "@/lib/order-service";
 import { getPricingContext } from "@/lib/pricing";
+import { getCurrentUser } from "@/lib/user-auth";
+import { notFound, redirect } from "next/navigation";
 
 export default async function DeliveryProofPage({
   searchParams,
@@ -12,8 +15,18 @@ export default async function DeliveryProofPage({
   searchParams: Promise<{ orderId?: string }>;
 }) {
   const pricing = await getPricingContext();
+  const user = await getCurrentUser();
+
+  if (!user) {
+    redirect("/login?next=/orders/delivery-proof");
+  }
+
   const resolvedSearchParams = await searchParams;
-  const order = getOrderById(resolvedSearchParams.orderId) ?? orders[0];
+  const order = await getUserOrderRecordById(user, resolvedSearchParams.orderId);
+
+  if (!order) {
+    notFound();
+  }
 
   return (
     <InternalPageShell pricing={pricing}>

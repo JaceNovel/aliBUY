@@ -1,16 +1,15 @@
-import { FileUp, PackageSearch, Send, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
+import { QuoteRequestForm } from "@/components/quote-request-form";
 import { InternalPageShell } from "@/components/internal-page-shell";
+import { getUserQuoteRequests } from "@/lib/customer-data-store";
 import { getPricingContext } from "@/lib/pricing";
-
-const recentRequests = [
-  { title: "Souris gaming personnalisables", qty: "2 000 pieces", status: "Analyse fournisseurs" },
-  { title: "Bureaux gaming LED fibre carbone", qty: "120 sets", status: "Devis recus" },
-  { title: "Kits casques VR pour salle d'arcade", qty: "40 unites", status: "En attente" },
-];
+import { getCurrentUser } from "@/lib/user-auth";
 
 export default async function QuotesPage() {
   const pricing = await getPricingContext();
+  const user = await getCurrentUser();
+  const recentRequests = user ? await getUserQuoteRequests(user.id) : [];
 
   return (
     <InternalPageShell pricing={pricing}>
@@ -24,48 +23,7 @@ export default async function QuotesPage() {
           <p className="mt-2.5 max-w-[760px] text-[14px] leading-6 text-[#555] sm:mt-3 sm:text-[17px] sm:leading-8">
             Envoyez une demande claire a plusieurs fournisseurs en une seule fois. AfriPay regroupe vos specifications, votre cible prix et votre fenetre logistique.
           </p>
-
-          <div className="mt-5 grid gap-4 sm:mt-8 sm:gap-5 md:grid-cols-2">
-            <label className="space-y-1.5 sm:space-y-2 text-[13px] font-semibold text-[#333] sm:text-[15px]">
-              <span>Nom du produit</span>
-              <input className="h-11 w-full rounded-[14px] border border-[#dde2ea] px-3.5 text-[14px] outline-none focus:border-[#ff6a00] sm:h-14 sm:rounded-[16px] sm:px-5 sm:text-[16px]" defaultValue="Souris gaming RGB" />
-            </label>
-            <label className="space-y-1.5 sm:space-y-2 text-[13px] font-semibold text-[#333] sm:text-[15px]">
-              <span>Quantite cible</span>
-              <input className="h-11 w-full rounded-[14px] border border-[#dde2ea] px-3.5 text-[14px] outline-none focus:border-[#ff6a00] sm:h-14 sm:rounded-[16px] sm:px-5 sm:text-[16px]" defaultValue="2000 pieces" />
-            </label>
-            <label className="space-y-1.5 sm:space-y-2 text-[13px] font-semibold text-[#333] sm:text-[15px] md:col-span-2">
-              <span>Specifications</span>
-              <textarea className="min-h-[132px] w-full rounded-[14px] border border-[#dde2ea] px-3.5 py-3 text-[14px] outline-none focus:border-[#ff6a00] sm:min-h-[180px] sm:rounded-[16px] sm:px-5 sm:py-4 sm:text-[16px]" defaultValue="Capteur optique haute precision, logo personnalise, emballage OEM, connectivite USB-C ou 2.4G, echantillon requis avant production de masse." />
-            </label>
-            <label className="space-y-1.5 sm:space-y-2 text-[13px] font-semibold text-[#333] sm:text-[15px]">
-              <span>Budget cible</span>
-              <input className="h-11 w-full rounded-[14px] border border-[#dde2ea] px-3.5 text-[14px] outline-none focus:border-[#ff6a00] sm:h-14 sm:rounded-[16px] sm:px-5 sm:text-[16px]" defaultValue={`${pricing.currency.code} 8.00 / unite max`} />
-            </label>
-            <label className="space-y-1.5 sm:space-y-2 text-[13px] font-semibold text-[#333] sm:text-[15px]">
-              <span>Fenetre logistique</span>
-              <input className="h-11 w-full rounded-[14px] border border-[#dde2ea] px-3.5 text-[14px] outline-none focus:border-[#ff6a00] sm:h-14 sm:rounded-[16px] sm:px-5 sm:text-[16px]" defaultValue={pricing.shippingWindow} />
-            </label>
-          </div>
-
-          <div className="mt-5 grid gap-3 sm:mt-6 sm:gap-4 sm:grid-cols-2">
-            <button className="flex h-11 items-center justify-center gap-2.5 rounded-[14px] border border-dashed border-[#cfd6e1] bg-[#fafafa] px-3 text-[13px] font-semibold text-[#333] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-14 sm:gap-3 sm:rounded-[18px] sm:text-[16px]">
-              <FileUp className="h-4 w-4 sm:h-5 sm:w-5" />
-              <span className="sm:hidden">Cahier des charges</span>
-              <span className="hidden sm:inline">Ajouter un cahier des charges</span>
-            </button>
-            <button className="flex h-11 items-center justify-center gap-2.5 rounded-[14px] border border-dashed border-[#cfd6e1] bg-[#fafafa] px-3 text-[13px] font-semibold text-[#333] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-14 sm:gap-3 sm:rounded-[18px] sm:text-[16px]">
-              <PackageSearch className="h-4 w-4 sm:h-5 sm:w-5" />
-              <span className="sm:hidden">References produit</span>
-              <span className="hidden sm:inline">Ajouter des references produit</span>
-            </button>
-          </div>
-
-          <button className="mt-6 inline-flex h-11 w-full items-center justify-center gap-2.5 rounded-full bg-[#ff6a00] px-5 text-[14px] font-semibold text-white transition hover:bg-[#ef6100] sm:mt-8 sm:h-14 sm:w-auto sm:gap-3 sm:px-8 sm:text-[18px]">
-            <Send className="h-4 w-4 sm:h-5 sm:w-5" />
-            <span className="sm:hidden">Envoyer le devis</span>
-            <span className="hidden sm:inline">Envoyer ma demande de devis</span>
-          </button>
+          <QuoteRequestForm currencyCode={pricing.currency.code} shippingWindow={pricing.shippingWindow} />
         </section>
 
         <aside className="space-y-4 sm:space-y-6">
@@ -81,10 +39,10 @@ export default async function QuotesPage() {
           <article className="rounded-[22px] bg-white px-4 py-5 shadow-[0_8px_30px_rgba(24,39,75,0.05)] ring-1 ring-black/5 sm:rounded-[28px] sm:px-7 sm:py-7">
             <h2 className="text-[20px] font-bold tracking-[-0.04em] text-[#222] sm:text-[24px]">Demandes recentes</h2>
             <div className="mt-4 space-y-3 sm:mt-5 sm:space-y-4">
-              {recentRequests.map((request) => (
-                <div key={request.title} className="rounded-[16px] bg-[#fafafa] px-4 py-3.5 ring-1 ring-black/5 sm:rounded-[20px] sm:px-5 sm:py-4">
-                  <div className="text-[15px] font-semibold leading-5 text-[#222] sm:text-[18px]">{request.title}</div>
-                  <div className="mt-1.5 text-[13px] text-[#666] sm:mt-2 sm:text-[15px]">{request.qty}</div>
+              {recentRequests.length === 0 ? <div className="rounded-[16px] bg-[#fafafa] px-4 py-4 text-[14px] text-[#666] ring-1 ring-black/5">Aucune demande n&apos;a encore ete envoyee depuis ce compte.</div> : recentRequests.map((request) => (
+                <div key={request.id} className="rounded-[16px] bg-[#fafafa] px-4 py-3.5 ring-1 ring-black/5 sm:rounded-[20px] sm:px-5 sm:py-4">
+                  <div className="text-[15px] font-semibold leading-5 text-[#222] sm:text-[18px]">{request.productName}</div>
+                  <div className="mt-1.5 text-[13px] text-[#666] sm:mt-2 sm:text-[15px]">{request.quantity}</div>
                   <div className="mt-2.5 inline-flex rounded-full bg-[#fff2e9] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#d85300] sm:mt-3 sm:px-3 sm:text-[12px] sm:tracking-[0.12em]">
                     {request.status}
                   </div>

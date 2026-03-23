@@ -20,9 +20,13 @@ type ScrollNavbarProps = {
   flagEmoji: string;
   languageCode: string;
   languageLabel: string;
+  user?: {
+    displayName: string;
+    firstName: string;
+  } | null;
 };
 
-export function ScrollNavbar({ countryCode, countryLabel, currencyCode, flagEmoji, languageCode, languageLabel }: ScrollNavbarProps) {
+export function ScrollNavbar({ countryCode, countryLabel, currencyCode, flagEmoji, languageCode, languageLabel, user = null }: ScrollNavbarProps) {
   const [isVisible, setIsVisible] = useState(false);
   const messages = getMessages(languageCode);
 
@@ -81,7 +85,7 @@ export function ScrollNavbar({ countryCode, countryLabel, currencyCode, flagEmoj
 
             <LanguageSelectorPopover languageCode={languageCode} languageLabel={languageLabel} />
 
-            <HeaderActionGroup className="flex items-center gap-6 text-[#222]" iconClassName="h-6 w-6" />
+            <HeaderActionGroup className="flex items-center gap-6 text-[#222]" iconClassName="h-6 w-6" user={user} />
           </div>
         </div>
 

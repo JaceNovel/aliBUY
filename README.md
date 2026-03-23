@@ -6,7 +6,8 @@ This is a Next.js 16 marketplace with a sourcing, pricing, and logistics layer f
 - Backend: Route Handlers inside Next.js
 - ORM: Prisma 6.16.x
 - Database target: PostgreSQL via Prisma datasource
-- Local fallback persistence: `data/sourcing/*.json`
+- Production persistence: PostgreSQL for users, favorites, quotes, support conversations, and authenticated orders
+- Local fallback persistence kept only for sourcing admin bootstrap data under `data/sourcing/*.json`
 
 ## Getting Started
 
@@ -28,7 +29,7 @@ cp .env.example .env
 npm run prisma:generate
 ```
 
-4. If you want database persistence instead of the local JSON fallback, configure `DATABASE_URL` and push the schema:
+4. Configure `DATABASE_URL` and push the schema:
 
 ```bash
 npm run prisma:push
@@ -45,14 +46,16 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Admin Access
 
 Admin routes under `/admin` are protected by a dedicated login page at `/admin/login`.
+User routes under `/account`, `/checkout`, `/orders`, `/messages`, `/quotes`, and `/favorites` require a valid user session.
 
 Environment variables:
 
-- `ADMIN_EMAIL` defaults to `afripay@gmail.com`
+- `ADMIN_EMAIL`
 - `ADMIN_PASSWORD_HASH` is a SHA-256 password hash
-- `ADMIN_SESSION_SECRET` is optional and strengthens the session cookie signature
+- `ADMIN_SESSION_SECRET`
+- `USER_SESSION_SECRET`
 
-Current configured password hash in `.env.example` matches the password `mamanbri32@@`.
+No admin fallback credentials are injected at runtime anymore. Configure all admin variables explicitly before deployment.
 
 ## Sourcing System
 
@@ -70,12 +73,14 @@ Implemented business rules:
 Main files:
 
 - Pricing and logistics engine: `src/lib/alibaba-sourcing.ts`
+- Server-side catalog-backed sourcing quote engine: `src/lib/alibaba-sourcing-server.ts`
 - Persistence and repositories: `src/lib/sourcing-store.ts`
 - Business workflow: `src/lib/sourcing-service.ts`
+- User and customer persistence: `src/lib/user-store.ts`, `src/lib/customer-data-store.ts`
 - Alibaba server integration: `src/lib/alibaba-open-platform-client.ts`
 - Prisma schema: `prisma/schema.prisma`
 - SQL schema and seed: `database/mysql/schema.sql`, `database/mysql/seed.sql`
-- Sample persisted data: `data/sourcing/`
+- Bootstrap sourcing data: `data/sourcing/`
 
 ## Admin and Checkout
 
@@ -125,9 +130,30 @@ Important:
 - Real upstream calls also require valid catalog mapping data in `data/sourcing/catalog-mapping.json`
 - If credentials or mappings are missing, the system creates the internal order and logs the Alibaba step as skipped instead of failing the checkout.
 
+## Vercel Deployment
+
+Required environment variables on Vercel:
+
+- `DATABASE_URL`
+- `USER_SESSION_SECRET`
+- `ADMIN_EMAIL`
+- `ADMIN_PASSWORD_HASH`
+- `ADMIN_SESSION_SECRET`
+- `MONEROO_SECRET_KEY`
+- `MONEROO_WEBHOOK_SECRET`
+- `ALIBABA_OPEN_PLATFORM_APP_KEY`
+- `ALIBABA_OPEN_PLATFORM_APP_SECRET`
+- `ALIBABA_OPEN_PLATFORM_ACCESS_TOKEN`
+
+Deployment notes:
+
+- `postinstall` now runs `prisma generate`, which is required on Vercel builds.
+- Run `npm run prisma:push` once against the production database before the first deployment, or from your CI/CD pipeline before switching traffic.
+- The storefront no longer reads user accounts, favorites, quotes, or support threads from local JSON files.
+
 ## Notes
 
-- If `DATABASE_URL` is not set, the sourcing layer falls back to JSON persistence so the project remains runnable locally.
+- If `DATABASE_URL` is not set, only the sourcing bootstrap layer still falls back to JSON persistence for local admin data.
 - The current Prisma schema is configured for PostgreSQL because the active database endpoint is PostgreSQL.
 - The repo currently contains other unrelated work-in-progress changes; they were not reverted.
 

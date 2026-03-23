@@ -1,9 +1,7 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { useMemo, useState } from "react";
-
-import { getSearchSuggestions } from "@/lib/products-data";
+import { useEffect, useState } from "react";
 
 type SearchSuggestionInputProps = {
   name: string;
@@ -24,8 +22,31 @@ export function SearchSuggestionInput({
 }: SearchSuggestionInputProps) {
   const [query, setQuery] = useState(defaultValue);
   const [isOpen, setIsOpen] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
 
-  const suggestions = useMemo(() => getSearchSuggestions(query), [query]);
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadSuggestions() {
+      try {
+        const response = await fetch(`/api/search-suggestions?q=${encodeURIComponent(query)}`, {
+          signal: controller.signal,
+        });
+        const payload = await response.json();
+        setSuggestions(Array.isArray(payload?.suggestions) ? payload.suggestions : []);
+      } catch {
+        if (!controller.signal.aborted) {
+          setSuggestions([]);
+        }
+      }
+    }
+
+    void loadSuggestions();
+
+    return () => {
+      controller.abort();
+    };
+  }, [query]);
 
   return (
     <div className={wrapperClassName ?? "relative"}>

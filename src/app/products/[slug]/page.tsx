@@ -4,6 +4,8 @@ import { ProductDetailClient } from "@/app/products/[slug]/product-detail-client
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { getCatalogProductBySlug, getCatalogProducts, getCatalogRelatedProducts } from "@/lib/catalog-service";
 import { getPricingContext } from "@/lib/pricing";
+import { getCurrentUser } from "@/lib/user-auth";
+import { isUserFavoriteProduct } from "@/lib/customer-data-store";
 
 function formatPriceRange(
   formatPrice: (amountUsd: number) => string,
@@ -28,6 +30,7 @@ export default async function ProductPage({
   params: Promise<{ slug: string }>;
 }) {
   const pricing = await getPricingContext();
+  const user = await getCurrentUser();
   const { slug } = await params;
   const product = await getCatalogProductBySlug(slug);
 
@@ -42,6 +45,7 @@ export default async function ProductPage({
     formattedPrice: formatPriceRange(pricing.formatPrice, relatedProduct.minUsd, relatedProduct.maxUsd),
     moqLabel: `MOQ: ${relatedProduct.moq} ${relatedProduct.unit}`,
   }));
+  const initialIsFavorite = user ? await isUserFavoriteProduct(user.id, product.slug) : false;
 
   return (
     <InternalPageShell pricing={pricing}>
@@ -81,6 +85,7 @@ export default async function ProductPage({
           badge: product.badge,
         }}
         relatedProducts={relatedProducts}
+        initialIsFavorite={initialIsFavorite}
       />
     </InternalPageShell>
   );

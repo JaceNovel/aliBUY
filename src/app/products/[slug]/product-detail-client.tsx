@@ -64,17 +64,19 @@ type ProductDetailClientProps = {
     badge?: string;
   };
   relatedProducts: RelatedProduct[];
+  initialIsFavorite: boolean;
 };
 
-export function ProductDetailClient({ product, relatedProducts }: ProductDetailClientProps) {
+export function ProductDetailClient({ product, relatedProducts, initialIsFavorite }: ProductDetailClientProps) {
   const router = useRouter();
   const { addItem } = useCart();
   const [activeImage, setActiveImage] = useState(0);
   const [activeMedia, setActiveMedia] = useState<"photo" | "video">("photo");
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<"overview" | "details" | "related">("overview");
-  const [isFavorite, setIsFavorite] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(initialIsFavorite);
   const [favoritePulse, setFavoritePulse] = useState(false);
+  const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
   const [sharePulse, setSharePulse] = useState(false);
   const [shippingMethod, setShippingMethod] = useState<"air" | "sea" | null>(null);
@@ -167,12 +169,41 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
       };
     });
   };
-  const toggleFavorite = () => {
-    setIsFavorite((current) => !current);
+  const toggleFavorite = async () => {
+    if (favoriteBusy) {
+      return;
+    }
+
+    setFavoriteBusy(true);
     setFavoritePulse(true);
-    window.setTimeout(() => {
-      setFavoritePulse(false);
-    }, 320);
+
+    try {
+      const response = await fetch("/api/favorites", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ productSlug: product.slug }),
+      });
+
+      if (response.status === 401) {
+        router.push(`/login?next=${encodeURIComponent(`/products/${product.slug}`)}`);
+        return;
+      }
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || typeof payload?.isFavorite !== "boolean") {
+        return;
+      }
+
+      setIsFavorite(payload.isFavorite);
+      router.refresh();
+    } finally {
+      window.setTimeout(() => {
+        setFavoritePulse(false);
+      }, 320);
+      setFavoriteBusy(false);
+    }
   };
   const canSubmitOrder = totalSelectedQuantity > 0 && shippingMethod !== null;
   const openOrderModal = () => {

@@ -17,23 +17,11 @@ import {
   Volume2,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { getOrderChatHref, getOrderConfirmReceiptHref, getOrderDeliveryProofHref, getOrderPaymentHref, getOrderTrackingHref, orderTabs, orders, pendingProofDefaultOrder, sidebarItems, type OrderRecord, type OrderTab } from "@/lib/orders-data";
+import { getOrderChatHref, getOrderConfirmReceiptHref, getOrderDeliveryProofHref, getOrderPaymentHref, getOrderTabs, getOrderTrackingHref, sidebarItems, type OrderRecord, type OrderTabKey } from "@/lib/orders-data";
 
-const dateOptions = [
-  { value: "all", label: "Date de la commande" },
-  ...Array.from(new Map(orders.map((order) => [order.dateValue, order.dateLabel.split(",")[0]])).entries()).map(([value, label]) => ({
-    value,
-    label,
-  })),
-];
-
-const timeOptions = [
-  { value: "all", label: "Selectionner l'heure" },
-  ...Array.from(new Set(orders.map((order) => order.timeValue))).map((value) => ({
-    value,
-    label: value,
-  })),
-];
+type OrdersClientProps = {
+  orders: OrderRecord[];
+};
 
 const sidebarItemMeta = {
   "Toutes les commandes": { label: "Commandes", icon: ClipboardList },
@@ -44,12 +32,12 @@ const sidebarItemMeta = {
 } as const;
 
 const orderTabMeta = {
-  "Toutes les commandes": { shortLabel: "Toutes", icon: ClipboardList },
-  "Paiements en attente (2)": { shortLabel: "Paiement", icon: CreditCard },
-  "Expeditions en attente": { shortLabel: "Expedition", icon: Truck },
-  "Livraisons en attente": { shortLabel: "Livraison", icon: Truck },
-  "Commande Livré": { shortLabel: "Livre", icon: ReceiptText },
-} as const satisfies Record<OrderTab, { shortLabel: string; icon: typeof ClipboardList }>;
+  all: { shortLabel: "Toutes", icon: ClipboardList },
+  "payment-pending": { shortLabel: "Paiement", icon: CreditCard },
+  "shipment-pending": { shortLabel: "Expedition", icon: Truck },
+  "delivery-pending": { shortLabel: "Livraison", icon: Truck },
+  delivered: { shortLabel: "Livre", icon: ReceiptText },
+} as const satisfies Record<OrderTabKey, { shortLabel: string; icon: typeof ClipboardList }>;
 
 function getOrderActions(order: OrderRecord) {
   if (order.status === "Paiement en attente") {
@@ -133,11 +121,30 @@ function getMobileCorridorLabel(label: string) {
     .replace(" -> ", " > ");
 }
 
-export function OrdersClient() {
+export function OrdersClient({ orders }: OrdersClientProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDate, setSelectedDate] = useState("all");
   const [selectedTime, setSelectedTime] = useState("all");
-  const [activeTab, setActiveTab] = useState<OrderTab>("Toutes les commandes");
+  const [activeTab, setActiveTab] = useState<OrderTabKey>("all");
+
+  const dateOptions = useMemo(() => [
+    { value: "all", label: "Date de la commande" },
+    ...Array.from(new Map(orders.map((order) => [order.dateValue, order.dateLabel])).entries()).map(([value, label]) => ({
+      value,
+      label,
+    })),
+  ], [orders]);
+
+  const timeOptions = useMemo(() => [
+    { value: "all", label: "Selectionner l'heure" },
+    ...Array.from(new Set(orders.map((order) => order.timeValue))).map((value) => ({
+      value,
+      label: value,
+    })),
+  ], [orders]);
+
+  const orderTabs = useMemo(() => getOrderTabs(orders), [orders]);
+  const pendingProofDefaultOrder = useMemo(() => orders.find((order) => order.status === "Paiement en attente") ?? orders[0] ?? null, [orders]);
 
   const filteredOrders = useMemo(() => {
     const normalizedQuery = searchTerm.trim().toLowerCase();
@@ -145,14 +152,26 @@ export function OrdersClient() {
     return orders.filter((order) => {
       const matchesSearch =
         !normalizedQuery ||
-        `${order.id} ${order.title} ${order.variant} ${order.seller}`.toLowerCase().includes(normalizedQuery);
+        `${order.id} ${order.orderNumber} ${order.title} ${order.variant} ${order.seller}`.toLowerCase().includes(normalizedQuery);
       const matchesDate = selectedDate === "all" || order.dateValue === selectedDate;
       const matchesTime = selectedTime === "all" || order.timeValue === selectedTime;
-      const matchesTab = activeTab === "Toutes les commandes" || order.tab === activeTab;
+      const matchesTab = activeTab === "all" || order.tab === activeTab;
 
       return matchesSearch && matchesDate && matchesTime && matchesTab;
     });
-  }, [activeTab, searchTerm, selectedDate, selectedTime]);
+  }, [activeTab, orders, searchTerm, selectedDate, selectedTime]);
+
+  if (orders.length === 0) {
+    return (
+      <div className="rounded-[24px] bg-white px-6 py-8 shadow-[0_8px_30px_rgba(24,39,75,0.05)] ring-1 ring-black/5">
+        <h1 className="text-[24px] font-bold tracking-[-0.05em] text-[#222] sm:text-[30px]">Vos commandes</h1>
+        <p className="mt-3 text-[14px] leading-6 text-[#666]">Aucune commande liee a votre compte pour le moment. Finalisez un checkout sourcing pour voir votre suivi ici.</p>
+        <Link href="/checkout" className="mt-5 inline-flex h-11 items-center justify-center rounded-full bg-[#ea5c00] px-5 text-[14px] font-semibold text-white transition hover:bg-[#d85400]">
+          Commencer un checkout
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="grid min-w-0 gap-4 xl:grid-cols-[240px_minmax(0,1fr)] xl:gap-6">
@@ -195,7 +214,7 @@ export function OrdersClient() {
 
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <h1 className="text-[20px] font-bold tracking-[-0.05em] text-[#222] sm:text-[28px] lg:text-[36px]">Vos commandes</h1>
-          <Link href={`/orders/remittance-proof?orderId=${encodeURIComponent(pendingProofDefaultOrder.id)}`} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-[#222] px-3 text-[12px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-11 sm:w-auto sm:px-6 sm:text-[14px]">
+          <Link href={`/orders/remittance-proof?orderId=${encodeURIComponent(pendingProofDefaultOrder?.id ?? orders[0].id)}`} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-[#222] px-3 text-[12px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-11 sm:w-auto sm:px-6 sm:text-[14px]">
             <CreditCard className="h-4 w-4" />
             <span className="sm:hidden">Preuve</span>
             <span className="hidden sm:inline">Soumettre une preuve de virement</span>
@@ -205,23 +224,23 @@ export function OrdersClient() {
         <div className="mt-5 flex gap-2.5 overflow-x-auto border-b border-[#e7e7e7] pb-1 text-[12px] text-[#333] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:gap-x-7 sm:gap-y-3 sm:overflow-visible sm:pb-0 sm:text-[14px]">
           {orderTabs.map((tab) => (
             <button
-              key={tab}
+              key={tab.key}
               type="button"
-              onClick={() => setActiveTab(tab)}
+              onClick={() => setActiveTab(tab.key)}
               className={[
                 "flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-1 pb-3 text-left transition sm:gap-2 sm:px-1.5",
-                activeTab === tab ? "border-[#222] font-semibold text-[#222]" : "border-transparent hover:text-[#222]",
+                activeTab === tab.key ? "border-[#222] font-semibold text-[#222]" : "border-transparent hover:text-[#222]",
               ].join(" ")}
             >
               {(() => {
-                const meta = orderTabMeta[tab];
+                const meta = orderTabMeta[tab.key];
                 const Icon = meta.icon;
 
                 return (
                   <>
                     <Icon className="h-4 w-4 sm:hidden" />
                     <span className="sm:hidden">{meta.shortLabel}</span>
-                    <span className="hidden sm:inline">{tab}</span>
+                    <span className="hidden sm:inline">{tab.label}</span>
                   </>
                 );
               })()}

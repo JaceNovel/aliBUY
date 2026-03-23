@@ -229,11 +229,8 @@ export default async function DealsFlashPage() {
           <section className="rounded-[28px] bg-white px-6 py-8 text-center shadow-[0_18px_40px_rgba(17,24,39,0.06)] ring-1 ring-black/5 sm:px-8 sm:py-10">
             <h2 className="text-[28px] font-black tracking-[-0.05em] text-[#222]">Aucun deal flash publie</h2>
             <p className="mx-auto mt-3 max-w-[700px] text-[15px] leading-7 text-[#666]">
-              Les articles de test ont ete retires. Les deals flash apparaitront ici quand tu auras importe puis publie tes propres produits Alibaba.
+              Les articles de test ont ete retires. Les deals flash apparaitront ici quand des produits auront ete publies sur le site.
             </p>
-            <Link href="/admin/alibaba-sourcing/import-catalog" className="mt-6 inline-flex h-12 items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[15px] font-semibold text-white transition hover:bg-[#ec6100]">
-              Importer des produits
-            </Link>
           </section>
         )}
       </div>

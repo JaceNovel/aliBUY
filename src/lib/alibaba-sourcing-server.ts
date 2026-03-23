@@ -1,0 +1,131 @@
+import "server-only";
+
+import { getCatalogProducts } from "@/lib/catalog-service";
+import { createEmptyQuote, formatFcfa, getProductSourcingMetrics, type CartComputedItem, type CartInputItem, type SourcingSettings, type ShippingMethodQuote } from "@/lib/alibaba-sourcing";
+
+function computeMarginAmount(supplierPriceFcfa: number, settings: SourcingSettings) {
+  if (settings.defaultMarginMode === "fixed") {
+    return Math.round(settings.defaultMarginValue);
+  }
+
+  return Math.round((supplierPriceFcfa * settings.defaultMarginValue) / 100);
+}
+
+export async function getAlibabaSourcingCatalog(settings: SourcingSettings) {
+  const products = await getCatalogProducts();
+
+  return products.map((product) => {
+    const metrics = getProductSourcingMetrics(product);
+    const marginAmountFcfa = computeMarginAmount(metrics.supplierPriceFcfa, settings);
+
+    return {
+      slug: product.slug,
+      title: product.shortTitle,
+      supplier: product.supplierName,
+      image: product.image,
+      ...metrics,
+      marginMode: settings.defaultMarginMode,
+      marginValue: settings.defaultMarginValue,
+      marginAmountFcfa,
+      suggestedFinalPriceFcfa: metrics.supplierPriceFcfa + marginAmountFcfa,
+    };
+  });
+}
+
+export async function createAlibabaSourcingQuote(inputItems: CartInputItem[], settings: SourcingSettings) {
+  const products = await getCatalogProducts();
+  const validItems = inputItems
+    .map((item) => {
+      const product = products.find((entry) => entry.slug === item.slug);
+      if (!product || item.quantity <= 0) {
+        return null;
+      }
+
+      const metrics = getProductSourcingMetrics(product);
+      const marginAmountFcfa = computeMarginAmount(metrics.supplierPriceFcfa, settings);
+      const finalUnitPriceFcfa = metrics.supplierPriceFcfa + marginAmountFcfa;
+
+      return {
+        product,
+        quantity: item.quantity,
+        ...metrics,
+        marginAmountFcfa,
+        finalUnitPriceFcfa,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  if (validItems.length === 0) {
+    return createEmptyQuote(settings);
+  }
+
+  const items: CartComputedItem[] = validItems.map((item) => ({
+    slug: item.product.slug,
+    title: item.product.shortTitle,
+    quantity: item.quantity,
+    weightKg: item.weightKg,
+    volumeCbm: item.volumeCbm,
+    supplierPriceFcfa: item.supplierPriceFcfa,
+    marginMode: settings.defaultMarginMode,
+    marginValue: settings.defaultMarginValue,
+    marginAmountFcfa: item.marginAmountFcfa,
+    finalUnitPriceFcfa: item.finalUnitPriceFcfa,
+    finalLinePriceFcfa: item.finalUnitPriceFcfa * item.quantity,
+    image: item.product.image,
+  }));
+
+  const cartProductsTotalFcfa = items.reduce((sum, item) => sum + item.finalLinePriceFcfa, 0);
+  const totalWeightKg = Number(validItems.reduce((sum, item) => sum + item.weightKg * item.quantity, 0).toFixed(3));
+  const totalCbm = Number(validItems.reduce((sum, item) => sum + item.volumeCbm * item.quantity, 0).toFixed(4));
+  const airCostFcfa = Math.ceil(totalWeightKg * settings.airRatePerKgFcfa);
+  const seaCostFcfa = Math.ceil(totalCbm * settings.seaSellRatePerCbmFcfa);
+  const airIsFree = settings.freeAirEnabled && cartProductsTotalFcfa >= settings.freeAirThresholdFcfa;
+  const showBothOptions = totalWeightKg > settings.airWeightThresholdKg;
+  const freeAirRemainingFcfa = Math.max(settings.freeAirThresholdFcfa - cartProductsTotalFcfa, 0);
+
+  const shippingOptions: ShippingMethodQuote[] = showBothOptions
+    ? [
+        {
+          key: "air",
+          label: "Avion",
+          priceFcfa: airIsFree ? 0 : airCostFcfa,
+          deliveryWindow: settings.airEstimatedDays,
+          isFree: airIsFree,
+          tradeLabel: `Express · ${formatFcfa(settings.airRatePerKgFcfa)}/kg`,
+        },
+        {
+          key: "sea",
+          label: "Bateau",
+          priceFcfa: seaCostFcfa,
+          deliveryWindow: settings.seaEstimatedDays,
+          isFree: false,
+          tradeLabel: `Groupage · ${formatFcfa(settings.seaSellRatePerCbmFcfa)}/m3`,
+        },
+      ]
+    : [
+        {
+          key: "air",
+          label: "Avion",
+          priceFcfa: airIsFree ? 0 : airCostFcfa,
+          deliveryWindow: settings.airEstimatedDays,
+          isFree: airIsFree,
+          tradeLabel: `Express · ${formatFcfa(settings.airRatePerKgFcfa)}/kg`,
+        },
+      ];
+
+  return {
+    items,
+    cartProductsTotalFcfa,
+    totalWeightKg,
+    totalCbm,
+    shippingOptions,
+    recommendedMethod: showBothOptions ? "sea" : "air",
+    freeAirRemainingFcfa,
+    freeShippingMessage: airIsFree ? "Livraison avion offerte debloquee pour ce panier" : `Ajoutez ${formatFcfa(freeAirRemainingFcfa)} de plus pour obtenir la livraison avion offerte`,
+    containerProjection: {
+      targetCbm: settings.containerTargetCbm,
+      projectedCbm: totalCbm,
+      projectedFillPercent: Math.min(100, Math.round((totalCbm / settings.containerTargetCbm) * 100)),
+    },
+  };
+}

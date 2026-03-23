@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useMemo, useRef, useState } from "react";
 import { Building2, FileUp, Landmark, ShieldCheck, UploadCloud, X } from "lucide-react";
 
-import { orders, pendingProofDefaultOrder } from "@/lib/orders-data";
+import type { OrderRecord } from "@/lib/orders-data";
 
 const checklist = [
   "Reference de commande correcte",
@@ -15,19 +15,29 @@ const checklist = [
 
 type RemittanceProofClientProps = {
   currencyCode: string;
+  orders: OrderRecord[];
   initialOrderId?: string;
 };
 
-export function RemittanceProofClient({ currencyCode, initialOrderId }: RemittanceProofClientProps) {
-  const initialOrder = orders.find((order) => order.id === initialOrderId) ?? pendingProofDefaultOrder;
+export function RemittanceProofClient({ currencyCode, orders, initialOrderId }: RemittanceProofClientProps) {
+  if (orders.length === 0) {
+    return (
+      <section className="rounded-[30px] bg-white px-8 py-8 shadow-[0_8px_30px_rgba(24,39,75,0.05)] ring-1 ring-black/5">
+        <h1 className="text-[32px] font-bold tracking-[-0.05em] text-[#222]">Aucune commande a justifier</h1>
+        <p className="mt-3 text-[15px] leading-7 text-[#666]">
+          Vous n&apos;avez pas encore de commande en attente de preuve de virement sur ce compte.
+        </p>
+      </section>
+    );
+  }
+
+  const initialOrder = orders.find((order) => order.id === initialOrderId) ?? orders[0];
   const [selectedOrderId, setSelectedOrderId] = useState(initialOrder.id);
-  const [amount, setAmount] = useState(initialOrder.total.replace("USD ", `${currencyCode} `));
-  const [transferDate, setTransferDate] = useState("2025-03-22");
-  const [bankName, setBankName] = useState("Ecobank");
-  const [bankReference, setBankReference] = useState("TRF-894551-ABJ");
-  const [comment, setComment] = useState(
-    "Virement effectue depuis le compte principal. Merci de confirmer la reception et l'association a la commande selectionnee.",
-  );
+  const [amount, setAmount] = useState(initialOrder.total || `${currencyCode} 0`);
+  const [transferDate, setTransferDate] = useState(new Date().toISOString().slice(0, 10));
+  const [bankName, setBankName] = useState("");
+  const [bankReference, setBankReference] = useState("");
+  const [comment, setComment] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState("");
@@ -45,7 +55,7 @@ export function RemittanceProofClient({ currencyCode, initialOrderId }: Remittan
     }
 
     setSelectedOrderId(nextOrder.id);
-    setAmount(nextOrder.total.replace("USD ", `${currencyCode} `));
+    setAmount(nextOrder.total || `${currencyCode} 0`);
     setSuccessMessage("");
   };
 
@@ -71,7 +81,7 @@ export function RemittanceProofClient({ currencyCode, initialOrderId }: Remittan
   };
 
   const handleSubmit = () => {
-    setSuccessMessage(`Preuve envoyee avec succes pour la commande ${currentOrder.id}. Verification AfriPay en cours.`);
+    setSuccessMessage(`Preuve envoyee avec succes pour la commande ${currentOrder.orderNumber}. Verification AfriPay en cours.`);
   };
 
   return (

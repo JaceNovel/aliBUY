@@ -43,6 +43,7 @@ model SourcingSeaContainer {
 model SourcingOrder {
   id                    String                  @id @default(cuid())
   orderNumber           String                  @unique
+  userId                String?
   customerName          String
   customerEmail         String
   customerPhone         String
@@ -78,14 +79,17 @@ model SourcingOrder {
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
   containerId           String?
+  user                  User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
   container             SourcingSeaContainer?   @relation(fields: [containerId], references: [id])
   items                 SourcingOrderItem[]
   integrationLogs       AlibabaIntegrationLog[]
+  remittanceProofs      OrderRemittanceProof[]
 
   @@index([createdAt])
   @@index([status])
   @@index([shippingMethod])
   @@index([paymentStatus])
+  @@index([userId])
 }
 
 model SourcingOrderItem {
@@ -119,4 +123,100 @@ model AlibabaIntegrationLog {
 
   @@index([createdAt])
   @@index([status])
+}
+
+model User {
+  id                   String                @id @default(cuid())
+  email                String                @unique
+  displayName          String
+  firstName            String
+  passwordHash         String
+  passwordSalt         String
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  favorites            Favorite[]
+  quoteRequests        QuoteRequest[]
+  supportConversations SupportConversation[]
+  sourcingOrders       SourcingOrder[]
+}
+
+model Favorite {
+  id          String   @id @default(cuid())
+  userId      String
+  productSlug String
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productSlug])
+  @@index([productSlug])
+}
+
+model QuoteRequest {
+  id             String   @id @default(cuid())
+  userId         String
+  productName    String
+  quantity       String
+  specifications String
+  budget         String
+  shippingWindow String
+  notes          String?
+  status         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model SupportConversation {
+  id        String           @id @default(cuid())
+  userId    String
+  tab       String
+  name      String
+  email     String?
+  role      String
+  preview   String
+  time      String
+  status    String
+  aiEnabled Boolean          @default(false)
+  orderId   String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  SupportMessage[]
+
+  @@index([userId, updatedAt])
+  @@index([orderId])
+}
+
+model SupportMessage {
+  id             String              @id @default(cuid())
+  conversationId String
+  side           String
+  text           String
+  createdAt      DateTime            @default(now())
+  conversation   SupportConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+model OrderRemittanceProof {
+  id            String        @id @default(cuid())
+  orderId       String
+  userId        String
+  amountLabel   String
+  transferDate  String
+  bankName      String
+  bankReference String
+  comment       String?
+  fileName      String?
+  fileType      String?
+  fileSize      Int?
+  status        String        @default("submitted")
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  order         SourcingOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@index([userId, createdAt])
 }

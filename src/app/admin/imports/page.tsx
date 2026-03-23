@@ -32,7 +32,7 @@ function statusClass(status: string) {
 export default async function AdminImportsPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const { status = "all" } = await searchParams;
   const activeStatus = importStatusTabs.some((tab) => tab.value === status) ? (status as ImportStatusFilter) : "all";
-  const requests = getAdminImportRequests();
+  const requests = await getAdminImportRequests();
   const visibleRequests = activeStatus === "all"
     ? requests
     : requests.filter((request) => request.status === importStatusTabs.find((tab) => tab.value === activeStatus)?.status);

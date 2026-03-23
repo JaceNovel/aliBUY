@@ -1,9 +1,11 @@
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { PaymentClient } from "@/app/orders/payment/payment-client";
 import { formatFcfa } from "@/lib/alibaba-sourcing";
-import { getOrderById, orders } from "@/lib/orders-data";
+import { getUserOrderRecordById } from "@/lib/order-service";
 import { getPricingContext } from "@/lib/pricing";
 import { getSourcingOrderById } from "@/lib/sourcing-store";
+import { getCurrentUser } from "@/lib/user-auth";
+import { notFound, redirect } from "next/navigation";
 
 export default async function OrderPaymentPage({
   searchParams,
@@ -11,10 +13,16 @@ export default async function OrderPaymentPage({
   searchParams: Promise<{ orderId?: string; paymentId?: string; paymentStatus?: string; status?: string }>;
 }) {
   const pricing = await getPricingContext();
+  const user = await getCurrentUser();
+
+  if (!user) {
+    redirect("/login?next=/orders/payment");
+  }
+
   const resolvedSearchParams = await searchParams;
   const sourcingOrder = resolvedSearchParams.orderId ? await getSourcingOrderById(resolvedSearchParams.orderId) : null;
 
-  if (sourcingOrder) {
+  if (sourcingOrder && (sourcingOrder.userId === user.id || sourcingOrder.customerEmail.toLowerCase() === user.email.toLowerCase())) {
     const firstItem = sourcingOrder.items[0];
 
     return (
@@ -43,7 +51,11 @@ export default async function OrderPaymentPage({
     );
   }
 
-  const order = getOrderById(resolvedSearchParams.orderId) ?? orders[0];
+  const order = await getUserOrderRecordById(user, resolvedSearchParams.orderId);
+
+  if (!order) {
+    notFound();
+  }
 
   return (
     <InternalPageShell pricing={pricing}>

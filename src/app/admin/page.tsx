@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ArrowUpRight, Boxes, DollarSign, Package, ShoppingCart, Users } from "lucide-react";
 
-import { adminNavItems, getAdminMetrics, getAdminMonthlyRevenue, getAdminRecentOrders } from "@/lib/admin-data";
+import { adminNavItems } from "@/lib/admin-config";
+import { getAdminMetrics, getAdminMonthlyRevenue, getAdminRecentOrders } from "@/lib/admin-data";
 import { getPricingContext } from "@/lib/pricing";
 
 function buildChartPath(values: number[]) {
@@ -20,9 +21,11 @@ function buildChartPath(values: number[]) {
 
 export default async function AdminPage() {
   const pricing = await getPricingContext();
-  const metrics = getAdminMetrics();
-  const monthlyRevenue = getAdminMonthlyRevenue();
-  const recentOrders = getAdminRecentOrders(5);
+  const [metrics, monthlyRevenue, recentOrders] = await Promise.all([
+    getAdminMetrics(),
+    getAdminMonthlyRevenue(),
+    getAdminRecentOrders(5),
+  ]);
   const chartValues = monthlyRevenue.map((entry) => entry.value);
   const chartPath = buildChartPath(chartValues);
   const dashboardCards = [
@@ -61,7 +64,7 @@ export default async function AdminPage() {
       <section>
         <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Admin panel</div>
         <h1 className="mt-2 text-[34px] font-black tracking-[-0.05em] text-[#ff5b4d]">Tableau de bord administratif</h1>
-        <p className="mt-1 text-[17px] text-[#516173]">Bienvenue ! Voici votre apercu.</p>
+        <p className="mt-1 text-[17px] text-[#516173]">Vue basee sur les utilisateurs, demandes et commandes reelles du projet.</p>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-4">

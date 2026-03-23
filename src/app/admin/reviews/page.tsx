@@ -8,7 +8,7 @@ export default function AdminReviewsPage() {
   const published = reviews.filter((review) => review.status === "Publié").length;
   const hidden = reviews.filter((review) => review.status === "Masqué").length;
   const needsResponse = reviews.filter((review) => review.responseStatus === "Réponse attendue").length;
-  const average = (reviews.reduce((sum, review) => sum + review.score, 0) / total).toFixed(1);
+  const average = total > 0 ? (reviews.reduce((sum, review) => sum + review.score, 0) / total).toFixed(1) : "0.0";
   const distribution = [5, 4, 3, 2, 1].map((score) => ({ score, count: reviews.filter((review) => review.score === score).length }));
 
   return (
@@ -46,13 +46,22 @@ export default function AdminReviewsPage() {
             <div key={item.score} className="grid grid-cols-[40px_1fr_24px] items-center gap-3 text-[14px] text-[#667085]">
               <div className="font-semibold text-[#101828]">{item.score}★</div>
               <div className="h-3 rounded-full bg-[#e5e7eb]">
-                <div className="h-3 rounded-full bg-[#ffcc1a]" style={{ width: `${(item.count / total) * 100}%` }} />
+                <div className="h-3 rounded-full bg-[#ffcc1a]" style={{ width: `${total > 0 ? (item.count / total) * 100 : 0}%` }} />
               </div>
               <div className="text-right">{item.count}</div>
             </div>
           ))}
         </div>
       </section>
+
+      {total === 0 ? (
+        <section className="rounded-[18px] border border-dashed border-[#d0d5dd] bg-white px-6 py-10 text-center shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
+          <h2 className="text-[18px] font-black text-[#101828]">Aucun avis client pour le moment</h2>
+          <p className="mt-3 text-[14px] text-[#667085]">
+            Les avis verifieres apparaitront ici automatiquement quand les premiers retours utilisateurs seront publies.
+          </p>
+        </section>
+      ) : null}
 
       <section className="rounded-[18px] border border-[#e7ebf1] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

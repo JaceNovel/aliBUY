@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { AdminSectionContent } from "@/components/admin-section-content";
-import { adminNavItems, getAdminSectionMeta } from "@/lib/admin-data";
+import { adminNavItems, getAdminSectionMeta } from "@/lib/admin-config";
 import { getPricingContext } from "@/lib/pricing";
 
 export function generateStaticParams() {

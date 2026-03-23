@@ -123,11 +123,8 @@ export default async function TrendsPage() {
             <div className="mt-5 rounded-[24px] bg-[#fff7f2] px-5 py-8 text-center ring-1 ring-[#f4d8c6]">
               <h2 className="text-[26px] font-bold tracking-[-0.04em] text-[#222]">Aucune tendance publiee</h2>
               <p className="mx-auto mt-3 max-w-[680px] text-[15px] leading-7 text-[#666]">
-                Les articles de demonstration ont ete retires. Cette page affichera uniquement tes produits Alibaba une fois importes puis publies sur le site.
+                Les articles de demonstration ont ete retires. Cette page affichera uniquement les produits publies sur le site.
               </p>
-              <Link href="/admin/alibaba-sourcing/import-catalog" className="mt-6 inline-flex h-12 items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[15px] font-semibold text-white transition hover:bg-[#ec6100]">
-                Ouvrir l&apos;import Alibaba
-              </Link>
             </div>
           )}
         </section>

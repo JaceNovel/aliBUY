@@ -1,4 +1,4 @@
-import { products, type ProductCatalogItem } from "@/lib/products-data";
+import { type ProductCatalogItem } from "@/lib/products-data";
 
 export type MarginMode = "percent" | "fixed";
 export type ShippingMethodKey = "air" | "sea";
@@ -82,6 +82,7 @@ export type SourcingCheckoutAddress = {
 };
 
 export type SourcingCheckoutInput = SourcingCheckoutAddress & {
+  userId?: string;
   items: CartInputItem[];
   shippingMethod: ShippingMethodKey;
   notes?: string;
@@ -92,6 +93,7 @@ export type SourcingOrderItem = CartComputedItem;
 export type SourcingOrder = SourcingCheckoutAddress & {
   id: string;
   orderNumber: string;
+  userId?: string;
   shippingMethod: ShippingMethodKey;
   shippingCostFcfa: number;
   cartProductsTotalFcfa: number;
@@ -178,14 +180,6 @@ function averageSupplierPriceUsd(product: ProductCatalogItem) {
   return typeof product.maxUsd === "number" ? (product.minUsd + product.maxUsd) / 2 : product.minUsd;
 }
 
-function computeMarginAmount(supplierPriceFcfa: number, settings: SourcingSettings) {
-  if (settings.defaultMarginMode === "fixed") {
-    return Math.round(settings.defaultMarginValue);
-  }
-
-  return Math.round((supplierPriceFcfa * settings.defaultMarginValue) / 100);
-}
-
 export function formatFcfa(amount: number) {
   return new Intl.NumberFormat(FCFA_LOCALE, {
     style: "currency",
@@ -210,25 +204,6 @@ export function getProductSourcingMetrics(product: ProductCatalogItem) {
   };
 }
 
-export function getAlibabaSourcingCatalog(settings: SourcingSettings) {
-  return products.map((product) => {
-    const metrics = getProductSourcingMetrics(product);
-    const marginAmountFcfa = computeMarginAmount(metrics.supplierPriceFcfa, settings);
-
-    return {
-      slug: product.slug,
-      title: product.shortTitle,
-      supplier: product.supplierName,
-      image: product.image,
-      ...metrics,
-      marginMode: settings.defaultMarginMode,
-      marginValue: settings.defaultMarginValue,
-      marginAmountFcfa,
-      suggestedFinalPriceFcfa: metrics.supplierPriceFcfa + marginAmountFcfa,
-    };
-  });
-}
-
 export function createEmptyQuote(settings?: Pick<SourcingSettings, "freeAirThresholdFcfa" | "containerTargetCbm">): AlibabaSourcingQuote {
   const threshold = settings?.freeAirThresholdFcfa ?? 15000;
   const containerTarget = settings?.containerTargetCbm ?? 1;
@@ -248,103 +223,4 @@ export function createEmptyQuote(settings?: Pick<SourcingSettings, "freeAirThres
       projectedFillPercent: 0,
     },
   };
-}
-
-export function createAlibabaSourcingQuote(inputItems: CartInputItem[], settings: SourcingSettings) {
-  const validItems = inputItems
-    .map((item) => {
-      const product = products.find((entry) => entry.slug === item.slug);
-      if (!product || item.quantity <= 0) {
-        return null;
-      }
-
-      const metrics = getProductSourcingMetrics(product);
-      const marginAmountFcfa = computeMarginAmount(metrics.supplierPriceFcfa, settings);
-      const finalUnitPriceFcfa = metrics.supplierPriceFcfa + marginAmountFcfa;
-
-      return {
-        product,
-        quantity: item.quantity,
-        ...metrics,
-        marginAmountFcfa,
-        finalUnitPriceFcfa,
-      };
-    })
-    .filter((item): item is NonNullable<typeof item> => Boolean(item));
-
-  if (validItems.length === 0) {
-    return createEmptyQuote(settings);
-  }
-
-  const items: CartComputedItem[] = validItems.map((item) => ({
-    slug: item.product.slug,
-    title: item.product.shortTitle,
-    quantity: item.quantity,
-    weightKg: item.weightKg,
-    volumeCbm: item.volumeCbm,
-    supplierPriceFcfa: item.supplierPriceFcfa,
-    marginMode: settings.defaultMarginMode,
-    marginValue: settings.defaultMarginValue,
-    marginAmountFcfa: item.marginAmountFcfa,
-    finalUnitPriceFcfa: item.finalUnitPriceFcfa,
-    finalLinePriceFcfa: item.finalUnitPriceFcfa * item.quantity,
-    image: item.product.image,
-  }));
-
-  const cartProductsTotalFcfa = items.reduce((sum, item) => sum + item.finalLinePriceFcfa, 0);
-  const totalWeightKg = Number(validItems.reduce((sum, item) => sum + item.weightKg * item.quantity, 0).toFixed(3));
-  const totalCbm = Number(validItems.reduce((sum, item) => sum + item.volumeCbm * item.quantity, 0).toFixed(4));
-  const airCostFcfa = Math.ceil(totalWeightKg * settings.airRatePerKgFcfa);
-  const seaCostFcfa = Math.ceil(totalCbm * settings.seaSellRatePerCbmFcfa);
-  const airIsFree = settings.freeAirEnabled && cartProductsTotalFcfa >= settings.freeAirThresholdFcfa;
-  const showBothOptions = totalWeightKg > settings.airWeightThresholdKg;
-  const freeAirRemainingFcfa = Math.max(settings.freeAirThresholdFcfa - cartProductsTotalFcfa, 0);
-
-  const shippingOptions: ShippingMethodQuote[] = showBothOptions
-    ? [
-        {
-          key: "air",
-          label: "Avion",
-          priceFcfa: airIsFree ? 0 : airCostFcfa,
-          deliveryWindow: settings.airEstimatedDays,
-          isFree: airIsFree,
-          tradeLabel: `Express · ${formatFcfa(settings.airRatePerKgFcfa)}/kg`,
-        },
-        {
-          key: "sea",
-          label: "Bateau",
-          priceFcfa: seaCostFcfa,
-          deliveryWindow: settings.seaEstimatedDays,
-          isFree: false,
-          tradeLabel: `Groupage · ${formatFcfa(settings.seaSellRatePerCbmFcfa)}/CBM`,
-        },
-      ]
-    : [
-        {
-          key: "air",
-          label: "Avion",
-          priceFcfa: airIsFree ? 0 : airCostFcfa,
-          deliveryWindow: settings.airEstimatedDays,
-          isFree: airIsFree,
-          tradeLabel: `Rapide · ${formatFcfa(settings.airRatePerKgFcfa)}/kg`,
-        },
-      ];
-
-  return {
-    items,
-    cartProductsTotalFcfa,
-    totalWeightKg,
-    totalCbm,
-    shippingOptions,
-    recommendedMethod: showBothOptions ? "sea" : "air",
-    freeAirRemainingFcfa,
-    freeShippingMessage: freeAirRemainingFcfa > 0
-      ? `Ajoutez ${formatFcfa(freeAirRemainingFcfa)} de plus pour obtenir la livraison avion offerte`
-      : `Livraison avion offerte dès ${formatFcfa(settings.freeAirThresholdFcfa)}`,
-    containerProjection: {
-      targetCbm: settings.containerTargetCbm,
-      projectedCbm: totalCbm,
-      projectedFillPercent: Math.min(100, Math.round((totalCbm / settings.containerTargetCbm) * 100)),
-    },
-  } satisfies AlibabaSourcingQuote;
 }
