@@ -546,6 +546,7 @@ export async function buildAlibabaAuthorizationUrl(input: {
   }
 
   const authorizeUrl = new URL(input.account.authorizeUrl || ALIBABA_DEFAULT_AUTHORIZE_URL);
+  authorizeUrl.searchParams.set("response_type", "code");
   authorizeUrl.searchParams.set("client_id", input.account.appKey);
   authorizeUrl.searchParams.set("redirect_uri", input.redirectUri);
   authorizeUrl.searchParams.set("state", input.account.id);
