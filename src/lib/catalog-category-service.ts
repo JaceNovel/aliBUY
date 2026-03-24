@@ -79,6 +79,24 @@ function matchCanonicalImportedCategory(importedProduct: AlibabaImportedProduct)
     .join(" ")
     .toLowerCase();
 
+  if (/\b(led|lighting|light strip|strip light|lamp|lampe|night light|downlight|floodlight|spotlight|ceiling light|wall light|solar light|led bulb|led panel|neon|applique)\b/.test(haystack)) {
+    return {
+      slug: "lighting-led",
+      title: "Eclairage LED",
+      description: "Lampes, rubans LED et solutions d'eclairage importes depuis Alibaba.",
+      path: ["Maison & eclairage", "Eclairage LED"],
+    };
+  }
+
+  if (/\b(lcd|oled|display|screen|touch screen|module|sensor|pcb|circuit board|motherboard|chip|ic\b|connector|converter|adapter|relay|controller|driver board|power supply)\b/.test(haystack)) {
+    return {
+      slug: "electronic-components",
+      title: "Composants electroniques",
+      description: "Modules, ecrans et composants electroniques importes depuis Alibaba.",
+      path: ["Electronique", "Composants electroniques"],
+    };
+  }
+
   if (/\b(mouse|mice|souris|keyboard|keyboards|clavier|claviers|keypad|keycaps)\b/.test(haystack)) {
     return {
       slug: "keyboard-mouse",

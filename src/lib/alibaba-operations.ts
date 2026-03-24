@@ -1,5 +1,6 @@
 import type { ProductCatalogItem } from "@/lib/products-data";
 import { deriveVariantGroupsFromPricing, extractAlibabaVariantPricing } from "@/lib/product-variant-pricing";
+import { resolveAlibabaMoq } from "@/lib/product-moq";
 import { sanitizeItemWeightGrams } from "@/lib/product-weight";
 
 export const ALIBABA_PANEL_SLUGS = [
@@ -63,6 +64,7 @@ export type AlibabaImportedProduct = {
   minUsd: number;
   maxUsd?: number;
   moq: number;
+  moqVerified?: boolean;
   unit: string;
   badge?: string;
   supplierName: string;
@@ -78,6 +80,8 @@ export type AlibabaImportedProduct = {
   variantGroups: Array<{ label: string; values: string[] }>;
   tiers: Array<{ quantityLabel: string; priceUsd: number; note?: string }>;
   specs: Array<{ label: string; value: string }>;
+  weightVerified?: boolean;
+  priceVerified?: boolean;
   inventory: number;
   status: AlibabaImportedProductStatus;
   publishedToSite: boolean;
@@ -207,17 +211,57 @@ export function slugifyImportedTitle(value: string) {
 
 function normalizeCategorySegment(value: string) {
   return value
+    .replace(/https?:\/\/\S+/gi, " ")
+    .replace(/\.(?:html?|php)\b[^\s]*/gi, " ")
+    .replace(/\b(?:field|src|spm|scene|sku|id)=[^\s]+/gi, " ")
     .replace(/[>|/]+/g, " ")
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
+function isGenericCategoryLabel(value?: string) {
+  if (!value) {
+    return true;
+  }
+
+  const normalized = normalizeCategorySegment(value).toLowerCase();
+  return !normalized
+    || /^(catalogue importe|produit alibaba|alibaba|general|misc|other|others|undefined|null|n\/?a|na|unknown|sans nom|untitled)$/i.test(normalized)
+    || /\bnew arrival\b/i.test(normalized);
+}
+
+function isUsefulCategoryCandidate(value?: string) {
+  if (!value) {
+    return false;
+  }
+
+  const normalized = normalizeCategorySegment(value);
+  if (!normalized || looksLikeAlibabaAssetLabel(normalized) || isGenericCategoryLabel(normalized)) {
+    return false;
+  }
+
+  if (/\.(?:html?|php)\b|\b(?:field|src|spm|scene|sku|id)=/i.test(normalized)) {
+    return false;
+  }
+
+  if (normalized.length < 2 || normalized.length > 64) {
+    return false;
+  }
+
+  if (!/[a-z\u00c0-\u024f]/i.test(normalized)) {
+    return false;
+  }
+
+  const digitCount = normalized.replace(/\D/g, "").length;
+  return digitCount <= normalized.length / 3;
+}
+
 function splitCategoryPath(value: string) {
   return value
     .split(/\s*(?:>|\/|\||›|»|\\)\s*/g)
     .map((segment) => normalizeCategorySegment(segment))
-    .filter(Boolean);
+    .filter((segment) => isUsefulCategoryCandidate(segment));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -380,7 +424,22 @@ function inferAlibabaCategoryFromContent(input: {
     ...rawCandidates,
   ].join(" ").toLowerCase();
 
+  const lightingSignals = /\b(led|lighting|light strip|strip light|lamp|lampe|night light|downlight|floodlight|spotlight|ceiling light|wall light|solar light|led bulb|led panel|neon|applique)\b/i.test(haystack);
+  const furnitureSignals = /\b(furniture|meuble|meubles|chair|fauteuil|sofa|cabinet|shelf|bookshelf|wardrobe|dresser|nightstand|desk frame|office desk|gaming desk|gaming chair|table)\b/i.test(haystack);
+
   const rules: Array<{ slug: string; title: string; path: string[]; patterns: RegExp[] }> = [
+    {
+      slug: "lighting-led",
+      title: "Eclairage LED",
+      path: ["Maison & eclairage", "Eclairage LED"],
+      patterns: [/\b(led|lighting|light strip|strip light|lamp|lampe|night light|downlight|floodlight|spotlight|ceiling light|wall light|solar light|led bulb|led panel|neon|applique)\b/i],
+    },
+    {
+      slug: "electronic-components",
+      title: "Composants electroniques",
+      path: ["Electronique", "Composants electroniques"],
+      patterns: [/\b(lcd|oled|display|screen|touch screen|module|sensor|pcb|circuit board|motherboard|chip|ic\b|connector|converter|adapter|relay|controller|driver board|power supply)\b/i],
+    },
     {
       slug: "keyboard-mouse",
       title: "Claviers & souris",
@@ -413,7 +472,17 @@ function inferAlibabaCategoryFromContent(input: {
     },
   ];
 
-  const matchedRule = rules.find((rule) => rule.patterns.some((pattern) => pattern.test(haystack)));
+  const matchedRule = rules.find((rule) => {
+    if (rule.slug === "furniture" && lightingSignals && !furnitureSignals) {
+      return false;
+    }
+
+    if (rule.slug === "furniture" && /\b(light|lighting|lamp|lampe|led|display|lcd|oled|screen)\b/i.test(haystack)) {
+      return false;
+    }
+
+    return rule.patterns.some((pattern) => pattern.test(haystack));
+  });
   if (!matchedRule) {
     return null;
   }
@@ -444,26 +513,36 @@ export function extractAlibabaCategoryInfo(input: {
   categoryTitle?: string;
   categoryPath?: string[];
 }) {
-  const providedCategoryTitle = looksLikeAlibabaAssetLabel(input.categoryTitle) ? undefined : input.categoryTitle;
+  const providedCategoryTitle = isUsefulCategoryCandidate(input.categoryTitle) ? normalizeCategorySegment(input.categoryTitle!) : undefined;
+  const inferredCategory = inferAlibabaCategoryFromContent(input);
 
   if (input.categorySlug && providedCategoryTitle) {
-    return {
-      slug: input.categorySlug,
-      title: providedCategoryTitle,
-      path: input.categoryPath?.filter(Boolean) ?? [providedCategoryTitle],
-    };
+    const providedSlug = slugifyCategoryLabel(providedCategoryTitle);
+    const providedLooksFurniture = /\bmeubles?\b|\bfurniture\b/i.test(providedCategoryTitle);
+    const inferredLooksMoreSpecific = inferredCategory && inferredCategory.slug !== providedSlug;
+
+    if (!providedLooksFurniture || !inferredLooksMoreSpecific) {
+      return {
+        slug: input.categorySlug,
+        title: providedCategoryTitle,
+        path: (input.categoryPath ?? []).map((segment) => normalizeCategorySegment(segment)).filter((segment) => isUsefulCategoryCandidate(segment)) ?? [providedCategoryTitle],
+      };
+    }
   }
 
-  const inferredCategory = inferAlibabaCategoryFromContent(input);
   if (inferredCategory) {
-    return inferredCategory;
+    return {
+      slug: inferredCategory.slug,
+      title: inferredCategory.title,
+      path: inferredCategory.path,
+    };
   }
 
   const rawCandidates = dedupeStrings([
     ...(input.categoryPath ?? []),
     providedCategoryTitle ?? "",
     ...collectCategoryStrings(input.rawPayload),
-  ]).filter((candidate) => !looksLikeAlibabaAssetLabel(candidate));
+  ]).filter((candidate) => isUsefulCategoryCandidate(candidate));
 
   const pathCandidates = rawCandidates
     .map((candidate) => splitCategoryPath(candidate))
@@ -474,12 +553,12 @@ export function extractAlibabaCategoryInfo(input: {
     ?? [];
 
   const leafCategory = bestPath[bestPath.length - 1]
-    ?? normalizeCategorySegment(input.query ?? "")
-    ?? normalizeCategorySegment(input.keywords?.[0] ?? "")
-    ?? normalizeCategorySegment(input.title ?? "")
+    ?? (isUsefulCategoryCandidate(input.query) ? normalizeCategorySegment(input.query ?? "") : undefined)
+    ?? (isUsefulCategoryCandidate(input.keywords?.[0]) ? normalizeCategorySegment(input.keywords?.[0] ?? "") : undefined)
+    ?? (isUsefulCategoryCandidate(input.title) ? normalizeCategorySegment(input.title ?? "") : undefined)
     ?? "Catalogue importe";
 
-  const title = leafCategory.length > 0 ? leafCategory : "Catalogue importe";
+  const title = isUsefulCategoryCandidate(leafCategory) ? leafCategory : "Autres produits";
 
   return {
     slug: slugifyCategoryLabel(title),
@@ -565,50 +644,6 @@ export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogIt
 
     return undefined;
   };
-  const extractMoqInfo = (value: unknown, depth = 0, keyHint?: string): { value?: number; verified: boolean } => {
-    if (depth > 5 || value == null) {
-      return { verified: false };
-    }
-
-    if (typeof value === "number" && Number.isFinite(value) && /moq|min[_ -]?order|begin_amount|quantity_min/i.test(keyHint ?? "")) {
-      return { value: Math.max(1, Math.round(value)), verified: true };
-    }
-
-    if (typeof value === "string") {
-      const normalized = value.trim();
-      if (/moq|min[_ -]?order|begin_amount|quantity_min/i.test(keyHint ?? "")) {
-        const numeric = Number(normalized.replace(/[^0-9.-]/g, ""));
-        if (Number.isFinite(numeric) && numeric > 0) {
-          return { value: Math.max(1, Math.round(numeric)), verified: true };
-        }
-      }
-
-      return { verified: false };
-    }
-
-    if (Array.isArray(value)) {
-      for (const entry of value) {
-        const candidate = extractMoqInfo(entry, depth + 1, keyHint);
-        if (candidate.verified && candidate.value) {
-          return candidate;
-        }
-      }
-      return { verified: false };
-    }
-
-    if (typeof value !== "object") {
-      return { verified: false };
-    }
-
-    for (const [nestedKey, nestedValue] of Object.entries(value as Record<string, unknown>)) {
-      const candidate = extractMoqInfo(nestedValue, depth + 1, nestedKey);
-      if (candidate.verified && candidate.value) {
-        return candidate;
-      }
-    }
-
-    return { verified: false };
-  };
   const rawMultiImage = Array.isArray(rawImage?.multi_image)
     ? rawImage.multi_image.filter((entry): entry is string => typeof entry === "string")
     : [];
@@ -620,8 +655,13 @@ export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogIt
   ])].filter((image): image is string => Boolean(image));
   const primaryImage: string = normalizeMediaUrl(item.image) || item.image;
   const rawVideoUrl = extractVideoUrl(rawPayloadRecord);
-  const moqInfo = extractMoqInfo(rawPayloadRecord);
   const variantPricing = extractAlibabaVariantPricing(item.rawPayload);
+  const moqInfo = resolveAlibabaMoq({
+    rawValue: [rawPayloadRecord, item.soldLabel, item.overview],
+    tiers: item.tiers,
+    variantPricing,
+    fallback: item.moq,
+  });
   const fallbackVariantGroups = deriveVariantGroupsFromPricing(variantPricing);
   const resolvedVariantGroups = item.variantGroups.length > 0 ? item.variantGroups : fallbackVariantGroups;
   const resolvedShortTitle = resolveAlibabaDisplayTitle({
@@ -650,7 +690,7 @@ export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogIt
     minUsd: item.minUsd,
     maxUsd: item.maxUsd,
     moq: moqInfo.value ?? item.moq,
-    moqVerified: moqInfo.verified,
+    moqVerified: moqInfo.verified || item.moqVerified === true,
     unit: item.unit,
     badge: item.badge,
     supplierName: item.supplierName,

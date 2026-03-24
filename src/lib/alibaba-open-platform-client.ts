@@ -9,6 +9,7 @@ import {
   type AlibabaSupplierAccount,
 } from "@/lib/alibaba-operations";
 import { getInternalSupplierFulfillment } from "@/lib/internal-fulfillment";
+import { resolveAlibabaMoq } from "@/lib/product-moq";
 import { sanitizeItemWeightGrams } from "@/lib/product-weight";
 import type { SourcingOrder, AlibabaCatalogMapping } from "@/lib/alibaba-sourcing";
 import type { ProductCatalogItem } from "@/lib/products-data";
@@ -571,51 +572,6 @@ function summarizeAlibabaPriceData(input: {
     max: bounds.max,
     verified: tiers.length > 0 || hasCoherentPrice(bounds),
   };
-}
-
-function extractVerifiedMoq(value: unknown, depth = 0, keyHint?: string): number | undefined {
-  if (depth > 5 || value == null) {
-    return undefined;
-  }
-
-  if (typeof value === "number" && Number.isFinite(value) && /moq|min(?:imum)?[_ -]?order|begin_amount|quantity_min|min[_ -]?qty|min[_ -]?quantity|start[_ -]?quantity|order[_ -]?qty|order[_ -]?quantity/i.test(keyHint ?? "")) {
-    return Math.max(1, Math.round(value));
-  }
-
-  if (typeof value === "string") {
-    if (/moq|min(?:imum)?[_ -]?order|begin_amount|quantity_min|min[_ -]?qty|min[_ -]?quantity|start[_ -]?quantity|order[_ -]?qty|order[_ -]?quantity/i.test(keyHint ?? "")) {
-      const numeric = Number((value.match(/\d+(?:[.,]\d+)?/)?.[0] ?? "").replace(',', '.'));
-      if (Number.isFinite(numeric) && numeric > 0) {
-        return Math.max(1, Math.round(numeric));
-      }
-    }
-
-    return undefined;
-  }
-
-  if (Array.isArray(value)) {
-    for (const entry of value) {
-      const nested = extractVerifiedMoq(entry, depth + 1, keyHint);
-      if (typeof nested === "number" && nested > 0) {
-        return nested;
-      }
-    }
-
-    return undefined;
-  }
-
-  if (typeof value !== "object") {
-    return undefined;
-  }
-
-  for (const [nestedKey, nestedValue] of Object.entries(value as Record<string, unknown>)) {
-    const nested = extractVerifiedMoq(nestedValue, depth + 1, nestedKey);
-    if (typeof nested === "number" && nested > 0) {
-      return nested;
-    }
-  }
-
-  return undefined;
 }
 
 function hasCoherentPrice(bounds: { min?: number; max?: number }) {
@@ -1210,9 +1166,13 @@ function enrichAlibabaSearchProduct(product: AlibabaSearchProduct, detailRecord:
 
   const tradeInfo = (detailRecord.trade_info && typeof detailRecord.trade_info === "object") ? detailRecord.trade_info as Record<string, unknown> : {};
   const logisticsInfo = (detailRecord.logistics_info && typeof detailRecord.logistics_info === "object") ? detailRecord.logistics_info as Record<string, unknown> : {};
+  const initialMoqInfo = resolveAlibabaMoq({
+    rawValue: [detailRecord, tradeInfo],
+    fallback: product.moq,
+  });
   const detailPriceData = summarizeAlibabaPriceData({
     unit: product.unit,
-    moq: product.moq,
+    moq: initialMoqInfo.value ?? product.moq,
     values: [
       detailRecord.price,
       detailRecord.min_price,
@@ -1235,8 +1195,12 @@ function enrichAlibabaSearchProduct(product: AlibabaSearchProduct, detailRecord:
         max: undefined,
       };
   const priceBounds = detailPriceData.verified ? { min: detailPriceData.min, max: detailPriceData.max } : fallbackPriceBounds;
-  const verifiedMoq = extractVerifiedMoq(detailRecord) ?? extractVerifiedMoq(tradeInfo);
-  const moq = verifiedMoq ?? product.moq;
+  const moqInfo = resolveAlibabaMoq({
+    rawValue: [detailRecord, tradeInfo],
+    tiers: detailPriceData.tiers,
+    fallback: product.moq,
+  });
+  const moq = moqInfo.value ?? product.moq;
   const weightFromLogistics = getNumberValue(logisticsInfo.weight);
   const weightGrams = extractWeightGrams(detailRecord) ?? sanitizeItemWeightGrams(weightFromLogistics ? Math.round(weightFromLogistics * (weightFromLogistics < 10 ? 1000 : 1)) : undefined);
   const images = extractImagesFromAlibabaRecord(detailRecord);
@@ -1263,7 +1227,7 @@ function enrichAlibabaSearchProduct(product: AlibabaSearchProduct, detailRecord:
           note: tier.note,
         }))
       : product.tiers,
-    moqVerified: typeof verifiedMoq === "number" && verifiedMoq > 0,
+    moqVerified: moqInfo.verified,
     weightVerified: typeof weightGrams === "number" && weightGrams > 0,
     priceVerified: detailPriceData.verified || product.priceVerified === true,
     rawPayload: mergedPayload,
@@ -1438,8 +1402,10 @@ function mapAlibabaSearchResultToProduct(raw: Record<string, unknown>, query: st
   }
 
   const unit = getStringValue(raw.unit) ?? getStringValue(raw.unit_name) ?? "piece";
+  const initialMoqInfo = resolveAlibabaMoq({ rawValue: raw });
   const priceData = summarizeAlibabaPriceData({
     unit,
+    moq: initialMoqInfo.value,
     values: [
       raw.min_price,
       raw.minPrice,
@@ -1456,8 +1422,8 @@ function mapAlibabaSearchResultToProduct(raw: Record<string, unknown>, query: st
   });
   const minUsd = priceData.min ?? 1;
   const maxUsd = priceData.max;
-  const verifiedMoq = extractVerifiedMoq(raw);
-  const moq = verifiedMoq ?? 1;
+  const moqInfo = resolveAlibabaMoq({ rawValue: raw, tiers: priceData.tiers, fallback: 1 });
+  const moq = moqInfo.value ?? 1;
   const supplierName = getStringValue(raw.company_name)
     ?? getStringValue(raw.supplier_name)
     ?? getStringValue(raw.seller_name)
@@ -1517,7 +1483,7 @@ function mapAlibabaSearchResultToProduct(raw: Record<string, unknown>, query: st
     variantGroups,
     tiers: priceData.tiers.map((tier) => ({ quantityLabel: tier.quantityLabel, priceUsd: tier.priceUsd, note: tier.note })),
     specs,
-    moqVerified: typeof verifiedMoq === "number" && verifiedMoq > 0,
+    moqVerified: moqInfo.verified,
     weightVerified: typeof weightGrams === "number" && weightGrams > 0,
     priceVerified: priceData.verified,
     rawPayload: raw,
@@ -1547,8 +1513,10 @@ function mapAlibabaIcbuProductToProduct(raw: Record<string, unknown>, query: str
     ? categoryInfo.attributes as Array<Record<string, unknown>>
     : [];
   const unit = getStringValue(tradeInfo.unit) ?? "piece";
+  const initialMoqInfo = resolveAlibabaMoq({ rawValue: [raw, tradeInfo] });
   const priceData = summarizeAlibabaPriceData({
     unit,
+    moq: initialMoqInfo.value,
     values: [
       tradeInfo.price,
       tradeInfo.wholesale_trade,
@@ -1560,8 +1528,8 @@ function mapAlibabaIcbuProductToProduct(raw: Record<string, unknown>, query: str
   });
   const minUsd = priceData.min ?? 1;
   const maxUsd = priceData.max;
-  const verifiedMoq = extractVerifiedMoq(raw) ?? extractVerifiedMoq(tradeInfo);
-  const moq = verifiedMoq ?? 1;
+  const moqInfo = resolveAlibabaMoq({ rawValue: [raw, tradeInfo], tiers: priceData.tiers, fallback: 1 });
+  const moq = moqInfo.value ?? 1;
   const weight = getNumberValue(logisticsInfo.weight);
   const keywords = uniqueStrings([
     ...collectStrings(basicInfo.keywords),
@@ -1614,7 +1582,7 @@ function mapAlibabaIcbuProductToProduct(raw: Record<string, unknown>, query: str
     variantGroups,
     tiers: priceData.tiers.map((tier) => ({ quantityLabel: tier.quantityLabel, priceUsd: tier.priceUsd, note: tier.note })),
     specs,
-    moqVerified: typeof verifiedMoq === "number" && verifiedMoq > 0,
+    moqVerified: moqInfo.verified,
     weightVerified: typeof verifiedWeightGrams === "number" && verifiedWeightGrams > 0,
     priceVerified: priceData.verified,
     rawPayload: raw,
