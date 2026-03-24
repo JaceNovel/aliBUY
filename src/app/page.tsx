@@ -22,6 +22,13 @@ import { type ProductCatalogItem } from "@/lib/products-data";
 import { getPricingContext } from "@/lib/pricing";
 import { getCurrentUser } from "@/lib/user-auth";
 
+const HOME_HERO_NAV_ITEMS: ReadonlyArray<{ label: string; href: string; active?: boolean }> = [
+  { label: "Mode", href: "/mode" },
+  { label: "Produits", href: "/products", active: true },
+  { label: "Tendances", href: "/trends" },
+  { label: "Tarifs", href: "/pricing" },
+];
+
 type QuickAction = {
   title: string;
   icon: LucideIcon;
@@ -313,6 +320,23 @@ export default async function Home() {
 
           <div className="flex min-h-[248px] items-start justify-center py-4 sm:min-h-[360px] sm:items-center sm:py-10">
             <div className="w-full max-w-[960px]">
+              <nav className="mb-7 hidden items-center justify-center gap-14 xl:flex">
+                {HOME_HERO_NAV_ITEMS.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="group relative inline-flex -translate-y-0 items-center justify-center pb-4 text-[28px] font-black tracking-[-0.06em] text-[#1f2430] transition duration-300 ease-out hover:-translate-y-1 hover:text-[#111]"
+                  >
+                    <span>{item.label}</span>
+                    <span
+                      className={[
+                        "absolute bottom-0 left-1/2 h-[5px] -translate-x-1/2 rounded-full bg-[#ff6a00] shadow-[0_6px_18px_rgba(255,106,0,0.28)] transition-all duration-300 ease-out",
+                        item.active ? "w-16 opacity-100 group-hover:w-20" : "w-0 opacity-0 group-hover:w-16 group-hover:opacity-100",
+                      ].join(" ")}
+                    />
+                  </Link>
+                ))}
+              </nav>
               <HomeSearchForm
                 defaultQuery=""
                 placeholderText="Rechercher des produits"
