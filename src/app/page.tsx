@@ -279,13 +279,6 @@ export default async function Home() {
                 <MobileCategoryStrip allLabel="Tous" />
               </div>
 
-              <nav className="grid grid-cols-2 gap-2.5 xl:hidden sm:grid-cols-4">
-                <Link href="/protection-commandes" className="flex min-w-0 items-center justify-center rounded-[14px] bg-white/65 px-3 py-3 text-center text-[12px] font-semibold text-[#222] backdrop-blur-sm">Protection</Link>
-                <Link href="/pricing" className="flex min-w-0 items-center justify-center rounded-[14px] bg-white/65 px-3 py-3 text-center text-[12px] font-semibold text-[#222] backdrop-blur-sm">Tarifs</Link>
-                <Link href="/quotes" className="flex min-w-0 items-center justify-center rounded-[14px] bg-white/65 px-3 py-3 text-center text-[12px] font-semibold text-[#222] backdrop-blur-sm">Devis</Link>
-                <Link href="/messages" className="flex min-w-0 items-center justify-center rounded-[14px] bg-white/65 px-3 py-3 text-center text-[12px] font-semibold text-[#222] backdrop-blur-sm">Messages</Link>
-              </nav>
-
               <div className="hidden xl:flex xl:flex-row xl:items-center xl:justify-between">
               <nav className="flex flex-wrap items-center gap-x-7 gap-y-2 text-[#222]">
                 <CategoryMegaMenu
@@ -305,7 +298,7 @@ export default async function Home() {
                 />
               </nav>
               <nav className="flex flex-wrap items-center gap-x-7 gap-y-2 text-[#444]">
-                <AboutMenu triggerLabel={messages.nav.about} className="transition hover:text-[#ff6a00]" />
+                <AboutMenu triggerLabel={messages.nav.about} className="transition hover:text-[#ff6a00]" align="left" />
                 <SupportMenu triggerLabel={messages.nav.support} className="transition hover:text-[#ff6a00]" />
                 <UnavailableLink
                   label={messages.nav.appExtension}

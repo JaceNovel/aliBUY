@@ -151,6 +151,10 @@ export function DeliveryAddressPopover({
 
         <button
           type="button"
+          onClick={() => {
+            setIsOpen(false);
+            router.push("/account/addresses");
+          }}
           className={compact ? "mt-3 flex h-10 w-full items-center justify-center rounded-full bg-[#ff6a00] px-5 text-[14px] font-semibold text-white hover:bg-[#ef6100]" : "mt-5 flex h-11 w-full items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[15px] font-semibold text-white hover:bg-[#ef6100]"}
         >
           {messages.deliveryPopover.addAddress}

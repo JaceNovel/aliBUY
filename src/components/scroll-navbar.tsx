@@ -91,7 +91,7 @@ export function ScrollNavbar({ countryCode, countryLabel, currencyCode, flagEmoj
 
         <div className="hidden min-h-[54px] items-center justify-between gap-6 border-t border-[#efefef] text-[16px] text-[#222] xl:flex">
           <div className="flex items-center gap-10">
-            <AboutMenu triggerLabel={messages.nav.about} className="transition hover:text-[#ff6a00]" />
+            <AboutMenu triggerLabel={messages.nav.about} className="transition hover:text-[#ff6a00]" align="left" />
           </div>
           <div className="flex items-center gap-10">
             <SupportMenu triggerLabel={messages.nav.support} className="transition hover:text-[#ff6a00]" />

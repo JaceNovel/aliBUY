@@ -56,6 +56,38 @@ export type SupportConversationRecord = {
   updatedAt: string;
 };
 
+export type CustomerAddressRecord = {
+  id: string;
+  userId: string;
+  label: string;
+  recipientName: string;
+  phone: string;
+  email?: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  postalCode?: string;
+  countryCode: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type CustomerAddressInput = {
+  label: string;
+  recipientName: string;
+  phone: string;
+  email?: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  postalCode?: string;
+  countryCode: string;
+  isDefault?: boolean;
+};
+
 function toTimeLabel(isoDate: string) {
   return new Intl.DateTimeFormat("fr-FR", {
     day: "2-digit",
@@ -126,6 +158,57 @@ function mapConversation(record: {
   };
 }
 
+function mapCustomerAddress(record: {
+  id: string;
+  userId: string;
+  label: string;
+  recipientName: string;
+  phone: string;
+  email: string | null;
+  addressLine1: string;
+  addressLine2: string | null;
+  city: string;
+  state: string;
+  postalCode: string | null;
+  countryCode: string;
+  isDefault: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}): CustomerAddressRecord {
+  return {
+    id: record.id,
+    userId: record.userId,
+    label: record.label,
+    recipientName: record.recipientName,
+    phone: record.phone,
+    email: record.email ?? undefined,
+    addressLine1: record.addressLine1,
+    addressLine2: record.addressLine2 ?? undefined,
+    city: record.city,
+    state: record.state,
+    postalCode: record.postalCode ?? undefined,
+    countryCode: record.countryCode,
+    isDefault: record.isDefault,
+    createdAt: record.createdAt.toISOString(),
+    updatedAt: record.updatedAt.toISOString(),
+  };
+}
+
+function normalizeCustomerAddressInput(input: CustomerAddressInput) {
+  return {
+    label: input.label.trim(),
+    recipientName: input.recipientName.trim(),
+    phone: input.phone.trim(),
+    email: input.email?.trim() || null,
+    addressLine1: input.addressLine1.trim(),
+    addressLine2: input.addressLine2?.trim() || null,
+    city: input.city.trim(),
+    state: input.state.trim(),
+    postalCode: input.postalCode?.trim() || null,
+    countryCode: input.countryCode.trim().toUpperCase(),
+  };
+}
+
 export async function getFavoriteRecords() {
   const records = await prisma.favorite.findMany({ include: { user: true }, orderBy: { createdAt: "desc" } });
   return records.map((record) => ({
@@ -135,6 +218,144 @@ export async function getFavoriteRecords() {
     productSlug: record.productSlug,
     createdAt: record.createdAt.toISOString(),
   }));
+}
+
+export async function getUserAddresses(userId: string) {
+  const addresses = await prisma.customerAddress.findMany({
+    where: { userId },
+    orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+  });
+
+  return addresses.map(mapCustomerAddress);
+}
+
+export async function getUserDefaultAddress(userId: string) {
+  const address = await prisma.customerAddress.findFirst({
+    where: { userId, isDefault: true },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  return address ? mapCustomerAddress(address) : undefined;
+}
+
+export async function getUserAddressById(userId: string, addressId: string) {
+  const address = await prisma.customerAddress.findFirst({
+    where: { id: addressId, userId },
+  });
+
+  return address ? mapCustomerAddress(address) : undefined;
+}
+
+export async function createUserAddress(userId: string, input: CustomerAddressInput) {
+  const normalized = normalizeCustomerAddressInput(input);
+  const hasAnyAddress = (await prisma.customerAddress.count({ where: { userId } })) > 0;
+  const shouldBeDefault = input.isDefault || !hasAnyAddress;
+
+  const address = await prisma.$transaction(async (transaction) => {
+    if (shouldBeDefault) {
+      await transaction.customerAddress.updateMany({
+        where: { userId, isDefault: true },
+        data: { isDefault: false },
+      });
+    }
+
+    return transaction.customerAddress.create({
+      data: {
+        userId,
+        ...normalized,
+        isDefault: shouldBeDefault,
+      },
+    });
+  });
+
+  return mapCustomerAddress(address);
+}
+
+export async function updateUserAddress(userId: string, addressId: string, input: CustomerAddressInput) {
+  const existing = await prisma.customerAddress.findFirst({
+    where: { id: addressId, userId },
+  });
+
+  if (!existing) {
+    throw new Error("Adresse introuvable.");
+  }
+
+  const normalized = normalizeCustomerAddressInput(input);
+  const addressCount = await prisma.customerAddress.count({ where: { userId } });
+  const shouldBeDefault = input.isDefault || (existing.isDefault && !input.isDefault) || addressCount === 1;
+
+  const address = await prisma.$transaction(async (transaction) => {
+    if (shouldBeDefault) {
+      await transaction.customerAddress.updateMany({
+        where: { userId, isDefault: true, NOT: { id: addressId } },
+        data: { isDefault: false },
+      });
+    }
+
+    return transaction.customerAddress.update({
+      where: { id: addressId },
+      data: {
+        ...normalized,
+        isDefault: shouldBeDefault,
+      },
+    });
+  });
+
+  return mapCustomerAddress(address);
+}
+
+export async function setUserDefaultAddress(userId: string, addressId: string) {
+  const existing = await prisma.customerAddress.findFirst({
+    where: { id: addressId, userId },
+  });
+
+  if (!existing) {
+    throw new Error("Adresse introuvable.");
+  }
+
+  const address = await prisma.$transaction(async (transaction) => {
+    await transaction.customerAddress.updateMany({
+      where: { userId, isDefault: true },
+      data: { isDefault: false },
+    });
+
+    return transaction.customerAddress.update({
+      where: { id: addressId },
+      data: { isDefault: true },
+    });
+  });
+
+  return mapCustomerAddress(address);
+}
+
+export async function deleteUserAddress(userId: string, addressId: string) {
+  const existing = await prisma.customerAddress.findFirst({
+    where: { id: addressId, userId },
+  });
+
+  if (!existing) {
+    throw new Error("Adresse introuvable.");
+  }
+
+  await prisma.$transaction(async (transaction) => {
+    await transaction.customerAddress.delete({ where: { id: addressId } });
+
+    if (!existing.isDefault) {
+      return;
+    }
+
+    const nextAddress = await transaction.customerAddress.findFirst({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    if (nextAddress) {
+      await transaction.customerAddress.update({
+        where: { id: nextAddress.id },
+        data: { isDefault: true },
+      });
+    }
+  });
 }
 
 export async function getUserFavoriteSlugs(userId: string) {

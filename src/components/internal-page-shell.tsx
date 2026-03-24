@@ -77,12 +77,6 @@ export async function InternalPageShell({ pricing, children }: InternalPageShell
               </div>
             </form>
 
-            <nav className="grid grid-cols-2 gap-2 border-t border-[#efebe6] py-3 text-center sm:grid-cols-4">
-              <Link href="/protection-commandes" className="rounded-[12px] bg-[#f8f3ee] px-3 py-2.5 text-[11px] font-semibold text-[#2d2926]">Protection</Link>
-              <Link href="/quotes" className="rounded-[12px] bg-[#f8f3ee] px-3 py-2.5 text-[11px] font-semibold text-[#2d2926]">Devis</Link>
-              <Link href="/pricing" className="rounded-[12px] bg-[#f8f3ee] px-3 py-2.5 text-[11px] font-semibold text-[#2d2926]">Tarifs</Link>
-              <Link href="/messages" className="rounded-[12px] bg-[#f8f3ee] px-3 py-2.5 text-[11px] font-semibold text-[#2d2926]">Messages</Link>
-            </nav>
           </div>
 
           <div className="hidden min-h-[74px] flex-col gap-3 py-3 xl:flex xl:flex-row xl:items-center xl:justify-between">
@@ -141,7 +135,7 @@ export async function InternalPageShell({ pricing, children }: InternalPageShell
               <OrderProtectionMenu languageCode={pricing.languageCode} triggerClassName="inline-flex items-center py-1 font-medium text-[#444]" panelClassName="top-[calc(100%+12px)]" widthClassName="w-[1120px]" />
               </nav>
               <nav className="flex flex-wrap items-center gap-x-8 gap-y-2 text-[#444]">
-                <AboutMenu triggerLabel={messages.nav.about} className="transition hover:text-[#ff6a00]" />
+                <AboutMenu triggerLabel={messages.nav.about} className="transition hover:text-[#ff6a00]" align="left" />
                 <SupportMenu triggerLabel={messages.nav.support} className="transition hover:text-[#ff6a00]" />
                 <UnavailableLink label={messages.nav.appExtension} message={messages.unavailable.message} className="text-[#444]" tooltipClassName="left-1/2 top-[calc(100%+12px)] -translate-x-1/2" />
               </nav>

@@ -70,6 +70,7 @@ export type AlibabaSourcingQuote = {
 };
 
 export type SourcingCheckoutAddress = {
+  customerAddressId?: string;
   customerName: string;
   customerEmail: string;
   customerPhone: string;

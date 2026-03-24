@@ -49,8 +49,10 @@ export function AdminLoginForm({ nextPath }: AdminLoginFormProps) {
         <input
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          placeholder="afripay@gmail.com"
-          className="mt-2 h-12 w-full rounded-[16px] border border-[#d7dce5] px-4 text-[15px] text-[#111827] outline-none transition focus:border-[#ff6a00]"
+          type="email"
+          autoComplete="email"
+          placeholder="nom@domaine.com"
+          className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none transition focus:border-[#ff6a00] sm:h-12 sm:rounded-[16px] sm:text-[15px]"
         />
       </label>
       <label className="block text-[13px] font-semibold text-[#344054]">
@@ -59,15 +61,16 @@ export function AdminLoginForm({ nextPath }: AdminLoginFormProps) {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           type="password"
-          placeholder="Votre mot de passe"
-          className="mt-2 h-12 w-full rounded-[16px] border border-[#d7dce5] px-4 text-[15px] text-[#111827] outline-none transition focus:border-[#ff6a00]"
+          autoComplete="current-password"
+          placeholder="Entrez votre mot de passe"
+          className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none transition focus:border-[#ff6a00] sm:h-12 sm:rounded-[16px] sm:text-[15px]"
         />
       </label>
       {errorMessage ? <div className="rounded-[16px] bg-[#fff1f2] px-4 py-3 text-[13px] font-semibold text-[#b42318]">{errorMessage}</div> : null}
       <button
         type="submit"
         disabled={isSubmitting || email.length === 0 || password.length === 0}
-        className="inline-flex h-12 w-full items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[15px] font-semibold text-white transition hover:bg-[#e55e00] disabled:cursor-not-allowed disabled:opacity-70"
+        className="inline-flex h-11 w-full items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[14px] font-semibold text-white transition hover:bg-[#e55e00] disabled:cursor-not-allowed disabled:opacity-70 sm:h-12 sm:text-[15px]"
       >
         {isSubmitting ? "Connexion..." : "Se connecter"}
       </button>

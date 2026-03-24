@@ -44,6 +44,7 @@ model SourcingOrder {
   id                    String                  @id @default(cuid())
   orderNumber           String                  @unique
   userId                String?
+  customerAddressId     String?
   customerName          String
   customerEmail         String
   customerPhone         String
@@ -80,6 +81,7 @@ model SourcingOrder {
   updatedAt             DateTime                @updatedAt
   containerId           String?
   user                  User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  customerAddress       CustomerAddress?        @relation(fields: [customerAddressId], references: [id], onDelete: SetNull)
   container             SourcingSeaContainer?   @relation(fields: [containerId], references: [id])
   items                 SourcingOrderItem[]
   integrationLogs       AlibabaIntegrationLog[]
@@ -90,6 +92,7 @@ model SourcingOrder {
   @@index([shippingMethod])
   @@index([paymentStatus])
   @@index([userId])
+  @@index([customerAddressId])
 }
 
 model SourcingOrderItem {
@@ -134,10 +137,34 @@ model User {
   passwordSalt         String
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
+  addresses            CustomerAddress[]
   favorites            Favorite[]
   quoteRequests        QuoteRequest[]
   supportConversations SupportConversation[]
   sourcingOrders       SourcingOrder[]
+}
+
+model CustomerAddress {
+  id            String          @id @default(cuid())
+  userId        String
+  label         String
+  recipientName String
+  phone         String
+  email         String?
+  addressLine1  String
+  addressLine2  String?
+  city          String
+  state         String
+  postalCode    String?
+  countryCode   String
+  isDefault     Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders        SourcingOrder[]
+
+  @@index([userId, createdAt])
+  @@index([userId, isDefault])
 }
 
 model Favorite {

@@ -96,6 +96,7 @@ function normalizeOrder(record: Record<string, unknown>): SourcingOrder {
     id: String(record.id),
     orderNumber: String(record.orderNumber),
     userId: record.userId ? String(record.userId) : undefined,
+    customerAddressId: record.customerAddressId ? String(record.customerAddressId) : undefined,
     customerName: String(record.customerName),
     customerEmail: String(record.customerEmail),
     customerPhone: String(record.customerPhone),
@@ -279,6 +280,7 @@ export async function saveSourcingOrder(order: SourcingOrder) {
       where: { id: order.id },
       update: {
         userId: order.userId ?? null,
+        customerAddressId: order.customerAddressId ?? null,
         customerName: order.customerName,
         customerEmail: order.customerEmail,
         customerPhone: order.customerPhone,
@@ -334,6 +336,7 @@ export async function saveSourcingOrder(order: SourcingOrder) {
         id: order.id,
         orderNumber: order.orderNumber,
         userId: order.userId ?? null,
+        customerAddressId: order.customerAddressId ?? null,
         customerName: order.customerName,
         customerEmail: order.customerEmail,
         customerPhone: order.customerPhone,

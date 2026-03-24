@@ -28,6 +28,7 @@ const accountSections = [
 
 const mobileProfileLinks = [
   { label: "Profil", href: "/account" },
+  { label: "Adresses", href: "/account/addresses" },
   { label: "Commandes", href: "/orders" },
   { label: "Messages", href: "/messages" },
   { label: "Demandes de devis", href: "/quotes" },

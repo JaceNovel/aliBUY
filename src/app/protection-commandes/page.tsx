@@ -76,39 +76,39 @@ export default async function OrderProtectionPage() {
 
   return (
     <InternalPageShell pricing={pricing}>
-      <div className="space-y-5 sm:space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         <div className="flex flex-wrap items-center gap-2 text-[12px] text-[#666] sm:text-[13px]">
           <Link href="/" className="transition hover:text-[#ff6a00]">Accueil</Link>
           <span>/</span>
           <span className="font-medium text-[#222]">{messages.nav.orderProtection}</span>
         </div>
 
-        <section className="overflow-hidden rounded-[24px] bg-[linear-gradient(135deg,#171717_0%,#402013_45%,#ff6a00_100%)] px-4 py-6 text-white shadow-[0_24px_70px_rgba(17,24,39,0.18)] sm:rounded-[32px] sm:px-8 sm:py-10 lg:px-10">
-          <div className="grid gap-5 sm:gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
+        <section className="overflow-hidden rounded-[22px] bg-[linear-gradient(135deg,#171717_0%,#402013_45%,#ff6a00_100%)] px-3.5 py-5 text-white shadow-[0_18px_42px_rgba(17,24,39,0.16)] sm:rounded-[32px] sm:px-8 sm:py-10 sm:shadow-[0_24px_70px_rgba(17,24,39,0.18)] lg:px-10">
+          <div className="grid gap-4 sm:gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/84 sm:px-4 sm:py-2 sm:text-[12px]">
+              <div className="inline-flex max-w-full items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-white/84 sm:px-4 sm:py-2 sm:text-[12px]">
                 <ShieldCheck className="h-4 w-4" />
                 {messages.nav.orderProtection}
               </div>
-              <h1 className="mt-4 max-w-[780px] text-[27px] font-black leading-[1.08] tracking-[-0.06em] sm:mt-5 sm:text-[54px]">
+              <h1 className="mt-3 max-w-[780px] text-[24px] font-black leading-[1.08] tracking-[-0.05em] sm:mt-5 sm:text-[54px]">
                 Paiement, suivi, livraison et assistance regroupes sur une meme page.
               </h1>
-              <p className="mt-3 max-w-[760px] text-[14px] leading-6 text-white/82 sm:mt-4 sm:text-[17px] sm:leading-8">
+              <p className="mt-2 max-w-[760px] text-[13px] leading-6 text-white/82 sm:mt-4 sm:text-[17px] sm:leading-8">
                 Cette page centralise les garanties visibles pour vos commandes afin que chaque action importante reste accessible en un clic: paiement, remboursement, logistique et apres-vente.
               </p>
             </div>
 
-            <article className="rounded-[22px] bg-white/10 p-4 backdrop-blur-sm ring-1 ring-white/15 sm:rounded-[26px] sm:p-6">
+            <article className="rounded-[18px] bg-white/10 p-3.5 backdrop-blur-sm ring-1 ring-white/15 sm:rounded-[26px] sm:p-6">
               <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/74 sm:text-[13px]">Acces rapides</div>
-              <div className="mt-4 flex gap-3 overflow-x-auto pb-1 sm:grid sm:overflow-visible sm:pb-0">
+              <div className="mt-3 grid gap-2 sm:mt-4 sm:gap-3">
                 {protectionSections.map((section) => (
                   <Link
                     key={section.id}
                     href={`#${section.id}`}
-                    className="flex min-w-[220px] items-center justify-between rounded-[18px] bg-black/12 px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-black/18 sm:min-w-0 sm:text-[14px]"
+                    className="flex min-w-0 items-center justify-between rounded-[16px] bg-black/12 px-3.5 py-3 text-[12px] font-semibold text-white transition hover:bg-black/18 sm:rounded-[18px] sm:px-4 sm:text-[14px]"
                   >
-                    <span>{section.title}</span>
-                    <ArrowRight className="h-4 w-4" />
+                    <span className="pr-3">{section.title}</span>
+                    <ArrowRight className="h-4 w-4 shrink-0" />
                   </Link>
                 ))}
               </div>
@@ -124,13 +124,13 @@ export default async function OrderProtectionPage() {
               <Link
                 key={section.id}
                 href={`#${section.id}`}
-                className="rounded-[22px] bg-white p-4 shadow-[0_14px_42px_rgba(17,24,39,0.06)] ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-[0_20px_48px_rgba(17,24,39,0.12)] sm:rounded-[26px] sm:p-6"
+                className="rounded-[20px] bg-white p-4 shadow-[0_12px_32px_rgba(17,24,39,0.06)] ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-[0_20px_48px_rgba(17,24,39,0.12)] sm:rounded-[26px] sm:p-6"
               >
                 <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#fff1e8] text-[#ff6a00] sm:h-12 sm:w-12">
                   <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
                 </div>
-                <h2 className="mt-3 text-[18px] font-bold tracking-[-0.04em] text-[#222] sm:mt-4 sm:text-[20px]">{section.title}</h2>
-                <p className="mt-2 text-[13px] leading-6 text-[#5f6470] sm:mt-3 sm:text-[14px] sm:leading-7">{section.description}</p>
+                <h2 className="mt-3 text-[17px] font-bold tracking-[-0.03em] text-[#222] sm:mt-4 sm:text-[20px]">{section.title}</h2>
+                <p className="mt-2 text-[12px] leading-6 text-[#5f6470] sm:mt-3 sm:text-[14px] sm:leading-7">{section.description}</p>
               </Link>
             );
           })}
@@ -144,28 +144,28 @@ export default async function OrderProtectionPage() {
               <article
                 key={section.id}
                 id={section.id}
-                className="rounded-[24px] bg-white px-4 py-5 shadow-[0_16px_44px_rgba(17,24,39,0.06)] ring-1 ring-black/5 sm:rounded-[30px] sm:px-8 sm:py-8"
+                className="rounded-[22px] bg-white px-4 py-4 shadow-[0_14px_34px_rgba(17,24,39,0.06)] ring-1 ring-black/5 sm:rounded-[30px] sm:px-8 sm:py-8"
               >
                 <div className="flex flex-col gap-5 sm:gap-6 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="max-w-[780px]">
+                  <div className="min-w-0 max-w-[780px]">
                     <div className="flex items-center gap-3 text-[#ff6a00]">
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#fff1e8] sm:h-11 sm:w-11">
                         <Icon className="h-5 w-5" />
                       </div>
                       <div className="text-[11px] font-semibold uppercase tracking-[0.14em] sm:text-[13px]">Protection active</div>
                     </div>
-                    <h3 className="mt-3 text-[22px] font-bold tracking-[-0.04em] text-[#222] sm:mt-4 sm:text-[28px]">{section.title}</h3>
-                    <p className="mt-2 text-[14px] leading-7 text-[#5f6470] sm:mt-3 sm:text-[15px] sm:leading-8">{section.description}</p>
+                    <h3 className="mt-3 text-[20px] font-bold tracking-[-0.03em] text-[#222] sm:mt-4 sm:text-[28px]">{section.title}</h3>
+                    <p className="mt-2 text-[13px] leading-6 text-[#5f6470] sm:mt-3 sm:text-[15px] sm:leading-8">{section.description}</p>
                     <div className="mt-4 grid gap-3 sm:mt-5 sm:grid-cols-3">
                       {section.bullets.map((bullet) => (
-                        <div key={bullet} className="rounded-[16px] bg-[#faf7f3] px-4 py-3 text-[13px] leading-6 text-[#3f3f46] ring-1 ring-black/5 sm:rounded-[18px] sm:text-[14px]">
+                        <div key={bullet} className="rounded-[15px] bg-[#faf7f3] px-3.5 py-3 text-[12px] leading-5 text-[#3f3f46] ring-1 ring-black/5 sm:rounded-[18px] sm:px-4 sm:text-[14px] sm:leading-6">
                           {bullet}
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <div className="w-full rounded-[20px] bg-[#111827] p-4 text-white shadow-[0_18px_40px_rgba(17,24,39,0.18)] sm:max-w-[280px] sm:rounded-[24px] sm:p-5">
+                  <div className="w-full min-w-0 rounded-[18px] bg-[#111827] p-4 text-white shadow-[0_18px_40px_rgba(17,24,39,0.18)] sm:max-w-[280px] sm:rounded-[24px] sm:p-5">
                     <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-white/64">Action</div>
                     <div className="mt-2 text-[20px] font-bold tracking-[-0.04em] sm:mt-3 sm:text-[22px]">{section.title}</div>
                     <p className="mt-2 text-[13px] leading-6 text-white/72 sm:mt-3 sm:text-[14px] sm:leading-7">

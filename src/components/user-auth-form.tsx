@@ -70,7 +70,7 @@ export function UserAuthForm({ mode, nextPath }: UserAuthFormProps) {
   };
 
   return (
-    <form onSubmit={submit} className="space-y-4">
+    <form onSubmit={submit} className="space-y-3 sm:space-y-4">
       <label className="block text-[14px] font-semibold text-[#344054]">
         Adresse e-mail
         <input
@@ -79,7 +79,7 @@ export function UserAuthForm({ mode, nextPath }: UserAuthFormProps) {
           onChange={(event) => setEmail(event.target.value)}
           autoComplete="email"
           required
-          className="mt-2 h-12 w-full rounded-[16px] border border-[#d7dce5] px-4 text-[15px] outline-none transition focus:border-[#ff6a00]"
+          className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none transition focus:border-[#ff6a00] sm:h-12 sm:rounded-[16px] sm:text-[15px]"
         />
       </label>
 
@@ -92,7 +92,7 @@ export function UserAuthForm({ mode, nextPath }: UserAuthFormProps) {
           autoComplete={isRegister ? "new-password" : "current-password"}
           minLength={8}
           required
-          className="mt-2 h-12 w-full rounded-[16px] border border-[#d7dce5] px-4 text-[15px] outline-none transition focus:border-[#ff6a00]"
+          className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none transition focus:border-[#ff6a00] sm:h-12 sm:rounded-[16px] sm:text-[15px]"
         />
       </label>
 
@@ -106,7 +106,7 @@ export function UserAuthForm({ mode, nextPath }: UserAuthFormProps) {
             autoComplete="new-password"
             minLength={8}
             required
-            className="mt-2 h-12 w-full rounded-[16px] border border-[#d7dce5] px-4 text-[15px] outline-none transition focus:border-[#ff6a00]"
+            className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none transition focus:border-[#ff6a00] sm:h-12 sm:rounded-[16px] sm:text-[15px]"
           />
         </label>
       ) : null}
@@ -119,12 +119,12 @@ export function UserAuthForm({ mode, nextPath }: UserAuthFormProps) {
         </div>
       ) : null}
 
-      {error ? <div className="rounded-[16px] bg-[#fff2f0] px-4 py-3 text-[14px] text-[#b42318]">{error}</div> : null}
+      {error ? <div className="rounded-[14px] bg-[#fff2f0] px-4 py-3 text-[13px] text-[#b42318] sm:rounded-[16px] sm:text-[14px]">{error}</div> : null}
 
       <button
         type="submit"
         disabled={isSubmitting}
-        className="inline-flex h-12 w-full items-center justify-center rounded-[16px] bg-[#ff6a00] px-5 text-[15px] font-semibold text-white transition hover:bg-[#eb6100] disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-11 w-full items-center justify-center rounded-[14px] bg-[#ff6a00] px-5 text-[14px] font-semibold text-white transition hover:bg-[#eb6100] disabled:cursor-not-allowed disabled:opacity-60 sm:h-12 sm:rounded-[16px] sm:text-[15px]"
       >
         {isSubmitting ? "Traitement..." : isRegister ? "Creer mon compte" : "Se connecter"}
       </button>
@@ -132,13 +132,13 @@ export function UserAuthForm({ mode, nextPath }: UserAuthFormProps) {
       {!isRegister ? (
         <Link
           href={alternatePath}
-          className="inline-flex h-12 w-full items-center justify-center rounded-[16px] border border-[#d7dce5] px-5 text-[15px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00]"
+          className="inline-flex h-11 w-full items-center justify-center rounded-[14px] border border-[#d7dce5] px-5 text-[14px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-12 sm:rounded-[16px] sm:text-[15px]"
         >
           S'inscrire
         </Link>
       ) : null}
 
-      <div className="text-[13px] text-[#667085]">
+      <div className="text-[12px] text-[#667085] sm:text-[13px]">
         {isRegister ? "Vous avez deja un compte ? " : "Vous n'avez pas encore de compte ? "}
         <Link
           href={alternatePath}
