@@ -11,6 +11,7 @@ export async function POST(request: Request) {
 
   const order = await createCheckoutOrder({
     userId: user.id,
+    customerAddressId: body?.customerAddressId ? String(body.customerAddressId) : undefined,
     customerName: String(body?.customerName ?? user.displayName),
     customerEmail: String(body?.customerEmail ?? user.email),
     customerPhone: String(body?.customerPhone ?? ""),

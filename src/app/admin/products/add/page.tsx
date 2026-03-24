@@ -2,12 +2,15 @@ import Link from "next/link";
 import { FileUp, Plus, Save } from "lucide-react";
 
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
-import { catalogCategories } from "@/lib/catalog-taxonomy";
+import { getCatalogCategories } from "@/lib/catalog-category-service";
 import { getPricingContext } from "@/lib/pricing";
 
 export default async function AdminProductsAddPage() {
   const pricing = await getPricingContext();
-  const featuredProducts = (await getAlibabaImportedProducts()).slice(0, 3);
+  const [featuredProducts, categories] = await Promise.all([
+    getAlibabaImportedProducts().then((products) => products.slice(0, 3)),
+    getCatalogCategories(),
+  ]);
 
   return (
     <div className="space-y-5">
@@ -53,7 +56,7 @@ export default async function AdminProductsAddPage() {
             <label className="space-y-2 text-[13px] font-semibold text-[#344054] md:col-span-2">
               <span>Categorie</span>
               <select className="h-11 w-full rounded-[14px] border border-[#dde2ea] px-4 text-[14px] outline-none focus:border-[#ff6a5b]">
-                {catalogCategories.map((category) => (
+                {categories.map((category) => (
                   <option key={category.slug} value={category.slug}>{category.title}</option>
                 ))}
               </select>

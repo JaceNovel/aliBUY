@@ -1,11 +1,27 @@
 import "server-only";
 
-import { catalogCategories } from "@/lib/catalog-taxonomy";
 import { type AdminSectionSlug } from "@/lib/admin-config";
+import { getCatalogCategories } from "@/lib/catalog-category-service";
 import { getCatalogProducts } from "@/lib/catalog-service";
 import { getQuoteRequests, getSupportConversations } from "@/lib/customer-data-store";
 import { getSourcingOrders } from "@/lib/sourcing-store";
 import { getStoredUsers } from "@/lib/user-store";
+
+export type AdminOrderRecord = {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  shippingMethod: string;
+  paymentStatus: string;
+  status: string;
+  countryCode: string;
+  addressLine: string;
+  totalUsd: number;
+  createdAt: string;
+  href: string;
+};
 
 export type AdminImportRequestStatus = "En attente" | "En traitement" | "Complété" | "Rejeté";
 
@@ -72,11 +88,12 @@ export async function getAdminSuppliers() {
 }
 
 export async function getAdminMetrics() {
-  const [suppliers, users, orders, products] = await Promise.all([
+  const [suppliers, users, orders, products, categories] = await Promise.all([
     getAdminSuppliers(),
     getStoredUsers(),
     getSourcingOrders(),
     getCatalogProducts(),
+    getCatalogCategories(),
   ]);
   const revenueUsd = orders.reduce((sum, order) => sum + convertFcfaToUsd(order.totalPriceFcfa), 0);
   const promotionsCount = products.filter((product) => product.badge || product.title.toLowerCase().includes("promo")).length;
@@ -87,7 +104,7 @@ export async function getAdminMetrics() {
     ordersCount: orders.length,
     productsCount: products.length,
     suppliersCount: users.length,
-    categoriesCount: catalogCategories.length,
+    categoriesCount: categories.length,
     promotionsCount,
     pendingOrdersCount,
   };
@@ -122,8 +139,35 @@ export async function getAdminRecentOrders(limit = 5) {
       date: order.createdAt.slice(0, 10),
       totalUsd: convertFcfaToUsd(order.totalPriceFcfa),
       status: order.paymentStatus,
-      href: "/orders",
+      href: `/admin/orders/${encodeURIComponent(order.id)}`,
     }));
+}
+
+export async function getAdminOrders(): Promise<AdminOrderRecord[]> {
+  const orders = await getSourcingOrders();
+
+  return [...orders]
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    .map((order) => ({
+      id: order.id,
+      orderNumber: order.orderNumber,
+      customerName: order.customerName,
+      customerEmail: order.customerEmail,
+      customerPhone: order.customerPhone,
+      shippingMethod: order.shippingMethod,
+      paymentStatus: order.paymentStatus,
+      status: order.status,
+      countryCode: order.countryCode,
+      addressLine: [order.addressLine1, order.addressLine2, `${order.city}, ${order.state}`, order.postalCode].filter(Boolean).join(", "),
+      totalUsd: convertFcfaToUsd(order.totalPriceFcfa),
+      createdAt: order.createdAt,
+      href: `/admin/orders/${encodeURIComponent(order.id)}`,
+    }));
+}
+
+export async function getAdminOrderById(orderId: string) {
+  const orders = await getSourcingOrders();
+  return orders.find((order) => order.id === orderId || order.orderNumber === orderId) ?? null;
 }
 
 export async function getAdminPromotions() {

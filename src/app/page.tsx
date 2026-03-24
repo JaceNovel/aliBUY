@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Camera, Clock3, ScrollText, ShieldCheck, Sparkles, WandSparkles, type LucideIcon } from "lucide-react";
 
-import { CategoryMegaMenu } from "@/components/category-mega-menu";
+import { CategoryMegaMenu, type CategoryMegaMenuCategory } from "@/components/category-mega-menu";
 import { AboutMenu } from "@/components/about-menu";
 import { DeliveryAddressPopover } from "@/components/delivery-address-popover";
 import { HeaderActionGroup } from "@/components/header-action-group";
@@ -15,8 +15,8 @@ import { ScrollNavbar } from "@/components/scroll-navbar";
 import { SupportMenu } from "@/components/support-menu";
 import { UnavailableLink } from "@/components/unavailable-link";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
+import { getCatalogCategories } from "@/lib/catalog-category-service";
 import { getCatalogProducts } from "@/lib/catalog-service";
-import { catalogQuickSearchLinks } from "@/lib/catalog-taxonomy";
 import { getMessages } from "@/lib/messages";
 import { type ProductCatalogItem } from "@/lib/products-data";
 import { getPricingContext } from "@/lib/pricing";
@@ -25,6 +25,13 @@ import { getCurrentUser } from "@/lib/user-auth";
 const HOME_HERO_NAV_ITEMS: ReadonlyArray<{ label: string; href: string; active?: boolean }> = [
   { label: "Mode", href: "/mode" },
   { label: "Produits", href: "/products", active: true },
+  { label: "Tendances", href: "/trends" },
+  { label: "Tarifs", href: "/pricing" },
+];
+
+const MOBILE_SEARCH_SHORTCUTS: ReadonlyArray<{ label: string; href: string }> = [
+  { label: "Mode", href: "/mode" },
+  { label: "Devis", href: "/quotes" },
   { label: "Tendances", href: "/trends" },
   { label: "Tarifs", href: "/pricing" },
 ];
@@ -113,6 +120,16 @@ export default async function Home() {
   const user = await getCurrentUser();
   const messages = getMessages(pricing.languageCode);
   const catalogProducts = await getCatalogProducts();
+  const catalogCategories = await getCatalogCategories();
+  const megaMenuCategories: CategoryMegaMenuCategory[] = catalogCategories.slice(0, 9).map((category) => ({
+    slug: category.slug,
+    title: category.title,
+    products: category.products.slice(0, 14).map((product) => ({
+      slug: product.slug,
+      shortTitle: product.shortTitle,
+      image: product.image,
+    })),
+  }));
   const historyItems = catalogProducts.slice(0, 5);
   const recommendationProducts = catalogProducts.slice(5, 9).length > 0 ? catalogProducts.slice(5, 9) : catalogProducts.slice(0, 4);
   const discoveryHistoryItems = catalogProducts.slice(0, 4);
@@ -200,6 +217,7 @@ export default async function Home() {
         languageCode={pricing.languageCode}
         languageLabel={pricing.languageLabel}
         user={user ? { displayName: user.displayName, firstName: user.firstName } : null}
+        categories={megaMenuCategories}
       />
       <header className="relative z-30 bg-[linear-gradient(180deg,#efd9cf_0%,#f8e7dc_16%,#f4f4f4_100%)]">
         <div className="bg-[#ff6a00] text-white">
@@ -276,12 +294,25 @@ export default async function Home() {
           <div className="border-t border-black/6">
             <div className="py-3 text-[14px]">
               <div className="mb-3 sm:hidden">
-                <MobileCategoryStrip allLabel="Tous" />
+                <MobileCategoryStrip allLabel="Tous" categories={catalogCategories.map((category) => ({ label: category.title, href: `/categories/${category.slug}` }))} />
               </div>
+
+              <nav className="mb-4 grid grid-cols-4 gap-3 sm:hidden">
+                {MOBILE_SEARCH_SHORTCUTS.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="inline-flex h-12 min-w-0 items-center justify-center rounded-[18px] bg-white/95 px-2 text-center text-[12px] font-semibold text-[#2b221c] shadow-[0_8px_18px_rgba(17,24,39,0.04)] ring-1 ring-black/4 transition hover:text-[#ff6a00]"
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
 
               <div className="hidden xl:flex xl:flex-row xl:items-center xl:justify-between">
               <nav className="flex flex-wrap items-center gap-x-7 gap-y-2 text-[#222]">
                 <CategoryMegaMenu
+                  categories={megaMenuCategories}
                   languageCode={pricing.languageCode}
                   triggerClassName="inline-flex items-center gap-2 py-1 font-semibold"
                   panelClassName="top-[calc(100%+12px)]"
@@ -298,7 +329,7 @@ export default async function Home() {
                 />
               </nav>
               <nav className="flex flex-wrap items-center gap-x-7 gap-y-2 text-[#444]">
-                <AboutMenu triggerLabel={messages.nav.about} className="transition hover:text-[#ff6a00]" align="left" />
+                <AboutMenu triggerLabel={messages.nav.about} className="transition hover:text-[#ff6a00]" align="right" />
                 <SupportMenu triggerLabel={messages.nav.support} className="transition hover:text-[#ff6a00]" />
                 <UnavailableLink
                   label={messages.nav.appExtension}
@@ -359,9 +390,9 @@ export default async function Home() {
       <div className="mx-auto max-w-[1580px] px-4 pb-16 pt-6 sm:px-6 sm:pt-8 xl:px-10">
         {hasPublishedProducts ? (
           <HomeDiscoveryShowcase
-            categories={catalogQuickSearchLinks.slice(0, 8).map((entry) => ({
-              title: entry.title,
-              href: `/products?q=${encodeURIComponent(entry.query)}`,
+            categories={catalogCategories.slice(0, 8).map((category) => ({
+              title: category.title,
+              href: `/categories/${category.slug}`,
             }))}
             historyCard={discoveryHistoryItems[0] ? {
               title: discoveryHistoryItems[0].title,

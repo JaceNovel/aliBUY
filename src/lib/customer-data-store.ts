@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { CustomerAddressRecord } from "@/lib/customer-addresses";
 import { prisma } from "@/lib/prisma";
 
 export type FavoriteRecord = {
@@ -52,24 +53,6 @@ export type SupportConversationRecord = {
   aiEnabled?: boolean;
   orderId?: string;
   messages: SupportConversationMessage[];
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type CustomerAddressRecord = {
-  id: string;
-  userId: string;
-  label: string;
-  recipientName: string;
-  phone: string;
-  email?: string;
-  addressLine1: string;
-  addressLine2?: string;
-  city: string;
-  state: string;
-  postalCode?: string;
-  countryCode: string;
-  isDefault: boolean;
   createdAt: string;
   updatedAt: string;
 };

@@ -3,7 +3,7 @@
 import { startTransition, useMemo, useState } from "react";
 import { Check, MapPinned, Pencil, Plus, Trash2 } from "lucide-react";
 
-import type { CustomerAddressRecord } from "@/lib/customer-data-store";
+import type { CustomerAddressRecord } from "@/lib/customer-addresses";
 
 type AddressFormState = {
   label: string;

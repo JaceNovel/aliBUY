@@ -1,1 +1,32 @@
-[]
+[
+	{
+		"id": "zacch-air-guangzhou",
+		"label": "Zacch Cargo Air Hub Guangzhou",
+		"contactName": "易运国际贝宁空运",
+		"phone": "13760612978 / 15234022495",
+		"email": "jacenovel@gmail.com",
+		"addressLine1": "广州市白云区黄石西路474号",
+		"addressLine2": "石井仓库三号仓十三号门(3-13) 易运国际贝宁空运 Avion",
+		"city": "Guangzhou",
+		"state": "Guangdong",
+		"countryCode": "CN",
+		"isDefault": true,
+		"createdAt": "2026-03-24T00:00:00.000Z",
+		"updatedAt": "2026-03-24T00:00:00.000Z"
+	},
+	{
+		"id": "zacch-sea-guangzhou",
+		"label": "Zacch Cargo Sea Hub Guangzhou",
+		"contactName": "易运国际贝宁海运",
+		"phone": "13760612978 / 15234022495",
+		"email": "jacenovel@gmail.com",
+		"addressLine1": "广州市白云区黄石西路474号",
+		"addressLine2": "石井仓库三号仓十三B号门(3-13B) 易运国际贝宁海运 (Bateau)",
+		"city": "Guangzhou",
+		"state": "Guangdong",
+		"countryCode": "CN",
+		"isDefault": false,
+		"createdAt": "2026-03-24T00:00:00.000Z",
+		"updatedAt": "2026-03-24T00:00:00.000Z"
+	}
+]

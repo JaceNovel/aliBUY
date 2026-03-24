@@ -1,5 +1,8 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
   Diamond,
   Headphones,
@@ -15,7 +18,16 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getMessages } from "@/lib/messages";
-import { catalogQuickSearchLinks } from "@/lib/catalog-taxonomy";
+
+export type CategoryMegaMenuCategory = {
+  slug: string;
+  title: string;
+  products: Array<{
+    slug: string;
+    shortTitle: string;
+    image: string;
+  }>;
+};
 
 type CategoryMegaMenuProps = {
   triggerLabel?: string;
@@ -24,6 +36,7 @@ type CategoryMegaMenuProps = {
   panelClassName?: string;
   widthClassName?: string;
   languageCode?: string;
+  categories?: CategoryMegaMenuCategory[];
 };
 
 type CategoryLink = {
@@ -33,10 +46,12 @@ type CategoryLink = {
 };
 
 type CategoryProduct = {
-  query: string;
+  slug: string;
   title: string;
   image: string;
 };
+
+const categoryIcons: LucideIcon[] = [Star, Headphones, Diamond, PencilRuler, Wheat, Shirt, Sofa, Volleyball, Sprout];
 
 export function CategoryMegaMenu({
   triggerLabel,
@@ -45,92 +60,29 @@ export function CategoryMegaMenu({
   panelClassName = "top-full",
   widthClassName = "w-[1360px]",
   languageCode,
+  categories = [],
 }: CategoryMegaMenuProps) {
   const messages = getMessages(languageCode);
   const resolvedTriggerLabel = triggerLabel ?? messages.nav.categories;
-  const categoryLinks: CategoryLink[] = [
-    { slug: "for-you", title: messages.categoryMenu.forYou, icon: Star },
-    { slug: "consumer-electronics", title: messages.categoryMenu.electronics, icon: Headphones },
-    { slug: "jewelry-watches", title: messages.categoryMenu.jewelry, icon: Diamond },
-    { slug: "office-supplies", title: messages.categoryMenu.office, icon: PencilRuler },
-    { slug: "agriculture-food", title: messages.categoryMenu.agriculture, icon: Wheat },
-    { slug: "fashion-accessories", title: messages.categoryMenu.fashion, icon: Shirt },
-    { slug: "home-garden", title: messages.categoryMenu.home, icon: Sofa },
-    { slug: "sports-leisure", title: messages.categoryMenu.sports, icon: Volleyball },
-    { slug: "sportswear-clothing", title: messages.categoryMenu.sportswear, icon: Sprout },
-  ];
-  const categoryProducts: CategoryProduct[] = [
-    {
-      query: catalogQuickSearchLinks[0].query,
-      title: messages.categoryMenu.mouse,
-      image: "https://s.alicdn.com/@sc04/kf/H097752b8b24344aebcabb135315e1a8d2.jpg_350x350.jpg",
-    },
-    {
-      query: catalogQuickSearchLinks[1].query,
-      title: messages.categoryMenu.gamingMouse,
-      image: "https://s.alicdn.com/@sc04/kf/H9d54069b496a4915a948cb6d88ed0435j.jpg_350x350.jpg",
-    },
-    {
-      query: catalogQuickSearchLinks[2].query,
-      title: messages.categoryMenu.mousePad,
-      image: "https://s.alicdn.com/@sc04/kf/A9b5ae44e0d0c4feba3f2670fe576e8eck.jpg_350x350.jpg",
-    },
-    {
-      query: catalogQuickSearchLinks[3].query,
-      title: messages.categoryMenu.nosePiercing,
-      image: "https://s.alicdn.com/@sc04/kf/Hd3d4e4b17e974cf4905556da65241a90t.jpg_350x350.jpg",
-    },
-    {
-      query: catalogQuickSearchLinks[4].query,
-      title: messages.categoryMenu.piercingJewelry,
-      image: "https://s.alicdn.com/@sc04/kf/Hd3d4e4b17e974cf4905556da65241a90t.jpg_350x350.jpg",
-    },
-    {
-      query: catalogQuickSearchLinks[5].query,
-      title: messages.categoryMenu.tablet,
-      image: "https://s.alicdn.com/@sc04/kf/Hceaca7de363f49c5b1ff43ce10a17bc9P.jpg_350x350.jpg",
-    },
-    {
-      query: catalogQuickSearchLinks[6].query,
-      title: messages.categoryMenu.laptops,
-      image: "https://s.alicdn.com/@sc04/kf/H8875a3ee8ddc4ad7b846d7a4fb94c2835.jpg_350x350.jpg",
-    },
-    {
-      query: catalogQuickSearchLinks[7].query,
-      title: messages.categoryMenu.battery,
-      image: "https://s.alicdn.com/@sc04/kf/H5a5b74ce8bca41bdaeb883513631b6827.png_350x350.jpg",
-    },
-    {
-      query: catalogQuickSearchLinks[8].query,
-      title: messages.categoryMenu.keyboardMouse,
-      image: "https://s.alicdn.com/@sc04/kf/H9d54069b496a4915a948cb6d88ed0435j.jpg_350x350.jpg",
-    },
-    {
-      query: catalogQuickSearchLinks[9].query,
-      title: messages.categoryMenu.wirelessMic,
-      image: "https://s.alicdn.com/@sc04/kf/Hade212866dcd410fa307eb672830a249i.jpg_350x350.jpg",
-    },
-    {
-      query: catalogQuickSearchLinks[10].query,
-      title: messages.categoryMenu.gamingKeyboards,
-      image: "https://s.alicdn.com/@sc04/kf/H9d54069b496a4915a948cb6d88ed0435j.jpg_350x350.jpg",
-    },
-    {
-      query: catalogQuickSearchLinks[11].query,
-      title: messages.categoryMenu.gamingLaptops,
-      image: "https://s.alicdn.com/@sc04/kf/H8875a3ee8ddc4ad7b846d7a4fb94c2835.jpg_350x350.jpg",
-    },
-    {
-      query: catalogQuickSearchLinks[12].query,
-      title: messages.categoryMenu.desktops,
-      image: "https://s.alicdn.com/@sc04/kf/H5d39629cd6374a32bea7368985f32f7aR.jpg_350x350.jpg",
-    },
-    {
-      query: catalogQuickSearchLinks[13].query,
-      title: messages.categoryMenu.miniPc,
-      image: "https://s.alicdn.com/@sc04/kf/H5d39629cd6374a32bea7368985f32f7aR.jpg_350x350.jpg",
-    },
-  ];
+  const [activeSlug, setActiveSlug] = useState(categories[0]?.slug ?? "");
+
+  useEffect(() => {
+    if (!categories.some((category) => category.slug === activeSlug)) {
+      setActiveSlug(categories[0]?.slug ?? "");
+    }
+  }, [activeSlug, categories]);
+
+  const categoryLinks: CategoryLink[] = categories.slice(0, 9).map((category, index) => ({
+    slug: category.slug,
+    title: category.title,
+    icon: categoryIcons[index % categoryIcons.length],
+  }));
+  const activeCategory = categories.find((category) => category.slug === activeSlug) ?? categories[0] ?? null;
+  const categoryProducts: CategoryProduct[] = activeCategory?.products.slice(0, 14).map((product) => ({
+    slug: product.slug,
+    title: product.shortTitle,
+    image: product.image,
+  })) ?? [];
 
   return (
     <div className="group relative">
@@ -157,9 +109,11 @@ export function CategoryMegaMenu({
                   <Link
                     key={item.title}
                     href={`/categories/${item.slug}`}
+                    onMouseEnter={() => setActiveSlug(item.slug)}
+                    onFocus={() => setActiveSlug(item.slug)}
                     className={[
                       "flex items-center gap-4 px-5 py-5 text-[17px] text-[#222] transition-colors hover:bg-[#f8f8f8]",
-                      index === 0 ? "border-l-4 border-[#222] bg-[#f4f4f4] font-semibold" : "border-l-4 border-transparent",
+                      item.slug === activeCategory?.slug ? "border-l-4 border-[#222] bg-[#f4f4f4] font-semibold" : "border-l-4 border-transparent",
                     ].join(" ")}
                   >
                     <Icon className="h-6 w-6 shrink-0 text-[#333]" />
@@ -172,13 +126,13 @@ export function CategoryMegaMenu({
 
           <div className="bg-white px-8 py-6">
             <div className="mb-6 flex items-center justify-between">
-              <h3 className="text-[22px] font-semibold tracking-[-0.03em] text-[#222]">{messages.categoryMenu.forYou}</h3>
+              <h3 className="text-[22px] font-semibold tracking-[-0.03em] text-[#222]">{activeCategory?.title ?? messages.categoryMenu.forYou}</h3>
               <Sparkles className="h-5 w-5 text-[#888]" />
             </div>
 
             <div className="grid grid-cols-7 gap-x-8 gap-y-8">
               {categoryProducts.map((item) => (
-                <Link key={item.title} href={`/products?q=${encodeURIComponent(item.query)}`} className="group/item flex flex-col items-center text-center">
+                <Link key={item.slug} href={`/products/${item.slug}`} className="group/item flex flex-col items-center text-center">
                   <div className="relative h-[126px] w-[126px] overflow-hidden rounded-full bg-[#f6f6f6]">
                     <Image
                       src={item.image}
@@ -197,6 +151,7 @@ export function CategoryMegaMenu({
                 </Link>
               ))}
             </div>
+            {categoryProducts.length === 0 ? <div className="rounded-[18px] bg-[#fafafa] px-4 py-5 text-[14px] text-[#666]">Les catégories se remplissent automatiquement dès qu'un article importé est publié.</div> : null}
           </div>
         </div>
       </div>

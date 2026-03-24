@@ -42,6 +42,9 @@ export type AlibabaImportJob = {
 export type AlibabaImportedProduct = {
   id: string;
   sourceProductId: string;
+  categorySlug?: string;
+  categoryTitle?: string;
+  categoryPath?: string[];
   slug: string;
   title: string;
   shortTitle: string;
@@ -198,6 +201,122 @@ export function slugifyImportedTitle(value: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 72) || `alibaba-${Date.now()}`;
+}
+
+function normalizeCategorySegment(value: string) {
+  return value
+    .replace(/[>|/]+/g, " ")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function splitCategoryPath(value: string) {
+  return value
+    .split(/\s*(?:>|\/|\||›|»|\\)\s*/g)
+    .map((segment) => normalizeCategorySegment(segment))
+    .filter(Boolean);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function collectCategoryStrings(value: unknown, depth = 0): string[] {
+  if (depth > 4 || value == null) {
+    return [];
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    return normalized ? [normalized] : [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => collectCategoryStrings(entry, depth + 1));
+  }
+
+  if (!isRecord(value)) {
+    return [];
+  }
+
+  const matches: string[] = [];
+
+  for (const [key, nestedValue] of Object.entries(value)) {
+    const normalizedKey = key.toLowerCase();
+    const categoryLike = /(category|cat_name|catname|group|leaf|subject|taxonomy)/.test(normalizedKey);
+
+    if (categoryLike) {
+      matches.push(...collectCategoryStrings(nestedValue, depth + 1));
+      continue;
+    }
+
+    if (depth < 2) {
+      matches.push(...collectCategoryStrings(nestedValue, depth + 1));
+    }
+  }
+
+  return matches;
+}
+
+function dedupeStrings(values: string[]) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+export function slugifyCategoryLabel(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 72) || "catalogue-importe";
+}
+
+export function extractAlibabaCategoryInfo(input: {
+  rawPayload?: unknown;
+  query?: string;
+  title?: string;
+  keywords?: string[];
+  categorySlug?: string;
+  categoryTitle?: string;
+  categoryPath?: string[];
+}) {
+  if (input.categorySlug && input.categoryTitle) {
+    return {
+      slug: input.categorySlug,
+      title: input.categoryTitle,
+      path: input.categoryPath?.filter(Boolean) ?? [input.categoryTitle],
+    };
+  }
+
+  const rawCandidates = dedupeStrings([
+    ...(input.categoryPath ?? []),
+    input.categoryTitle ?? "",
+    ...collectCategoryStrings(input.rawPayload),
+  ]);
+
+  const pathCandidates = rawCandidates
+    .map((candidate) => splitCategoryPath(candidate))
+    .filter((segments) => segments.length > 0);
+
+  const bestPath = pathCandidates.find((segments) => segments.length > 1)
+    ?? pathCandidates[0]
+    ?? [];
+
+  const leafCategory = bestPath[bestPath.length - 1]
+    ?? normalizeCategorySegment(input.query ?? "")
+    ?? normalizeCategorySegment(input.keywords?.[0] ?? "")
+    ?? normalizeCategorySegment(input.title ?? "")
+    ?? "Catalogue importe";
+
+  const title = leafCategory.length > 0 ? leafCategory : "Catalogue importe";
+
+  return {
+    slug: slugifyCategoryLabel(title),
+    title,
+    path: bestPath.length > 0 ? bestPath : [title],
+  };
 }
 
 export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogItem {

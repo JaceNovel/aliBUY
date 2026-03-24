@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { AboutMenu } from "@/components/about-menu";
-import { CategoryMegaMenu } from "@/components/category-mega-menu";
+import { CategoryMegaMenu, type CategoryMegaMenuCategory } from "@/components/category-mega-menu";
 import { DeliveryAddressPopover } from "@/components/delivery-address-popover";
 import { HeaderActionGroup } from "@/components/header-action-group";
 import { LanguageSelectorPopover } from "@/components/language-selector-popover";
@@ -24,9 +24,10 @@ type ScrollNavbarProps = {
     displayName: string;
     firstName: string;
   } | null;
+  categories?: CategoryMegaMenuCategory[];
 };
 
-export function ScrollNavbar({ countryCode, countryLabel, currencyCode, flagEmoji, languageCode, languageLabel, user = null }: ScrollNavbarProps) {
+export function ScrollNavbar({ countryCode, countryLabel, currencyCode, flagEmoji, languageCode, languageLabel, user = null, categories = [] }: ScrollNavbarProps) {
   const [isVisible, setIsVisible] = useState(false);
   const messages = getMessages(languageCode);
 
@@ -55,7 +56,7 @@ export function ScrollNavbar({ countryCode, countryLabel, currencyCode, flagEmoj
               AfriPay
             </Link>
             <nav className="hidden items-center gap-10 text-[16px] font-medium text-[#222] xl:flex">
-              <CategoryMegaMenu languageCode={languageCode} triggerClassName="inline-flex h-[78px] items-center gap-3 border-b-2 border-transparent pr-2 hover:border-[#222]" />
+              <CategoryMegaMenu categories={categories} languageCode={languageCode} triggerClassName="inline-flex h-[78px] items-center gap-3 border-b-2 border-transparent pr-2 hover:border-[#222]" />
               <OrderProtectionMenu
                 languageCode={languageCode}
                 triggerClassName="inline-flex h-[78px] items-center border-b-2 border-transparent hover:border-[#222]"
@@ -91,7 +92,7 @@ export function ScrollNavbar({ countryCode, countryLabel, currencyCode, flagEmoj
 
         <div className="hidden min-h-[54px] items-center justify-between gap-6 border-t border-[#efefef] text-[16px] text-[#222] xl:flex">
           <div className="flex items-center gap-10">
-            <AboutMenu triggerLabel={messages.nav.about} className="transition hover:text-[#ff6a00]" align="left" />
+            <AboutMenu triggerLabel={messages.nav.about} className="transition hover:text-[#ff6a00]" align="right" />
           </div>
           <div className="flex items-center gap-10">
             <SupportMenu triggerLabel={messages.nav.support} className="transition hover:text-[#ff6a00]" />

@@ -1,10 +1,13 @@
 import { ChevronDown, Plus } from "lucide-react";
 
-import { catalogCategories } from "@/lib/catalog-taxonomy";
+import { getCatalogCategories } from "@/lib/catalog-category-service";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 
 export default async function AdminOffersAddPage() {
-  const selectedProducts = (await getAlibabaImportedProducts()).filter((product) => product.publishedToSite).slice(0, 3);
+  const [selectedProducts, categories] = await Promise.all([
+    getAlibabaImportedProducts().then((products) => products.filter((product) => product.publishedToSite).slice(0, 3)),
+    getCatalogCategories(),
+  ]);
 
   return (
     <div className="space-y-5">
@@ -28,7 +31,7 @@ export default async function AdminOffersAddPage() {
           <label className="space-y-2 border-b border-[#edf1f6] pb-5 text-[13px] font-semibold text-[#101828]">
             <span>Catégorie</span>
             <div className="flex h-11 items-center justify-between rounded-[12px] border border-[#dfe3ea] px-4 text-[14px] text-[#101828]">
-              <span>{catalogCategories[0]?.title ?? "Sélectionner une catégorie"}</span>
+              <span>{categories[0]?.title ?? "Aucune catégorie publiée"}</span>
               <ChevronDown className="h-4 w-4 text-[#98a2b3]" />
             </div>
           </label>

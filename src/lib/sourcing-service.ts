@@ -95,6 +95,7 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
     id: createSourcingIds(),
     orderNumber: createOrderNumber(existingOrders.length),
     userId: input.userId,
+    customerAddressId: input.customerAddressId,
     customerName: input.customerName,
     customerEmail: input.customerEmail,
     customerPhone: input.customerPhone,

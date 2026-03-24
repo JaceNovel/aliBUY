@@ -4,24 +4,20 @@ import Link from "next/link";
 import { ChevronDown, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { catalogCategories } from "@/lib/catalog-taxonomy";
-
 type MobileCategoryStripProps = {
   allLabel: string;
+  categories: Array<{ label: string; href: string }>;
 };
 
-export function MobileCategoryStrip({ allLabel }: MobileCategoryStripProps) {
+export function MobileCategoryStrip({ allLabel, categories }: MobileCategoryStripProps) {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
 
   const categoryItems = useMemo(
     () => [
       { label: allLabel, href: "/products" },
-      ...catalogCategories.map((category) => ({
-        label: category.title,
-        href: `/categories/${category.slug}`,
-      })),
+      ...categories,
     ],
-    [allLabel],
+    [allLabel, categories],
   );
 
   return (

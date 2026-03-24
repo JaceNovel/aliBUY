@@ -4,8 +4,7 @@ import { ArrowRight, Layers3, Sparkles } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
-import { catalogCategories, getCatalogCategoryBySlug } from "@/lib/catalog-taxonomy";
-import { getCatalogProductsBySlugs } from "@/lib/catalog-service";
+import { getCatalogCategories, getCatalogCategoryBySlug } from "@/lib/catalog-category-service";
 import { getPricingContext } from "@/lib/pricing";
 
 function formatPriceRange(
@@ -20,8 +19,9 @@ function formatPriceRange(
   return formatPrice(minUsd);
 }
 
-export function generateStaticParams() {
-  return catalogCategories.map((category) => ({ slug: category.slug }));
+export async function generateStaticParams() {
+  const categories = await getCatalogCategories();
+  return categories.map((category) => ({ slug: category.slug }));
 }
 
 export default async function CategoryPage({
@@ -31,13 +31,12 @@ export default async function CategoryPage({
 }) {
   const pricing = await getPricingContext();
   const { slug } = await params;
-  const category = getCatalogCategoryBySlug(slug);
+  const category = await getCatalogCategoryBySlug(slug);
 
   if (!category) {
     notFound();
   }
-
-  const products = await getCatalogProductsBySlugs(category.productSlugs);
+  const products = category.products;
 
   return (
     <InternalPageShell pricing={pricing}>

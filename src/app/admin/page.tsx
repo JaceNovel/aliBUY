@@ -41,7 +41,7 @@ export default async function AdminPage() {
       value: String(metrics.ordersCount),
       icon: ShoppingCart,
       accent: "bg-[#e8fbef] text-[#15a34a]",
-      href: "/admin/imports",
+      href: "/admin/orders",
     },
     {
       label: "Total des Produits",
@@ -129,7 +129,7 @@ export default async function AdminPage() {
               <tbody>
                 {recentOrders.map((order) => (
                   <tr key={order.id} className="border-t border-[#edf1f6] align-top text-[13px] text-[#1f2937]">
-                    <td className="py-4 pr-4 font-semibold">{order.id}</td>
+                    <td className="py-4 pr-4 font-semibold"><Link href={order.href} className="transition hover:text-[#ff6a5b]">{order.id}</Link></td>
                     <td className="py-4 pr-4">{order.customer}</td>
                     <td className="py-4 pr-4 max-w-[220px]">{order.product}</td>
                     <td className="py-4 pr-4">{order.date}</td>

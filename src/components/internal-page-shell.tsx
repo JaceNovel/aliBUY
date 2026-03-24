@@ -1,8 +1,8 @@
-import { Camera, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import Link from "next/link";
 
 import { AboutMenu } from "@/components/about-menu";
-import { CategoryMegaMenu } from "@/components/category-mega-menu";
+import { CategoryMegaMenu, type CategoryMegaMenuCategory } from "@/components/category-mega-menu";
 import { DeliveryAddressPopover } from "@/components/delivery-address-popover";
 import { HeaderActionGroup } from "@/components/header-action-group";
 import { LanguageSelectorPopover } from "@/components/language-selector-popover";
@@ -11,6 +11,7 @@ import { OrderProtectionMenu } from "@/components/order-protection-menu";
 import { SearchSuggestionInput } from "@/components/search-suggestion-input";
 import { SupportMenu } from "@/components/support-menu";
 import { UnavailableLink } from "@/components/unavailable-link";
+import { getCatalogCategories } from "@/lib/catalog-category-service";
 import { getCurrentUser } from "@/lib/user-auth";
 import { getMessages } from "@/lib/messages";
 
@@ -26,9 +27,26 @@ type InternalPageShellProps = {
   children: React.ReactNode;
 };
 
+const MOBILE_NAV_SHORTCUTS: ReadonlyArray<{ label: string; href: string }> = [
+  { label: "Produits", href: "/products" },
+  { label: "Devis", href: "/quotes" },
+  { label: "Tarifs", href: "/pricing" },
+  { label: "Messages", href: "/messages" },
+];
+
 export async function InternalPageShell({ pricing, children }: InternalPageShellProps) {
   const messages = getMessages(pricing.languageCode);
   const user = await getCurrentUser();
+  const categories = await getCatalogCategories();
+  const megaMenuCategories: CategoryMegaMenuCategory[] = categories.slice(0, 9).map((category) => ({
+    slug: category.slug,
+    title: category.title,
+    products: category.products.slice(0, 14).map((product) => ({
+      slug: product.slug,
+      shortTitle: product.shortTitle,
+      image: product.image,
+    })),
+  }));
 
   return (
     <main className="min-h-screen overflow-x-clip bg-[#f7f7f7] pb-24 text-[#222] md:pb-0">
@@ -54,28 +72,40 @@ export async function InternalPageShell({ pricing, children }: InternalPageShell
             </div>
 
             <div className="py-3.5">
-              <Link href="/" className="text-[26px] font-bold tracking-[-0.06em] text-[#ff6a00]">
+              <Link href="/" className="text-[26px] font-bold tracking-[-0.06em] text-[#111827]">
                 AfriPay
               </Link>
             </div>
 
-            <form action="/products" className="pb-3">
-              <div className="flex items-center gap-2 rounded-[16px] border border-[#ddd6d0] bg-[#fffdfa] p-2 shadow-[0_8px_20px_rgba(17,24,39,0.05)]">
+            <form action="/products" className="border-b border-[#f0ebe6] pb-4">
+              <div className="flex items-center gap-2 rounded-[18px] border border-[#ddd6d0] bg-[#fffdfa] p-2 shadow-[0_8px_20px_rgba(17,24,39,0.05)]">
                 <SearchSuggestionInput
                   name="q"
                   placeholder="Rechercher un produit"
                   wrapperClassName="relative min-w-0 flex-1"
-                  inputClassName="h-10 w-full rounded-[12px] border border-[#ece6df] bg-[#f9f7f4] px-3 text-[13px] text-[#222] outline-none placeholder:text-[#8a8179] focus:border-[#ff6a00]"
+                  inputClassName="h-11 w-full rounded-[16px] border border-[#ece6df] bg-[#f9f7f4] px-4 text-[14px] text-[#222] outline-none placeholder:text-[#8a8179] focus:border-[#ff6a00]"
                   panelClassName="absolute left-0 right-0 top-[calc(100%+12px)] z-30 rounded-[20px] border border-black/5 bg-white p-4 shadow-[0_24px_48px_rgba(17,24,39,0.16)]"
                 />
                 <button
                   type="submit"
-                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-[12px] bg-[#222] px-4 text-[13px] font-semibold text-white transition hover:bg-black"
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-[#222] text-white transition hover:bg-black"
                 >
                   <Search className="h-4 w-4" />
                 </button>
               </div>
             </form>
+
+            <nav className="grid grid-cols-4 gap-3 py-4">
+              {MOBILE_NAV_SHORTCUTS.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="inline-flex h-11 min-w-0 items-center justify-center rounded-[16px] bg-[#f8f3ed] px-2 text-center text-[12px] font-semibold text-[#2b221c] transition hover:text-[#ff6a00]"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
 
           </div>
 
@@ -93,13 +123,6 @@ export async function InternalPageShell({ pricing, children }: InternalPageShell
                   inputClassName="h-10 w-full rounded-full bg-transparent px-3 text-[14px] text-[#222] outline-none placeholder:text-[#777] sm:h-11 sm:px-4 sm:text-[16px]"
                   panelClassName="absolute left-0 right-0 top-[calc(100%+12px)] z-30 rounded-[24px] border border-black/5 bg-white p-4 shadow-[0_24px_48px_rgba(17,24,39,0.16)]"
                 />
-                <button
-                  type="button"
-                  aria-label="Recherche par image"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] text-[#333] transition hover:bg-[#f5f5f5] sm:h-11 sm:w-11"
-                >
-                  <Camera className="h-5 w-5" />
-                </button>
                 <button
                   type="submit"
                   className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-[#ff6a00] px-4 text-[14px] font-bold text-white transition hover:bg-[#eb6200] sm:h-11 sm:px-5 sm:text-[16px]"
@@ -130,12 +153,12 @@ export async function InternalPageShell({ pricing, children }: InternalPageShell
           <div className="border-t border-[#efefef] py-3 text-[15px]">
             <div className="hidden xl:flex xl:flex-row xl:items-center xl:justify-between">
               <nav className="flex flex-wrap items-center gap-x-8 gap-y-2 text-[#222]">
-              <CategoryMegaMenu languageCode={pricing.languageCode} triggerClassName="inline-flex items-center gap-2 py-1 font-medium" panelClassName="top-[calc(100%+12px)]" widthClassName="w-[1360px]" />
+              <CategoryMegaMenu categories={megaMenuCategories} languageCode={pricing.languageCode} triggerClassName="inline-flex items-center gap-2 py-1 font-medium" panelClassName="top-[calc(100%+12px)]" widthClassName="w-[1360px]" />
               <Link href="/pricing" className="font-medium text-[#444] transition hover:text-[#ff6a00]">Tarifs</Link>
               <OrderProtectionMenu languageCode={pricing.languageCode} triggerClassName="inline-flex items-center py-1 font-medium text-[#444]" panelClassName="top-[calc(100%+12px)]" widthClassName="w-[1120px]" />
               </nav>
               <nav className="flex flex-wrap items-center gap-x-8 gap-y-2 text-[#444]">
-                <AboutMenu triggerLabel={messages.nav.about} className="transition hover:text-[#ff6a00]" align="left" />
+                <AboutMenu triggerLabel={messages.nav.about} className="transition hover:text-[#ff6a00]" align="right" />
                 <SupportMenu triggerLabel={messages.nav.support} className="transition hover:text-[#ff6a00]" />
                 <UnavailableLink label={messages.nav.appExtension} message={messages.unavailable.message} className="text-[#444]" tooltipClassName="left-1/2 top-[calc(100%+12px)] -translate-x-1/2" />
               </nav>

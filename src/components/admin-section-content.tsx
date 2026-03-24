@@ -7,6 +7,7 @@ import {
   adminEmailCampaigns,
   adminPromoCodes,
   adminSettingsGroups,
+  getAdminOrders,
   getAdminImportRequests,
   getAdminOffers,
   getAdminPromotions,
@@ -15,7 +16,7 @@ import {
   getAdminSuppliers,
   getAdminSupportTickets,
 } from "@/lib/admin-data";
-import { catalogCategories } from "@/lib/catalog-taxonomy";
+import { getCatalogCategories } from "@/lib/catalog-category-service";
 import { getCatalogProducts } from "@/lib/catalog-service";
 
 type PricingLike = {
@@ -39,7 +40,7 @@ export async function AdminSectionContent({ slug, pricing }: { slug: string; pri
 
   let summaryValue = "";
   let columns: string[] = [];
-  let rows: Array<{ key: string; values: string[]; href?: string }> = [];
+  let rows: Array<{ key: string; values: string[]; href?: string; actionLabel?: string }> = [];
   const catalogProducts = await getCatalogProducts();
 
   switch (meta.slug) {
@@ -54,6 +55,18 @@ export async function AdminSectionContent({ slug, pricing }: { slug: string; pri
       }));
       break;
     }
+    case "orders": {
+      const orders = await getAdminOrders();
+      summaryValue = `${orders.length} commandes enregistrées`;
+      columns = ["Commande", "Client", "Livraison", "Paiement", "Total", "Action"];
+      rows = orders.map((order) => ({
+        key: order.id,
+        values: [order.orderNumber, order.customerName, `${order.shippingMethod.toUpperCase()} · ${order.countryCode}`, order.paymentStatus, pricing.formatPrice(order.totalUsd), "Voir"],
+        href: order.href,
+        actionLabel: "Voir",
+      }));
+      break;
+    }
     case "products": {
       summaryValue = `${catalogProducts.length} references catalogue`;
       columns = ["Produit", "Fournisseur", "Prix", "MOQ", "Badge"];
@@ -65,12 +78,14 @@ export async function AdminSectionContent({ slug, pricing }: { slug: string; pri
       break;
     }
     case "categories": {
-      summaryValue = `${catalogCategories.length} categories centralisees`;
-      columns = ["Categorie", "Description", "Produits", "Lien"];
-      rows = catalogCategories.map((category) => ({
+      const categories = await getCatalogCategories();
+      summaryValue = `${categories.length} categories synchronisees`;
+      columns = ["Categorie", "Chemin Alibaba", "Produits", "Action"];
+      rows = categories.map((category) => ({
         key: category.slug,
-        values: [category.title, category.description, String(category.productSlugs.length), `/categories/${category.slug}`],
+        values: [category.title, category.sourcePathLabel, String(category.productCount), "Ouvrir"],
         href: `/categories/${category.slug}`,
+        actionLabel: "Ouvrir",
       }));
       break;
     }
@@ -211,7 +226,13 @@ export async function AdminSectionContent({ slug, pricing }: { slug: string; pri
                 {rows.map((row) => (
                   <tr key={row.key} className="border-t border-[#edf1f6] align-top text-[13px] text-[#1f2937]">
                     {row.values.map((value, index) => (
-                      <td key={`${row.key}-${index}`} className="py-3.5 pr-4 leading-6">{value}</td>
+                      <td key={`${row.key}-${index}`} className="py-3.5 pr-4 leading-6">
+                        {row.actionLabel && value === row.actionLabel && row.href ? (
+                          <Link href={row.href} className="inline-flex h-9 items-center justify-center rounded-full border border-[#d7dce5] px-4 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a5b] hover:text-[#ff6a5b]">
+                            {value}
+                          </Link>
+                        ) : value}
+                      </td>
                     ))}
                   </tr>
                 ))}

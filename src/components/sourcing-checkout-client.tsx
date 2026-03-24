@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Ship, ShoppingCart, Truck } from "lucide-react";
+import { Check, MapPinned, Ship, ShoppingCart, Truck } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { useCart, useCartQuote } from "@/components/cart-provider";
 import { formatFcfa } from "@/lib/alibaba-sourcing";
+import type { CustomerAddressRecord } from "@/lib/customer-addresses";
 
 const defaultForm = {
+  customerAddressId: "",
   customerName: "",
   customerEmail: "",
   customerPhone: "",
@@ -26,16 +28,35 @@ type SourcingCheckoutClientProps = {
     displayName: string;
     email: string;
   };
+  savedAddresses: CustomerAddressRecord[];
 };
 
-export function SourcingCheckoutClient({ initialUser }: SourcingCheckoutClientProps) {
+function buildFormFromAddress(address: CustomerAddressRecord, initialUser: SourcingCheckoutClientProps["initialUser"]) {
+  return {
+    ...defaultForm,
+    customerAddressId: address.id,
+    customerName: address.recipientName,
+    customerEmail: address.email ?? initialUser.email,
+    customerPhone: address.phone,
+    addressLine1: address.addressLine1,
+    addressLine2: address.addressLine2 ?? "",
+    city: address.city,
+    state: address.state,
+    postalCode: address.postalCode ?? "",
+    countryCode: address.countryCode,
+  };
+}
+
+export function SourcingCheckoutClient({ initialUser, savedAddresses }: SourcingCheckoutClientProps) {
   const { items, clearCart } = useCart();
   const { quote, isLoading } = useCartQuote();
   const router = useRouter();
+  const defaultAddress = savedAddresses.find((address) => address.isDefault) ?? savedAddresses[0];
   const [form, setForm] = useState({
     ...defaultForm,
     customerName: initialUser.displayName,
     customerEmail: initialUser.email,
+    ...(defaultAddress ? buildFormFromAddress(defaultAddress, initialUser) : {}),
   });
   const [selectedShipping, setSelectedShipping] = useState<"air" | "sea">("air");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -47,6 +68,33 @@ export function SourcingCheckoutClient({ initialUser }: SourcingCheckoutClientPr
     return shippingOptions.find((option) => option.key === selectedShipping) ?? shippingOptions[0] ?? null;
   }, [selectedShipping, shippingOptions]);
   const totalPrice = quote.cartProductsTotalFcfa + (selectedOption?.priceFcfa ?? 0);
+
+  const updateFormField = <Key extends keyof typeof form>(key: Key, value: (typeof form)[Key]) => {
+    setForm((current) => ({
+      ...current,
+      [key]: value,
+      customerAddressId:
+        key === "customerName" ||
+        key === "customerEmail" ||
+        key === "customerPhone" ||
+        key === "addressLine1" ||
+        key === "addressLine2" ||
+        key === "city" ||
+        key === "state" ||
+        key === "postalCode" ||
+        key === "countryCode"
+          ? ""
+          : current.customerAddressId,
+    }));
+  };
+
+  const applySavedAddress = (address: CustomerAddressRecord) => {
+    setForm((current) => ({
+      ...current,
+      ...buildFormFromAddress(address, initialUser),
+      notes: current.notes,
+    }));
+  };
 
   const submitOrder = async () => {
     if (items.length === 0 || !selectedOption) {
@@ -106,45 +154,97 @@ export function SourcingCheckoutClient({ initialUser }: SourcingCheckoutClientPr
         <h1 className="mt-2 text-[30px] font-black tracking-[-0.05em] text-[#1f2937]">Adresse de livraison et création de commande</h1>
         <p className="mt-3 text-[14px] leading-6 text-[#667085]">Cette étape crée la commande sourcing, calcule le freight, prépare la création fournisseur Alibaba puis vous redirige vers la page de paiement Moneroo.</p>
 
+        <div className="mt-5 rounded-[22px] bg-[#fff7ef] p-4 ring-1 ring-[#f1ddcd] sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85300]">Adresses enregistrées</div>
+              <div className="mt-1 text-[14px] text-[#5f534a]">Choisissez une adresse sauvegardée ou gérez votre carnet d'adresses.</div>
+            </div>
+            <Link href="/account/addresses" className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[#e3c9b8] bg-white px-4 text-[13px] font-semibold text-[#49352a] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
+              <MapPinned className="h-4 w-4" />
+              Gérer mes adresses
+            </Link>
+          </div>
+
+          {savedAddresses.length > 0 ? (
+            <div className="mt-4 grid gap-3">
+              {savedAddresses.map((address) => {
+                const isActive = form.customerAddressId === address.id;
+
+                return (
+                  <button
+                    key={address.id}
+                    type="button"
+                    onClick={() => applySavedAddress(address)}
+                    className={[
+                      "rounded-[18px] border px-4 py-4 text-left transition",
+                      isActive ? "border-[#ff6a00] bg-white shadow-[0_10px_24px_rgba(255,106,0,0.08)]" : "border-[#ead9cc] bg-white/70 hover:border-[#ffb48a]",
+                    ].join(" ")}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className={[
+                          "flex h-6 w-6 items-center justify-center rounded-full border",
+                          isActive ? "border-[#ff6a00] bg-[#ff6a00] text-white" : "border-[#d8c3b3] bg-white text-transparent",
+                        ].join(" ")}>
+                          <Check className="h-3.5 w-3.5" />
+                        </div>
+                        <span className="text-[15px] font-semibold text-[#221f1c]">{address.label}</span>
+                      </div>
+                      {address.isDefault ? <span className="rounded-full bg-[#fff2e9] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#d85300]">Par défaut</span> : null}
+                    </div>
+                    <div className="mt-2 text-[14px] font-medium text-[#221f1c]">{address.recipientName}</div>
+                    <div className="mt-1 text-[13px] leading-6 text-[#6b7280]">{[address.addressLine1, address.addressLine2, `${address.city}, ${address.state}`, address.postalCode, address.countryCode].filter(Boolean).join(" · ")}</div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mt-4 rounded-[18px] border border-dashed border-[#e1cbb8] bg-white/80 px-4 py-4 text-[13px] leading-6 text-[#6b5a4d]">
+              Aucune adresse enregistrée pour le moment. Vous pouvez renseigner votre adresse ci-dessous puis l'enregistrer depuis votre espace compte.
+            </div>
+          )}
+        </div>
+
         {successMessage ? <div className="mt-4 rounded-[18px] bg-[#edf8f1] px-4 py-4 text-[13px] font-semibold text-[#127a46]">{successMessage}</div> : null}
         {errorMessage ? <div className="mt-4 rounded-[18px] bg-[#fde8e8] px-4 py-4 text-[13px] font-semibold text-[#b42318]">{errorMessage}</div> : null}
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <label className="text-[13px] font-semibold text-[#344054]">
             Nom complet
-            <input value={form.customerName} onChange={(event) => setForm((current) => ({ ...current, customerName: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+            <input value={form.customerName} onChange={(event) => updateFormField("customerName", event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
           </label>
           <label className="text-[13px] font-semibold text-[#344054]">
             Email
-            <input value={form.customerEmail} onChange={(event) => setForm((current) => ({ ...current, customerEmail: event.target.value }))} type="email" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+            <input value={form.customerEmail} onChange={(event) => updateFormField("customerEmail", event.target.value)} type="email" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
           </label>
           <label className="text-[13px] font-semibold text-[#344054]">
             Téléphone
-            <input value={form.customerPhone} onChange={(event) => setForm((current) => ({ ...current, customerPhone: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+            <input value={form.customerPhone} onChange={(event) => updateFormField("customerPhone", event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
           </label>
           <label className="text-[13px] font-semibold text-[#344054]">
             Pays
-            <input value={form.countryCode} onChange={(event) => setForm((current) => ({ ...current, countryCode: event.target.value.toUpperCase() }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] uppercase text-[#111827] outline-none focus:border-[#ff6a00]" />
+            <input value={form.countryCode} onChange={(event) => updateFormField("countryCode", event.target.value.toUpperCase())} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] uppercase text-[#111827] outline-none focus:border-[#ff6a00]" />
           </label>
           <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
             Adresse
-            <input value={form.addressLine1} onChange={(event) => setForm((current) => ({ ...current, addressLine1: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+            <input value={form.addressLine1} onChange={(event) => updateFormField("addressLine1", event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
           </label>
           <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
             Complément d&apos;adresse
-            <input value={form.addressLine2} onChange={(event) => setForm((current) => ({ ...current, addressLine2: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+            <input value={form.addressLine2} onChange={(event) => updateFormField("addressLine2", event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
           </label>
           <label className="text-[13px] font-semibold text-[#344054]">
             Ville
-            <input value={form.city} onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+            <input value={form.city} onChange={(event) => updateFormField("city", event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
           </label>
           <label className="text-[13px] font-semibold text-[#344054]">
             Région / État
-            <input value={form.state} onChange={(event) => setForm((current) => ({ ...current, state: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+            <input value={form.state} onChange={(event) => updateFormField("state", event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
           </label>
           <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
             Code postal
-            <input value={form.postalCode} onChange={(event) => setForm((current) => ({ ...current, postalCode: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+            <input value={form.postalCode} onChange={(event) => updateFormField("postalCode", event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
           </label>
           <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
             Note de commande

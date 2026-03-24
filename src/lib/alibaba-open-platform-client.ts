@@ -8,6 +8,7 @@ import {
   type AlibabaFulfillmentChannel,
   type AlibabaSupplierAccount,
 } from "@/lib/alibaba-operations";
+import { getInternalSupplierFulfillment } from "@/lib/internal-fulfillment";
 import type { SourcingOrder, AlibabaCatalogMapping } from "@/lib/alibaba-sourcing";
 import type { ProductCatalogItem } from "@/lib/products-data";
 import { getAlibabaSupplierAccounts, saveAlibabaSupplierAccount } from "@/lib/alibaba-operations-store";
@@ -657,6 +658,7 @@ function groupMappingsForOrder(order: SourcingOrder, mappings: AlibabaCatalogMap
 export async function runAlibabaSupplierAutomation(order: SourcingOrder, mappings: AlibabaCatalogMapping[]) {
   const credentials = await resolveAlibabaCredentials();
   const { missingMappings, groups } = groupMappingsForOrder(order, mappings);
+  const internalFulfillment = await getInternalSupplierFulfillment(order.shippingMethod);
 
   if (!credentials) {
     await createAlibabaIntegrationLog({
@@ -705,12 +707,13 @@ export async function runAlibabaSupplierAutomation(order: SourcingOrder, mapping
   for (const [supplierCompanyId, group] of groups) {
     const freightPayload = {
       e_company_id: supplierCompanyId,
-      country: order.countryCode,
-      province: order.state,
-      city: order.city,
-      address: [order.addressLine1, order.addressLine2].filter(Boolean).join(", "),
-      zip: order.postalCode ?? "",
+      country: internalFulfillment.address.countryCode,
+      province: internalFulfillment.address.state,
+      city: internalFulfillment.address.city,
+      address: [internalFulfillment.address.addressLine1, internalFulfillment.address.addressLine2].filter(Boolean).join(", "),
+      zip: internalFulfillment.address.postalCode ?? "",
       dispatch_location: group[0]?.mapping?.dispatchLocation ?? "CN",
+      shipping_mark: internalFulfillment.shippingMark,
       logistics_product_list: group.map((entry) => ({
         product_id: entry.mapping?.alibabaProductId,
         sku_id: entry.mapping?.skuId ?? "",
@@ -740,18 +743,21 @@ export async function runAlibabaSupplierAutomation(order: SourcingOrder, mapping
       logistics_detail: {
         dispatch_location: group[0]?.mapping?.dispatchLocation ?? "CN",
         shipment_address: {
-          address: order.addressLine1,
-          alternate_address: order.addressLine2 ?? "",
-          city: order.city,
-          province: order.state,
-          country: order.countryCode,
-          country_code: order.countryCode,
-          zip: order.postalCode ?? "",
-          contact_person: order.customerName,
+          address: internalFulfillment.address.addressLine1,
+          alternate_address: internalFulfillment.address.addressLine2 ?? "",
+          city: internalFulfillment.address.city,
+          province: internalFulfillment.address.state,
+          country: internalFulfillment.address.countryCode,
+          country_code: internalFulfillment.address.countryCode,
+          zip: internalFulfillment.address.postalCode ?? "",
+          contact_person: internalFulfillment.address.contactName,
+          email: internalFulfillment.address.email,
+          port: internalFulfillment.address.port ?? "",
+          port_code: internalFulfillment.address.portCode ?? "",
           telephone: {
-            country: order.countryCode,
+            country: internalFulfillment.address.countryCode,
             area: "",
-            number: order.customerPhone,
+            number: internalFulfillment.address.phone,
           },
         },
       },
@@ -763,8 +769,10 @@ export async function runAlibabaSupplierAutomation(order: SourcingOrder, mapping
       properties: {
         platform: "CommerceHQ",
         orderId: order.orderNumber,
+        assignedOperator: internalFulfillment.operatorName,
+        shippingMark: internalFulfillment.shippingMark,
       },
-      remark: `Internal order ${order.orderNumber}`,
+      remark: `Internal order ${order.orderNumber} | Operator ${internalFulfillment.operatorName} | ${internalFulfillment.shippingMark}`,
     };
 
     const supplierResult = await createAlibabaBuyNowOrder(supplierPayload);

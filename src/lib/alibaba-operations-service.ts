@@ -21,6 +21,7 @@ import {
   ALIBABA_DEFAULT_AUTHORIZE_URL,
   ALIBABA_DEFAULT_REFRESH_URL,
   ALIBABA_DEFAULT_TOKEN_URL,
+  extractAlibabaCategoryInfo,
   normalizePanelSlug,
   slugifyImportedTitle,
   type AlibabaCountryProfile,
@@ -116,10 +117,18 @@ function buildOverview(product: ProductCatalogItem) {
 
 function toImportedProduct(product: ProductCatalogItem, query: string, publishedToSite: boolean): AlibabaImportedProduct {
   const timestamp = nowIso();
+  const categoryInfo = extractAlibabaCategoryInfo({
+    query,
+    title: product.title,
+    keywords: product.keywords,
+  });
 
   return {
     id: createSourcingIds(),
     sourceProductId: product.slug,
+    categorySlug: categoryInfo.slug,
+    categoryTitle: categoryInfo.title,
+    categoryPath: categoryInfo.path,
     slug: `${slugifyImportedTitle(product.shortTitle)}-${createSourcingIds().slice(0, 6)}`,
     title: product.title,
     shortTitle: product.shortTitle,
@@ -246,6 +255,20 @@ export async function runAlibabaCatalogImport(input: {
 
     const importedProducts = searchResult.products.map((product) => ({
       ...toImportedProduct(product, job.query, input.autoPublish),
+      ...(() => {
+        const categoryInfo = extractAlibabaCategoryInfo({
+          rawPayload: product.rawPayload,
+          query: job.query,
+          title: product.title,
+          keywords: product.keywords,
+        });
+
+        return {
+          categorySlug: categoryInfo.slug,
+          categoryTitle: categoryInfo.title,
+          categoryPath: categoryInfo.path,
+        };
+      })(),
       sourceProductId: product.sourceProductId,
       supplierCompanyId: product.supplierCompanyId,
       rawPayload: product.rawPayload,

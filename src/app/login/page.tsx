@@ -32,11 +32,11 @@ export default async function LoginPage({
             <div className="text-[12px] font-semibold uppercase tracking-[0.2em] text-[#ffb48a]">AfriPay Compte</div>
             <h1 className="mt-3 text-[28px] font-black tracking-[-0.05em] sm:mt-4 sm:text-[46px]">Connectez-vous a votre compte</h1>
             <p className="mt-3 max-w-[420px] text-[14px] leading-6 text-white/72 sm:mt-4 sm:text-[15px] sm:leading-7">
-              Chaque client dispose maintenant de son propre compte. Connectez-vous pour acceder a vos favoris, vos devis, vos messages et vos commandes.
+              Connectez-vous pour retrouver vos favoris, vos devis, vos messages et le suivi de vos commandes dans votre espace personnel.
             </p>
             <div className="mt-6 rounded-[18px] border border-white/10 bg-white/5 px-4 py-4 text-[13px] leading-6 text-white/82 backdrop-blur sm:mt-8 sm:rounded-[24px] sm:px-5 sm:py-5 sm:text-[14px] sm:leading-7">
-              <div className="font-semibold text-white">Acces personnel</div>
-              <div className="mt-2">Les pages compte ne sont plus affichees avec un profil de demonstration. Une connexion reelle est requise.</div>
+              <div className="font-semibold text-white">Espace securise</div>
+              <div className="mt-2">Votre compte vous donne acces a toutes vos informations et a vos actions personnelles apres connexion.</div>
             </div>
           </section>
 
