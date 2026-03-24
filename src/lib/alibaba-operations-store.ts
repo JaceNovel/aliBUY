@@ -233,6 +233,44 @@ function extractRawPriceBounds(rawPayload: Prisma.JsonValue | null) {
   };
 }
 
+function collectRawMediaUrls(value: unknown, depth = 0): string[] {
+  if (depth > 5 || value == null) {
+    return [];
+  }
+
+  if (typeof value === "string") {
+    return value.startsWith("http") || value.startsWith("//") || value.startsWith("/") ? [value] : [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => collectRawMediaUrls(entry, depth + 1));
+  }
+
+  if (typeof value !== "object") {
+    return [];
+  }
+
+  return Object.entries(value as Record<string, unknown>).flatMap(([key, nestedValue]) => {
+    if (/(image|img|photo|picture|gallery|poster|main_image|multi_image)/i.test(key)) {
+      return collectRawMediaUrls(nestedValue, depth + 1);
+    }
+
+    return depth < 2 ? collectRawMediaUrls(nestedValue, depth + 1) : [];
+  });
+}
+
+function extractRawMediaGallery(rawPayload: Prisma.JsonValue | null) {
+  if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) {
+    return [] as string[];
+  }
+
+  return [...new Set(
+    collectRawMediaUrls(rawPayload)
+      .map((entry) => normalizeAlibabaMediaUrl(entry) ?? entry)
+      .filter((entry): entry is string => Boolean(entry)),
+  )];
+}
+
 function parseWeightCandidate(value: unknown, keyHint?: string): number | undefined {
   if (typeof value === "number" && Number.isFinite(value) && value > 0) {
     if (/gram|grams|weight_grams|weightgrams/i.test(keyHint ?? "")) {
@@ -664,8 +702,10 @@ function mapImportedProductRecord(record: {
   createdAt: Date;
   updatedAt: Date;
 }): AlibabaImportedProduct {
-  const normalizedImage = normalizeAlibabaMediaUrl(record.image) ?? record.image;
+  const rawMediaGallery = extractRawMediaGallery(record.rawPayload ?? null);
+  const normalizedImage = normalizeAlibabaMediaUrl(record.image) ?? record.image ?? rawMediaGallery[0];
   const normalizedGallery = toStringArray(record.gallery).map((image) => normalizeAlibabaMediaUrl(image) ?? image);
+  const effectiveGallery = normalizedGallery.length > 0 ? normalizedGallery : rawMediaGallery;
   const rawPriceBounds = extractRawPriceBounds(record.rawPayload ?? null);
   const rawWeightGrams = extractRawWeightGrams(record.rawPayload);
 
@@ -682,7 +722,7 @@ function mapImportedProductRecord(record: {
     query: record.query,
     keywords: toStringArray(record.keywords),
     image: normalizedImage,
-    gallery: normalizedGallery,
+    gallery: effectiveGallery.length > 0 ? effectiveGallery : (normalizedImage ? [normalizedImage] : []),
     videoUrl: normalizeAlibabaMediaUrl(record.videoUrl ?? undefined) ?? undefined,
     videoPoster: normalizeAlibabaMediaUrl(record.videoPoster ?? undefined) ?? undefined,
     packaging: record.packaging,

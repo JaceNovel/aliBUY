@@ -417,6 +417,24 @@ export async function reenrichImportedProduct(importedProductId: string) {
     keywords: effectiveSnapshot.keywords,
   });
   const timestamp = nowIso();
+  const nextGallery = effectiveSnapshot.gallery.length > 0
+    ? effectiveSnapshot.gallery
+    : product.gallery;
+  const nextImage = effectiveSnapshot.image || nextGallery[0] || product.image;
+  const nextVideoUrl = effectiveSnapshot.videoUrl ?? product.videoUrl;
+  const nextVideoPoster = effectiveSnapshot.videoPoster ?? nextImage ?? product.videoPoster;
+  const nextOverview = effectiveSnapshot.overview.length > 0 ? effectiveSnapshot.overview : product.overview;
+  const nextVariantGroups = effectiveSnapshot.variantGroups.length > 0 ? effectiveSnapshot.variantGroups : product.variantGroups;
+  const nextSpecs = effectiveSnapshot.specs.length > 0 ? effectiveSnapshot.specs : product.specs;
+  const nextTiers = effectiveSnapshot.tiers.length > 0
+    ? effectiveSnapshot.tiers
+    : product.tiers.length > 0
+      ? product.tiers
+      : [{
+          quantityLabel: `${effectiveSnapshot.moq}+`,
+          priceUsd: effectiveSnapshot.minUsd,
+          note: typeof effectiveSnapshot.maxUsd === "number" ? `Jusqu'à ${effectiveSnapshot.maxUsd.toFixed(2)} USD` : undefined,
+        }];
   const nextProduct: AlibabaImportedProduct = {
     ...product,
     categorySlug: categoryInfo.slug,
@@ -424,12 +442,12 @@ export async function reenrichImportedProduct(importedProductId: string) {
     categoryPath: categoryInfo.path,
     title: effectiveSnapshot.title,
     shortTitle: effectiveSnapshot.shortTitle,
-    description: effectiveSnapshot.overview.join(" "),
+    description: nextOverview.join(" "),
     keywords: effectiveSnapshot.keywords ?? product.keywords,
-    image: effectiveSnapshot.image,
-    gallery: effectiveSnapshot.gallery,
-    videoUrl: effectiveSnapshot.videoUrl,
-    videoPoster: effectiveSnapshot.videoPoster,
+    image: nextImage,
+    gallery: nextGallery,
+    videoUrl: nextVideoUrl,
+    videoPoster: nextVideoPoster,
     packaging: effectiveSnapshot.packaging,
     itemWeightGrams: effectiveSnapshot.itemWeightGrams > 0 ? effectiveSnapshot.itemWeightGrams : product.itemWeightGrams,
     lotCbm: effectiveSnapshot.lotCbm,
@@ -447,14 +465,10 @@ export async function reenrichImportedProduct(importedProductId: string) {
     soldLabel: effectiveSnapshot.soldLabel,
     customizationLabel: effectiveSnapshot.customizationLabel,
     shippingLabel: effectiveSnapshot.shippingLabel,
-    overview: effectiveSnapshot.overview,
-    variantGroups: effectiveSnapshot.variantGroups,
-    tiers: [{
-      quantityLabel: `${effectiveSnapshot.moq}+`,
-      priceUsd: effectiveSnapshot.minUsd,
-      note: typeof effectiveSnapshot.maxUsd === "number" ? `Jusqu'à ${effectiveSnapshot.maxUsd.toFixed(2)} USD` : undefined,
-    }],
-    specs: effectiveSnapshot.specs,
+    overview: nextOverview,
+    variantGroups: nextVariantGroups,
+    tiers: nextTiers,
+    specs: nextSpecs,
     inventory: Math.max(effectiveSnapshot.moq * 5, 50),
     updatedAt: timestamp,
     rawPayload: effectiveSnapshot.rawPayload,
