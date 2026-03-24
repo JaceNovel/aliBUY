@@ -258,6 +258,36 @@ function isRecoverableIcbuSearchResponse(result: AlibabaCallResult, response: Re
   return msgCode === "B_PRODUCT_NOT_FOUND" || msgCode === "B_PRODUCT_PARAM_INVALID";
 }
 
+function extractAlibabaResponseMessage(response: Record<string, unknown> | null) {
+  const nestedResult = response?.result && typeof response.result === "object" ? response.result as Record<string, unknown> : null;
+
+  return getStringValue(response?.message)
+    ?? getStringValue(response?.error_message)
+    ?? getStringValue(response?.msg)
+    ?? getStringValue(response?.sub_msg)
+    ?? getStringValue(nestedResult?.message)
+    ?? getStringValue(nestedResult?.result_msg);
+}
+
+function extractAlibabaResponseCode(response: Record<string, unknown> | null) {
+  const nestedResult = response?.result && typeof response.result === "object" ? response.result as Record<string, unknown> : null;
+
+  return getStringValue(response?.code)
+    ?? getStringValue(response?.error_code)
+    ?? getStringValue(response?.sub_code)
+    ?? getStringValue(nestedResult?.code)
+    ?? getStringValue(nestedResult?.result_code);
+}
+
+function isMissingAlibabaAppKeyMessage(message?: string) {
+  if (!message) {
+    return false;
+  }
+
+  const normalized = message.toLowerCase();
+  return normalized.includes("app_key") && normalized.includes("mandatory");
+}
+
 function collectCandidateRecords(value: unknown, depth = 0): Array<Record<string, unknown>> {
   if (depth > 4 || value == null) {
     return [];
@@ -828,29 +858,31 @@ export async function searchAlibabaProducts(input: {
     },
   };
 
-  const result = await callAlibabaEndpoint("/eco/buyer/product/search", payload, {
-    credentials: await resolveAlibabaCredentialsForLiveCall(),
+  const credentials = await resolveAlibabaCredentialsForLiveCall();
+  let result = await callAlibabaEndpoint("/eco/buyer/product/search", payload, {
+    credentials,
     method: "GET",
     systemParamsInHeaders: true,
   });
-  const response = result.responseBody as Record<string, unknown> | null;
+  let response = result.responseBody as Record<string, unknown> | null;
+  let responseMessage = extractAlibabaResponseMessage(response);
+
+  if (isMissingAlibabaAppKeyMessage(responseMessage)) {
+    result = await callAlibabaEndpoint("/eco/buyer/product/search", payload, {
+      credentials,
+      method: "GET",
+      systemParamsInHeaders: false,
+    });
+    response = result.responseBody as Record<string, unknown> | null;
+    responseMessage = extractAlibabaResponseMessage(response);
+  }
+
   const candidates = collectCandidateRecords(response);
   const products = candidates
     .map((candidate) => mapAlibabaSearchResultToProduct(candidate, input.query))
     .filter((candidate): candidate is AlibabaSearchProduct => candidate !== null)
     .slice(0, Math.min(Math.max(input.limit, 1), 100));
-  const nestedResult = response?.result && typeof response.result === "object" ? response.result as Record<string, unknown> : null;
-  const responseMessage = getStringValue(response?.message)
-    ?? getStringValue(response?.error_message)
-    ?? getStringValue(response?.msg)
-    ?? getStringValue(response?.sub_msg)
-    ?? getStringValue(nestedResult?.message)
-    ?? getStringValue(nestedResult?.result_msg);
-  const responseCode = getStringValue(response?.code)
-    ?? getStringValue(response?.error_code)
-    ?? getStringValue(response?.sub_code)
-    ?? getStringValue(nestedResult?.code)
-    ?? getStringValue(nestedResult?.result_code);
+  const responseCode = extractAlibabaResponseCode(response);
 
   if (!result.ok) {
     return {
