@@ -855,6 +855,7 @@ export async function searchAlibabaProducts(input: {
       search_word: input.query,
       index: 1,
       current: 1,
+      size: Math.min(Math.max(input.limit, 1), 100),
       page_size: Math.min(Math.max(input.limit, 1), 100),
       page_no: 1,
       product_pool_id: resolveDropshippingPoolId(input.fulfillmentChannel),
