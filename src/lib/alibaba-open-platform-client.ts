@@ -658,7 +658,7 @@ function enrichAlibabaSearchProduct(product: AlibabaSearchProduct, detailRecord:
 
   const tradeInfo = (detailRecord.trade_info && typeof detailRecord.trade_info === "object") ? detailRecord.trade_info as Record<string, unknown> : {};
   const logisticsInfo = (detailRecord.logistics_info && typeof detailRecord.logistics_info === "object") ? detailRecord.logistics_info as Record<string, unknown> : {};
-  const priceBounds = getPriceBounds(
+  const detailPriceBounds = getPriceBounds(
     detailRecord.price,
     detailRecord.min_price,
     detailRecord.max_price,
@@ -666,6 +666,16 @@ function enrichAlibabaSearchProduct(product: AlibabaSearchProduct, detailRecord:
     (tradeInfo.price as { range_price?: { min_price?: unknown; max_price?: unknown } } | undefined)?.range_price?.max_price,
     (tradeInfo.price as { tiered_price?: Array<{ price?: unknown }> } | undefined)?.tiered_price?.[0]?.price,
   );
+  const fallbackPriceBounds = product.priceVerified
+    ? {
+        min: product.minUsd,
+        max: product.maxUsd,
+      }
+    : {
+        min: undefined,
+        max: undefined,
+      };
+  const priceBounds = hasCoherentPrice(detailPriceBounds) ? detailPriceBounds : fallbackPriceBounds;
   const verifiedMoq = extractVerifiedMoq(detailRecord) ?? extractVerifiedMoq(tradeInfo);
   const moq = verifiedMoq ?? product.moq;
   const weightFromLogistics = getNumberValue(logisticsInfo.weight);
