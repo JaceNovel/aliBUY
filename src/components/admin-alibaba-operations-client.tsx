@@ -58,7 +58,7 @@ function formatImportedPrice(product: AlibabaImportedProduct) {
 }
 
 function hasRecoveredVideo(product: AlibabaImportedProduct) {
-  return /\.(mp4|m3u8|webm|mov)(\?|$)/i.test(product.videoUrl ?? "");
+  return Boolean(product.videoUrl);
 }
 
 export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {

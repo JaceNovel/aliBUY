@@ -405,8 +405,6 @@ export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogIt
     const normalized = value.startsWith("//") ? `https:${value}` : value;
     return normalized.replace(/(\.(?:jpg|jpeg|png|webp))_\d+x\d+\1$/i, "$1");
   };
-  const isImageUrl = (value?: string) => Boolean(value && (/\.(jpg|jpeg|png|webp|gif|avif)(\?|$)/i.test(value) || /(?:image|img|photo|picture|main_image|multi_image)/i.test(value)));
-  const isVideoUrl = (value?: string) => Boolean(value && /\.(mp4|m3u8|webm|mov)(\?|$)/i.test(value));
 
   const rawPayloadRecord = item.rawPayload && typeof item.rawPayload === "object"
     ? item.rawPayload as Record<string, unknown>
@@ -467,11 +465,9 @@ export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogIt
     }
 
     for (const [nestedKey, nestedValue] of Object.entries(value as Record<string, unknown>)) {
-      if (/(detail|search|data|result|product|product_info|productInfo|eco_buyer_description)/i.test(nestedKey)) {
-        const candidate = extractVideoUrl(nestedValue, depth + 1, nestedKey);
-        if (candidate) {
-          return candidate;
-        }
+      const candidate = extractVideoUrl(nestedValue, depth + 1, nestedKey);
+      if (candidate) {
+        return candidate;
       }
     }
 
@@ -529,9 +525,8 @@ export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogIt
     normalizeMediaUrl(item.image),
     normalizeMediaUrl(typeof rawImage?.main_image === "string" ? rawImage.main_image : undefined),
     ...rawMultiImage.map((image) => normalizeMediaUrl(image)).filter((image): image is string => Boolean(image)),
-  ])].filter((image): image is string => Boolean(image) && isImageUrl(image) && !isVideoUrl(image));
-  const primaryImageCandidate = normalizeMediaUrl(item.image) || item.image;
-  const primaryImage: string = (primaryImageCandidate && isImageUrl(primaryImageCandidate) ? primaryImageCandidate : normalizedGallery[0]) ?? "";
+  ])].filter((image): image is string => Boolean(image));
+  const primaryImage: string = normalizeMediaUrl(item.image) || item.image;
   const rawVideoUrl = extractVideoUrl(rawPayloadRecord);
   const moqInfo = extractMoqInfo(rawPayloadRecord);
 
@@ -541,9 +536,9 @@ export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogIt
     shortTitle: item.shortTitle,
     keywords: item.keywords,
     image: primaryImage,
-    gallery: normalizedGallery.length > 0 ? normalizedGallery : (primaryImage ? [primaryImage] : []),
-    videoUrl: isVideoUrl(normalizeMediaUrl(item.videoUrl) ?? rawVideoUrl) ? (normalizeMediaUrl(item.videoUrl) ?? rawVideoUrl) : undefined,
-    videoPoster: isImageUrl(normalizeMediaUrl(item.videoPoster)) ? normalizeMediaUrl(item.videoPoster) : primaryImage,
+    gallery: normalizedGallery.length > 0 ? normalizedGallery : [primaryImage],
+    videoUrl: normalizeMediaUrl(item.videoUrl) ?? rawVideoUrl,
+    videoPoster: normalizeMediaUrl(item.videoPoster),
     packaging: item.packaging,
     itemWeightGrams: item.itemWeightGrams,
     lotCbm: item.lotCbm,
