@@ -243,6 +243,8 @@ function collectCandidateRecords(value: unknown, depth = 0): Array<Record<string
     ...collectCandidateRecords(record.resultList, depth + 1),
     ...collectCandidateRecords(record.result_list, depth + 1),
     ...collectCandidateRecords(record.data, depth + 1),
+    ...collectCandidateRecords(record.result_data, depth + 1),
+    ...collectCandidateRecords(record.resultData, depth + 1),
     ...collectCandidateRecords(record.value, depth + 1),
   ];
 }
@@ -367,6 +369,8 @@ async function callAlibabaEndpoint(pathOrUrl: string, payload: Record<string, un
   accessToken?: string;
   includeAccessToken?: boolean;
   credentials?: AlibabaCredentials | null;
+  method?: "GET" | "POST";
+  systemParamsInHeaders?: boolean;
 }): Promise<AlibabaCallResult> {
   const credentials = options?.credentials ?? (options?.includeAccessToken === false ? await resolveAlibabaCredentials() : await resolveAlibabaCredentialsForLiveCall());
   if (!credentials) {
@@ -385,26 +389,51 @@ async function callAlibabaEndpoint(pathOrUrl: string, payload: Record<string, un
   });
 
   const params = new URLSearchParams();
-  params.set("app_key", credentials.appKey);
-  params.set("timestamp", String(Date.now()));
-  params.set("sign_method", "sha256");
-  params.set("simplify", "true");
+  const systemParams = new URLSearchParams();
+  systemParams.set("app_key", credentials.appKey);
+  systemParams.set("timestamp", String(Date.now()));
+  systemParams.set("sign_method", "sha256");
+  systemParams.set("simplify", "true");
   if (options?.includeAccessToken !== false && (options?.accessToken ?? credentials.accessToken)) {
-    params.set("access_token", options?.accessToken ?? credentials.accessToken ?? "");
+    systemParams.set("access_token", options?.accessToken ?? credentials.accessToken ?? "");
   }
 
   for (const [key, value] of Object.entries(payload)) {
     params.set(key, serializeValue(value));
   }
 
-  params.set("sign", signAlibabaRequest(endpoint.apiPath, params, credentials.appSecret));
+  const signingParams = new URLSearchParams(systemParams);
+  for (const [key, value] of params.entries()) {
+    signingParams.set(key, value);
+  }
 
-  const response = await fetch(endpoint.requestUrl, {
-    method: "POST",
+  const sign = signAlibabaRequest(endpoint.apiPath, signingParams, credentials.appSecret);
+  const method = options?.method ?? "POST";
+  const systemParamsInHeaders = options?.systemParamsInHeaders === true;
+
+  if (!systemParamsInHeaders) {
+    for (const [key, value] of systemParams.entries()) {
+      params.set(key, value);
+    }
+    params.set("sign", sign);
+  }
+
+  const requestUrl = method === "GET"
+    ? `${endpoint.requestUrl}?${params.toString()}`
+    : endpoint.requestUrl;
+
+  const response = await fetch(requestUrl, {
+    method,
     headers: {
-      "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
+      ...(systemParamsInHeaders ? Object.fromEntries([
+        ...systemParams.entries(),
+        ["sign", sign],
+      ]) : {}),
+      ...(method === "POST" ? {
+          "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
+        } : {}),
     },
-    body: params.toString(),
+    body: method === "POST" ? params.toString() : undefined,
     cache: "no-store",
   });
   const text = await response.text();
@@ -521,14 +550,18 @@ export async function searchAlibabaProducts(input: {
   fulfillmentChannel: AlibabaFulfillmentChannel;
 }) {
   const payload = {
-    search_word: input.query,
-    page_size: Math.min(Math.max(input.limit, 1), 100),
-    page_no: 1,
-    product_pool_id: resolveDropshippingPoolId(input.fulfillmentChannel),
+    param0: {
+      search_word: input.query,
+      page_size: Math.min(Math.max(input.limit, 1), 100),
+      page_no: 1,
+      product_pool_id: resolveDropshippingPoolId(input.fulfillmentChannel),
+    },
   };
 
   const result = await callAlibabaEndpoint("/eco/buyer/product/search", payload, {
     credentials: await resolveAlibabaCredentialsForLiveCall(),
+    method: "GET",
+    systemParamsInHeaders: true,
   });
   const response = result.responseBody as Record<string, unknown> | null;
   const candidates = collectCandidateRecords(response);
@@ -536,13 +569,18 @@ export async function searchAlibabaProducts(input: {
     .map((candidate) => mapAlibabaSearchResultToProduct(candidate, input.query))
     .filter((candidate): candidate is AlibabaSearchProduct => candidate !== null)
     .slice(0, Math.min(Math.max(input.limit, 1), 100));
+  const nestedResult = response?.result && typeof response.result === "object" ? response.result as Record<string, unknown> : null;
   const responseMessage = getStringValue(response?.message)
     ?? getStringValue(response?.error_message)
     ?? getStringValue(response?.msg)
-    ?? getStringValue(response?.sub_msg);
+    ?? getStringValue(response?.sub_msg)
+    ?? getStringValue(nestedResult?.message)
+    ?? getStringValue(nestedResult?.result_msg);
   const responseCode = getStringValue(response?.code)
     ?? getStringValue(response?.error_code)
-    ?? getStringValue(response?.sub_code);
+    ?? getStringValue(response?.sub_code)
+    ?? getStringValue(nestedResult?.code)
+    ?? getStringValue(nestedResult?.result_code);
 
   if (!result.ok) {
     return {
