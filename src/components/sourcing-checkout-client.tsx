@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, MapPinned, Ship, ShoppingCart, Truck } from "lucide-react";
+import { Check, MapPinned, Ship, ShoppingCart, Sparkles, Truck } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { useCart, useCartQuote } from "@/components/cart-provider";
 import { formatFcfa } from "@/lib/alibaba-sourcing";
+import { buildAddressQuickInput, parseAddressQuickInput } from "@/lib/address-autofill";
 import type { CustomerAddressRecord } from "@/lib/customer-addresses";
 
 const defaultForm = {
@@ -58,6 +59,8 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
     customerEmail: initialUser.email,
     ...(defaultAddress ? buildFormFromAddress(defaultAddress, initialUser) : {}),
   });
+  const [quickAddress, setQuickAddress] = useState(() => buildAddressQuickInput(defaultAddress ? buildFormFromAddress(defaultAddress, initialUser) : defaultForm));
+  const [isManualAddress, setIsManualAddress] = useState(false);
   const [selectedShipping, setSelectedShipping] = useState<"air" | "sea">("air");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -89,10 +92,23 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
   };
 
   const applySavedAddress = (address: CustomerAddressRecord) => {
+    const nextAddress = buildFormFromAddress(address, initialUser);
     setForm((current) => ({
       ...current,
-      ...buildFormFromAddress(address, initialUser),
+      ...nextAddress,
       notes: current.notes,
+    }));
+    setQuickAddress(buildAddressQuickInput(nextAddress));
+    setIsManualAddress(false);
+  };
+
+  const applyQuickAddress = (value: string) => {
+    setQuickAddress(value);
+    const parsedAddress = parseAddressQuickInput(value, form.countryCode || "CI");
+    setForm((current) => ({
+      ...current,
+      ...parsedAddress,
+      customerAddressId: "",
     }));
   };
 
@@ -100,6 +116,16 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
     if (items.length === 0 || !selectedOption) {
       return;
     }
+
+    const normalizedForm = isManualAddress
+      ? form
+      : {
+          ...form,
+          ...parseAddressQuickInput(quickAddress, form.countryCode || "CI"),
+          customerAddressId: form.customerAddressId,
+        };
+
+    setForm(normalizedForm);
 
     setIsSubmitting(true);
     setErrorMessage(null);
@@ -111,7 +137,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        ...form,
+        ...normalizedForm,
         shippingMethod: selectedOption.key,
         items,
       }),
@@ -216,36 +242,77 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
           </label>
           <label className="text-[13px] font-semibold text-[#344054]">
             Email
-            <input value={form.customerEmail} onChange={(event) => updateFormField("customerEmail", event.target.value)} type="email" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+            <input value={form.customerEmail} onChange={(event) => updateFormField("customerEmail", event.target.value)} type="email" autoComplete="email" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
           </label>
           <label className="text-[13px] font-semibold text-[#344054]">
             Téléphone
-            <input value={form.customerPhone} onChange={(event) => updateFormField("customerPhone", event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+            <input value={form.customerPhone} onChange={(event) => updateFormField("customerPhone", event.target.value)} autoComplete="tel" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
           </label>
-          <label className="text-[13px] font-semibold text-[#344054]">
-            Pays
-            <input value={form.countryCode} onChange={(event) => updateFormField("countryCode", event.target.value.toUpperCase())} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] uppercase text-[#111827] outline-none focus:border-[#ff6a00]" />
-          </label>
-          <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
-            Adresse
-            <input value={form.addressLine1} onChange={(event) => updateFormField("addressLine1", event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
-          </label>
-          <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
-            Complément d&apos;adresse
-            <input value={form.addressLine2} onChange={(event) => updateFormField("addressLine2", event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
-          </label>
-          <label className="text-[13px] font-semibold text-[#344054]">
-            Ville
-            <input value={form.city} onChange={(event) => updateFormField("city", event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
-          </label>
-          <label className="text-[13px] font-semibold text-[#344054]">
-            Région / État
-            <input value={form.state} onChange={(event) => updateFormField("state", event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
-          </label>
-          <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
-            Code postal
-            <input value={form.postalCode} onChange={(event) => updateFormField("postalCode", event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
-          </label>
+          <div className="sm:col-span-2 rounded-[20px] border border-[#e6eaf0] bg-[#fbfcfe] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full bg-[#fff2e9] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#d85300]">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Adresse rapide
+                </div>
+                <p className="mt-2 text-[13px] leading-6 text-[#667085]">
+                  Saisissez votre adresse actuelle en une ligne puis laissez le formulaire répartir les informations.
+                </p>
+              </div>
+              <button type="button" onClick={() => {
+                if (isManualAddress) {
+                  setQuickAddress(buildAddressQuickInput(form));
+                }
+                setIsManualAddress((current) => !current);
+              }} className="inline-flex h-10 items-center justify-center rounded-full border border-[#d7dce5] px-4 text-[13px] font-semibold text-[#344054] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
+                {isManualAddress ? "Masquer les champs manuels" : "Saisir l'adresse manuellement"}
+              </button>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <label className="min-w-0 flex-1 text-[13px] font-semibold text-[#344054]">
+                Mon adresse actuelle
+                <input value={quickAddress} onChange={(event) => setQuickAddress(event.target.value)} placeholder="Ex: Yopougon Maroc, Abidjan, Lagunes, CI" autoComplete="street-address" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+              </label>
+              <button type="button" onClick={() => applyQuickAddress(quickAddress)} className="inline-flex h-11 items-center justify-center rounded-full bg-[#1f2937] px-5 text-[13px] font-semibold text-white transition hover:bg-[#101828] sm:mt-[26px]">
+                Auto-remplir
+              </button>
+            </div>
+
+            <div className="mt-2 text-[12px] leading-5 text-[#667085]">
+              Le mode rapide préremplit rue, ville, région, code postal et pays. Pour une adresse détaillée, ouvrez la saisie manuelle.
+            </div>
+
+            {isManualAddress ? (
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <label className="text-[13px] font-semibold text-[#344054]">
+                  Pays
+                  <input value={form.countryCode} onChange={(event) => updateFormField("countryCode", event.target.value.toUpperCase())} autoComplete="country" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] uppercase text-[#111827] outline-none focus:border-[#ff6a00]" />
+                </label>
+                <div />
+                <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
+                  Adresse
+                  <input value={form.addressLine1} onChange={(event) => updateFormField("addressLine1", event.target.value)} autoComplete="address-line1" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+                </label>
+                <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
+                  Complément d&apos;adresse
+                  <input value={form.addressLine2} onChange={(event) => updateFormField("addressLine2", event.target.value)} autoComplete="address-line2" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+                </label>
+                <label className="text-[13px] font-semibold text-[#344054]">
+                  Ville
+                  <input value={form.city} onChange={(event) => updateFormField("city", event.target.value)} autoComplete="address-level2" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+                </label>
+                <label className="text-[13px] font-semibold text-[#344054]">
+                  Région / État
+                  <input value={form.state} onChange={(event) => updateFormField("state", event.target.value)} autoComplete="address-level1" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+                </label>
+                <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
+                  Code postal
+                  <input value={form.postalCode} onChange={(event) => updateFormField("postalCode", event.target.value)} autoComplete="postal-code" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+                </label>
+              </div>
+            ) : null}
+          </div>
           <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
             Note de commande
             <textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} className="mt-2 min-h-[120px] w-full rounded-[18px] border border-[#d7dce5] px-4 py-3 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />

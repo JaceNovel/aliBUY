@@ -85,6 +85,11 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
   const recentImports = useMemo(() => initialDashboard.importedProducts.slice(0, 8), [initialDashboard.importedProducts]);
   const recentOrders = useMemo(() => initialDashboard.purchaseOrders.slice(0, 8), [initialDashboard.purchaseOrders]);
   const activeSupplierAccount = useMemo(() => initialDashboard.supplierAccounts.find((account) => account.isActive && account.status === "connected") ?? initialDashboard.supplierAccounts.find((account) => account.status === "connected") ?? null, [initialDashboard.supplierAccounts]);
+  const editingSupplierAccount = useMemo(
+    () => accountForm.id ? initialDashboard.supplierAccounts.find((account) => account.id === accountForm.id) ?? null : null,
+    [accountForm.id, initialDashboard.supplierAccounts],
+  );
+  const hasOauthCredentials = Boolean(accountForm.appKey.trim()) && (Boolean(accountForm.appSecret.trim()) || Boolean(editingSupplierAccount?.hasAppSecret));
 
   const refresh = () => {
     startTransition(() => {
@@ -211,6 +216,17 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
 
   const startOAuthAuthorization = async () => {
     setFeedback(null);
+
+    if (!accountForm.appKey.trim()) {
+      setFeedback("Ajoutez d'abord l'App Key avant de lancer OAuth.");
+      return;
+    }
+
+    if (!accountForm.appSecret.trim() && !editingSupplierAccount?.hasAppSecret) {
+      setFeedback("Ajoutez l'App Secret avant de lancer OAuth.");
+      return;
+    }
+
     const response = await fetch("/api/admin/alibaba/supplier-accounts/oauth/start", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -522,7 +538,14 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
             </label>
             <div className="mt-5 flex flex-wrap gap-3">
               <button type="button" onClick={saveAccount} className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937]">Enregistrer</button>
-              <button type="button" onClick={startOAuthAuthorization} disabled={!accountForm.appKey || !accountForm.appSecret} className="inline-flex h-11 items-center justify-center rounded-[14px] border border-[#dbe2ea] bg-white px-5 text-[14px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:opacity-60">Autoriser OAuth</button>
+              <button type="button" onClick={startOAuthAuthorization} disabled={isPending} className="inline-flex h-11 items-center justify-center rounded-[14px] border border-[#dbe2ea] bg-white px-5 text-[14px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:opacity-60">Autoriser OAuth</button>
+            </div>
+            <div className="mt-3 text-[12px] leading-5 text-[#667085]">
+              {hasOauthCredentials
+                ? "Le bouton OAuth est pret. Un clic ouvre la page Alibaba d'autorisation."
+                : editingSupplierAccount?.hasAppSecret
+                  ? "Ajoutez l'App Key du compte puis cliquez sur Autoriser OAuth. Le secret deja enregistre sera reutilise."
+                  : "Renseignez App Key et App Secret pour ouvrir la page OAuth Alibaba."}
             </div>
           </article>
 
