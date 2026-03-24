@@ -180,6 +180,15 @@ function toNullablePrismaJson(value: unknown): Prisma.InputJsonValue | typeof Pr
   return value as Prisma.InputJsonValue;
 }
 
+function toSafeInt(value: number, fallback = 0) {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  const normalized = Math.round(value);
+  return Math.min(2147483647, Math.max(-2147483648, normalized));
+}
+
 function toDate(value?: string) {
   if (!value) {
     return undefined;
@@ -617,6 +626,10 @@ async function writeAlibabaImportedProductDb(product: AlibabaImportedProduct): P
     orderBy: { updatedAt: "desc" },
   });
   const recordId = existing?.id ?? product.id;
+  const itemWeightGrams = toSafeInt(product.itemWeightGrams);
+  const moq = Math.max(1, toSafeInt(product.moq, 1));
+  const yearsInBusiness = Math.max(0, toSafeInt(product.yearsInBusiness, 0));
+  const inventory = Math.max(0, toSafeInt(product.inventory, 0));
 
   await prisma.alibabaImportedProductRecord.upsert({
     where: { id: recordId },
@@ -637,18 +650,18 @@ async function writeAlibabaImportedProductDb(product: AlibabaImportedProduct): P
       videoUrl: product.videoUrl,
       videoPoster: product.videoPoster,
       packaging: product.packaging,
-      itemWeightGrams: product.itemWeightGrams,
+      itemWeightGrams,
       lotCbm: product.lotCbm,
       minUsd: product.minUsd,
       maxUsd: product.maxUsd,
-      moq: product.moq,
+      moq,
       unit: product.unit,
       badge: product.badge,
       supplierName: product.supplierName,
       supplierLocation: product.supplierLocation,
       supplierCompanyId: product.supplierCompanyId,
       responseTime: product.responseTime,
-      yearsInBusiness: product.yearsInBusiness,
+      yearsInBusiness,
       transactionsLabel: product.transactionsLabel,
       soldLabel: product.soldLabel,
       customizationLabel: product.customizationLabel,
@@ -657,7 +670,7 @@ async function writeAlibabaImportedProductDb(product: AlibabaImportedProduct): P
       variantGroups: toPrismaJson(product.variantGroups) ?? [],
       tiers: toPrismaJson(product.tiers) ?? [],
       specs: toPrismaJson(product.specs) ?? [],
-      inventory: product.inventory,
+      inventory,
       status: product.status,
       publishedToSite: product.publishedToSite,
       publishedAt: toDate(product.publishedAt),
@@ -681,18 +694,18 @@ async function writeAlibabaImportedProductDb(product: AlibabaImportedProduct): P
       videoUrl: product.videoUrl,
       videoPoster: product.videoPoster,
       packaging: product.packaging,
-      itemWeightGrams: product.itemWeightGrams,
+      itemWeightGrams,
       lotCbm: product.lotCbm,
       minUsd: product.minUsd,
       maxUsd: product.maxUsd,
-      moq: product.moq,
+      moq,
       unit: product.unit,
       badge: product.badge,
       supplierName: product.supplierName,
       supplierLocation: product.supplierLocation,
       supplierCompanyId: product.supplierCompanyId,
       responseTime: product.responseTime,
-      yearsInBusiness: product.yearsInBusiness,
+      yearsInBusiness,
       transactionsLabel: product.transactionsLabel,
       soldLabel: product.soldLabel,
       customizationLabel: product.customizationLabel,
@@ -701,7 +714,7 @@ async function writeAlibabaImportedProductDb(product: AlibabaImportedProduct): P
       variantGroups: toPrismaJson(product.variantGroups) ?? [],
       tiers: toPrismaJson(product.tiers) ?? [],
       specs: toPrismaJson(product.specs) ?? [],
-      inventory: product.inventory,
+      inventory,
       status: product.status,
       publishedToSite: product.publishedToSite,
       publishedAt: toDate(product.publishedAt),

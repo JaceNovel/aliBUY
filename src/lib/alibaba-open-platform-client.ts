@@ -185,6 +185,10 @@ function getNumberValue(...candidates: unknown[]) {
   return undefined;
 }
 
+function isWeightKeyHint(keyHint?: string) {
+  return Boolean(keyHint && /(weight|gross_weight|net_weight|package_weight|shipping_weight|item_weight|weight_grams|weightgrams|gram|grams|kg|kilogram)/i.test(keyHint));
+}
+
 function parseWeightToGrams(value: unknown, keyHint?: string) {
   if (typeof value === "number" && Number.isFinite(value)) {
     if (keyHint && /gram|grams|weight_grams|weightgrams/i.test(keyHint)) {
@@ -195,7 +199,11 @@ function parseWeightToGrams(value: unknown, keyHint?: string) {
       return Math.round(value * 1000);
     }
 
-    return value > 0 ? Math.round(value < 10 ? value * 1000 : value) : undefined;
+    if (isWeightKeyHint(keyHint) && value > 0) {
+      return Math.round(value < 10 ? value * 1000 : value);
+    }
+
+    return undefined;
   }
 
   if (typeof value !== "string") {
@@ -217,7 +225,7 @@ function parseWeightToGrams(value: unknown, keyHint?: string) {
     return Math.round(Number(gramMatch[1].replace(',', '.')));
   }
 
-  if (keyHint && /weight/i.test(keyHint)) {
+  if (isWeightKeyHint(keyHint)) {
     const numeric = Number(normalized.replace(/[^0-9.,-]/g, '').replace(',', '.'));
     if (Number.isFinite(numeric) && numeric > 0) {
       return Math.round(numeric < 10 ? numeric * 1000 : numeric);

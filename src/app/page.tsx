@@ -387,10 +387,6 @@ export default async function Home() {
       <div className="mx-auto max-w-[1580px] px-4 pb-16 pt-6 sm:px-6 sm:pt-8 xl:px-10">
         {hasPublishedProducts ? (
           <HomeDiscoveryShowcase
-            categories={catalogCategories.slice(0, 8).map((category) => ({
-              title: category.title,
-              href: category.href,
-            }))}
             historyCard={discoveryHistoryItems[0] ? {
               title: discoveryHistoryItems[0].title,
               image: discoveryHistoryItems[0].image,
