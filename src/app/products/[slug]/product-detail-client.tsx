@@ -4,9 +4,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight, Heart, Minus, Play, Plus, Share2, ShieldCheck, ShoppingCart, Store, TicketPercent, Truck, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
+import { getApplicableVariantPricing, getDisplayPriceTiers, resolveProductUnitPriceUsd } from "@/lib/product-variant-pricing";
 
 type DetailVariantGroup = {
   label: string;
@@ -17,6 +18,15 @@ type DetailTier = {
   quantityLabel: string;
   priceUsd: number;
   formattedPrice: string;
+  note?: string;
+};
+
+type DetailVariantPrice = {
+  selections: Record<string, string>;
+  priceUsd: number;
+  minimumQuantity?: number;
+  maximumQuantity?: number;
+  quantityLabel?: string;
   note?: string;
 };
 
@@ -59,6 +69,7 @@ type ProductDetailClientProps = {
     overview: string[];
     tiers: DetailTier[];
     variantGroups: DetailVariantGroup[];
+    variantPricing: DetailVariantPrice[];
     specs: DetailSpec[];
     formattedPriceRange: string;
     moqLabel: string;
@@ -86,6 +97,10 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>(() => {
     return Object.fromEntries(product.variantGroups.map((group) => [group.label, group.values[0] ?? ""]));
   });
+
+  useEffect(() => {
+    router.prefetch("/cart");
+  }, [router]);
   const mixGroup = product.variantGroups[0];
   const modalGroups = product.variantGroups.slice(1);
   const [mixQuantities, setMixQuantities] = useState<Record<string, number>>(() => {
@@ -187,10 +202,64 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     : orderQuantity;
   const totalWeightKg = (product.itemWeightGrams * totalSelectedQuantity) / 1000;
   const exceedsSeaThreshold = totalWeightKg > 5;
-  const sortedTiers = [...product.tiers].sort((left, right) => getTierMinimum(left.quantityLabel) - getTierMinimum(right.quantityLabel));
+  const modalSelections = Object.fromEntries(modalGroups.map((group) => [group.label, selectedVariants[group.label] ?? group.values[0] ?? ""]));
+  const previewSelection = mixGroup
+    ? {
+        [mixGroup.label]: Object.entries(mixQuantities).find(([, quantity]) => quantity > 0)?.[0] ?? mixGroup.values[0] ?? "",
+        ...modalSelections,
+      }
+    : modalSelections;
+  const displayTiers = getDisplayPriceTiers({
+    ...product,
+    tiers: product.tiers,
+    variantPricing: product.variantPricing,
+  }, previewSelection).map((tier) => ({
+    ...tier,
+    formattedPrice: formatMoney(tier.priceUsd),
+  }));
+  const sortedTiers = [...displayTiers].sort((left, right) => getTierMinimum(left.quantityLabel) - getTierMinimum(right.quantityLabel));
   const activeTier = [...sortedTiers].reverse().find((tier) => totalSelectedQuantity >= getTierMinimum(tier.quantityLabel)) ?? sortedTiers[0];
-  const currentUnitPrice = activeTier?.priceUsd ?? 0;
-  const subtotal = currentUnitPrice * totalSelectedQuantity;
+  const hasVariantSpecificPricing = getApplicableVariantPricing({
+    ...product,
+    tiers: product.tiers,
+    variantPricing: product.variantPricing,
+  }, previewSelection).length > 0;
+  const currentUnitPrice = resolveProductUnitPriceUsd({
+    ...product,
+    tiers: product.tiers,
+    variantPricing: product.variantPricing,
+  }, {
+    quantity: hasVariantSpecificPricing ? Math.max(1, mixGroup ? (mixQuantities[previewSelection[mixGroup.label]] ?? 1) : totalSelectedQuantity) : totalSelectedQuantity,
+    selection: previewSelection,
+  });
+  const subtotal = mixGroup
+    ? mixGroup.values.reduce((sum, value) => {
+        const quantity = mixQuantities[value] ?? 0;
+        if (quantity <= 0) {
+          return sum;
+        }
+
+        const selection = {
+          [mixGroup.label]: value,
+          ...modalSelections,
+        };
+        const variantRules = getApplicableVariantPricing({
+          ...product,
+          tiers: product.tiers,
+          variantPricing: product.variantPricing,
+        }, selection);
+        const unitPrice = resolveProductUnitPriceUsd({
+          ...product,
+          tiers: product.tiers,
+          variantPricing: product.variantPricing,
+        }, {
+          quantity: variantRules.length > 0 ? quantity : totalSelectedQuantity,
+          selection,
+        });
+
+        return sum + (unitPrice * quantity);
+      }, 0)
+    : currentUnitPrice * totalSelectedQuantity;
   const updateMixQuantity = (value: string, delta: number) => {
     setMixQuantities((current) => {
       const nextValue = Math.max(0, (current[value] ?? 0) + delta);
@@ -208,8 +277,10 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       return;
     }
 
+    const nextFavorite = !isFavorite;
     setFavoriteBusy(true);
     setFavoritePulse(true);
+    setIsFavorite(nextFavorite);
 
     try {
       const response = await fetch("/api/favorites", {
@@ -227,11 +298,12 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
       const payload = await response.json().catch(() => null);
       if (!response.ok || typeof payload?.isFavorite !== "boolean") {
+        setIsFavorite(!nextFavorite);
         return;
       }
 
       setIsFavorite(payload.isFavorite);
-      router.refresh();
+      router.prefetch("/favorites");
     } finally {
       window.setTimeout(() => {
         setFavoritePulse(false);
@@ -240,6 +312,21 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     }
   };
   const canSubmitOrder = totalSelectedQuantity > 0 && shippingMethod !== null;
+  const buildOrderSelections = () => {
+    if (!mixGroup) {
+      return [{ quantity: orderQuantity, selectedVariants: modalSelections }];
+    }
+
+    return mixGroup.values
+      .map((value) => ({
+        quantity: mixQuantities[value] ?? 0,
+        selectedVariants: {
+          [mixGroup.label]: value,
+          ...modalSelections,
+        },
+      }))
+      .filter((entry) => entry.quantity > 0);
+  };
   const openOrderModal = () => {
     setIsOrderModalOpen(true);
   };
@@ -248,7 +335,9 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       return;
     }
 
-    addItem(product.slug, totalSelectedQuantity);
+    buildOrderSelections().forEach((entry) => {
+      addItem(product.slug, entry.quantity, entry.selectedVariants);
+    });
     setIsOrderModalOpen(false);
     setShareFeedback("Produit ajouté au panier sourcing.");
   };
@@ -257,7 +346,9 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       return;
     }
 
-    addItem(product.slug, totalSelectedQuantity);
+    buildOrderSelections().forEach((entry) => {
+      addItem(product.slug, entry.quantity, entry.selectedVariants);
+    });
     setIsOrderModalOpen(false);
     router.push("/cart");
   };
@@ -1131,9 +1222,19 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                       </div>
                       <div className="min-w-0">
                         <div className="text-[14px] font-medium text-[#222] sm:text-[18px]">{value}</div>
-                        <div className="mt-0.5 text-[12px] font-semibold tracking-[-0.03em] text-[#222] sm:hidden">{formatMoney(currentUnitPrice)}</div>
+                        <div className="mt-0.5 text-[12px] font-semibold tracking-[-0.03em] text-[#222] sm:hidden">{formatMoney(resolveProductUnitPriceUsd({ ...product, tiers: product.tiers, variantPricing: product.variantPricing }, {
+                          quantity: getApplicableVariantPricing({ ...product, tiers: product.tiers, variantPricing: product.variantPricing }, { [mixGroup.label]: value, ...modalSelections }).length > 0
+                            ? Math.max(1, mixQuantities[value] ?? 1)
+                            : Math.max(1, totalSelectedQuantity),
+                          selection: { [mixGroup.label]: value, ...modalSelections },
+                        }))}</div>
                       </div>
-                      <div className="hidden text-left text-[18px] font-semibold tracking-[-0.03em] text-[#222] sm:block sm:text-right sm:text-[20px]">{formatMoney(currentUnitPrice)}</div>
+                      <div className="hidden text-left text-[18px] font-semibold tracking-[-0.03em] text-[#222] sm:block sm:text-right sm:text-[20px]">{formatMoney(resolveProductUnitPriceUsd({ ...product, tiers: product.tiers, variantPricing: product.variantPricing }, {
+                        quantity: getApplicableVariantPricing({ ...product, tiers: product.tiers, variantPricing: product.variantPricing }, { [mixGroup.label]: value, ...modalSelections }).length > 0
+                          ? Math.max(1, mixQuantities[value] ?? 1)
+                          : Math.max(1, totalSelectedQuantity),
+                        selection: { [mixGroup.label]: value, ...modalSelections },
+                      }))}</div>
                       <div className="flex items-center justify-start gap-1.5 sm:justify-end sm:gap-2">
                         <button type="button" onClick={() => updateMixQuantity(value, -1)} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-40 sm:h-10 sm:w-10" disabled={(mixQuantities[value] ?? 0) <= 0}>
                           <Minus className="h-4 w-4" />

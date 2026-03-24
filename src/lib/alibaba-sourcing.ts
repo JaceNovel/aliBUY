@@ -1,4 +1,5 @@
 import { type ProductCatalogItem } from "@/lib/products-data";
+import { resolveProductUnitPriceUsd } from "@/lib/product-variant-pricing";
 
 export type MarginMode = "percent" | "fixed";
 export type ShippingMethodKey = "air" | "sea";
@@ -7,6 +8,7 @@ export type FreightStatus = "not_requested" | "skipped" | "verified" | "failed";
 export type SupplierOrderStatus = "not_created" | "skipped" | "created" | "failed";
 export type PaymentStatus = "unpaid" | "initialized" | "pending" | "paid" | "failed" | "cancelled";
 export type SeaContainerStatus = "pending" | "ready_to_ship" | "shipped";
+export type VariantSelection = Record<string, string>;
 
 export type SourcingSettings = {
   currencyCode: string;
@@ -27,12 +29,16 @@ export type SourcingSettings = {
 export type CartInputItem = {
   slug: string;
   quantity: number;
+  selectedVariants?: VariantSelection;
 };
 
 export type CartComputedItem = {
+  cartKey?: string;
   slug: string;
   title: string;
   quantity: number;
+  selectedVariants?: VariantSelection;
+  selectionLabel?: string;
   weightKg: number;
   volumeCbm: number;
   supplierPriceFcfa: number;
@@ -162,6 +168,34 @@ export type AlibabaCatalogMapping = {
 const FCFA_LOCALE = "fr-FR";
 const USD_TO_FCFA = 610;
 
+export function normalizeVariantSelection(selection?: VariantSelection) {
+  if (!selection) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(selection)
+      .map(([label, value]) => [label.trim(), value.trim()] as const)
+      .filter(([label, value]) => label.length > 0 && value.length > 0)
+      .sort(([left], [right]) => left.localeCompare(right)),
+  );
+}
+
+export function formatVariantSelection(selection?: VariantSelection) {
+  const normalized = normalizeVariantSelection(selection);
+  const entries = Object.entries(normalized);
+  return entries.length > 0 ? entries.map(([label, value]) => `${label}: ${value}`).join(" · ") : undefined;
+}
+
+export function buildCartItemKey(slug: string, selection?: VariantSelection) {
+  const normalized = normalizeVariantSelection(selection);
+  const serialized = Object.entries(normalized)
+    .map(([label, value]) => `${encodeURIComponent(label)}=${encodeURIComponent(value)}`)
+    .join("&");
+
+  return serialized.length > 0 ? `${slug}::${serialized}` : slug;
+}
+
 function parseLotCbmVolume(lotCbm: string, moq: number) {
   const normalized = lotCbm.replace(",", ".");
   const volumeMatch = normalized.match(/([0-9]+(?:\.[0-9]+)?)\s*m3/i);
@@ -177,10 +211,6 @@ function parseLotCbmVolume(lotCbm: string, moq: number) {
   return totalLotCbm / divisor;
 }
 
-function averageSupplierPriceUsd(product: ProductCatalogItem) {
-  return typeof product.maxUsd === "number" ? (product.minUsd + product.maxUsd) / 2 : product.minUsd;
-}
-
 export function formatFcfa(amount: number) {
   return new Intl.NumberFormat(FCFA_LOCALE, {
     style: "currency",
@@ -193,10 +223,13 @@ export function convertUsdToFcfa(amountUsd: number) {
   return Math.round(amountUsd * USD_TO_FCFA);
 }
 
-export function getProductSourcingMetrics(product: ProductCatalogItem) {
+export function getProductSourcingMetrics(product: ProductCatalogItem, input?: { quantity?: number; selectedVariants?: VariantSelection }) {
   const weightKg = Number((product.itemWeightGrams / 1000).toFixed(3));
   const volumeCbm = Number(parseLotCbmVolume(product.lotCbm, product.moq).toFixed(4));
-  const supplierPriceFcfa = convertUsdToFcfa(averageSupplierPriceUsd(product));
+  const supplierPriceFcfa = convertUsdToFcfa(resolveProductUnitPriceUsd(product, {
+    quantity: input?.quantity,
+    selection: input?.selectedVariants,
+  }));
 
   return {
     weightKg,

@@ -96,8 +96,8 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
           </div>
 
           <div className="mt-5 space-y-3">
-            {order.items.map((item) => (
-              <div key={`${order.id}-${item.slug}`} className="rounded-[18px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
+            {order.items.map((item, index) => (
+              <div key={`${order.id}-${item.slug}-${index}`} className="rounded-[18px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="text-[16px] font-semibold text-[#1f2937]">{item.title}</div>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ShoppingCart } from "lucide-react";
 
@@ -13,6 +14,7 @@ type CartPopoverProps = {
 };
 
 export function CartPopover({ className = "", align = "right" }: CartPopoverProps) {
+  const router = useRouter();
   const { itemCount } = useCart();
   const { quote } = useCartQuote();
   const [isOpen, setIsOpen] = useState(false);
@@ -25,6 +27,12 @@ export function CartPopover({ className = "", align = "right" }: CartPopoverProp
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      router.prefetch("/cart");
+    }
+  }, [isOpen, router]);
 
   const showPopover = () => {
     if (closeTimeoutRef.current) {
@@ -112,7 +120,7 @@ export function CartPopover({ className = "", align = "right" }: CartPopoverProp
         <div className="pt-5">
           <div className="space-y-3">
             {quote.items.slice(0, 3).map((item) => (
-              <div key={item.slug} className="rounded-[14px] border border-[#edf1f6] px-4 py-3">
+              <div key={item.cartKey ?? item.slug} className="rounded-[14px] border border-[#edf1f6] px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="line-clamp-1 text-[14px] font-semibold text-[#222]">{item.title}</div>

@@ -1,4 +1,5 @@
 import type { ProductCatalogItem } from "@/lib/products-data";
+import { extractAlibabaVariantPricing } from "@/lib/product-variant-pricing";
 
 export const ALIBABA_PANEL_SLUGS = [
   "dashboard",
@@ -529,6 +530,7 @@ export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogIt
   const primaryImage: string = normalizeMediaUrl(item.image) || item.image;
   const rawVideoUrl = extractVideoUrl(rawPayloadRecord);
   const moqInfo = extractMoqInfo(rawPayloadRecord);
+  const variantPricing = extractAlibabaVariantPricing(item.rawPayload);
 
   return {
     slug: item.slug,
@@ -558,6 +560,7 @@ export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogIt
     shippingLabel: item.shippingLabel,
     overview: item.overview,
     variantGroups: item.variantGroups,
+    variantPricing,
     tiers: item.tiers,
     specs: item.specs,
   };

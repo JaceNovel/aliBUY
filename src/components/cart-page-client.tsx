@@ -6,7 +6,7 @@ import { Minus, Plus, Ship, ShoppingCart, Truck } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { useCart, useCartQuote } from "@/components/cart-provider";
-import { formatFcfa } from "@/lib/alibaba-sourcing";
+import { buildCartItemKey, formatFcfa } from "@/lib/alibaba-sourcing";
 
 export function CartPageClient() {
   const { items, updateItem, removeItem, clearCart } = useCart();
@@ -60,11 +60,11 @@ export function CartPageClient() {
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-4 rounded-[28px] border border-[#ece7df] bg-white p-4 shadow-[0_16px_40px_rgba(17,24,39,0.05)] sm:p-6">
           {quote.items.map((item) => {
-            const cartItem = items.find((entry) => entry.slug === item.slug);
+            const cartItem = items.find((entry) => buildCartItemKey(entry.slug, entry.selectedVariants) === (item.cartKey ?? item.slug));
             const quantity = cartItem?.quantity ?? item.quantity;
 
             return (
-              <article key={item.slug} className="grid gap-4 rounded-[22px] border border-[#edf1f6] px-4 py-4 sm:grid-cols-[96px_minmax(0,1fr)]">
+              <article key={item.cartKey ?? item.slug} className="grid gap-4 rounded-[22px] border border-[#edf1f6] px-4 py-4 sm:grid-cols-[96px_minmax(0,1fr)]">
                 <div className="relative h-24 overflow-hidden rounded-[18px] bg-[#f5f5f5]">
                   <Image src={item.image} alt={item.title} fill sizes="96px" className="object-cover" />
                 </div>
@@ -80,15 +80,15 @@ export function CartPageClient() {
 
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => updateItem(item.slug, quantity - 1)} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d9dfe8] text-[#344054] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
+                      <button type="button" onClick={() => updateItem(item.cartKey ?? item.slug, quantity - 1)} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d9dfe8] text-[#344054] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
                         <Minus className="h-4 w-4" />
                       </button>
                       <div className="min-w-[28px] text-center text-[18px] font-semibold text-[#1f2937]">{quantity}</div>
-                      <button type="button" onClick={() => updateItem(item.slug, quantity + 1)} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d9dfe8] text-[#344054] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
+                      <button type="button" onClick={() => updateItem(item.cartKey ?? item.slug, quantity + 1)} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d9dfe8] text-[#344054] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
                         <Plus className="h-4 w-4" />
                       </button>
                     </div>
-                    <button type="button" onClick={() => removeItem(item.slug)} className="text-[13px] font-semibold text-[#d92d20] transition hover:opacity-80">
+                    <button type="button" onClick={() => removeItem(item.cartKey ?? item.slug)} className="text-[13px] font-semibold text-[#d92d20] transition hover:opacity-80">
                       Retirer
                     </button>
                   </div>

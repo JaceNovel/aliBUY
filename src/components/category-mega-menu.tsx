@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Diamond,
@@ -64,6 +65,7 @@ export function CategoryMegaMenu({
   categories = [],
 }: CategoryMegaMenuProps) {
   const messages = getMessages(languageCode);
+  const router = useRouter();
   const resolvedTriggerLabel = triggerLabel ?? messages.nav.categories;
   const [activeSlug, setActiveSlug] = useState(categories[0]?.slug ?? "");
 
@@ -72,6 +74,18 @@ export function CategoryMegaMenu({
       setActiveSlug(categories[0]?.slug ?? "");
     }
   }, [activeSlug, categories]);
+
+  useEffect(() => {
+    const active = categories.find((category) => category.slug === activeSlug) ?? categories[0];
+    if (!active) {
+      return;
+    }
+
+    router.prefetch(active.href ?? `/products?category=${encodeURIComponent(active.slug)}`);
+    active.products.slice(0, 5).forEach((product) => {
+      router.prefetch(`/products/${product.slug}`);
+    });
+  }, [activeSlug, categories, router]);
 
   const categoryLinks: CategoryLink[] = categories.slice(0, 9).map((category, index) => ({
     slug: category.slug,
@@ -110,7 +124,10 @@ export function CategoryMegaMenu({
                   <Link
                     key={item.title}
                     href={categories.find((category) => category.slug === item.slug)?.href ?? `/products?category=${encodeURIComponent(item.slug)}`}
-                    onMouseEnter={() => setActiveSlug(item.slug)}
+                    onMouseEnter={() => {
+                      setActiveSlug(item.slug);
+                      router.prefetch(categories.find((category) => category.slug === item.slug)?.href ?? `/products?category=${encodeURIComponent(item.slug)}`);
+                    }}
                     onFocus={() => setActiveSlug(item.slug)}
                     className={[
                       "flex items-center gap-4 px-5 py-5 text-[17px] text-[#222] transition-colors hover:bg-[#f8f8f8]",

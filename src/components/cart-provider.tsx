@@ -2,16 +2,24 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-import { createEmptyQuote, type AlibabaSourcingQuote, type CartInputItem, type SourcingSettings } from "@/lib/alibaba-sourcing";
+import {
+  buildCartItemKey,
+  createEmptyQuote,
+  normalizeVariantSelection,
+  type AlibabaSourcingQuote,
+  type CartInputItem,
+  type SourcingSettings,
+  type VariantSelection,
+} from "@/lib/alibaba-sourcing";
 
 type CartStateItem = CartInputItem;
 
 type CartContextValue = {
   items: CartStateItem[];
   itemCount: number;
-  addItem: (slug: string, quantity: number) => void;
-  updateItem: (slug: string, quantity: number) => void;
-  removeItem: (slug: string) => void;
+  addItem: (slug: string, quantity: number, selectedVariants?: VariantSelection) => void;
+  updateItem: (cartKey: string, quantity: number) => void;
+  removeItem: (cartKey: string) => void;
   clearCart: () => void;
 };
 
@@ -31,7 +39,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const parsed = JSON.parse(stored) as CartStateItem[];
-      return parsed.filter((item) => item.slug && item.quantity > 0);
+      return parsed
+        .map((item) => ({
+          slug: item.slug,
+          quantity: item.quantity,
+          selectedVariants: normalizeVariantSelection(item.selectedVariants),
+        }))
+        .filter((item) => item.slug && item.quantity > 0);
     } catch {
       window.localStorage.removeItem(CART_STORAGE_KEY);
       return [];
@@ -45,21 +59,28 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<CartContextValue>(() => ({
     items,
     itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
-    addItem(slug, quantity) {
+    addItem(slug, quantity, selectedVariants) {
+      const normalizedSelection = normalizeVariantSelection(selectedVariants);
+      const cartKey = buildCartItemKey(slug, normalizedSelection);
+
       setItems((current) => {
-        const existing = current.find((item) => item.slug === slug);
+        const existing = current.find((item) => buildCartItemKey(item.slug, item.selectedVariants) === cartKey);
         if (existing) {
-          return current.map((item) => item.slug === slug ? { ...item, quantity: item.quantity + quantity } : item);
+          return current.map((item) => buildCartItemKey(item.slug, item.selectedVariants) === cartKey
+            ? { ...item, quantity: item.quantity + quantity }
+            : item);
         }
 
-        return [...current, { slug, quantity }];
+        return [...current, { slug, quantity, selectedVariants: normalizedSelection }];
       });
     },
-    updateItem(slug, quantity) {
-      setItems((current) => quantity <= 0 ? current.filter((item) => item.slug !== slug) : current.map((item) => item.slug === slug ? { ...item, quantity } : item));
+    updateItem(cartKey, quantity) {
+      setItems((current) => quantity <= 0
+        ? current.filter((item) => buildCartItemKey(item.slug, item.selectedVariants) !== cartKey)
+        : current.map((item) => buildCartItemKey(item.slug, item.selectedVariants) === cartKey ? { ...item, quantity } : item));
     },
-    removeItem(slug) {
-      setItems((current) => current.filter((item) => item.slug !== slug));
+    removeItem(cartKey) {
+      setItems((current) => current.filter((item) => buildCartItemKey(item.slug, item.selectedVariants) !== cartKey));
     },
     clearCart() {
       setItems([]);

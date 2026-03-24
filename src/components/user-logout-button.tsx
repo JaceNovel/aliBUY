@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 type UserLogoutButtonProps = {
   className?: string;
@@ -12,14 +12,17 @@ export function UserLogoutButton({ className = "", children }: UserLogoutButtonP
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    router.prefetch("/");
+  }, [router]);
+
   const handleLogout = async () => {
     setIsSubmitting(true);
 
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } finally {
-      router.push("/");
-      router.refresh();
+      router.replace("/");
       setIsSubmitting(false);
     }
   };

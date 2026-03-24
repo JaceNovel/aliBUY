@@ -39,6 +39,18 @@ export function ProfileMenu({ className = "", align = "right", user = null }: Pr
     };
   }, []);
 
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    profileItems.forEach((item) => {
+      router.prefetch(item.href);
+    });
+    router.prefetch("/login");
+    router.prefetch("/register");
+  }, [isOpen, router]);
+
   const showMenu = () => {
     if (closeTimeoutRef.current) {
       window.clearTimeout(closeTimeoutRef.current);
@@ -67,7 +79,6 @@ export function ProfileMenu({ className = "", align = "right", user = null }: Pr
 
   const handleNavigation = () => {
     setIsOpen(false);
-    router.refresh();
   };
 
   const alignmentClassName =

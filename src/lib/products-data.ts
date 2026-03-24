@@ -9,6 +9,15 @@ export type ProductVariantGroup = {
   values: string[];
 };
 
+export type ProductVariantPrice = {
+  selections: Record<string, string>;
+  priceUsd: number;
+  minimumQuantity?: number;
+  maximumQuantity?: number;
+  quantityLabel?: string;
+  note?: string;
+};
+
 export type ProductCatalogItem = {
   slug: string;
   title: string;
@@ -37,6 +46,7 @@ export type ProductCatalogItem = {
   shippingLabel: string;
   overview: string[];
   variantGroups: ProductVariantGroup[];
+  variantPricing?: ProductVariantPrice[];
   tiers: ProductTier[];
   specs: Array<{ label: string; value: string }>;
 };

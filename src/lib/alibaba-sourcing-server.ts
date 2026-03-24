@@ -1,7 +1,31 @@
 import "server-only";
 
 import { getCatalogProducts } from "@/lib/catalog-service";
-import { createEmptyQuote, formatFcfa, getProductSourcingMetrics, type CartComputedItem, type CartInputItem, type SourcingSettings, type ShippingMethodQuote } from "@/lib/alibaba-sourcing";
+import type { ProductCatalogItem } from "@/lib/products-data";
+import {
+  buildCartItemKey,
+  createEmptyQuote,
+  formatFcfa,
+  formatVariantSelection,
+  getProductSourcingMetrics,
+  normalizeVariantSelection,
+  type CartComputedItem,
+  type CartInputItem,
+  type SourcingSettings,
+  type ShippingMethodQuote,
+  type VariantSelection,
+} from "@/lib/alibaba-sourcing";
+
+function resolveProductVariantSelection(product: ProductCatalogItem, selection?: VariantSelection) {
+  const normalizedSelection = normalizeVariantSelection(selection);
+
+  return Object.fromEntries(
+    product.variantGroups.flatMap((group) => {
+      const selectedValue = normalizedSelection[group.label];
+      return selectedValue && group.values.includes(selectedValue) ? [[group.label, selectedValue] as const] : [];
+    }),
+  );
+}
 
 function computeMarginAmount(supplierPriceFcfa: number, settings: SourcingSettings) {
   if (settings.defaultMarginMode === "fixed") {
@@ -34,6 +58,10 @@ export async function getAlibabaSourcingCatalog(settings: SourcingSettings) {
 
 export async function createAlibabaSourcingQuote(inputItems: CartInputItem[], settings: SourcingSettings) {
   const products = await getCatalogProducts();
+  const totalQuantityBySlug = new Map<string, number>();
+  inputItems.forEach((item) => {
+    totalQuantityBySlug.set(item.slug, (totalQuantityBySlug.get(item.slug) ?? 0) + item.quantity);
+  });
   const validItems = inputItems
     .map((item) => {
       const product = products.find((entry) => entry.slug === item.slug);
@@ -41,13 +69,23 @@ export async function createAlibabaSourcingQuote(inputItems: CartInputItem[], se
         return null;
       }
 
-      const metrics = getProductSourcingMetrics(product);
+      const selectedVariants = resolveProductVariantSelection(product, item.selectedVariants);
+      const selectionLabel = formatVariantSelection(selectedVariants);
+      const metrics = getProductSourcingMetrics(product, {
+        quantity: (product.variantPricing?.some((rule) => Object.entries(rule.selections).every(([label, value]) => selectedVariants[label] === value)) ?? false)
+          ? item.quantity
+          : totalQuantityBySlug.get(product.slug) ?? item.quantity,
+        selectedVariants,
+      });
       const marginAmountFcfa = computeMarginAmount(metrics.supplierPriceFcfa, settings);
       const finalUnitPriceFcfa = metrics.supplierPriceFcfa + marginAmountFcfa;
 
       return {
         product,
+        cartKey: buildCartItemKey(product.slug, selectedVariants),
         quantity: item.quantity,
+        selectedVariants,
+        selectionLabel,
         ...metrics,
         marginAmountFcfa,
         finalUnitPriceFcfa,
@@ -60,9 +98,12 @@ export async function createAlibabaSourcingQuote(inputItems: CartInputItem[], se
   }
 
   const items: CartComputedItem[] = validItems.map((item) => ({
+    cartKey: item.cartKey,
     slug: item.product.slug,
-    title: item.product.shortTitle,
+    title: item.selectionLabel ? `${item.product.shortTitle} · ${item.selectionLabel}` : item.product.shortTitle,
     quantity: item.quantity,
+    selectedVariants: item.selectedVariants,
+    selectionLabel: item.selectionLabel,
     weightKg: item.weightKg,
     volumeCbm: item.volumeCbm,
     supplierPriceFcfa: item.supplierPriceFcfa,

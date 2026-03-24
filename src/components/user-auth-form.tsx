@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 
 type UserAuthFormProps = {
   mode: "login" | "register";
@@ -30,6 +30,11 @@ export function UserAuthForm({ mode, nextPath }: UserAuthFormProps) {
   const alternatePath = isRegister
     ? `/login${nextPath ? `?next=${encodeURIComponent(safeNextPath)}` : ""}`
     : `/register${nextPath ? `?next=${encodeURIComponent(safeNextPath)}` : ""}`;
+
+  useEffect(() => {
+    router.prefetch(safeNextPath);
+    router.prefetch(alternatePath);
+  }, [alternatePath, router, safeNextPath]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -65,8 +70,7 @@ export function UserAuthForm({ mode, nextPath }: UserAuthFormProps) {
         ? (safeNextPath.startsWith("/admin") ? safeNextPath : "/admin")
         : safeNextPath;
 
-      router.push(destination);
-      router.refresh();
+      router.replace(destination);
     } catch {
       setError("Impossible de finaliser la demande pour le moment.");
     } finally {

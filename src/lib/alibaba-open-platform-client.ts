@@ -747,6 +747,208 @@ function uniqueStrings(values: string[]) {
   return [...new Set(values.filter(Boolean))];
 }
 
+type VariantPair = {
+  label: string;
+  value: string;
+};
+
+function normalizeVariantText(value: string) {
+  return value
+    .replace(/<[^>]+>/g, " ")
+    .replace(/[_]+/g, " ")
+    .replace(/[\s\u00a0]+/g, " ")
+    .replace(/^[\s:;|,./-]+|[\s:;|,./-]+$/g, "")
+    .trim();
+}
+
+function normalizeVariantLabel(value: string) {
+  return normalizeVariantText(value).replace(/[:：]\s*$/u, "");
+}
+
+function normalizeVariantValue(value: string) {
+  return normalizeVariantText(value);
+}
+
+function isVariantLabelCandidate(value: string) {
+  return value.length > 0 && !/^(sku|sku code|sku id|item id|product id|price|price range|min price|max price|moq|quantity|qty|unit|inventory|stock|weight|image|picture|photo|video|url|link|currency|lead time|model|model number)$/i.test(value);
+}
+
+function isVariantValueCandidate(value: string) {
+  return value.length > 0 && value.length <= 80 && !/^https?:\/\//i.test(value);
+}
+
+function toVariantPair(label: string | undefined, value: string | undefined) {
+  const normalizedLabel = label ? normalizeVariantLabel(label) : "";
+  const normalizedValue = value ? normalizeVariantValue(value) : "";
+
+  if (!isVariantLabelCandidate(normalizedLabel) || !isVariantValueCandidate(normalizedValue)) {
+    return null;
+  }
+
+  return {
+    label: normalizedLabel,
+    value: normalizedValue,
+  } satisfies VariantPair;
+}
+
+function extractVariantPairsFromString(value: string, fallbackLabel?: string): VariantPair[] {
+  const normalized = normalizeVariantText(value);
+  if (!normalized) {
+    return [];
+  }
+
+  const segments = normalized.split(/[;|]/g).map((segment) => segment.trim()).filter(Boolean);
+  const pairs = segments.flatMap((segment) => {
+    const match = segment.match(/^([^:=]{1,40})\s*[:=]\s*(.+)$/);
+    if (!match) {
+      return [];
+    }
+
+    const pair = toVariantPair(match[1], match[2]);
+    return pair ? [pair] : [];
+  });
+
+  if (pairs.length > 0) {
+    return pairs;
+  }
+
+  const fallbackPair = fallbackLabel ? toVariantPair(fallbackLabel, normalized) : null;
+  return fallbackPair ? [fallbackPair] : [];
+}
+
+function extractVariantPairsFromAttribute(value: unknown, fallbackLabel?: string, depth = 0): VariantPair[] {
+  if (depth > 4 || value == null) {
+    return [];
+  }
+
+  if (typeof value === "string") {
+    return extractVariantPairsFromString(value, fallbackLabel);
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => extractVariantPairsFromAttribute(entry, fallbackLabel, depth + 1));
+  }
+
+  if (typeof value !== "object") {
+    return [];
+  }
+
+  const record = value as Record<string, unknown>;
+  const label = getStringValue(record.attribute_name)
+    ?? getStringValue(record.attributeName)
+    ?? getStringValue(record.attr_name)
+    ?? getStringValue(record.attrName)
+    ?? getStringValue(record.spec_name)
+    ?? getStringValue(record.specName)
+    ?? getStringValue(record.prop_name)
+    ?? getStringValue(record.propName)
+    ?? getStringValue(record.sale_attribute_name)
+    ?? getStringValue(record.saleAttributeName)
+    ?? getStringValue(record.label)
+    ?? getStringValue(record.name)
+    ?? getStringValue(record.key)
+    ?? fallbackLabel;
+  const directValue = getStringValue(record.attribute_value)
+    ?? getStringValue(record.attributeValue)
+    ?? getStringValue(record.attr_value)
+    ?? getStringValue(record.attrValue)
+    ?? getStringValue(record.value_name)
+    ?? getStringValue(record.valueName)
+    ?? getStringValue(record.option_name)
+    ?? getStringValue(record.optionName)
+    ?? getStringValue(record.display_value)
+    ?? getStringValue(record.displayValue)
+    ?? getStringValue(record.text)
+    ?? (fallbackLabel ? getStringValue(record.value) : undefined);
+  const directPair = toVariantPair(label, directValue);
+  const nestedKeys = [
+    "sale_attributes",
+    "saleAttributes",
+    "attributes",
+    "attribute_list",
+    "attributeList",
+    "attribute_values",
+    "attributeValues",
+    "sku_attributes",
+    "skuAttributes",
+    "spec_attrs",
+    "specAttributes",
+    "props",
+    "properties",
+    "options",
+    "values",
+    "items",
+  ];
+
+  return [
+    ...(directPair ? [directPair] : []),
+    ...nestedKeys.flatMap((key) => extractVariantPairsFromAttribute(record[key], label, depth + 1)),
+  ];
+}
+
+function extractAlibabaVariantGroups(...sources: Array<Record<string, unknown> | null | undefined>): ProductCatalogItem["variantGroups"] {
+  const groups = new Map<string, string[]>();
+
+  const addPair = (pair: VariantPair) => {
+    const existingValues = groups.get(pair.label) ?? [];
+    if (!existingValues.includes(pair.value)) {
+      existingValues.push(pair.value);
+      groups.set(pair.label, existingValues);
+    }
+  };
+
+  for (const source of sources) {
+    if (!source) {
+      continue;
+    }
+
+    const tradeInfo = (source.trade_info && typeof source.trade_info === "object") ? source.trade_info as Record<string, unknown> : {};
+    const skuInfo = Array.isArray(source.sku_info)
+      ? source.sku_info
+      : Array.isArray(tradeInfo.sku_info)
+        ? tradeInfo.sku_info
+        : Array.isArray(source.skus)
+          ? source.skus
+          : [];
+    const candidates: unknown[] = [
+      source.sale_attributes,
+      source.saleAttributes,
+      source.attributes,
+      source.attribute_list,
+      source.attributeList,
+      source.spec_attrs,
+      source.specAttributes,
+      source.properties,
+      source.props,
+      tradeInfo.sale_attributes,
+      tradeInfo.saleAttributes,
+      tradeInfo.attributes,
+      skuInfo,
+    ];
+
+    for (const candidate of candidates) {
+      extractVariantPairsFromAttribute(candidate).forEach(addPair);
+    }
+
+    for (const sku of skuInfo) {
+      if (!sku || typeof sku !== "object" || Array.isArray(sku)) {
+        continue;
+      }
+
+      const skuRecord = sku as Record<string, unknown>;
+      Object.entries(skuRecord)
+        .filter(([key]) => /(sale|attr|spec|variant|prop)/i.test(key))
+        .flatMap(([, entry]) => extractVariantPairsFromAttribute(entry))
+        .forEach(addPair);
+    }
+  }
+
+  return [...groups.entries()]
+    .map(([label, values]) => ({ label, values }))
+    .filter((group) => group.values.length > 1)
+    .slice(0, 4);
+}
+
 function normalizeAlibabaImageUrl(value: string) {
   const normalized = value.startsWith("//") ? `https:${value}` : value;
   return normalized.replace(/(\.(?:jpg|jpeg|png|webp))_\d+x\d+\1$/i, "$1");
@@ -1037,6 +1239,7 @@ function enrichAlibabaSearchProduct(product: AlibabaSearchProduct, detailRecord:
   const weightFromLogistics = getNumberValue(logisticsInfo.weight);
   const weightGrams = extractWeightGrams(detailRecord) ?? (weightFromLogistics ? Math.round(weightFromLogistics * (weightFromLogistics < 10 ? 1000 : 1)) : undefined);
   const images = extractImagesFromAlibabaRecord(detailRecord);
+  const variantGroups = extractAlibabaVariantGroups(detailRecord);
   const mergedPayload = product.rawPayload && typeof product.rawPayload === "object" && !Array.isArray(product.rawPayload)
     ? { ...(product.rawPayload as Record<string, unknown>), detail: detailRecord }
     : { search: product.rawPayload, detail: detailRecord };
@@ -1051,6 +1254,7 @@ function enrichAlibabaSearchProduct(product: AlibabaSearchProduct, detailRecord:
     minUsd: priceBounds.min ?? product.minUsd,
     maxUsd: priceBounds.max ?? product.maxUsd,
     moq,
+    variantGroups: variantGroups.length > 0 ? variantGroups : product.variantGroups,
     tiers: detailPriceData.tiers.length > 0
       ? detailPriceData.tiers.map((tier) => ({
           quantityLabel: tier.quantityLabel,
@@ -1279,6 +1483,7 @@ function mapAlibabaSearchResultToProduct(raw: Record<string, unknown>, query: st
     ?? getStringValue(raw.company_id)
     ?? getStringValue(raw.seller_member_id);
   const weightGrams = extractWeightGrams(raw);
+  const variantGroups = extractAlibabaVariantGroups(raw);
 
   return {
     sourceProductId,
@@ -1308,7 +1513,7 @@ function mapAlibabaSearchResultToProduct(raw: Record<string, unknown>, query: st
     customizationLabel: getStringValue(raw.customization_label) ?? "Selon fiche fournisseur",
     shippingLabel: getStringValue(raw.shipping_label) ?? "Transport a configurer",
     overview,
-    variantGroups: [],
+    variantGroups,
     tiers: priceData.tiers.map((tier) => ({ quantityLabel: tier.quantityLabel, priceUsd: tier.priceUsd, note: tier.note })),
     specs,
     moqVerified: typeof verifiedMoq === "number" && verifiedMoq > 0,
@@ -1375,6 +1580,7 @@ function mapAlibabaIcbuProductToProduct(raw: Record<string, unknown>, query: str
   ]).slice(0, 4);
   const weightGrams = extractWeightGrams(raw);
   const verifiedWeightGrams = weightGrams ?? (weight ? Math.round(weight * (weight < 10 ? 1000 : 1)) : undefined);
+  const variantGroups = extractAlibabaVariantGroups(raw, tradeInfo);
 
   return {
     sourceProductId,
@@ -1404,7 +1610,7 @@ function mapAlibabaIcbuProductToProduct(raw: Record<string, unknown>, query: str
     customizationLabel: getStringValue(basicInfo.audit_status) ?? "Selon fiche fournisseur",
     shippingLabel: getStringValue(logisticsInfo.shipping_template_id) ? `Template ${getStringValue(logisticsInfo.shipping_template_id)}` : "Transport a configurer",
     overview,
-    variantGroups: [],
+    variantGroups,
     tiers: priceData.tiers.map((tier) => ({ quantityLabel: tier.quantityLabel, priceUsd: tier.priceUsd, note: tier.note })),
     specs,
     moqVerified: typeof verifiedMoq === "number" && verifiedMoq > 0,
