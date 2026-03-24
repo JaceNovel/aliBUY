@@ -237,7 +237,25 @@ function isLikelyAlibabaProductIdentifier(query: string) {
     return false;
   }
 
-  return /^[A-Za-z0-9._\-/]+$/.test(normalized);
+  if (!/^[A-Za-z0-9._\-/]+$/.test(normalized)) {
+    return false;
+  }
+
+  const hasDigit = /\d/.test(normalized);
+  const hasSeparator = /[._\-/]/.test(normalized);
+  const hasUppercase = /[A-Z]/.test(normalized);
+
+  return hasDigit || hasSeparator || hasUppercase;
+}
+
+function isRecoverableIcbuSearchResponse(result: AlibabaCallResult, response: Record<string, unknown> | null) {
+  const msgCode = getStringValue(response?.msg_code);
+
+  if (result.ok && isTruthyAlibabaFlag(response?.success)) {
+    return true;
+  }
+
+  return msgCode === "B_PRODUCT_NOT_FOUND" || msgCode === "B_PRODUCT_PARAM_INVALID";
 }
 
 function collectCandidateRecords(value: unknown, depth = 0): Array<Record<string, unknown>> {
@@ -542,7 +560,7 @@ async function searchAlibabaIcbuProducts(input: {
       lastMessage = message ?? lastMessage;
       lastErrorCode = msgCode ?? lastErrorCode;
 
-      if (!result.ok || !isTruthyAlibabaFlag(response?.success)) {
+      if (!isRecoverableIcbuSearchResponse(result, response)) {
         return {
           ok: false,
           endpoint: "/alibaba/icbu/product/search/v2",
@@ -552,6 +570,10 @@ async function searchAlibabaIcbuProducts(input: {
             ? `La recherche catalogue Alibaba ICBU a echoue: ${message}`
             : "La recherche catalogue Alibaba ICBU a echoue.",
         };
+      }
+
+      if (!result.ok || !isTruthyAlibabaFlag(response?.success)) {
+        break;
       }
 
       for (const record of productInfo) {
