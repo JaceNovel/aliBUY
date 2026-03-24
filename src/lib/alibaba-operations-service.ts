@@ -243,9 +243,10 @@ export async function runAlibabaCatalogImport(input: {
   try {
     const existingImportedProducts = await getAlibabaImportedProducts();
     const existingSourceProductIds = new Set(existingImportedProducts.map((product) => product.sourceProductId));
+    const explorationLimit = Math.min(Math.max(job.limit * 4, 40), 100);
     const searchResult = await searchAlibabaProducts({
       query: job.query,
-      limit: job.limit,
+      limit: explorationLimit,
       fulfillmentChannel: job.fulfillmentChannel,
     });
 
@@ -259,7 +260,22 @@ export async function runAlibabaCatalogImport(input: {
 
     const uniqueSearchProducts = searchResult.products.filter((product, index, products) => products.findIndex((entry) => entry.sourceProductId === product.sourceProductId) === index);
     const productsWithRequiredData = uniqueSearchProducts.filter((product) => product.priceVerified && product.moqVerified && product.weightVerified && product.itemWeightGrams > 0);
-    const freshProducts = productsWithRequiredData.filter((product) => !existingSourceProductIds.has(product.sourceProductId));
+    const freshProducts = productsWithRequiredData.filter((product) => !existingSourceProductIds.has(product.sourceProductId)).slice(0, job.limit);
+    const rejectedReasonCounts = uniqueSearchProducts.reduce((counts, product) => {
+      if (!product.priceVerified) {
+        counts.price += 1;
+      }
+
+      if (!product.moqVerified) {
+        counts.moq += 1;
+      }
+
+      if (!product.weightVerified || product.itemWeightGrams <= 0) {
+        counts.weight += 1;
+      }
+
+      return counts;
+    }, { price: 0, moq: 0, weight: 0 });
 
     const importedProducts = freshProducts.map((product) => ({
       ...toImportedProduct(product, job.query, input.autoPublish),
@@ -283,14 +299,14 @@ export async function runAlibabaCatalogImport(input: {
     }));
 
     const skippedMissingRequiredDataCount = uniqueSearchProducts.length - productsWithRequiredData.length;
-    const skippedExistingCount = productsWithRequiredData.length - freshProducts.length;
+    const skippedExistingCount = Math.max(0, productsWithRequiredData.length - freshProducts.length);
 
     if (importedProducts.length > 0) {
       await saveAlibabaImportedProducts(importedProducts);
     }
 
-    const warningMessage = importedProducts.length === 0 && skippedMissingRequiredDataCount > 0
-      ? "Import termine sans ajout: Alibaba n'expose pas de prix coherent, MOQ verifie et poids exploitable pour les articles trouves."
+    const warningMessage = importedProducts.length < job.limit
+      ? `Import partiel: ${importedProducts.length}/${job.limit} importes.${skippedMissingRequiredDataCount > 0 ? ` Rejets donnees fournisseur: ${skippedMissingRequiredDataCount}.` : ""}${rejectedReasonCounts.price > 0 ? ` Prix incoherent: ${rejectedReasonCounts.price}.` : ""}${rejectedReasonCounts.moq > 0 ? ` MOQ non verifie: ${rejectedReasonCounts.moq}.` : ""}${rejectedReasonCounts.weight > 0 ? ` Poids non exploitable: ${rejectedReasonCounts.weight}.` : ""}${skippedExistingCount > 0 ? ` Deja importes ignores: ${skippedExistingCount}.` : ""}`
       : undefined;
 
     const completedJob: AlibabaImportJob = {
@@ -308,8 +324,11 @@ export async function runAlibabaCatalogImport(input: {
       requestBody: input,
       responseBody: {
         importedCount: importedProducts.length,
+        targetImportCount: job.limit,
+        exploredCount: uniqueSearchProducts.length,
         skippedExistingCount,
         skippedMissingRequiredDataCount,
+        rejectedReasonCounts,
         fallback: false,
         warningMessage,
       },
@@ -319,8 +338,11 @@ export async function runAlibabaCatalogImport(input: {
       job: completedJob,
       products: importedProducts,
       usedFallback: false,
+      targetImportCount: job.limit,
+      exploredCount: uniqueSearchProducts.length,
       skippedExistingCount,
       skippedMissingRequiredDataCount,
+      rejectedReasonCounts,
       warningMessage,
     };
   } catch (error) {

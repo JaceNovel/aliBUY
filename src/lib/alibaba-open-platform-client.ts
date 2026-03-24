@@ -1178,55 +1178,97 @@ export async function searchAlibabaProducts(input: {
     };
   }
 
-  const payload = {
-    param0: {
-      keyword: input.query,
-      search_word: input.query,
-      index: 1,
-      current: 1,
-      size: Math.min(Math.max(input.limit, 1), 100),
-      page_size: Math.min(Math.max(input.limit, 1), 100),
-      page_no: 1,
-      product_pool_id: resolveDropshippingPoolId(input.fulfillmentChannel),
-    },
-  };
-
   const credentials = await resolveAlibabaCredentialsForLiveCall();
-  let result = await callAlibabaEndpoint("/eco/buyer/product/search", payload, {
-    credentials,
-    method: "GET",
-    systemParamsInHeaders: true,
-  });
-  let response = result.responseBody as Record<string, unknown> | null;
-  let responseMessage = extractAlibabaResponseMessage(response);
+  const desiredCount = Math.min(Math.max(input.limit, 1), 100);
+  const pageSize = Math.min(20, desiredCount);
+  const maxPages = Math.max(1, Math.ceil(desiredCount / pageSize));
+  const seenProductIds = new Set<string>();
+  const collectedProducts: AlibabaSearchProduct[] = [];
+  let lastResult: AlibabaCallResult | null = null;
+  let lastResponse: Record<string, unknown> | null = null;
+  let responseMessage: string | undefined;
+  let responseCode: string | undefined;
 
-  if (isMissingAlibabaAppKeyMessage(responseMessage)) {
-    result = await callAlibabaEndpoint("/eco/buyer/product/search", payload, {
+  for (let pageIndex = 1; pageIndex <= maxPages && collectedProducts.length < desiredCount; pageIndex += 1) {
+    const payload = {
+      param0: {
+        keyword: input.query,
+        search_word: input.query,
+        index: pageIndex,
+        current: pageIndex,
+        size: pageSize,
+        page_size: pageSize,
+        page_no: pageIndex,
+        product_pool_id: resolveDropshippingPoolId(input.fulfillmentChannel),
+      },
+    };
+
+    let result = await callAlibabaEndpoint("/eco/buyer/product/search", payload, {
       credentials,
       method: "GET",
-      systemParamsInHeaders: false,
+      systemParamsInHeaders: true,
     });
-    response = result.responseBody as Record<string, unknown> | null;
+    let response = result.responseBody as Record<string, unknown> | null;
     responseMessage = extractAlibabaResponseMessage(response);
+
+    if (isMissingAlibabaAppKeyMessage(responseMessage)) {
+      result = await callAlibabaEndpoint("/eco/buyer/product/search", payload, {
+        credentials,
+        method: "GET",
+        systemParamsInHeaders: false,
+      });
+      response = result.responseBody as Record<string, unknown> | null;
+      responseMessage = extractAlibabaResponseMessage(response);
+    }
+
+    lastResult = result;
+    lastResponse = response;
+    responseCode = extractAlibabaResponseCode(response);
+
+    if (!result.ok) {
+      return {
+        ok: false,
+        endpoint: "/eco/buyer/product/search",
+        responseBody: result.responseBody,
+        products: [] as AlibabaSearchProduct[],
+        errorMessage: responseMessage
+          ? `La recherche Alibaba live a echoue: ${responseMessage}`
+          : "La recherche Alibaba live a echoue.",
+      };
+    }
+
+    const candidates = collectCandidateRecords(response);
+    const pageProducts = candidates
+      .map((candidate) => mapAlibabaSearchResultToProduct(candidate, input.query))
+      .filter((candidate): candidate is AlibabaSearchProduct => candidate !== null);
+
+    for (const product of pageProducts) {
+      if (seenProductIds.has(product.sourceProductId)) {
+        continue;
+      }
+
+      seenProductIds.add(product.sourceProductId);
+      collectedProducts.push(product);
+
+      if (collectedProducts.length >= desiredCount) {
+        break;
+      }
+    }
+
+    if (pageProducts.length < pageSize) {
+      break;
+    }
   }
 
-  const candidates = collectCandidateRecords(response);
-  const products = candidates
-    .map((candidate) => mapAlibabaSearchResultToProduct(candidate, input.query))
-    .filter((candidate): candidate is AlibabaSearchProduct => candidate !== null)
-    .slice(0, Math.min(Math.max(input.limit, 1), 100));
-  const enrichedProducts = await enrichAlibabaSearchProducts(products, credentials);
-  const responseCode = extractAlibabaResponseCode(response);
+  const enrichedProducts = await enrichAlibabaSearchProducts(collectedProducts, credentials);
 
-  if (!result.ok) {
+  if (!lastResult) {
     return {
       ok: false,
       endpoint: "/eco/buyer/product/search",
-      responseBody: result.responseBody,
+      responseBody: null,
       products: [] as AlibabaSearchProduct[],
-      errorMessage: responseMessage
-        ? `La recherche Alibaba live a echoue: ${responseMessage}`
-        : "La recherche Alibaba live a echoue.",
+      errorMessage: "La recherche Alibaba live a echoue.",
     };
   }
 
@@ -1238,14 +1280,14 @@ export async function searchAlibabaProducts(input: {
       icbuErrorCode: "errorCode" in icbuResult ? icbuResult.errorCode : undefined,
       responseCode,
       responseMessage,
-      topLevelKeys: response ? Object.keys(response).slice(0, 20) : [],
-      candidateCount: candidates.length,
+      topLevelKeys: lastResponse ? Object.keys(lastResponse).slice(0, 20) : [],
+      candidateCount: collectedProducts.length,
     });
 
     return {
       ok: false,
       endpoint: "/eco/buyer/product/search",
-      responseBody: result.responseBody,
+      responseBody: lastResult.responseBody,
       products: [] as AlibabaSearchProduct[],
       errorMessage: responseMessage
         ? `Alibaba a repondu mais aucun produit exploitable n'a ete detecte: ${responseMessage}`
@@ -1260,7 +1302,7 @@ export async function searchAlibabaProducts(input: {
   return {
     ok: true,
     endpoint: "/eco/buyer/product/search",
-    responseBody: result.responseBody,
+    responseBody: lastResult.responseBody,
     products: enrichedProducts,
   };
 }

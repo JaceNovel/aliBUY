@@ -120,12 +120,12 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
       return;
     }
     if (payload?.warningMessage) {
-      setFeedback(`${payload.warningMessage}${typeof payload?.skippedMissingRequiredDataCount === "number" ? ` Rejets: ${payload.skippedMissingRequiredDataCount}.` : ""}`);
+      setFeedback(payload.warningMessage);
       refresh();
       return;
     }
 
-    setFeedback(`Import Alibaba live termine et catalogue mis a jour.${typeof payload?.skippedExistingCount === "number" && payload.skippedExistingCount > 0 ? ` Deja importes ignores: ${payload.skippedExistingCount}.` : ""}`);
+    setFeedback(`Import Alibaba live termine: ${Array.isArray(payload?.products) ? payload.products.length : 0}/${payload?.targetImportCount ?? importForm.limit} importes.${typeof payload?.skippedExistingCount === "number" && payload.skippedExistingCount > 0 ? ` Deja importes ignores: ${payload.skippedExistingCount}.` : ""}`);
     refresh();
   };
 
