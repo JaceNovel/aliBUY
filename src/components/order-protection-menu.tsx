@@ -5,6 +5,7 @@ import {
   Truck,
   Wrench,
 } from "lucide-react";
+import Link from "next/link";
 import { getMessages } from "@/lib/messages";
 
 type OrderProtectionMenuProps = {
@@ -26,18 +27,22 @@ export function OrderProtectionMenu({
   const resolvedTriggerLabel = triggerLabel ?? messages.nav.orderProtection;
   const featureCards = [
     {
+      href: "/protection-commandes#paiements-securises",
       title: messages.orderProtectionPanel.safePayments,
       icon: ShieldCheck,
     },
     {
+      href: "/protection-commandes#remboursements",
       title: messages.orderProtectionPanel.refund,
       icon: CircleDollarSign,
     },
     {
+      href: "/protection-commandes#logistique",
       title: messages.orderProtectionPanel.logistics,
       icon: Truck,
     },
     {
+      href: "/protection-commandes#apres-vente",
       title: messages.orderProtectionPanel.afterSales,
       icon: Wrench,
     },
@@ -45,9 +50,9 @@ export function OrderProtectionMenu({
 
   return (
     <div className="group relative">
-      <a href="#" className={triggerClassName}>
+      <Link href="/protection-commandes" className={triggerClassName}>
         {resolvedTriggerLabel}
-      </a>
+      </Link>
 
       <div
         className={[
@@ -67,9 +72,9 @@ export function OrderProtectionMenu({
               {messages.orderProtectionPanel.description}
             </h3>
 
-            <button className="mt-8 inline-flex h-11 w-fit items-center justify-center rounded-full bg-[#ff6a00] px-10 text-[15px] font-semibold text-white hover:bg-[#ef6100]">
+            <Link href="/protection-commandes" className="mt-8 inline-flex h-11 w-fit items-center justify-center rounded-full bg-[#ff6a00] px-10 text-[15px] font-semibold text-white hover:bg-[#ef6100]">
               {messages.common.learnMore}
-            </button>
+            </Link>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -77,9 +82,9 @@ export function OrderProtectionMenu({
               const Icon = card.icon;
 
               return (
-                <a
+                <Link
                   key={card.title}
-                  href="#"
+                  href={card.href}
                   className="flex min-h-[118px] items-center justify-between rounded-[20px] bg-[#f8f8f8] px-7 py-6 transition-colors hover:bg-[#f3f3f3]"
                 >
                   <div className="flex items-center gap-5">
@@ -91,7 +96,7 @@ export function OrderProtectionMenu({
                     </div>
                   </div>
                   <ArrowRight className="h-7 w-7 shrink-0 text-[#222]" />
-                </a>
+                </Link>
               );
             })}
           </div>

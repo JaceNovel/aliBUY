@@ -29,6 +29,27 @@ function normalizePassword(password: string) {
   return password.trim();
 }
 
+function deriveDisplayName(email: string) {
+  const [localPart] = email.trim().toLowerCase().split("@");
+  if (!localPart) {
+    return "Client AfriPay";
+  }
+
+  const normalized = localPart
+    .replace(/[._-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (normalized.length < 2) {
+    return "Client AfriPay";
+  }
+
+  return normalized
+    .split(" ")
+    .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1))
+    .join(" ");
+}
+
 export function getUserSessionCookieConfig() {
   return {
     name: USER_SESSION_COOKIE,
@@ -64,12 +85,13 @@ function verifyPassword(password: string, user: StoredUser) {
 
 export async function registerUser(input: {
   email: string;
-  displayName: string;
+  displayName?: string;
   password: string;
 }) {
   const password = normalizePassword(input.password);
+  const displayName = input.displayName?.trim() || deriveDisplayName(input.email);
 
-  if (input.displayName.trim().length < 2) {
+  if (displayName.length < 2) {
     throw new Error("Le nom du compte doit contenir au moins 2 caracteres.");
   }
 
@@ -80,7 +102,7 @@ export async function registerUser(input: {
   const hashedPassword = hashUserPassword(password);
   const user = await createStoredUser({
     email: input.email,
-    displayName: input.displayName,
+    displayName,
     passwordHash: hashedPassword.passwordHash,
     passwordSalt: hashedPassword.passwordSalt,
   });

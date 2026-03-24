@@ -2,7 +2,7 @@ const messages = {
   fr: {
     topBar: {
       description: "AfriPay Marketplace, plateforme de sourcing B2B a positionnement affiliation et partnership Alibaba.",
-      supplierOffers: "Voir les offres fournisseurs",
+      supplierOffers: "Partnership",
     },
     nav: {
       categories: "Toutes les categories",
@@ -145,7 +145,7 @@ const messages = {
   en: {
     topBar: {
       description: "AfriPay Marketplace, a B2B sourcing platform positioned around Alibaba affiliation and partnership opportunities.",
-      supplierOffers: "See supplier offers",
+      supplierOffers: "Partnership",
     },
     nav: {
       categories: "All categories",

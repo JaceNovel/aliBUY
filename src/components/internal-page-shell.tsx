@@ -77,11 +77,11 @@ export async function InternalPageShell({ pricing, children }: InternalPageShell
               </div>
             </form>
 
-            <nav className="grid grid-cols-4 gap-2 border-t border-[#efebe6] py-3 text-center">
-              <Link href="/products" className="rounded-[12px] bg-[#f8f3ee] px-2 py-2.5 text-[11px] font-semibold text-[#2d2926]">Produits</Link>
-              <Link href="/quotes" className="rounded-[12px] bg-[#f8f3ee] px-2 py-2.5 text-[11px] font-semibold text-[#2d2926]">Devis</Link>
-              <Link href="/pricing" className="rounded-[12px] bg-[#f8f3ee] px-2 py-2.5 text-[11px] font-semibold text-[#2d2926]">Tarifs</Link>
-              <Link href="/messages" className="rounded-[12px] bg-[#f8f3ee] px-2 py-2.5 text-[11px] font-semibold text-[#2d2926]">Messages</Link>
+            <nav className="grid grid-cols-2 gap-2 border-t border-[#efebe6] py-3 text-center sm:grid-cols-4">
+              <Link href="/protection-commandes" className="rounded-[12px] bg-[#f8f3ee] px-3 py-2.5 text-[11px] font-semibold text-[#2d2926]">Protection</Link>
+              <Link href="/quotes" className="rounded-[12px] bg-[#f8f3ee] px-3 py-2.5 text-[11px] font-semibold text-[#2d2926]">Devis</Link>
+              <Link href="/pricing" className="rounded-[12px] bg-[#f8f3ee] px-3 py-2.5 text-[11px] font-semibold text-[#2d2926]">Tarifs</Link>
+              <Link href="/messages" className="rounded-[12px] bg-[#f8f3ee] px-3 py-2.5 text-[11px] font-semibold text-[#2d2926]">Messages</Link>
             </nav>
           </div>
 
@@ -137,10 +137,7 @@ export async function InternalPageShell({ pricing, children }: InternalPageShell
             <div className="hidden xl:flex xl:flex-row xl:items-center xl:justify-between">
               <nav className="flex flex-wrap items-center gap-x-8 gap-y-2 text-[#222]">
               <CategoryMegaMenu languageCode={pricing.languageCode} triggerClassName="inline-flex items-center gap-2 py-1 font-medium" panelClassName="top-[calc(100%+12px)]" widthClassName="w-[1360px]" />
-              <Link href="/products" className="font-medium text-[#444] transition hover:text-[#ff6a00]">Produits</Link>
-              <Link href="/trends" className="font-medium text-[#444] transition hover:text-[#ff6a00]">Tendances</Link>
               <Link href="/pricing" className="font-medium text-[#444] transition hover:text-[#ff6a00]">Tarifs</Link>
-              <Link href="/mode" className="font-medium text-[#444] transition hover:text-[#ff6a00]">Mode</Link>
               <OrderProtectionMenu languageCode={pricing.languageCode} triggerClassName="inline-flex items-center py-1 font-medium text-[#444]" panelClassName="top-[calc(100%+12px)]" widthClassName="w-[1120px]" />
               </nav>
               <nav className="flex flex-wrap items-center gap-x-8 gap-y-2 text-[#444]">

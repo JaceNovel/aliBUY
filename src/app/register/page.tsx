@@ -43,7 +43,7 @@ export default async function RegisterPage({
           <section className="rounded-[32px] border border-[#ebe4da] bg-white px-6 py-7 shadow-[0_24px_70px_rgba(17,24,39,0.08)] sm:px-8 sm:py-9">
             <div className="text-[12px] font-semibold uppercase tracking-[0.2em] text-[#ff6a00]">Inscription</div>
             <h2 className="mt-3 text-[30px] font-black tracking-[-0.05em] text-[#111827]">Ouvrir votre espace client</h2>
-            <p className="mt-3 text-[14px] leading-7 text-[#667085]">Creez votre compte pour retrouver vos favoris, vos devis, vos messages et vos informations personnelles.</p>
+            <p className="mt-3 text-[14px] leading-7 text-[#667085]">Saisissez votre adresse e-mail, votre mot de passe puis la confirmation du mot de passe pour creer votre compte.</p>
             <div className="mt-6">
               <UserAuthForm mode="register" nextPath={nextPath} />
             </div>

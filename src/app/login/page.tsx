@@ -44,6 +44,14 @@ export default async function LoginPage({
             <div className="text-[12px] font-semibold uppercase tracking-[0.2em] text-[#ff6a00]">Connexion</div>
             <h2 className="mt-3 text-[30px] font-black tracking-[-0.05em] text-[#111827]">Acceder a votre espace client</h2>
             <p className="mt-3 text-[14px] leading-7 text-[#667085]">Une fois connecte, vous resterez authentifie sur ce navigateur pendant 30 jours.</p>
+            <div className="mt-5 rounded-[20px] bg-[#fff7f1] px-4 py-4 text-[14px] leading-7 text-[#5b6473] ring-1 ring-[#f4dfd0]">
+              Nouveau sur AfriPay ?
+              <div>
+                <Link href={`/register${nextPath ? `?next=${encodeURIComponent(nextPath)}` : ""}`} className="font-semibold text-[#ff6a00] transition hover:text-[#d95a00]">
+                  Ouvrir la page d'inscription
+                </Link>
+              </div>
+            </div>
             <div className="mt-6">
               <UserAuthForm mode="login" nextPath={nextPath} />
             </div>
