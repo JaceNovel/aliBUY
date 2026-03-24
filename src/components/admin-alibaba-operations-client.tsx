@@ -57,6 +57,10 @@ function formatImportedPrice(product: AlibabaImportedProduct) {
   return formatTierAwarePrice((amountUsd) => `$${amountUsd.toFixed(2)}`, product);
 }
 
+function hasRecoveredVideo(product: AlibabaImportedProduct) {
+  return /\.(mp4|m3u8|webm|mov)(\?|$)/i.test(product.videoUrl ?? "");
+}
+
 export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -208,6 +212,29 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
     }
 
     setFeedback("Article réenrichi avec les données fournisseur les plus récentes.");
+    refresh();
+  };
+
+  const reenrichAllImportedItems = async () => {
+    setFeedback(null);
+
+    const response = await fetch("/api/admin/alibaba/import/reenrich", {
+      method: "POST",
+    });
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      setFeedback(payload?.message ?? "Réenrichissement global impossible.");
+      return;
+    }
+
+    const updatedCount = Number(payload?.updatedCount ?? 0);
+    const failedCount = Number(payload?.failedCount ?? 0);
+    setFeedback(
+      failedCount > 0
+        ? `Réenrichissement global terminé: ${updatedCount} mis à jour, ${failedCount} en échec.`
+        : `Réenrichissement global terminé: ${updatedCount} article(s) mis à jour.`,
+    );
     refresh();
   };
 
@@ -523,7 +550,13 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
                 <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Articles importes</div>
                 <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Images, videos et publication catalogue</div>
               </div>
-              <div className="text-[13px] text-[#667085]">{initialDashboard.importedProducts.length} lignes</div>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={reenrichAllImportedItems} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#dbe2ea] bg-white px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
+                  <RefreshCcw className="h-4 w-4" />
+                  Réenrichir tout
+                </button>
+                <div className="text-[13px] text-[#667085]">{initialDashboard.importedProducts.length} lignes</div>
+              </div>
             </div>
             <div className="mt-5 space-y-3 max-h-[860px] overflow-auto pr-1">
               {initialDashboard.importedProducts.length === 0 ? <div className="rounded-[16px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Aucun article importe pour le moment.</div> : initialDashboard.importedProducts.map((product) => {
@@ -540,7 +573,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
                           <div>
                             <div className="line-clamp-2 text-[15px] font-semibold text-[#1f2937]">{product.shortTitle}</div>
                             <div className="mt-1 text-[13px] text-[#667085]">{product.supplierName} · MOQ {product.moq} {product.unit}</div>
-                            <div className="mt-1 text-[12px] text-[#98a2b3]">{product.gallery.length} images · {product.videoUrl ? "video recuperee" : "pas de video"} · stock estime {product.inventory}</div>
+                            <div className="mt-1 text-[12px] text-[#98a2b3]">{product.gallery.length} images · {hasRecoveredVideo(product) ? "video recuperee" : "pas de video"} · stock estime {product.inventory}</div>
                           </div>
                           <div className="rounded-full bg-[#fff7ed] px-3 py-1 text-[12px] font-semibold text-[#c2410c]">{product.status}</div>
                         </div>

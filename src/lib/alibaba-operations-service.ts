@@ -497,6 +497,51 @@ export async function reenrichImportedProduct(importedProductId: string) {
   return nextProduct;
 }
 
+export async function reenrichAllImportedProducts() {
+  const products = await getAlibabaImportedProducts();
+
+  let updatedCount = 0;
+  let failedCount = 0;
+  const failedProducts: Array<{ id: string; sourceProductId: string; title: string; message: string }> = [];
+
+  for (const product of products) {
+    try {
+      await reenrichImportedProduct(product.id);
+      updatedCount += 1;
+    } catch (error) {
+      failedCount += 1;
+      failedProducts.push({
+        id: product.id,
+        sourceProductId: product.sourceProductId,
+        title: product.title,
+        message: error instanceof Error ? error.message : "Reenrichissement impossible.",
+      });
+    }
+  }
+
+  await createAlibabaIntegrationLog({
+    action: "catalog-import-reenrich-all",
+    endpoint: "internal/imported-products/reenrich-all",
+    status: failedCount > 0 ? "partial" : "success",
+    requestBody: {
+      productCount: products.length,
+    },
+    responseBody: {
+      productCount: products.length,
+      updatedCount,
+      failedCount,
+      failedProducts: failedProducts.slice(0, 20),
+    },
+  });
+
+  return {
+    productCount: products.length,
+    updatedCount,
+    failedCount,
+    failedProducts,
+  };
+}
+
 export async function saveAlibabaSupplierAccountInput(input: Omit<AlibabaSupplierAccount, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
   const timestamp = nowIso();
   const existing = input.id ? (await getAlibabaSupplierAccounts()).find((account) => account.id === input.id) : undefined;

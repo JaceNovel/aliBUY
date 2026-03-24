@@ -272,20 +272,140 @@ function buildQuantityLabel(minimumQuantity: number, maximumQuantity?: number, u
   return `${minimumQuantity}+ ${unit}`;
 }
 
+function normalizeQuantityLabel(label: string, unit = "piece") {
+  const normalized = label.replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (/(piece|pieces|pcs|unit|units|set|sets|qty|quantity)$/i.test(normalized)) {
+    return normalized;
+  }
+
+  if (/^>=?\s*\d+$/i.test(normalized)) {
+    return `${normalized.replace(/^>/, ">=")} ${unit}`;
+  }
+
+  if (/^\d+\s*[-~]\s*\d+$/i.test(normalized)) {
+    return `${normalized.replace(/~/g, "-")} ${unit}`;
+  }
+
+  if (/^\d+\+$/i.test(normalized)) {
+    return `${normalized} ${unit}`;
+  }
+
+  return normalized;
+}
+
+function extractExplicitQuantityLabel(record: Record<string, unknown>, unit = "piece") {
+  const candidates = [
+    record.quantity_label,
+    record.quantityLabel,
+    record.quantity_range,
+    record.quantityRange,
+    record.range,
+    record.price_range,
+    record.priceRange,
+    record.amount_range,
+    record.amountRange,
+    record.display_range,
+    record.displayRange,
+    record.begin_amount_text,
+    record.beginAmountText,
+    record.min_order_desc,
+    record.minOrderDesc,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") {
+      continue;
+    }
+
+    const normalized = normalizeQuantityLabel(candidate, unit);
+    if (normalized && /\d/.test(normalized)) {
+      return normalized;
+    }
+  }
+
+  return undefined;
+}
+
+function isTierContextKey(keyHint?: string) {
+  return Boolean(keyHint && /(price|tier|ladder|wholesale|trade_info|wholesale_trade|range_price|price_info|price_range|tiered_price|sku_price|skuprice)/i.test(keyHint));
+}
+
+function hasExplicitQuantityKey(record: Record<string, unknown>) {
+  return [
+    "begin_amount",
+    "beginAmount",
+    "min_order_quantity",
+    "minOrderQuantity",
+    "minimum_order_quantity",
+    "minimumOrderQuantity",
+    "quantity_min",
+    "quantityMin",
+    "min_qty",
+    "minQty",
+    "start_quantity",
+    "startQuantity",
+    "max_order_quantity",
+    "maxOrderQuantity",
+    "quantity_max",
+    "quantityMax",
+    "max_qty",
+    "maxQty",
+    "end_quantity",
+    "endQuantity",
+  ].some((key) => typeof record[key] !== "undefined");
+}
+
+function hasExplicitPriceKey(record: Record<string, unknown>) {
+  return [
+    "price",
+    "sale_price",
+    "salePrice",
+    "discount_price",
+    "discountPrice",
+    "unit_price",
+    "unitPrice",
+    "display_price",
+    "displayPrice",
+    "price_value",
+    "priceValue",
+    "sku_price",
+  ].some((key) => typeof record[key] !== "undefined");
+}
+
+function labelHasClosedRange(label: string) {
+  return /\d+\s*[-~]\s*\d+/.test(label);
+}
+
 function normalizeExtractedPriceTiers(tiers: ExtractedPriceTier[]) {
-  const unique = new Map<string, ExtractedPriceTier>();
+  const unique = new Map<number, ExtractedPriceTier>();
 
   for (const tier of tiers) {
     if (!Number.isFinite(tier.priceUsd) || tier.priceUsd <= 0 || !Number.isFinite(tier.minimumQuantity) || tier.minimumQuantity <= 0) {
       continue;
     }
 
-    const key = `${tier.minimumQuantity}:${tier.priceUsd.toFixed(4)}`;
-    if (!unique.has(key)) {
-      unique.set(key, {
-        ...tier,
-        quantityLabel: tier.quantityLabel.trim(),
-      });
+    const normalizedTier = {
+      ...tier,
+      minimumQuantity: Math.round(tier.minimumQuantity),
+      quantityLabel: tier.quantityLabel.trim(),
+    };
+    const existing = unique.get(normalizedTier.minimumQuantity);
+
+    if (!existing) {
+      unique.set(normalizedTier.minimumQuantity, normalizedTier);
+      continue;
+    }
+
+    const existingHasClosedRange = labelHasClosedRange(existing.quantityLabel);
+    const nextHasClosedRange = labelHasClosedRange(normalizedTier.quantityLabel);
+
+    if ((nextHasClosedRange && !existingHasClosedRange)
+      || (nextHasClosedRange === existingHasClosedRange && normalizedTier.priceUsd > existing.priceUsd)) {
+      unique.set(normalizedTier.minimumQuantity, normalizedTier);
     }
   }
 
@@ -294,11 +414,11 @@ function normalizeExtractedPriceTiers(tiers: ExtractedPriceTier[]) {
 
 function extractPriceTiersFromString(value: string, unit = "piece") {
   const normalized = value.replace(/\s+/g, " ").trim();
-  if (!normalized || !/(piece|pieces|pcs|unit|units|set|sets|qty|quantity|moq|order)/i.test(normalized)) {
+  if (!normalized || !/(?:\d+\s*[-~]\s*\d+|>=?\s*\d+).*(?:[$€£¥]\s*\d+|\d+(?:[.,]\d+)?\s*[$€£¥])/i.test(normalized)) {
     return [] as ExtractedPriceTier[];
   }
 
-  const pattern = /(?:^|\b)(>=\s*)?(\d{1,6})(?:\s*[-~]\s*(\d{1,6}))?\s*(?:pieces?|piece|pcs?|units?|unit|sets?|qty)?[^\d$€£¥]{0,12}(?:[$€£¥]\s*)?(\d+(?:[.,]\d+)?)/gi;
+  const pattern = /(?:^|\b)(>=\s*)?(\d{1,6})(?:\s*[-~]\s*(\d{1,6}))?\s*(?:pieces?|piece|pcs?|units?|unit|sets?|qty)?[^\d$€£¥]{0,18}(?:[$€£¥]\s*)?(\d+(?:[.,]\d+)?)/gi;
   const tiers: ExtractedPriceTier[] = [];
 
   for (const match of normalized.matchAll(pattern)) {
@@ -321,7 +441,15 @@ function extractPriceTiersFromString(value: string, unit = "piece") {
   return normalizeExtractedPriceTiers(tiers);
 }
 
-function extractPriceTierFromRecord(record: Record<string, unknown>, unit = "piece") {
+function extractPriceTierFromRecord(record: Record<string, unknown>, unit = "piece", keyHint?: string) {
+  if (!hasExplicitPriceKey(record)) {
+    return null;
+  }
+
+  if (!hasExplicitQuantityKey(record) && !isTierContextKey(keyHint)) {
+    return null;
+  }
+
   const priceUsd = parsePositiveNumber(
     record.price,
   ) ?? parsePositiveNumber(record.sale_price)
@@ -348,7 +476,7 @@ function extractPriceTierFromRecord(record: Record<string, unknown>, unit = "pie
     ?? parsePositiveNumber(record.minQty)
     ?? parsePositiveNumber(record.start_quantity)
     ?? parsePositiveNumber(record.startQuantity)
-    ?? parsePositiveNumber(record.from);
+    ?? (isTierContextKey(keyHint) ? parsePositiveNumber(record.from) : undefined);
   const maximumQuantity = parsePositiveNumber(record.max_order_quantity)
     ?? parsePositiveNumber(record.maxOrderQuantity)
     ?? parsePositiveNumber(record.quantity_max)
@@ -357,7 +485,7 @@ function extractPriceTierFromRecord(record: Record<string, unknown>, unit = "pie
     ?? parsePositiveNumber(record.maxQty)
     ?? parsePositiveNumber(record.end_quantity)
     ?? parsePositiveNumber(record.endQuantity)
-    ?? parsePositiveNumber(record.to);
+    ?? (isTierContextKey(keyHint) ? parsePositiveNumber(record.to) : undefined);
 
   if (!priceUsd || !minimumQuantity) {
     return null;
@@ -365,7 +493,8 @@ function extractPriceTierFromRecord(record: Record<string, unknown>, unit = "pie
 
   return {
     minimumQuantity: Math.round(minimumQuantity),
-    quantityLabel: buildQuantityLabel(Math.round(minimumQuantity), typeof maximumQuantity === "number" ? Math.round(maximumQuantity) : undefined, unit),
+    quantityLabel: extractExplicitQuantityLabel(record, unit)
+      ?? buildQuantityLabel(Math.round(minimumQuantity), typeof maximumQuantity === "number" ? Math.round(maximumQuantity) : undefined, unit),
     priceUsd,
     note: getStringValue(record.note) ?? getStringValue(record.remark) ?? getStringValue(record.description),
   } satisfies ExtractedPriceTier;
@@ -377,7 +506,7 @@ function collectPriceTiers(value: unknown, depth = 0, keyHint?: string, unit = "
   }
 
   if (typeof value === "string") {
-    if (/price|tier|ladder|range|wholesale|amount/i.test(keyHint ?? "") || /(piece|pcs|qty|moq|order)/i.test(value)) {
+    if (isTierContextKey(keyHint) || /(\d+\s*[-~]\s*\d+|>=?\s*\d+).*(?:[$€£¥]\s*\d+|\d+(?:[.,]\d+)?\s*[$€£¥])/i.test(value)) {
       return extractPriceTiersFromString(value, unit);
     }
 
@@ -385,6 +514,10 @@ function collectPriceTiers(value: unknown, depth = 0, keyHint?: string, unit = "
   }
 
   if (Array.isArray(value)) {
+    if (!isTierContextKey(keyHint) && depth > 0) {
+      return [];
+    }
+
     return normalizeExtractedPriceTiers(value.flatMap((entry) => collectPriceTiers(entry, depth + 1, keyHint, unit)));
   }
 
@@ -393,8 +526,14 @@ function collectPriceTiers(value: unknown, depth = 0, keyHint?: string, unit = "
   }
 
   const record = value as Record<string, unknown>;
-  const directTier = extractPriceTierFromRecord(record, unit);
-  const nestedTiers = Object.entries(record).flatMap(([nestedKey, nestedValue]) => collectPriceTiers(nestedValue, depth + 1, nestedKey, unit));
+  const directTier = extractPriceTierFromRecord(record, unit, keyHint);
+  const nestedTiers = Object.entries(record).flatMap(([nestedKey, nestedValue]) => {
+    if (!isTierContextKey(nestedKey) && depth > 0) {
+      return [] as ExtractedPriceTier[];
+    }
+
+    return collectPriceTiers(nestedValue, depth + 1, nestedKey, unit);
+  });
 
   return normalizeExtractedPriceTiers([
     ...(directTier ? [directTier] : []),

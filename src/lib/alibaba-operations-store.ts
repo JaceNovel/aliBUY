@@ -189,6 +189,23 @@ function normalizeAlibabaMediaUrl(value?: string) {
   return normalized.replace(/(\.(?:jpg|jpeg|png|webp))_\d+x\d+\1$/i, "$1");
 }
 
+function isAlibabaImageUrl(value?: string) {
+  if (!value) {
+    return false;
+  }
+
+  return /\.(jpg|jpeg|png|webp|gif|avif)(\?|$)/i.test(value)
+    || /(?:image|img|photo|picture|main_image|multi_image)/i.test(value);
+}
+
+function isAlibabaVideoUrl(value?: string) {
+  if (!value) {
+    return false;
+  }
+
+  return /\.(mp4|m3u8|webm|mov)(\?|$)/i.test(value);
+}
+
 function extractPriceValues(candidate: unknown): number[] {
   if (typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0) {
     return [candidate];
@@ -255,7 +272,11 @@ function collectRawMediaUrls(value: unknown, depth = 0): string[] {
       return collectRawMediaUrls(nestedValue, depth + 1);
     }
 
-    return depth < 2 ? collectRawMediaUrls(nestedValue, depth + 1) : [];
+    if (/(search|detail|data|result|product|product_info|productInfo|eco_buyer_description|eco_buyer_keyattributes)/i.test(key)) {
+      return collectRawMediaUrls(nestedValue, depth + 1);
+    }
+
+    return [];
   });
 }
 
@@ -267,6 +288,7 @@ function extractRawMediaGallery(rawPayload: Prisma.JsonValue | null) {
   return [...new Set(
     collectRawMediaUrls(rawPayload)
       .map((entry) => normalizeAlibabaMediaUrl(entry) ?? entry)
+      .filter((entry) => isAlibabaImageUrl(entry) && !isAlibabaVideoUrl(entry))
       .filter((entry): entry is string => Boolean(entry)),
   )];
 }
@@ -703,8 +725,11 @@ function mapImportedProductRecord(record: {
   updatedAt: Date;
 }): AlibabaImportedProduct {
   const rawMediaGallery = extractRawMediaGallery(record.rawPayload ?? null);
-  const normalizedImage = normalizeAlibabaMediaUrl(record.image) ?? record.image ?? rawMediaGallery[0];
-  const normalizedGallery = toStringArray(record.gallery).map((image) => normalizeAlibabaMediaUrl(image) ?? image);
+  const imageCandidate = normalizeAlibabaMediaUrl(record.image) ?? record.image ?? rawMediaGallery[0];
+  const normalizedImage = isAlibabaImageUrl(imageCandidate) ? imageCandidate : rawMediaGallery[0];
+  const normalizedGallery = toStringArray(record.gallery)
+    .map((image) => normalizeAlibabaMediaUrl(image) ?? image)
+    .filter((image) => isAlibabaImageUrl(image) && !isAlibabaVideoUrl(image));
   const effectiveGallery = normalizedGallery.length > 0 ? normalizedGallery : rawMediaGallery;
   const rawPriceBounds = extractRawPriceBounds(record.rawPayload ?? null);
   const rawWeightGrams = extractRawWeightGrams(record.rawPayload);
@@ -721,10 +746,10 @@ function mapImportedProductRecord(record: {
     description: record.description,
     query: record.query,
     keywords: toStringArray(record.keywords),
-    image: normalizedImage,
+    image: normalizedImage ?? "",
     gallery: effectiveGallery.length > 0 ? effectiveGallery : (normalizedImage ? [normalizedImage] : []),
-    videoUrl: normalizeAlibabaMediaUrl(record.videoUrl ?? undefined) ?? undefined,
-    videoPoster: normalizeAlibabaMediaUrl(record.videoPoster ?? undefined) ?? undefined,
+    videoUrl: isAlibabaVideoUrl(record.videoUrl ?? undefined) ? (normalizeAlibabaMediaUrl(record.videoUrl ?? undefined) ?? undefined) : undefined,
+    videoPoster: isAlibabaImageUrl(record.videoPoster ?? undefined) ? (normalizeAlibabaMediaUrl(record.videoPoster ?? undefined) ?? undefined) : undefined,
     packaging: record.packaging,
     itemWeightGrams: record.itemWeightGrams > 0 ? record.itemWeightGrams : rawWeightGrams ?? 0,
     lotCbm: record.lotCbm,
