@@ -52,10 +52,10 @@ export function AdminShell({ children }: AdminShellProps) {
   const router = useRouter();
 
   const logout = async () => {
-    await fetch("/api/admin/auth/logout", {
+    await fetch("/api/auth/logout", {
       method: "POST",
     });
-    router.replace("/admin/login");
+    router.replace("/login");
     router.refresh();
   };
 

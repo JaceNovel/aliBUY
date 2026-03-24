@@ -60,7 +60,11 @@ export function UserAuthForm({ mode, nextPath }: UserAuthFormProps) {
         return;
       }
 
-      router.push(safeNextPath);
+      const destination = mode === "login" && payload?.isAdmin
+        ? (safeNextPath.startsWith("/admin") ? safeNextPath : "/admin")
+        : safeNextPath;
+
+      router.push(destination);
       router.refresh();
     } catch {
       setError("Impossible de finaliser la demande pour le moment.");

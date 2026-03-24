@@ -4,6 +4,7 @@ import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
 import { cookies } from "next/headers";
 
+import { isAdminEmail, validateAdminCredentials } from "@/lib/admin-auth";
 import { createUserSessionToken, getUserSessionMaxAgeSeconds, parseUserSessionToken, USER_SESSION_COOKIE } from "@/lib/user-session";
 import { createStoredUser, getStoredUserByEmail, getStoredUserById, type StoredUser } from "@/lib/user-store";
 
@@ -113,10 +114,25 @@ export async function registerUser(input: {
 export async function validateUserCredentials(email: string, password: string) {
   const user = await getStoredUserByEmail(email);
   if (!user) {
+    if (isAdminEmail(email) && await validateAdminCredentials(email, password).catch(() => false)) {
+      const normalizedEmail = email.trim().toLowerCase();
+      return {
+        id: `admin:${normalizedEmail}`,
+        email: normalizedEmail,
+        displayName: "Admin AfriPay",
+        firstName: "Admin",
+        createdAt: new Date(0).toISOString(),
+      } satisfies AuthenticatedUser;
+    }
+
     return null;
   }
 
   if (!verifyPassword(password, user)) {
+    if (isAdminEmail(email) && await validateAdminCredentials(email, password).catch(() => false)) {
+      return toAuthenticatedUser(user);
+    }
+
     return null;
   }
 
@@ -141,6 +157,16 @@ export async function getCurrentUser() {
 
   const user = await getStoredUserById(session.sub);
   if (!user) {
+    if (isAdminEmail(session.email)) {
+      return {
+        id: session.sub,
+        email: session.email,
+        displayName: session.displayName,
+        firstName: session.firstName,
+        createdAt: new Date(0).toISOString(),
+      } satisfies AuthenticatedUser;
+    }
+
     return null;
   }
 

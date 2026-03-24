@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { isAdminEmail } from "@/lib/admin-auth";
 import { createAuthenticatedUserSession, getUserSessionCookieConfig, validateUserCredentials } from "@/lib/user-auth";
 
 export async function POST(request: Request) {
@@ -13,7 +14,7 @@ export async function POST(request: Request) {
   }
 
   const token = await createAuthenticatedUserSession(user);
-  const response = NextResponse.json({ ok: true, user });
+  const response = NextResponse.json({ ok: true, user, isAdmin: isAdminEmail(user.email) });
   response.cookies.set(getUserSessionCookieConfig().name, token, getUserSessionCookieConfig());
   return response;
 }

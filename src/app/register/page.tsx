@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { isAdminEmail } from "@/lib/admin-auth";
 import { UserAuthForm } from "@/components/user-auth-form";
 import { getCurrentUser } from "@/lib/user-auth";
 
@@ -17,12 +18,14 @@ export default async function RegisterPage({
 }: {
   searchParams: Promise<{ next?: string }>;
 }) {
-  if (await getCurrentUser()) {
-    redirect("/account");
-  }
+  const currentUser = await getCurrentUser();
 
   const resolvedSearchParams = await searchParams;
   const nextPath = getSafeNextPath(resolvedSearchParams.next);
+
+  if (currentUser) {
+    redirect(isAdminEmail(currentUser.email) && nextPath.startsWith("/admin") ? nextPath : isAdminEmail(currentUser.email) ? "/admin" : "/account");
+  }
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#fff8f2_0%,#f5f7fb_100%)] px-4 py-6 text-[#1d2738] sm:px-6 sm:py-10 lg:px-8">

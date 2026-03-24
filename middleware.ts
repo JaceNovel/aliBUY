@@ -1,50 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { isAdminEmail } from "@/lib/admin-auth";
 import { parseUserSessionToken, USER_SESSION_COOKIE } from "@/lib/user-session";
-
-const ADMIN_SESSION_COOKIE = "afripay_admin_session";
-
-function encoder() {
-  return new TextEncoder();
-}
-
-async function sha256Hex(value: string) {
-  const digest = await crypto.subtle.digest("SHA-256", encoder().encode(value));
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-function getAdminEmail() {
-  return process.env.ADMIN_EMAIL?.trim() || "";
-}
-
-function getAdminPasswordHash() {
-  return process.env.ADMIN_PASSWORD_HASH?.trim() || "";
-}
-
-function getAdminSessionSecret() {
-  return process.env.ADMIN_SESSION_SECRET?.trim() || process.env.APP_KEY?.trim() || "";
-}
-
-function isAdminAuthConfigured() {
-  return Boolean(getAdminEmail() && getAdminPasswordHash() && getAdminSessionSecret());
-}
-
-async function createAdminSessionToken() {
-  if (!isAdminAuthConfigured()) {
-    return "";
-  }
-
-  return sha256Hex(`${getAdminEmail()}:${getAdminPasswordHash()}:${getAdminSessionSecret()}:afripay-admin`);
-}
-
-function isAllowedWithoutAuth(pathname: string) {
-  return pathname === "/admin/login"
-    || pathname === "/api/admin/auth/login"
-    || pathname === "/api/admin/auth/logout"
-    || pathname === "/api/admin/alibaba/oauth/callback";
-}
 
 function isApiPath(pathname: string) {
   return pathname.startsWith("/api/");
@@ -71,22 +28,18 @@ function isProtectedUserPath(pathname: string) {
 
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-
-  const cookieToken = request.cookies.get(ADMIN_SESSION_COOKIE)?.value;
-  const isAuthenticated = isAdminAuthConfigured() && cookieToken === await createAdminSessionToken();
   const userSession = await parseUserSessionToken(request.cookies.get(USER_SESSION_COOKIE)?.value);
   const isUserAuthenticated = Boolean(userSession);
+  const isAdminAuthenticated = isAdminEmail(userSession?.email);
 
-  if (pathname === "/admin/login" && isAuthenticated) {
-    return NextResponse.redirect(new URL("/admin", request.url));
-  }
-
-  if (isAllowedWithoutAuth(pathname)) {
-    return NextResponse.next();
+  if (pathname === "/admin/login") {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("next", "/admin");
+    return NextResponse.redirect(loginUrl);
   }
 
   if (isUserAuthPage(pathname) && isUserAuthenticated) {
-    return NextResponse.redirect(new URL("/account", request.url));
+    return NextResponse.redirect(new URL(isAdminAuthenticated ? "/admin" : "/account", request.url));
   }
 
   if (isProtectedUserPath(pathname) && !isUserAuthenticated) {
@@ -95,17 +48,29 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (isAuthenticated) {
+  if (pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) {
+    if (!isUserAuthenticated) {
+      if (isApiPath(pathname)) {
+        return NextResponse.json({ message: "Authentification requise." }, { status: 401 });
+      }
+
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("next", `${pathname}${search}`);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    if (!isAdminAuthenticated) {
+      if (isApiPath(pathname)) {
+        return NextResponse.json({ message: "Acces admin requis." }, { status: 403 });
+      }
+
+      return NextResponse.redirect(new URL("/account", request.url));
+    }
+
     return NextResponse.next();
   }
 
-  if (isApiPath(pathname)) {
-    return NextResponse.json({ message: "Authentification admin requise." }, { status: 401 });
-  }
-
-  const loginUrl = new URL("/admin/login", request.url);
-  loginUrl.searchParams.set("next", `${pathname}${search}`);
-  return NextResponse.redirect(loginUrl);
+  return NextResponse.next();
 }
 
 export const config = {

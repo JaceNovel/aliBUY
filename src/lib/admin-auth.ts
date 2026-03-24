@@ -2,7 +2,7 @@ import "server-only";
 
 import { cookies } from "next/headers";
 
-export const ADMIN_SESSION_COOKIE = "afripay_admin_session";
+import { parseUserSessionToken, USER_SESSION_COOKIE } from "@/lib/user-session";
 
 function encoder() {
   return new TextEncoder();
@@ -16,7 +16,7 @@ async function sha256Hex(value: string) {
 }
 
 export function getAdminEmail() {
-  return process.env.ADMIN_EMAIL?.trim() || "";
+  return process.env.ADMIN_EMAIL?.trim().toLowerCase() || "";
 }
 
 export function getAdminPasswordHash() {
@@ -31,16 +31,13 @@ export function isAdminAuthConfigured() {
   return Boolean(getAdminEmail() && getAdminPasswordHash() && getAdminSessionSecret());
 }
 
-export async function hashAdminPassword(password: string) {
-  return sha256Hex(password);
+export function isAdminEmail(email?: string | null) {
+  const normalizedEmail = email?.trim().toLowerCase() || "";
+  return Boolean(normalizedEmail) && normalizedEmail === getAdminEmail();
 }
 
-export async function createAdminSessionToken() {
-  if (!isAdminAuthConfigured()) {
-    return "";
-  }
-
-  return sha256Hex(`${getAdminEmail()}:${getAdminPasswordHash()}:${getAdminSessionSecret()}:afripay-admin`);
+export async function hashAdminPassword(password: string) {
+  return sha256Hex(password);
 }
 
 export async function validateAdminCredentials(email: string, password: string) {
@@ -54,26 +51,8 @@ export async function validateAdminCredentials(email: string, password: string) 
   return submittedEmail === getAdminEmail() && submittedPasswordHash === getAdminPasswordHash();
 }
 
-export async function isValidAdminSessionToken(token?: string | null) {
-  if (!token || !isAdminAuthConfigured()) {
-    return false;
-  }
-
-  return token === await createAdminSessionToken();
-}
-
 export async function isAdminAuthenticated() {
   const cookieStore = await cookies();
-  return isValidAdminSessionToken(cookieStore.get(ADMIN_SESSION_COOKIE)?.value);
-}
-
-export function getAdminSessionCookieConfig() {
-  return {
-    name: ADMIN_SESSION_COOKIE,
-    httpOnly: true,
-    sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-  };
+  const session = await parseUserSessionToken(cookieStore.get(USER_SESSION_COOKIE)?.value);
+  return isAdminEmail(session?.email);
 }
