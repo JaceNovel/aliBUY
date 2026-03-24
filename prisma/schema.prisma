@@ -128,6 +128,190 @@ model AlibabaIntegrationLog {
   @@index([status])
 }
 
+model AlibabaSupplierAccountRecord {
+  id                    String   @id
+  name                  String
+  email                 String
+  accountPlatform       String
+  countryCode           String
+  defaultDispatchLocation String
+  status                String
+  memberId              String?
+  resourceOwner         String?
+  appKey                String?
+  appSecret             Json?
+  authorizeUrl          String?
+  tokenUrl              String?
+  refreshUrl            String?
+  apiBaseUrl            String?
+  accessToken           Json?
+  refreshToken          Json?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  accountId             String?
+  accountLogin          String?
+  accountName           String?
+  oauthCountry          String?
+  isActive              Boolean  @default(false)
+  hasAppSecret          Boolean  @default(false)
+  hasAccessToken        Boolean  @default(false)
+  hasRefreshToken       Boolean  @default(false)
+  lastAuthorizedAt      DateTime?
+  lastError             String?
+  accessTokenHint       String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([isActive, status])
+  @@index([status])
+  @@index([updatedAt])
+}
+
+model AlibabaImportJobRecord {
+  id                 String   @id
+  query              String
+  limit              Int
+  fulfillmentChannel String
+  autoPublish        Boolean  @default(false)
+  status             String
+  importedCount      Int      @default(0)
+  errorMessage       String?
+  productIds         Json
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([status])
+  @@index([updatedAt])
+}
+
+model AlibabaImportedProductRecord {
+  id                String   @id
+  sourceProductId   String
+  categorySlug      String?
+  categoryTitle     String?
+  categoryPath      Json?
+  slug              String   @unique
+  title             String
+  shortTitle        String
+  description       String
+  query             String
+  keywords          Json
+  image             String
+  gallery           Json
+  videoUrl          String?
+  videoPoster       String?
+  packaging         String
+  itemWeightGrams   Int
+  lotCbm            String
+  minUsd            Float
+  maxUsd            Float?
+  moq               Int
+  unit              String
+  badge             String?
+  supplierName      String
+  supplierLocation  String
+  supplierCompanyId String?
+  responseTime      String
+  yearsInBusiness   Int
+  transactionsLabel String
+  soldLabel         String
+  customizationLabel String
+  shippingLabel     String
+  overview          Json
+  variantGroups     Json
+  tiers             Json
+  specs             Json
+  inventory         Int
+  status            String
+  publishedToSite   Boolean  @default(false)
+  publishedAt       DateTime?
+  rawPayload        Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([status])
+  @@index([publishedToSite])
+  @@index([updatedAt])
+}
+
+model AlibabaCountryProfileRecord {
+  countryCode         String  @id
+  countryName         String
+  currencyCode        String
+  defaultCarrierCode  String
+  importTaxRate       Float
+  customsMode         String
+  clearanceCodeLabel  String
+  enabled             Boolean @default(true)
+}
+
+model AlibabaReceptionAddressRecord {
+  id                    String   @id
+  label                 String
+  contactName           String
+  phone                 String
+  email                 String
+  addressLine1          String
+  addressLine2          String?
+  city                  String
+  state                 String
+  postalCode            String?
+  countryCode           String
+  port                  String?
+  portCode              String?
+  isDefault             Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([isDefault])
+  @@index([updatedAt])
+}
+
+model AlibabaPurchaseOrderRecord {
+  id                    String   @id
+  sourceImportedProductId String
+  sourceProductId       String
+  productTitle          String
+  supplierName          String
+  supplierCompanyId     String?
+  quantity              Int
+  shippingAddressId     String
+  logisticsPayload      Json
+  buyNowPayload         Json
+  freightStatus         String
+  orderStatus           String
+  paymentStatus         String
+  tradeId               String?
+  payUrl                String?
+  payFailureReason      String?
+  amountUsd             Float
+  rawFreightResponse    Json?
+  rawOrderResponse      Json?
+  rawPaymentResponse    Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([orderStatus])
+  @@index([paymentStatus])
+  @@index([updatedAt])
+}
+
+model AlibabaReceptionRecordItem {
+  id               String   @id
+  purchaseOrderId  String
+  productTitle     String
+  quantityExpected Int
+  quantityReceived Int
+  status           String
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([purchaseOrderId])
+  @@index([status])
+  @@index([updatedAt])
+}
+
 model User {
   id                   String                @id @default(cuid())
   email                String                @unique

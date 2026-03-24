@@ -5,7 +5,7 @@
   "description": "AliPay marketplace clone built with Next.js frontend and backend pricing context.",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma db push && next build",
     "start": "next start",
     "postinstall": "prisma generate",
     "lint": "eslint",
