@@ -53,6 +53,13 @@ type AlibabaProductSearchResult = {
   skipped?: boolean;
 };
 
+type ExtractedPriceTier = {
+  minimumQuantity: number;
+  quantityLabel: string;
+  priceUsd: number;
+  note?: string;
+};
+
 function normalizeBaseUrl(value: string) {
   return value.replace(/\/+$/, "").replace(/\/rest$/, "");
 }
@@ -220,6 +227,209 @@ function getPriceBounds(...candidates: unknown[]) {
   return {
     min: Math.min(...values),
     max: values.length > 1 ? Math.max(...values) : undefined,
+  };
+}
+
+function parsePositiveNumber(candidate: unknown) {
+  if (typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0) {
+    return candidate;
+  }
+
+  if (typeof candidate !== "string") {
+    return undefined;
+  }
+
+  const match = candidate.match(/\d+(?:[.,]\d+)?/);
+  if (!match) {
+    return undefined;
+  }
+
+  const value = Number(match[0].replace(',', '.'));
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function getTierMinimum(label: string) {
+  const normalized = label.toLowerCase();
+  const betweenMatch = normalized.match(/(\d+)\s*[-~]\s*(\d+)/);
+  if (betweenMatch) {
+    return Number(betweenMatch[1]);
+  }
+
+  const greaterMatch = normalized.match(/(?:>=|over|above|more than)\s*(\d+)/);
+  if (greaterMatch) {
+    return Number(greaterMatch[1]);
+  }
+
+  const directMatch = normalized.match(/\d+/);
+  return directMatch ? Number(directMatch[0]) : 1;
+}
+
+function buildQuantityLabel(minimumQuantity: number, maximumQuantity?: number, unit = "piece") {
+  if (typeof maximumQuantity === "number" && maximumQuantity >= minimumQuantity) {
+    return `${minimumQuantity}-${maximumQuantity} ${unit}`;
+  }
+
+  return `${minimumQuantity}+ ${unit}`;
+}
+
+function normalizeExtractedPriceTiers(tiers: ExtractedPriceTier[]) {
+  const unique = new Map<string, ExtractedPriceTier>();
+
+  for (const tier of tiers) {
+    if (!Number.isFinite(tier.priceUsd) || tier.priceUsd <= 0 || !Number.isFinite(tier.minimumQuantity) || tier.minimumQuantity <= 0) {
+      continue;
+    }
+
+    const key = `${tier.minimumQuantity}:${tier.priceUsd.toFixed(4)}`;
+    if (!unique.has(key)) {
+      unique.set(key, {
+        ...tier,
+        quantityLabel: tier.quantityLabel.trim(),
+      });
+    }
+  }
+
+  return [...unique.values()].sort((left, right) => left.minimumQuantity - right.minimumQuantity);
+}
+
+function extractPriceTiersFromString(value: string, unit = "piece") {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (!normalized || !/(piece|pieces|pcs|unit|units|set|sets|qty|quantity|moq|order)/i.test(normalized)) {
+    return [] as ExtractedPriceTier[];
+  }
+
+  const pattern = /(?:^|\b)(>=\s*)?(\d{1,6})(?:\s*[-~]\s*(\d{1,6}))?\s*(?:pieces?|piece|pcs?|units?|unit|sets?|qty)?[^\d$€£¥]{0,12}(?:[$€£¥]\s*)?(\d+(?:[.,]\d+)?)/gi;
+  const tiers: ExtractedPriceTier[] = [];
+
+  for (const match of normalized.matchAll(pattern)) {
+    const minimumQuantity = Number(match[2]);
+    const maximumQuantity = match[3] ? Number(match[3]) : undefined;
+    const priceUsd = Number(match[4].replace(',', '.'));
+
+    if (!Number.isFinite(minimumQuantity) || minimumQuantity <= 0 || !Number.isFinite(priceUsd) || priceUsd <= 0) {
+      continue;
+    }
+
+    tiers.push({
+      minimumQuantity,
+      quantityLabel: buildQuantityLabel(minimumQuantity, maximumQuantity, unit),
+      priceUsd,
+      note: match[1] ? "Grand volume" : undefined,
+    });
+  }
+
+  return normalizeExtractedPriceTiers(tiers);
+}
+
+function extractPriceTierFromRecord(record: Record<string, unknown>, unit = "piece") {
+  const priceUsd = parsePositiveNumber(
+    record.price,
+  ) ?? parsePositiveNumber(record.sale_price)
+    ?? parsePositiveNumber(record.salePrice)
+    ?? parsePositiveNumber(record.discount_price)
+    ?? parsePositiveNumber(record.discountPrice)
+    ?? parsePositiveNumber(record.unit_price)
+    ?? parsePositiveNumber(record.unitPrice)
+    ?? parsePositiveNumber(record.display_price)
+    ?? parsePositiveNumber(record.displayPrice)
+    ?? parsePositiveNumber(record.price_value)
+    ?? parsePositiveNumber(record.priceValue)
+    ?? (record.sku_price && typeof record.sku_price === "object" ? parsePositiveNumber((record.sku_price as Record<string, unknown>).price) : undefined);
+
+  const minimumQuantity = parsePositiveNumber(record.begin_amount)
+    ?? parsePositiveNumber(record.beginAmount)
+    ?? parsePositiveNumber(record.min_order_quantity)
+    ?? parsePositiveNumber(record.minOrderQuantity)
+    ?? parsePositiveNumber(record.minimum_order_quantity)
+    ?? parsePositiveNumber(record.minimumOrderQuantity)
+    ?? parsePositiveNumber(record.quantity_min)
+    ?? parsePositiveNumber(record.quantityMin)
+    ?? parsePositiveNumber(record.min_qty)
+    ?? parsePositiveNumber(record.minQty)
+    ?? parsePositiveNumber(record.start_quantity)
+    ?? parsePositiveNumber(record.startQuantity)
+    ?? parsePositiveNumber(record.from);
+  const maximumQuantity = parsePositiveNumber(record.max_order_quantity)
+    ?? parsePositiveNumber(record.maxOrderQuantity)
+    ?? parsePositiveNumber(record.quantity_max)
+    ?? parsePositiveNumber(record.quantityMax)
+    ?? parsePositiveNumber(record.max_qty)
+    ?? parsePositiveNumber(record.maxQty)
+    ?? parsePositiveNumber(record.end_quantity)
+    ?? parsePositiveNumber(record.endQuantity)
+    ?? parsePositiveNumber(record.to);
+
+  if (!priceUsd || !minimumQuantity) {
+    return null;
+  }
+
+  return {
+    minimumQuantity: Math.round(minimumQuantity),
+    quantityLabel: buildQuantityLabel(Math.round(minimumQuantity), typeof maximumQuantity === "number" ? Math.round(maximumQuantity) : undefined, unit),
+    priceUsd,
+    note: getStringValue(record.note) ?? getStringValue(record.remark) ?? getStringValue(record.description),
+  } satisfies ExtractedPriceTier;
+}
+
+function collectPriceTiers(value: unknown, depth = 0, keyHint?: string, unit = "piece"): ExtractedPriceTier[] {
+  if (depth > 6 || value == null) {
+    return [];
+  }
+
+  if (typeof value === "string") {
+    if (/price|tier|ladder|range|wholesale|amount/i.test(keyHint ?? "") || /(piece|pcs|qty|moq|order)/i.test(value)) {
+      return extractPriceTiersFromString(value, unit);
+    }
+
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return normalizeExtractedPriceTiers(value.flatMap((entry) => collectPriceTiers(entry, depth + 1, keyHint, unit)));
+  }
+
+  if (typeof value !== "object") {
+    return [];
+  }
+
+  const record = value as Record<string, unknown>;
+  const directTier = extractPriceTierFromRecord(record, unit);
+  const nestedTiers = Object.entries(record).flatMap(([nestedKey, nestedValue]) => collectPriceTiers(nestedValue, depth + 1, nestedKey, unit));
+
+  return normalizeExtractedPriceTiers([
+    ...(directTier ? [directTier] : []),
+    ...nestedTiers,
+  ]);
+}
+
+function summarizeAlibabaPriceData(input: {
+  unit?: string;
+  moq?: number;
+  values: unknown[];
+}) {
+  const tiers = normalizeExtractedPriceTiers(input.values.flatMap((value) => collectPriceTiers(value, 0, undefined, input.unit ?? "piece")));
+  const boundsFromTiers = tiers.length > 0
+    ? {
+        min: Math.min(...tiers.map((tier) => tier.priceUsd)),
+        max: tiers.length > 1 ? Math.max(...tiers.map((tier) => tier.priceUsd)) : undefined,
+      }
+    : { min: undefined, max: undefined };
+  const boundsFromRaw = getPriceBounds(...input.values);
+  const bounds = hasCoherentPrice(boundsFromTiers) ? boundsFromTiers : boundsFromRaw;
+  const fallbackTiers = hasCoherentPrice(bounds)
+    ? [{
+        minimumQuantity: Math.max(1, input.moq ?? 1),
+        quantityLabel: `${Math.max(1, input.moq ?? 1)}+ ${input.unit ?? "piece"}`,
+        priceUsd: bounds.max ?? bounds.min ?? 0,
+        note: undefined,
+      } satisfies ExtractedPriceTier]
+    : [];
+
+  return {
+    tiers: tiers.length > 0 ? tiers : fallbackTiers,
+    min: bounds.min,
+    max: bounds.max,
+    verified: tiers.length > 0 || hasCoherentPrice(bounds),
   };
 }
 
@@ -658,14 +868,21 @@ function enrichAlibabaSearchProduct(product: AlibabaSearchProduct, detailRecord:
 
   const tradeInfo = (detailRecord.trade_info && typeof detailRecord.trade_info === "object") ? detailRecord.trade_info as Record<string, unknown> : {};
   const logisticsInfo = (detailRecord.logistics_info && typeof detailRecord.logistics_info === "object") ? detailRecord.logistics_info as Record<string, unknown> : {};
-  const detailPriceBounds = getPriceBounds(
-    detailRecord.price,
-    detailRecord.min_price,
-    detailRecord.max_price,
-    (tradeInfo.price as { range_price?: { min_price?: unknown; max_price?: unknown } } | undefined)?.range_price?.min_price,
-    (tradeInfo.price as { range_price?: { min_price?: unknown; max_price?: unknown } } | undefined)?.range_price?.max_price,
-    (tradeInfo.price as { tiered_price?: Array<{ price?: unknown }> } | undefined)?.tiered_price?.[0]?.price,
-  );
+  const detailPriceData = summarizeAlibabaPriceData({
+    unit: product.unit,
+    moq: product.moq,
+    values: [
+      detailRecord.price,
+      detailRecord.min_price,
+      detailRecord.max_price,
+      detailRecord.wholesale_trade,
+      detailRecord.trade_info,
+      detailRecord.price_info,
+      (tradeInfo.price as { range_price?: { min_price?: unknown; max_price?: unknown } } | undefined)?.range_price,
+      (tradeInfo.price as { tiered_price?: Array<{ price?: unknown }> } | undefined)?.tiered_price,
+      detailRecord,
+    ],
+  });
   const fallbackPriceBounds = product.priceVerified
     ? {
         min: product.minUsd,
@@ -675,7 +892,7 @@ function enrichAlibabaSearchProduct(product: AlibabaSearchProduct, detailRecord:
         min: undefined,
         max: undefined,
       };
-  const priceBounds = hasCoherentPrice(detailPriceBounds) ? detailPriceBounds : fallbackPriceBounds;
+  const priceBounds = detailPriceData.verified ? { min: detailPriceData.min, max: detailPriceData.max } : fallbackPriceBounds;
   const verifiedMoq = extractVerifiedMoq(detailRecord) ?? extractVerifiedMoq(tradeInfo);
   const moq = verifiedMoq ?? product.moq;
   const weightFromLogistics = getNumberValue(logisticsInfo.weight);
@@ -695,9 +912,16 @@ function enrichAlibabaSearchProduct(product: AlibabaSearchProduct, detailRecord:
     minUsd: priceBounds.min ?? product.minUsd,
     maxUsd: priceBounds.max ?? product.maxUsd,
     moq,
+    tiers: detailPriceData.tiers.length > 0
+      ? detailPriceData.tiers.map((tier) => ({
+          quantityLabel: tier.quantityLabel,
+          priceUsd: tier.priceUsd,
+          note: tier.note,
+        }))
+      : product.tiers,
     moqVerified: typeof verifiedMoq === "number" && verifiedMoq > 0,
     weightVerified: typeof weightGrams === "number" && weightGrams > 0,
-    priceVerified: hasCoherentPrice(priceBounds),
+    priceVerified: detailPriceData.verified || product.priceVerified === true,
     rawPayload: mergedPayload,
   };
 }
@@ -869,23 +1093,27 @@ function mapAlibabaSearchResultToProduct(raw: Record<string, unknown>, query: st
     return null;
   }
 
-  const priceBounds = getPriceBounds(
-    raw.min_price,
-    raw.minPrice,
-    raw.price,
-    raw.sale_price,
-    raw.max_price,
-    raw.maxPrice,
-    (raw.priceRange as { min?: unknown } | undefined)?.min,
-    (raw.priceRange as { max?: unknown } | undefined)?.max,
-    (raw.price_range as { min?: unknown } | undefined)?.min,
-    (raw.price_range as { max?: unknown } | undefined)?.max,
-  );
-  const minUsd = priceBounds.min ?? 1;
-  const maxUsd = priceBounds.max;
+  const unit = getStringValue(raw.unit) ?? getStringValue(raw.unit_name) ?? "piece";
+  const priceData = summarizeAlibabaPriceData({
+    unit,
+    values: [
+      raw.min_price,
+      raw.minPrice,
+      raw.price,
+      raw.sale_price,
+      raw.max_price,
+      raw.maxPrice,
+      raw.priceRange,
+      raw.price_range,
+      raw.price_info,
+      raw.wholesale_trade,
+      raw,
+    ],
+  });
+  const minUsd = priceData.min ?? 1;
+  const maxUsd = priceData.max;
   const verifiedMoq = extractVerifiedMoq(raw);
   const moq = verifiedMoq ?? 1;
-  const unit = getStringValue(raw.unit) ?? getStringValue(raw.unit_name) ?? "piece";
   const supplierName = getStringValue(raw.company_name)
     ?? getStringValue(raw.supplier_name)
     ?? getStringValue(raw.seller_name)
@@ -942,11 +1170,11 @@ function mapAlibabaSearchResultToProduct(raw: Record<string, unknown>, query: st
     shippingLabel: getStringValue(raw.shipping_label) ?? "Transport a configurer",
     overview,
     variantGroups: [],
-    tiers: [{ quantityLabel: `${moq}+`, priceUsd: minUsd }],
+    tiers: priceData.tiers.map((tier) => ({ quantityLabel: tier.quantityLabel, priceUsd: tier.priceUsd, note: tier.note })),
     specs,
     moqVerified: typeof verifiedMoq === "number" && verifiedMoq > 0,
     weightVerified: typeof weightGrams === "number" && weightGrams > 0,
-    priceVerified: hasCoherentPrice(priceBounds),
+    priceVerified: priceData.verified,
     rawPayload: raw,
   };
 }
@@ -973,14 +1201,20 @@ function mapAlibabaIcbuProductToProduct(raw: Record<string, unknown>, query: str
   const categoryAttributes = Array.isArray(categoryInfo.attributes)
     ? categoryInfo.attributes as Array<Record<string, unknown>>
     : [];
-  const priceBounds = getPriceBounds(
-    (tradeInfo.price as { range_price?: { min_price?: unknown } } | undefined)?.range_price?.min_price,
-    (tradeInfo.price as { range_price?: { max_price?: unknown } } | undefined)?.range_price?.max_price,
-    (tradeInfo.price as { tiered_price?: Array<{ price?: unknown }> } | undefined)?.tiered_price?.[0]?.price,
-    skuInfo[0] && typeof skuInfo[0].sku_price === "object" ? (skuInfo[0].sku_price as { price?: unknown }).price : undefined,
-  );
-  const minUsd = priceBounds.min ?? 1;
-  const maxUsd = priceBounds.max;
+  const unit = getStringValue(tradeInfo.unit) ?? "piece";
+  const priceData = summarizeAlibabaPriceData({
+    unit,
+    values: [
+      tradeInfo.price,
+      tradeInfo.wholesale_trade,
+      raw.wholesale_trade,
+      skuInfo,
+      raw.price_info,
+      raw,
+    ],
+  });
+  const minUsd = priceData.min ?? 1;
+  const maxUsd = priceData.max;
   const verifiedMoq = extractVerifiedMoq(raw) ?? extractVerifiedMoq(tradeInfo);
   const moq = verifiedMoq ?? 1;
   const weight = getNumberValue(logisticsInfo.weight);
@@ -1019,7 +1253,7 @@ function mapAlibabaIcbuProductToProduct(raw: Record<string, unknown>, query: str
     minUsd,
     maxUsd,
     moq,
-    unit: getStringValue(tradeInfo.unit) ?? "piece",
+    unit,
     badge: "Alibaba ICBU",
     supplierName: "Catalogue vendeur Alibaba",
     supplierLocation: getStringValue(basicInfo.language) ?? "en_US",
@@ -1032,11 +1266,11 @@ function mapAlibabaIcbuProductToProduct(raw: Record<string, unknown>, query: str
     shippingLabel: getStringValue(logisticsInfo.shipping_template_id) ? `Template ${getStringValue(logisticsInfo.shipping_template_id)}` : "Transport a configurer",
     overview,
     variantGroups: [],
-    tiers: [{ quantityLabel: `${moq}+`, priceUsd: minUsd }],
+    tiers: priceData.tiers.map((tier) => ({ quantityLabel: tier.quantityLabel, priceUsd: tier.priceUsd, note: tier.note })),
     specs,
     moqVerified: typeof verifiedMoq === "number" && verifiedMoq > 0,
     weightVerified: typeof verifiedWeightGrams === "number" && verifiedWeightGrams > 0,
-    priceVerified: hasCoherentPrice(priceBounds),
+    priceVerified: priceData.verified,
     rawPayload: raw,
   };
 }

@@ -19,6 +19,7 @@ import { getCatalogCategories } from "@/lib/catalog-category-service";
 import { getCatalogProducts } from "@/lib/catalog-service";
 import { getMessages } from "@/lib/messages";
 import { type ProductCatalogItem } from "@/lib/products-data";
+import { formatTierAwarePrice } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
 import { getCurrentUser } from "@/lib/user-auth";
 
@@ -41,18 +42,6 @@ type QuickAction = {
   icon: LucideIcon;
   href: string;
 };
-
-function formatPriceRange(
-  formatPrice: (amountUsd: number) => string,
-  minUsd: number,
-  maxUsd?: number,
-) {
-  if (typeof maxUsd === "number") {
-    return `${formatPrice(minUsd)} - ${formatPrice(maxUsd)}`;
-  }
-
-  return formatPrice(minUsd);
-}
 
 function ProductCardItem({
   item,
@@ -93,7 +82,7 @@ function ProductCardItem({
       </div>
       <div className="mt-2.5 flex items-end gap-2 sm:mt-3">
         <div className="whitespace-nowrap text-[13px] font-bold leading-none tracking-[-0.03em] text-[#222] sm:text-[15px] xl:text-[16px]">
-          {formatPriceRange(formatPrice, item.minUsd, item.maxUsd)}
+          {formatTierAwarePrice(formatPrice, item)}
         </div>
       </div>
       <div className="mt-1 text-[10px] text-[#666] sm:mt-2 sm:text-[12px]">{moqLabel}: {item.moq} {item.unit}</div>
@@ -536,7 +525,7 @@ export default async function Home() {
                     {product.title}
                   </div>
                   <div className="mt-3 whitespace-nowrap text-[13px] font-bold tracking-[-0.04em] text-[#d64000] sm:mt-4 sm:text-[15px] xl:text-[16px]">
-                    {formatPriceRange(pricing.formatPrice, product.minUsd, product.maxUsd)}
+                    {formatTierAwarePrice(pricing.formatPrice, product)}
                   </div>
                   <div className="mt-3 inline-flex items-center gap-2 text-[12px] font-semibold text-[#222] sm:mt-5 sm:text-[14px]">
                     {messages.common.viewOffer}

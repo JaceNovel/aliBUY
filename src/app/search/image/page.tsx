@@ -4,19 +4,8 @@ import { Camera, Search } from "lucide-react";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { getCatalogProductsBySlugs } from "@/lib/catalog-service";
+import { formatTierAwarePrice } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
-
-function formatPriceRange(
-  formatPrice: (amountUsd: number) => string,
-  minUsd: number,
-  maxUsd?: number,
-) {
-  if (typeof maxUsd === "number") {
-    return `${formatPrice(minUsd)} - ${formatPrice(maxUsd)}`;
-  }
-
-  return formatPrice(minUsd);
-}
 
 export default async function ImageSearchPage({
   searchParams,
@@ -72,7 +61,7 @@ export default async function ImageSearchPage({
                 <div className="mt-2.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#d04a0a] sm:mt-4 sm:text-[11px] sm:tracking-[0.14em]">Correspondance image</div>
                 <div className="mt-1.5 line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-4 text-[#222] sm:mt-2 sm:min-h-12 sm:text-[16px] sm:leading-6">{product.title}</div>
                 <div className="mt-2 text-[14px] font-bold tracking-[-0.03em] text-[#f05a00] sm:mt-3 sm:text-[18px]">
-                  {formatPriceRange(pricing.formatPrice, product.minUsd, product.maxUsd)}
+                  {formatTierAwarePrice(pricing.formatPrice, product)}
                 </div>
                 <div className="mt-1 text-[10px] text-[#666] sm:mt-2 sm:text-[13px]">MOQ: {product.moq} {product.unit}</div>
               </Link>

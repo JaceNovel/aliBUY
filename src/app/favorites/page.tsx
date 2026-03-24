@@ -5,6 +5,7 @@ import { Heart, Sparkles } from "lucide-react";
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { getCatalogProductsBySlugs } from "@/lib/catalog-service";
 import { getUserFavoriteSlugs } from "@/lib/customer-data-store";
+import { formatTierAwarePrice } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
 import { getCurrentUser } from "@/lib/user-auth";
 
@@ -51,7 +52,7 @@ export default async function FavoritesPage() {
               </div>
               <div className="p-2.5 sm:p-5">
                 <div className="line-clamp-3 min-h-[48px] text-[12px] font-semibold leading-4 text-[#222] sm:min-h-[84px] sm:text-[20px] sm:leading-7">{item.title}</div>
-                <div className="mt-2 text-[14px] font-bold tracking-[-0.04em] text-[#d85300] sm:mt-4 sm:text-[24px]">{pricing.formatPrice(item.minUsd)}{typeof item.maxUsd === "number" ? ` - ${pricing.formatPrice(item.maxUsd)}` : ""}</div>
+                <div className="mt-2 text-[14px] font-bold tracking-[-0.04em] text-[#d85300] sm:mt-4 sm:text-[24px]">{formatTierAwarePrice(pricing.formatPrice, item)}</div>
                 <Link href={`/products/${item.slug}`} className="mt-3 inline-flex h-9 items-center justify-center rounded-full border border-[#222] px-4 text-[12px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:mt-5 sm:h-12 sm:px-6 sm:text-[15px]">
                   Voir le produit
                 </Link>

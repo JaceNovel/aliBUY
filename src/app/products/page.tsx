@@ -6,19 +6,8 @@ import { InternalPageShell } from "@/components/internal-page-shell";
 import { SearchSuggestionInput } from "@/components/search-suggestion-input";
 import { getCatalogCategoryBySlug } from "@/lib/catalog-category-service";
 import { getCatalogProducts, searchCatalogProducts } from "@/lib/catalog-service";
+import { formatTierAwarePrice } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
-
-function formatPriceRange(
-  formatPrice: (amountUsd: number) => string,
-  minUsd: number,
-  maxUsd?: number,
-) {
-  if (typeof maxUsd === "number") {
-    return `${formatPrice(minUsd)} - ${formatPrice(maxUsd)}`;
-  }
-
-  return formatPrice(minUsd);
-}
 
 export default async function ProductsPage({
   searchParams,
@@ -101,7 +90,7 @@ export default async function ProductsPage({
                 <div className="p-2.5 sm:p-3">
                   <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#d04a0a] sm:text-[10px] sm:tracking-[0.14em]">AfriPay Guaranteed</div>
                   <div className="mt-1.5 line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-4 text-[#222] sm:mt-2 sm:min-h-[40px] sm:text-[13px] sm:leading-5">{product.title}</div>
-                  <div className="mt-2 text-[14px] font-bold tracking-[-0.03em] text-[#f05a00] sm:text-[16px]">{formatPriceRange(pricing.formatPrice, product.minUsd, product.maxUsd)}</div>
+                  <div className="mt-2 text-[14px] font-bold tracking-[-0.03em] text-[#f05a00] sm:text-[16px]">{formatTierAwarePrice(pricing.formatPrice, product)}</div>
                   <div className="mt-1 text-[10px] text-[#666] sm:text-[12px]">MOQ: {product.moq} {product.unit}</div>
                 </div>
               </Link>

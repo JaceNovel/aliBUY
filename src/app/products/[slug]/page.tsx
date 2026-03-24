@@ -3,21 +3,10 @@ import { notFound } from "next/navigation";
 import { ProductDetailClient } from "@/app/products/[slug]/product-detail-client";
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { getCatalogProductBySlug, getCatalogProducts, getCatalogRelatedProducts } from "@/lib/catalog-service";
+import { formatTierAwarePrice } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
 import { getCurrentUser } from "@/lib/user-auth";
 import { isUserFavoriteProduct } from "@/lib/customer-data-store";
-
-function formatPriceRange(
-  formatPrice: (amountUsd: number) => string,
-  minUsd: number,
-  maxUsd?: number,
-) {
-  if (typeof maxUsd === "number") {
-    return `${formatPrice(minUsd)} - ${formatPrice(maxUsd)}`;
-  }
-
-  return formatPrice(minUsd);
-}
 
 export async function generateStaticParams() {
   const products = await getCatalogProducts();
@@ -42,7 +31,7 @@ export default async function ProductPage({
     slug: relatedProduct.slug,
     title: relatedProduct.shortTitle,
     image: relatedProduct.image,
-    formattedPrice: formatPriceRange(pricing.formatPrice, relatedProduct.minUsd, relatedProduct.maxUsd),
+    formattedPrice: formatTierAwarePrice(pricing.formatPrice, relatedProduct),
     moqLabel: relatedProduct.moqVerified ? `MOQ: ${relatedProduct.moq} ${relatedProduct.unit}` : "MOQ fournisseur a confirmer",
   }));
   const initialIsFavorite = user ? await isUserFavoriteProduct(user.id, product.slug) : false;
@@ -81,7 +70,7 @@ export default async function ProductPage({
           })),
           variantGroups: product.variantGroups,
           specs: product.specs,
-          formattedPriceRange: formatPriceRange(pricing.formatPrice, product.minUsd, product.maxUsd),
+          formattedPriceRange: formatTierAwarePrice(pricing.formatPrice, product),
           moqLabel: product.moqVerified ? `MOQ: ${product.moq} ${product.unit}` : "MOQ fournisseur a confirmer",
           badge: product.badge,
         }}

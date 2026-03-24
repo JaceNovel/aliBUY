@@ -17,6 +17,7 @@ import type {
   AlibabaSupplierAccount,
 } from "@/lib/alibaba-operations";
 import type { AlibabaCatalogMapping } from "@/lib/alibaba-sourcing";
+import { formatTierAwarePrice, formatTierAwarePriceMeta } from "@/lib/product-price-display";
 
 type DashboardData = {
   panel: AlibabaPanelSlug;
@@ -53,9 +54,7 @@ const panelLinks: Array<{ key: AlibabaPanelSlug; label: string; href: string }> 
 ];
 
 function formatImportedPrice(product: AlibabaImportedProduct) {
-  return typeof product.maxUsd === "number"
-    ? `$${product.minUsd.toFixed(2)} - $${product.maxUsd.toFixed(2)}`
-    : `$${product.minUsd.toFixed(2)}`;
+  return formatTierAwarePrice((amountUsd) => `$${amountUsd.toFixed(2)}`, product);
 }
 
 export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
@@ -546,7 +545,10 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
                           <div className="rounded-full bg-[#fff7ed] px-3 py-1 text-[12px] font-semibold text-[#c2410c]">{product.status}</div>
                         </div>
                         <div className="mt-3 flex flex-wrap items-center gap-3">
-                          <div className="text-[14px] font-bold text-[#111827]">{formatImportedPrice(product)}</div>
+                          <div>
+                            <div className="text-[14px] font-bold text-[#111827]">{formatImportedPrice(product)}</div>
+                            {formatTierAwarePriceMeta(product) ? <div className="mt-1 text-[11px] text-[#667085]">{formatTierAwarePriceMeta(product)}</div> : null}
+                          </div>
                           <input value={quantityByProduct[product.id] ?? product.moq} onChange={(event) => setQuantityByProduct((current) => ({ ...current, [product.id]: Number(event.target.value) }))} type="number" min={1} className="h-10 w-28 rounded-[12px] border border-[#d7dce5] px-3 text-[13px] text-[#111827] outline-none focus:border-[#ff6a00]" />
                           <button type="button" onClick={() => createPurchaseOrder(product.id)} className="inline-flex h-10 items-center justify-center rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]">Auto achat</button>
                           <button type="button" onClick={() => reenrichImportedItem(product.id)} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#dbe2ea] bg-white px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
