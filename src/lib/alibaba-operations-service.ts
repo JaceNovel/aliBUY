@@ -239,6 +239,8 @@ export async function runAlibabaCatalogImport(input: {
   await saveAlibabaImportJob(job);
 
   try {
+    const existingImportedProducts = await getAlibabaImportedProducts();
+    const existingSourceProductIds = new Set(existingImportedProducts.map((product) => product.sourceProductId));
     const searchResult = await searchAlibabaProducts({
       query: job.query,
       limit: job.limit,
@@ -253,7 +255,10 @@ export async function runAlibabaCatalogImport(input: {
       throw new Error("Aucun produit live renvoye par Alibaba pour cette recherche.");
     }
 
-    const importedProducts = searchResult.products.map((product) => ({
+    const uniqueSearchProducts = searchResult.products.filter((product, index, products) => products.findIndex((entry) => entry.sourceProductId === product.sourceProductId) === index);
+    const freshProducts = uniqueSearchProducts.filter((product) => !existingSourceProductIds.has(product.sourceProductId));
+
+    const importedProducts = freshProducts.map((product) => ({
       ...toImportedProduct(product, job.query, input.autoPublish),
       ...(() => {
         const categoryInfo = extractAlibabaCategoryInfo({
@@ -273,7 +278,10 @@ export async function runAlibabaCatalogImport(input: {
       supplierCompanyId: product.supplierCompanyId,
       rawPayload: product.rawPayload,
     }));
-    await saveAlibabaImportedProducts(importedProducts);
+
+    if (importedProducts.length > 0) {
+      await saveAlibabaImportedProducts(importedProducts);
+    }
 
     const completedJob: AlibabaImportJob = {
       ...job,
@@ -290,6 +298,7 @@ export async function runAlibabaCatalogImport(input: {
       requestBody: input,
       responseBody: {
         importedCount: importedProducts.length,
+        skippedExistingCount: uniqueSearchProducts.length - freshProducts.length,
         fallback: false,
       },
     });

@@ -124,7 +124,8 @@ export default async function Home() {
   const megaMenuCategories: CategoryMegaMenuCategory[] = catalogCategories.slice(0, 9).map((category) => ({
     slug: category.slug,
     title: category.title,
-    products: category.products.slice(0, 14).map((product) => ({
+    href: category.href,
+    products: category.products.slice(0, 5).map((product) => ({
       slug: product.slug,
       shortTitle: product.shortTitle,
       image: product.image,
@@ -187,20 +188,16 @@ export default async function Home() {
       })),
     },
   ].filter((group) => group.items.length > 0);
-  const discoverySlides = discoveryHistoryItems[0]
-    ? [
-        {
-          id: discoveryHistoryItems[0].slug,
-          image: discoveryHistoryItems[0].image,
-          alt: discoveryHistoryItems[0].title,
-          eyebrow: "Catalogue importe",
-          title: discoveryHistoryItems[0].shortTitle,
-          subtitle: "Produit publie depuis ton cockpit Alibaba.",
-          buttonLabel: "Voir le produit",
-          href: `/products/${discoveryHistoryItems[0].slug}`,
-        },
-      ]
-    : [];
+  const discoverySlides: Array<{
+    id: string;
+    image: string;
+    alt: string;
+    eyebrow?: string;
+    title: string;
+    subtitle?: string;
+    buttonLabel: string;
+    href: string;
+  }> = [];
   const recommendationCopy = [
     { eyebrow: "Pour ton sourcing", eta: "Publication recente" },
     { eyebrow: "Catalogue live", eta: "Media et prix actifs" },
@@ -294,7 +291,7 @@ export default async function Home() {
           <div className="border-t border-black/6">
             <div className="py-3 text-[14px]">
               <div className="mb-3 sm:hidden">
-                <MobileCategoryStrip allLabel="Tous" categories={catalogCategories.map((category) => ({ label: category.title, href: `/categories/${category.slug}` }))} />
+                <MobileCategoryStrip allLabel="Tous" categories={catalogCategories.map((category) => ({ label: category.title, href: category.href }))} />
               </div>
 
               <nav className="mb-4 grid grid-cols-4 gap-3 sm:hidden">
@@ -392,7 +389,7 @@ export default async function Home() {
           <HomeDiscoveryShowcase
             categories={catalogCategories.slice(0, 8).map((category) => ({
               title: category.title,
-              href: `/categories/${category.slug}`,
+              href: category.href,
             }))}
             historyCard={discoveryHistoryItems[0] ? {
               title: discoveryHistoryItems[0].title,

@@ -263,6 +263,76 @@ function dedupeStrings(values: string[]) {
   return [...new Set(values.filter(Boolean))];
 }
 
+function looksLikeAlibabaAssetLabel(value?: string) {
+  if (!value) {
+    return false;
+  }
+
+  const normalized = value.trim();
+  return /\b220x220\b/i.test(normalized)
+    || /^[a-z0-9]{20,}\.(png|jpg|jpeg|webp)$/i.test(normalized)
+    || /^[a-z0-9]{20,}[-_. ]220x220\.(png|jpg|jpeg|webp)$/i.test(normalized);
+}
+
+function inferAlibabaCategoryFromContent(input: {
+  rawPayload?: unknown;
+  query?: string;
+  title?: string;
+  keywords?: string[];
+}) {
+  const rawCandidates = collectCategoryStrings(input.rawPayload).filter((candidate) => !looksLikeAlibabaAssetLabel(candidate));
+  const haystack = [
+    input.query ?? "",
+    input.title ?? "",
+    ...(input.keywords ?? []),
+    ...rawCandidates,
+  ].join(" ").toLowerCase();
+
+  const rules: Array<{ slug: string; title: string; path: string[]; patterns: RegExp[] }> = [
+    {
+      slug: "keyboard-mouse",
+      title: "Claviers & souris",
+      path: ["Informatique", "Claviers & souris"],
+      patterns: [/\b(mouse|mice|souris|keyboard|keyboards|clavier|claviers|keypad|mouse pad|tapis de souris)\b/i],
+    },
+    {
+      slug: "furniture",
+      title: "Meubles",
+      path: ["Maison & bureau", "Meubles"],
+      patterns: [/\b(furniture|meuble|meubles|desk|bureau|table|chair|fauteuil|sofa|cabinet|shelf|bean bag|office desk|gaming desk|gaming chair)\b/i],
+    },
+    {
+      slug: "fashion-accessories",
+      title: "Mode & accessoires",
+      path: ["Mode", "Mode & accessoires"],
+      patterns: [/\b(hoodie|shirt|t-shirt|fashion|apparel|clothing|vetement|vêtements|sweat|jacket|dress|robe|sac|bag)\b/i],
+    },
+    {
+      slug: "jewelry-accessories",
+      title: "Bijoux & accessoires",
+      path: ["Accessoires", "Bijoux & accessoires"],
+      patterns: [/\b(piercing|jewelry|bijou|bijoux|ring|necklace|bracelet|earring|watch|montre)\b/i],
+    },
+    {
+      slug: "vr-gaming",
+      title: "Réalité virtuelle & gaming",
+      path: ["Electronique", "Réalité virtuelle & gaming"],
+      patterns: [/\b(vr|virtual reality|realite virtuelle|réalité virtuelle|headset|metaverse|game machine|arcade)\b/i],
+    },
+  ];
+
+  const matchedRule = rules.find((rule) => rule.patterns.some((pattern) => pattern.test(haystack)));
+  if (!matchedRule) {
+    return null;
+  }
+
+  return {
+    slug: matchedRule.slug,
+    title: matchedRule.title,
+    path: matchedRule.path,
+  };
+}
+
 export function slugifyCategoryLabel(value: string) {
   return value
     .toLowerCase()
@@ -282,19 +352,26 @@ export function extractAlibabaCategoryInfo(input: {
   categoryTitle?: string;
   categoryPath?: string[];
 }) {
-  if (input.categorySlug && input.categoryTitle) {
+  const providedCategoryTitle = looksLikeAlibabaAssetLabel(input.categoryTitle) ? undefined : input.categoryTitle;
+
+  if (input.categorySlug && providedCategoryTitle) {
     return {
       slug: input.categorySlug,
-      title: input.categoryTitle,
-      path: input.categoryPath?.filter(Boolean) ?? [input.categoryTitle],
+      title: providedCategoryTitle,
+      path: input.categoryPath?.filter(Boolean) ?? [providedCategoryTitle],
     };
+  }
+
+  const inferredCategory = inferAlibabaCategoryFromContent(input);
+  if (inferredCategory) {
+    return inferredCategory;
   }
 
   const rawCandidates = dedupeStrings([
     ...(input.categoryPath ?? []),
-    input.categoryTitle ?? "",
+    providedCategoryTitle ?? "",
     ...collectCategoryStrings(input.rawPayload),
-  ]);
+  ]).filter((candidate) => !looksLikeAlibabaAssetLabel(candidate));
 
   const pathCandidates = rawCandidates
     .map((candidate) => splitCategoryPath(candidate))
@@ -320,21 +397,158 @@ export function extractAlibabaCategoryInfo(input: {
 }
 
 export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogItem {
+  const normalizeMediaUrl = (value?: string) => {
+    if (!value) {
+      return undefined;
+    }
+
+    if (value.startsWith("//")) {
+      return `https:${value}`;
+    }
+
+    return value;
+  };
+
+  const rawPayloadRecord = item.rawPayload && typeof item.rawPayload === "object"
+    ? item.rawPayload as Record<string, unknown>
+    : null;
+  const rawImage = rawPayloadRecord?.image && typeof rawPayloadRecord.image === "object"
+    ? rawPayloadRecord.image as Record<string, unknown>
+    : null;
+  const collectStringCandidates = (value: unknown, depth = 0): string[] => {
+    if (depth > 4 || value == null) {
+      return [];
+    }
+
+    if (typeof value === "string") {
+      return value.trim() ? [value.trim()] : [];
+    }
+
+    if (Array.isArray(value)) {
+      return value.flatMap((entry) => collectStringCandidates(entry, depth + 1));
+    }
+
+    if (typeof value !== "object") {
+      return [];
+    }
+
+    return Object.values(value as Record<string, unknown>).flatMap((entry) => collectStringCandidates(entry, depth + 1));
+  };
+  const extractVideoUrl = (value: unknown, depth = 0, keyHint?: string): string | undefined => {
+    if (depth > 5 || value == null) {
+      return undefined;
+    }
+
+    if (typeof value === "string") {
+      const normalized = normalizeMediaUrl(value);
+      return normalized && /\.(mp4|m3u8|webm)(\?|$)/i.test(normalized) ? normalized : undefined;
+    }
+
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        const candidate = extractVideoUrl(entry, depth + 1, keyHint);
+        if (candidate) {
+          return candidate;
+        }
+      }
+      return undefined;
+    }
+
+    if (typeof value !== "object") {
+      return undefined;
+    }
+
+    for (const [nestedKey, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+      if (/video|mp4|m3u8/i.test(nestedKey)) {
+        const candidate = extractVideoUrl(nestedValue, depth + 1, nestedKey);
+        if (candidate) {
+          return candidate;
+        }
+      }
+    }
+
+    for (const [nestedKey, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+      const candidate = extractVideoUrl(nestedValue, depth + 1, nestedKey);
+      if (candidate) {
+        return candidate;
+      }
+    }
+
+    return undefined;
+  };
+  const extractMoqInfo = (value: unknown, depth = 0, keyHint?: string): { value?: number; verified: boolean } => {
+    if (depth > 5 || value == null) {
+      return { verified: false };
+    }
+
+    if (typeof value === "number" && Number.isFinite(value) && /moq|min[_ -]?order|begin_amount|quantity_min/i.test(keyHint ?? "")) {
+      return { value: Math.max(1, Math.round(value)), verified: true };
+    }
+
+    if (typeof value === "string") {
+      const normalized = value.trim();
+      if (/moq|min[_ -]?order|begin_amount|quantity_min/i.test(keyHint ?? "")) {
+        const numeric = Number(normalized.replace(/[^0-9.-]/g, ""));
+        if (Number.isFinite(numeric) && numeric > 0) {
+          return { value: Math.max(1, Math.round(numeric)), verified: true };
+        }
+      }
+
+      return { verified: false };
+    }
+
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        const candidate = extractMoqInfo(entry, depth + 1, keyHint);
+        if (candidate.verified && candidate.value) {
+          return candidate;
+        }
+      }
+      return { verified: false };
+    }
+
+    if (typeof value !== "object") {
+      return { verified: false };
+    }
+
+    for (const [nestedKey, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+      const candidate = extractMoqInfo(nestedValue, depth + 1, nestedKey);
+      if (candidate.verified && candidate.value) {
+        return candidate;
+      }
+    }
+
+    return { verified: false };
+  };
+  const rawMultiImage = Array.isArray(rawImage?.multi_image)
+    ? rawImage.multi_image.filter((entry): entry is string => typeof entry === "string")
+    : [];
+  const normalizedGallery = [...new Set([
+    ...(item.gallery ?? []).map((image) => normalizeMediaUrl(image)).filter((image): image is string => Boolean(image)),
+    normalizeMediaUrl(item.image),
+    normalizeMediaUrl(typeof rawImage?.main_image === "string" ? rawImage.main_image : undefined),
+    ...rawMultiImage.map((image) => normalizeMediaUrl(image)).filter((image): image is string => Boolean(image)),
+  ])].filter((image): image is string => Boolean(image));
+  const primaryImage: string = normalizeMediaUrl(item.image) || item.image;
+  const rawVideoUrl = extractVideoUrl(rawPayloadRecord);
+  const moqInfo = extractMoqInfo(rawPayloadRecord);
+
   return {
     slug: item.slug,
     title: item.title,
     shortTitle: item.shortTitle,
     keywords: item.keywords,
-    image: item.image,
-    gallery: item.gallery.length > 0 ? item.gallery : [item.image],
-    videoUrl: item.videoUrl,
-    videoPoster: item.videoPoster,
+    image: primaryImage,
+    gallery: normalizedGallery.length > 0 ? normalizedGallery : [primaryImage],
+    videoUrl: normalizeMediaUrl(item.videoUrl) ?? rawVideoUrl,
+    videoPoster: normalizeMediaUrl(item.videoPoster),
     packaging: item.packaging,
     itemWeightGrams: item.itemWeightGrams,
     lotCbm: item.lotCbm,
     minUsd: item.minUsd,
     maxUsd: item.maxUsd,
-    moq: item.moq,
+    moq: moqInfo.value ?? item.moq,
+    moqVerified: moqInfo.verified,
     unit: item.unit,
     badge: item.badge,
     supplierName: item.supplierName,

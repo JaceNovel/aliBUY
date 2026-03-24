@@ -77,7 +77,7 @@ export default async function AdminCategoriesPage({ searchParams }: { searchPara
                     <td className="px-4 py-4 text-[#475467]">{category.productCount}</td>
                     <td className="px-4 py-4">
                       <div className="flex items-center justify-end gap-2">
-                        <Link href={`/categories/${category.slug}`} className="inline-flex h-9 items-center justify-center gap-2 rounded-[10px] border border-[#e4e7ec] px-3 text-[#101828] transition hover:border-[#f72b57] hover:text-[#f72b57]">
+                        <Link href={category.href} className="inline-flex h-9 items-center justify-center gap-2 rounded-[10px] border border-[#e4e7ec] px-3 text-[#101828] transition hover:border-[#f72b57] hover:text-[#f72b57]">
                           Ouvrir
                           <ArrowUpRight className="h-4 w-4" />
                         </Link>

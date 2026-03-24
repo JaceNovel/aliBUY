@@ -4,6 +4,7 @@ import { Search, Sparkles } from "lucide-react";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { SearchSuggestionInput } from "@/components/search-suggestion-input";
+import { getCatalogCategoryBySlug } from "@/lib/catalog-category-service";
 import { getCatalogProducts, searchCatalogProducts } from "@/lib/catalog-service";
 import { getPricingContext } from "@/lib/pricing";
 
@@ -22,12 +23,17 @@ function formatPriceRange(
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; category?: string }>;
 }) {
   const pricing = await getPricingContext();
-  const { q = "" } = await searchParams;
+  const { q = "", category: categorySlug = "" } = await searchParams;
   const query = q.trim();
-  const visibleProducts = query ? await searchCatalogProducts(query) : await getCatalogProducts();
+  const activeCategory = categorySlug ? await getCatalogCategoryBySlug(categorySlug.trim()) : null;
+  const visibleProducts = activeCategory
+    ? activeCategory.products
+    : query
+      ? await searchCatalogProducts(query)
+      : await getCatalogProducts();
 
   return (
     <InternalPageShell pricing={pricing}>
@@ -46,10 +52,12 @@ export default async function ProductsPage({
                 Catalogue produits
               </div>
               <h1 className="mt-4 text-[28px] font-bold tracking-[-0.05em] text-[#222] sm:text-[34px] lg:text-[42px]">
-                {query ? `Produits filtres pour "${query}"` : "Tous les produits"}
+                {activeCategory ? `${activeCategory.title}` : query ? `Produits filtres pour "${query}"` : "Tous les produits"}
               </h1>
               <p className="mt-3 max-w-[760px] text-[16px] leading-8 text-[#555]">
-                {query
+                {activeCategory
+                  ? `${visibleProducts.length} produit(s) dans la categorie ${activeCategory.title}.`
+                  : query
                   ? `Le catalogue a ete filtre selon votre recherche. ${visibleProducts.length} produit(s) correspondent a votre demande.`
                   : "Consultez tout le catalogue AfriPay dans une grille dense, inspiree des listings B2B marketplace."}
               </p>

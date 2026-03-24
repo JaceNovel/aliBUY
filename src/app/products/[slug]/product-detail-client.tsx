@@ -41,6 +41,7 @@ type ProductDetailClientProps = {
     locale: string;
     currencyCode: string;
     moq: number;
+    moqVerified?: boolean;
     packaging: string;
     itemWeightGrams: number;
     lotCbm: string;
@@ -80,6 +81,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
   const [sharePulse, setSharePulse] = useState(false);
   const [shippingMethod, setShippingMethod] = useState<"air" | "sea" | null>(null);
+  const [orderQuantity, setOrderQuantity] = useState(Math.max(product.moq, 1));
   const touchStartXRef = useRef<number | null>(null);
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>(() => {
     return Object.fromEntries(product.variantGroups.map((group) => [group.label, group.values[0] ?? ""]));
@@ -89,22 +91,49 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const [mixQuantities, setMixQuantities] = useState<Record<string, number>>(() => {
     return Object.fromEntries((mixGroup?.values ?? []).map((value, index) => [value, index === 0 ? 0 : 0]));
   });
+  const lowerTitle = product.title.toLowerCase();
+  const referenceCode = product.title.match(/\b[A-Z0-9]{3,}(?:[- ][A-Z0-9]{2,})?\b/)?.[0] ?? product.shortTitle.match(/\b[A-Z0-9]{3,}(?:[- ][A-Z0-9]{2,})?\b/)?.[0] ?? "Selon fournisseur";
+  const inferredType = /keyboard|clavier/.test(lowerTitle)
+    ? /mouse|souris/.test(lowerTitle)
+      ? "Combo clavier et souris"
+      : "Clavier"
+    : /mouse|souris/.test(lowerTitle)
+      ? "Souris gaming"
+      : "Accessoire informatique";
+  const inferredConnection = /tri-mode/.test(lowerTitle)
+    ? "Tri-mode"
+    : /bluetooth|bt/.test(lowerTitle)
+      ? "Bluetooth"
+      : /wireless|2\.4g/.test(lowerTitle)
+        ? "Sans fil"
+        : /wired|usb/.test(lowerTitle)
+          ? "Filaire"
+          : "Selon fournisseur";
+  const inferredSensor = product.title.match(/PAW\s?\d+/i)?.[0]?.toUpperCase() ?? product.title.match(/\d{4,5}\s?DPI/i)?.[0]?.toUpperCase() ?? "Selon fournisseur";
+  const inferredUse = /office/.test(lowerTitle) && /gaming/.test(lowerTitle)
+    ? "Gaming et bureautique"
+    : /gaming/.test(lowerTitle)
+      ? "Gaming"
+      : /office/.test(lowerTitle)
+        ? "Bureautique"
+        : "Usage polyvalent";
+    const weightLabel = product.itemWeightGrams > 0 ? `${product.itemWeightGrams} g` : "Selon fournisseur";
   const characteristicRows = [
     [
-      { label: product.specs[0]?.label ?? "Type", value: product.shortTitle },
-      { label: product.specs[1]?.label ?? "Matériau", value: product.specs[1]?.value ?? product.customizationLabel },
+      { label: "Type", value: product.specs[0]?.value ?? inferredType },
+      { label: "Référence", value: referenceCode },
     ],
     [
-      { label: product.specs[2]?.label ?? "Tension", value: product.specs[2]?.value ?? product.shippingLabel },
-      { label: product.specs[3]?.label ?? "Compatibilité", value: product.specs[3]?.value ?? product.overview[0] },
+      { label: "Connexion", value: product.specs[1]?.value ?? inferredConnection },
+      { label: "Capteur", value: product.specs[2]?.value ?? inferredSensor },
     ],
     [
       { label: "Emballage", value: product.packaging },
-      { label: "Poids de l'article", value: `${product.itemWeightGrams} g` },
+      { label: "Poids", value: weightLabel },
     ],
     [
-      { label: "CBM d'un lot", value: product.lotCbm },
-      { label: "Livraison", value: product.shippingLabel },
+      { label: "MOQ", value: `${product.moq} ${product.moq > 1 ? "pieces" : "piece"}` },
+      { label: "Usage", value: product.specs[3]?.value ?? inferredUse },
     ],
   ];
   const characteristics = characteristicRows.flat();
@@ -153,7 +182,9 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     const singleMatch = normalized.match(/(\d+)/);
     return singleMatch ? Number(singleMatch[1]) : 0;
   };
-  const totalSelectedQuantity = Object.values(mixQuantities).reduce((sum, quantity) => sum + quantity, 0);
+  const totalSelectedQuantity = mixGroup
+    ? Object.values(mixQuantities).reduce((sum, quantity) => sum + quantity, 0)
+    : orderQuantity;
   const totalWeightKg = (product.itemWeightGrams * totalSelectedQuantity) / 1000;
   const exceedsSeaThreshold = totalWeightKg > 5;
   const sortedTiers = [...product.tiers].sort((left, right) => getTierMinimum(left.quantityLabel) - getTierMinimum(right.quantityLabel));
@@ -168,6 +199,9 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
         [value]: nextValue,
       };
     });
+  };
+  const updateOrderQuantity = (delta: number) => {
+    setOrderQuantity((current) => Math.max(product.moq, current + delta));
   };
   const toggleFavorite = async () => {
     if (favoriteBusy) {
@@ -786,19 +820,39 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               </div>
             </div>
 
+            {!mixGroup ? (
+              <div className="mt-4 rounded-[20px] border border-[#ece7df] bg-[#fffdfa] px-4 py-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9a6a47]">Quantité</div>
+                    <div className="mt-1 text-[14px] text-[#5f5147]">{product.moqVerified ? `Minimum ${product.moq} ${product.moq > 1 ? "pieces" : "piece"}` : "MOQ fournisseur a confirmer"}</div>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-[#e1ddd7] bg-white px-2 py-2 shadow-[0_6px_14px_rgba(17,24,39,0.04)]">
+                    <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-40">
+                      <Minus className="h-4 w-4" />
+                    </button>
+                    <div className="min-w-[42px] text-center text-[20px] font-semibold tracking-[-0.03em] text-[#222]">{orderQuantity}</div>
+                    <button type="button" onClick={() => updateOrderQuantity(1)} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             <article className="mt-4 overflow-hidden rounded-[26px] border border-[#e8e8e8] bg-white">
               <div className="border-b border-[#ececec] px-5 py-4">
                 <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8a8a8a]">Attributs</div>
-                <h2 className="mt-2 text-[20px] font-bold tracking-[-0.04em] text-[#222] sm:text-[24px]">Caractéristiques du produit</h2>
+                <h2 className="mt-2 text-[18px] font-bold tracking-[-0.04em] text-[#222] sm:text-[21px]">Caractéristiques du produit</h2>
               </div>
 
               <div>
                 {characteristicRows.map((row, index) => (
-                  <div key={`characteristic-row-${index}`} className={["grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[180px_minmax(0,1fr)_180px_minmax(0,1fr)]", index > 0 ? "border-t border-[#ececec]" : ""].join(" ")}>
-                    <div className="bg-[#f5f5f5] px-5 py-4 text-[14px] text-[#444]">{row[0].label}</div>
-                    <div className="px-5 py-4 text-[14px] font-semibold text-[#222]">{row[0].value}</div>
-                    <div className="bg-[#f5f5f5] px-5 py-4 text-[14px] text-[#444]">{row[1].label}</div>
-                    <div className="px-5 py-4 text-[14px] font-semibold text-[#222]">{row[1].value}</div>
+                  <div key={`characteristic-row-${index}`} className={["grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[132px_minmax(0,1fr)_132px_minmax(0,1fr)]", index > 0 ? "border-t border-[#ececec]" : ""].join(" ")}>
+                    <div className="bg-[#f7f6f4] px-4 py-3 text-[12px] font-medium uppercase tracking-[0.08em] text-[#706459]">{row[0].label}</div>
+                    <div className="px-4 py-3 text-[13px] font-semibold leading-5 text-[#1f2937] xl:line-clamp-2">{row[0].value}</div>
+                    <div className="bg-[#f7f6f4] px-4 py-3 text-[12px] font-medium uppercase tracking-[0.08em] text-[#706459]">{row[1].label}</div>
+                    <div className="px-4 py-3 text-[13px] font-semibold leading-5 text-[#1f2937] xl:line-clamp-2">{row[1].value}</div>
                   </div>
                 ))}
               </div>
@@ -864,6 +918,26 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 </div>
               ))}
             </div>
+
+            {!mixGroup ? (
+              <div className="mt-6 rounded-[22px] border border-[#ece7df] bg-[#fffdfa] px-4 py-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#a06f49]">Quantité de commande</div>
+                    <div className="mt-1 text-[14px] text-[#6b5a4c]">{product.moqVerified ? `MOQ ${product.moq} ${product.moq > 1 ? "pieces" : "piece"}` : "MOQ fournisseur a confirmer"}</div>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-[#e1ddd7] bg-white px-2 py-2 shadow-[0_6px_14px_rgba(17,24,39,0.04)]">
+                    <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-40">
+                      <Minus className="h-4 w-4" />
+                    </button>
+                    <div className="min-w-[46px] text-center text-[22px] font-semibold tracking-[-0.03em] text-[#222]">{orderQuantity}</div>
+                    <button type="button" onClick={() => updateOrderQuantity(1)} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <button
@@ -957,38 +1031,38 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     </div>
 
     {isOrderModalOpen ? (
-      <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/35 p-4">
-        <div className="relative flex max-h-[92vh] w-full max-w-[760px] flex-col overflow-hidden rounded-[28px] bg-white shadow-[0_30px_80px_rgba(0,0,0,0.24)]">
-          <div className="flex items-start justify-between border-b border-[#ececec] px-4 py-4 sm:px-6 sm:py-5">
+      <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/35 p-2.5 sm:p-4">
+        <div className="relative flex max-h-[90vh] w-full max-w-[760px] flex-col overflow-hidden rounded-[22px] bg-white shadow-[0_30px_80px_rgba(0,0,0,0.24)] sm:max-h-[92vh] sm:rounded-[28px]">
+          <div className="flex items-start justify-between border-b border-[#ececec] px-3 py-3 sm:px-6 sm:py-5">
             <div>
-              <h2 className="text-[24px] font-bold tracking-[-0.05em] text-[#222] sm:text-[32px]">Sélectionnez les options et la quantité</h2>
-              <div className="mt-2 text-[14px] text-[#666]">Choisissez votre mix et voyez le prix unitaire évoluer selon la quantité totale.</div>
+              <h2 className="text-[19px] font-bold tracking-[-0.05em] text-[#222] sm:text-[32px]">Sélectionnez les options et la quantité</h2>
+              <div className="mt-1 text-[12px] leading-5 text-[#666] sm:mt-2 sm:text-[14px]">Choisissez votre mix et voyez le prix unitaire évoluer selon la quantité totale.</div>
             </div>
-            <button type="button" onClick={() => setIsOrderModalOpen(false)} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#e2e2e2] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
+            <button type="button" onClick={() => setIsOrderModalOpen(false)} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#e2e2e2] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-10 sm:w-10">
               <X className="h-5 w-5" />
             </button>
           </div>
 
-          <div className="overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-            <div className="inline-flex rounded-[6px] bg-[#ff5b1f] px-3 py-1 text-[13px] font-semibold text-white">Prix inférieur à celui des produits similaires</div>
+          <div className="overflow-y-auto px-3 py-3 sm:px-6 sm:py-5">
+            <div className="inline-flex rounded-[6px] bg-[#ff5b1f] px-2.5 py-1 text-[11px] font-semibold text-white sm:px-3 sm:text-[13px]">Prix inférieur à celui des produits similaires</div>
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-3 grid gap-2.5 sm:mt-5 sm:gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {sortedTiers.map((tier) => {
                 const isActive = activeTier?.quantityLabel === tier.quantityLabel;
 
                 return (
-                  <div key={tier.quantityLabel} className={["rounded-[18px] border px-4 py-4", isActive ? "border-[#ff6a00] bg-[#fff6ef]" : "border-[#ececec] bg-white"].join(" ")}>
-                    <div className="text-[14px] text-[#666]">{tier.quantityLabel}</div>
-                    <div className={["mt-2 text-[22px] font-bold tracking-[-0.04em]", isActive ? "text-[#ff5b1f]" : "text-[#222]"].join(" ")}>{tier.formattedPrice}</div>
+                  <div key={tier.quantityLabel} className={["rounded-[14px] border px-3 py-2.5 sm:rounded-[18px] sm:px-4 sm:py-4", isActive ? "border-[#ff6a00] bg-[#fff6ef]" : "border-[#ececec] bg-white"].join(" ")}>
+                    <div className="text-[12px] text-[#666] sm:text-[14px]">{tier.quantityLabel}</div>
+                    <div className={["mt-1 text-[18px] font-bold tracking-[-0.04em] sm:mt-2 sm:text-[22px]", isActive ? "text-[#ff5b1f]" : "text-[#222]"].join(" ")}>{tier.formattedPrice}</div>
                   </div>
                 );
               })}
             </div>
 
             {modalGroups.map((group) => (
-              <div key={group.label} className="mt-7">
-                <div className="text-[16px] font-semibold text-[#222]">{group.label}: <span className="font-medium">{selectedVariants[group.label]}</span></div>
-                <div className="mt-3 flex flex-wrap gap-2.5">
+              <div key={group.label} className="mt-5 sm:mt-7">
+                <div className="text-[14px] font-semibold text-[#222] sm:text-[16px]">{group.label}: <span className="font-medium">{selectedVariants[group.label]}</span></div>
+                <div className="mt-2 flex flex-wrap gap-2 sm:mt-3 sm:gap-2.5">
                   {group.values.map((value) => {
                     const isSelected = selectedVariants[group.label] === value;
 
@@ -998,7 +1072,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                         type="button"
                         onClick={() => setSelectedVariants((current) => ({ ...current, [group.label]: value }))}
                         className={[
-                          "rounded-[12px] border px-4 py-2 text-[15px] transition",
+                          "rounded-[10px] border px-3 py-1.5 text-[13px] transition sm:rounded-[12px] sm:px-4 sm:py-2 sm:text-[15px]",
                           isSelected ? "border-[#222] bg-white text-[#111] shadow-[inset_0_0_0_1px_#111]" : "border-[#d7dbe2] bg-white text-[#444] hover:border-[#ffb48a]",
                         ].join(" ")}
                       >
@@ -1010,61 +1084,62 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               </div>
             ))}
 
-            <div className="mt-8">
-              <div className="text-[18px] font-semibold text-[#222]">Mode d&apos;expédition</div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-6 sm:mt-8">
+              <div className="text-[16px] font-semibold text-[#222] sm:text-[18px]">Mode d&apos;expédition</div>
+              <div className="mt-3 grid gap-2.5 sm:mt-4 sm:gap-3 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => setShippingMethod("air")}
                   className={[
-                    "rounded-[18px] border px-4 py-4 text-left transition",
+                    "rounded-[14px] border px-3 py-3 text-left transition sm:rounded-[18px] sm:px-4 sm:py-4",
                     shippingMethod === "air" ? "border-[#ff6a00] bg-[#fff5ed] shadow-[inset_0_0_0_1px_#ff6a00]" : "border-[#e5e5e5] bg-white hover:border-[#ffb48a]",
                   ].join(" ")}
                 >
-                  <div className="text-[17px] font-semibold text-[#222]">Par avion</div>
-                  <div className="mt-1 text-[14px] text-[#666]">Plus rapide pour les colis legers et les urgences.</div>
+                  <div className="text-[15px] font-semibold text-[#222] sm:text-[17px]">Par avion</div>
+                  <div className="mt-1 text-[12px] leading-5 text-[#666] sm:text-[14px]">Plus rapide pour les colis legers et les urgences.</div>
                 </button>
                 <button
                   type="button"
                   onClick={() => setShippingMethod("sea")}
                   className={[
-                    "rounded-[18px] border px-4 py-4 text-left transition",
+                    "rounded-[14px] border px-3 py-3 text-left transition sm:rounded-[18px] sm:px-4 sm:py-4",
                     shippingMethod === "sea" ? "border-[#ff6a00] bg-[#fff5ed] shadow-[inset_0_0_0_1px_#ff6a00]" : "border-[#e5e5e5] bg-white hover:border-[#ffb48a]",
                   ].join(" ")}
                 >
-                  <div className="text-[17px] font-semibold text-[#222]">Par bateau</div>
-                  <div className="mt-1 text-[14px] text-[#666]">Mieux adapte aux commandes lourdes et gros volumes.</div>
+                  <div className="text-[15px] font-semibold text-[#222] sm:text-[17px]">Par bateau</div>
+                  <div className="mt-1 text-[12px] leading-5 text-[#666] sm:text-[14px]">Mieux adapte aux commandes lourdes et gros volumes.</div>
                 </button>
               </div>
-              <div className="mt-3 rounded-[16px] border border-[#ececec] bg-[#fafafa] px-4 py-3 text-[14px] text-[#555]">
+              <div className="mt-2.5 rounded-[14px] border border-[#ececec] bg-[#fafafa] px-3 py-2.5 text-[12px] text-[#555] sm:mt-3 sm:rounded-[16px] sm:px-4 sm:py-3 sm:text-[14px]">
                 Poids estime du colis: <span className="font-semibold text-[#222]">{totalWeightKg.toFixed(totalWeightKg >= 10 ? 0 : 2)} kg</span>
               </div>
               {exceedsSeaThreshold ? (
-                <div className="mt-3 rounded-[16px] border border-[#ffd4b5] bg-[#fff4ea] px-4 py-3 text-[14px] font-medium text-[#c85a11]">
+                <div className="mt-2.5 rounded-[14px] border border-[#ffd4b5] bg-[#fff4ea] px-3 py-2.5 text-[12px] font-medium text-[#c85a11] sm:mt-3 sm:rounded-[16px] sm:px-4 sm:py-3 sm:text-[14px]">
                   Ce colis depasse 5 kg, expédition maritime recommandée.
                 </div>
               ) : null}
             </div>
 
             {mixGroup ? (
-              <div className="mt-8">
-                <div className="text-[18px] font-semibold text-[#222]">{mixGroup.label}</div>
-                <div className="mt-4 space-y-4">
+              <div className="mt-6 sm:mt-8">
+                <div className="text-[16px] font-semibold text-[#222] sm:text-[18px]">{mixGroup.label}</div>
+                <div className="mt-3 space-y-2.5 sm:mt-4 sm:space-y-4">
                   {mixGroup.values.map((value, index) => (
-                    <div key={value} className="grid grid-cols-[60px_minmax(0,1fr)] items-center gap-4 rounded-[18px] border border-[#ececec] px-3 py-3 sm:grid-cols-[60px_minmax(0,1fr)_110px_126px]">
-                      <div className="relative h-[52px] w-[52px] overflow-hidden rounded-[12px] bg-[#f4f4f4] ring-1 ring-black/5">
+                    <div key={value} className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[14px] border border-[#ececec] px-2.5 py-2.5 sm:grid-cols-[60px_minmax(0,1fr)_110px_126px] sm:gap-4 sm:rounded-[18px] sm:px-3 sm:py-3">
+                      <div className="relative h-[44px] w-[44px] overflow-hidden rounded-[10px] bg-[#f4f4f4] ring-1 ring-black/5 sm:h-[52px] sm:w-[52px] sm:rounded-[12px]">
                         <Image src={product.gallery[index % product.gallery.length] ?? product.gallery[0]} alt={value} fill sizes="52px" className="object-cover" />
                       </div>
                       <div className="min-w-0">
-                        <div className="text-[18px] font-medium text-[#222]">{value}</div>
+                        <div className="text-[14px] font-medium text-[#222] sm:text-[18px]">{value}</div>
+                        <div className="mt-0.5 text-[12px] font-semibold tracking-[-0.03em] text-[#222] sm:hidden">{formatMoney(currentUnitPrice)}</div>
                       </div>
-                      <div className="text-left text-[18px] font-semibold tracking-[-0.03em] text-[#222] sm:text-right sm:text-[20px]">{formatMoney(currentUnitPrice)}</div>
-                      <div className="flex items-center justify-start gap-2 sm:justify-end">
-                        <button type="button" onClick={() => updateMixQuantity(value, -1)} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-40" disabled={(mixQuantities[value] ?? 0) <= 0}>
+                      <div className="hidden text-left text-[18px] font-semibold tracking-[-0.03em] text-[#222] sm:block sm:text-right sm:text-[20px]">{formatMoney(currentUnitPrice)}</div>
+                      <div className="flex items-center justify-start gap-1.5 sm:justify-end sm:gap-2">
+                        <button type="button" onClick={() => updateMixQuantity(value, -1)} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-40 sm:h-10 sm:w-10" disabled={(mixQuantities[value] ?? 0) <= 0}>
                           <Minus className="h-4 w-4" />
                         </button>
-                        <div className="min-w-[24px] text-center text-[22px] font-medium text-[#222]">{mixQuantities[value] ?? 0}</div>
-                        <button type="button" onClick={() => updateMixQuantity(value, 1)} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
+                        <div className="min-w-[20px] text-center text-[18px] font-medium text-[#222] sm:min-w-[24px] sm:text-[22px]">{mixQuantities[value] ?? 0}</div>
+                        <button type="button" onClick={() => updateMixQuantity(value, 1)} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-10 sm:w-10">
                           <Plus className="h-4 w-4" />
                         </button>
                       </div>
@@ -1072,25 +1147,44 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                   ))}
                 </div>
               </div>
-            ) : null}
+            ) : (
+              <div className="mt-6 rounded-[14px] border border-[#ececec] bg-[#fafafa] px-3 py-3 sm:mt-8 sm:rounded-[18px] sm:px-4 sm:py-4">
+                <div className="text-[16px] font-semibold text-[#222] sm:text-[18px]">Quantité</div>
+                <div className="mt-2.5 flex items-center justify-between gap-3 sm:mt-3 sm:gap-4">
+                  <div>
+                    <div className="text-[13px] text-[#555] sm:text-[15px]">Commande minimale</div>
+                    <div className="mt-1 text-[12px] text-[#777] sm:text-[14px]">{product.moqVerified ? `${product.moq} ${product.moq > 1 ? "pieces" : "piece"}` : "A confirmer avec le fournisseur"}</div>
+                  </div>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-40 sm:h-10 sm:w-10">
+                      <Minus className="h-4 w-4" />
+                    </button>
+                    <div className="min-w-[24px] text-center text-[18px] font-medium text-[#222] sm:min-w-[28px] sm:text-[22px]">{orderQuantity}</div>
+                    <button type="button" onClick={() => updateOrderQuantity(1)} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-10 sm:w-10">
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="border-t border-[#ececec] bg-white px-4 py-4 sm:px-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="border-t border-[#ececec] bg-white px-3 py-3 sm:px-6 sm:py-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div>
-                <div className="text-[14px] font-semibold text-[#666]">Sous-total</div>
-                <div className="mt-1 text-[28px] font-bold tracking-[-0.04em] text-[#222]">
+                <div className="text-[12px] font-semibold text-[#666] sm:text-[14px]">Sous-total</div>
+                <div className="mt-1 text-[22px] font-bold tracking-[-0.04em] text-[#222] sm:text-[28px]">
                   {formatMoney(subtotal)}
-                  <span className="ml-2 text-[18px] font-medium text-[#666]">({formatMoney(currentUnitPrice)}/pièce)</span>
+                  <span className="ml-1.5 text-[13px] font-medium text-[#666] sm:ml-2 sm:text-[18px]">({formatMoney(currentUnitPrice)}/pièce)</span>
                 </div>
-                <div className="mt-1 text-[14px] text-[#666]">Quantité totale: {totalSelectedQuantity} pièce(s)</div>
-                <div className="mt-1 text-[14px] text-[#666]">Expédition: {shippingMethod === "air" ? "Par avion" : shippingMethod === "sea" ? "Par bateau" : "à choisir"}</div>
+                <div className="mt-1 text-[12px] text-[#666] sm:text-[14px]">Quantité totale: {totalSelectedQuantity} pièce(s)</div>
+                <div className="mt-1 text-[12px] text-[#666] sm:text-[14px]">Expédition: {shippingMethod === "air" ? "Par avion" : shippingMethod === "sea" ? "Par bateau" : "à choisir"}</div>
               </div>
-              <div className="grid gap-3 sm:min-w-[360px] sm:grid-cols-2">
-                <button type="button" onClick={proceedToCheckout} disabled={!canSubmitOrder} className="inline-flex h-13 items-center justify-center rounded-full bg-[#ff5b1f] px-6 text-[18px] font-semibold text-white transition hover:bg-[#ec510f] disabled:cursor-not-allowed disabled:bg-[#ffc09f]">
+              <div className="grid gap-2.5 sm:min-w-[360px] sm:grid-cols-2 sm:gap-3">
+                <button type="button" onClick={proceedToCheckout} disabled={!canSubmitOrder} className="inline-flex h-11 items-center justify-center rounded-full bg-[#ff5b1f] px-5 text-[15px] font-semibold text-white transition hover:bg-[#ec510f] disabled:cursor-not-allowed disabled:bg-[#ffc09f] sm:h-13 sm:px-6 sm:text-[18px]">
                   Commander
                 </button>
-                <button type="button" onClick={addSelectionToCart} disabled={!canSubmitOrder} className="inline-flex h-13 items-center justify-center rounded-full border border-[#222] px-6 text-[18px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:border-[#d8d8d8] disabled:text-[#b0b0b0]">
+                <button type="button" onClick={addSelectionToCart} disabled={!canSubmitOrder} className="inline-flex h-11 items-center justify-center rounded-full border border-[#222] px-5 text-[15px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:border-[#d8d8d8] disabled:text-[#b0b0b0] sm:h-13 sm:px-6 sm:text-[18px]">
                   Ajouter au panier
                 </button>
               </div>

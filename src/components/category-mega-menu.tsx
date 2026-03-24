@@ -22,6 +22,7 @@ import { getMessages } from "@/lib/messages";
 export type CategoryMegaMenuCategory = {
   slug: string;
   title: string;
+  href?: string;
   products: Array<{
     slug: string;
     shortTitle: string;
@@ -78,7 +79,7 @@ export function CategoryMegaMenu({
     icon: categoryIcons[index % categoryIcons.length],
   }));
   const activeCategory = categories.find((category) => category.slug === activeSlug) ?? categories[0] ?? null;
-  const categoryProducts: CategoryProduct[] = activeCategory?.products.slice(0, 14).map((product) => ({
+  const categoryProducts: CategoryProduct[] = activeCategory?.products.slice(0, 5).map((product) => ({
     slug: product.slug,
     title: product.shortTitle,
     image: product.image,
@@ -108,7 +109,7 @@ export function CategoryMegaMenu({
                 return (
                   <Link
                     key={item.title}
-                    href={`/categories/${item.slug}`}
+                    href={categories.find((category) => category.slug === item.slug)?.href ?? `/products?category=${encodeURIComponent(item.slug)}`}
                     onMouseEnter={() => setActiveSlug(item.slug)}
                     onFocus={() => setActiveSlug(item.slug)}
                     className={[
@@ -130,7 +131,7 @@ export function CategoryMegaMenu({
               <Sparkles className="h-5 w-5 text-[#888]" />
             </div>
 
-            <div className="grid grid-cols-7 gap-x-8 gap-y-8">
+            <div className="grid grid-cols-5 gap-x-8 gap-y-8">
               {categoryProducts.map((item) => (
                 <Link key={item.slug} href={`/products/${item.slug}`} className="group/item flex flex-col items-center text-center">
                   <div className="relative h-[126px] w-[126px] overflow-hidden rounded-full bg-[#f6f6f6]">

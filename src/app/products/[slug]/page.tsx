@@ -43,7 +43,7 @@ export default async function ProductPage({
     title: relatedProduct.shortTitle,
     image: relatedProduct.image,
     formattedPrice: formatPriceRange(pricing.formatPrice, relatedProduct.minUsd, relatedProduct.maxUsd),
-    moqLabel: `MOQ: ${relatedProduct.moq} ${relatedProduct.unit}`,
+    moqLabel: relatedProduct.moqVerified ? `MOQ: ${relatedProduct.moq} ${relatedProduct.unit}` : "MOQ fournisseur a confirmer",
   }));
   const initialIsFavorite = user ? await isUserFavoriteProduct(user.id, product.slug) : false;
 
@@ -57,6 +57,7 @@ export default async function ProductPage({
           locale: pricing.locale,
           currencyCode: pricing.currency.code,
           moq: product.moq,
+          moqVerified: product.moqVerified,
           packaging: product.packaging,
           itemWeightGrams: product.itemWeightGrams,
           lotCbm: product.lotCbm,
@@ -81,7 +82,7 @@ export default async function ProductPage({
           variantGroups: product.variantGroups,
           specs: product.specs,
           formattedPriceRange: formatPriceRange(pricing.formatPrice, product.minUsd, product.maxUsd),
-          moqLabel: `MOQ: ${product.moq} ${product.unit}`,
+          moqLabel: product.moqVerified ? `MOQ: ${product.moq} ${product.unit}` : "MOQ fournisseur a confirmer",
           badge: product.badge,
         }}
         relatedProducts={relatedProducts}

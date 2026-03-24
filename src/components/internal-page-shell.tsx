@@ -41,7 +41,8 @@ export async function InternalPageShell({ pricing, children }: InternalPageShell
   const megaMenuCategories: CategoryMegaMenuCategory[] = categories.slice(0, 9).map((category) => ({
     slug: category.slug,
     title: category.title,
-    products: category.products.slice(0, 14).map((product) => ({
+    href: category.href,
+    products: category.products.slice(0, 5).map((product) => ({
       slug: product.slug,
       shortTitle: product.shortTitle,
       image: product.image,

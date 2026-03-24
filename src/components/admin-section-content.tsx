@@ -84,7 +84,7 @@ export async function AdminSectionContent({ slug, pricing }: { slug: string; pri
       rows = categories.map((category) => ({
         key: category.slug,
         values: [category.title, category.sourcePathLabel, String(category.productCount), "Ouvrir"],
-        href: `/categories/${category.slug}`,
+        href: category.href,
         actionLabel: "Ouvrir",
       }));
       break;

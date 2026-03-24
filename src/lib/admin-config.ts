@@ -31,7 +31,7 @@ export const adminNavItems: AdminNavItem[] = [
   { slug: "users", label: "Utilisateurs", icon: "users", description: "Fournisseurs et comptes relies au catalogue.", href: "/admin/users", publicHref: "/account" },
   { slug: "orders", label: "Commandes", icon: "shopping-cart", description: "Toutes les commandes clients avec livraison, paiement et detail des articles.", href: "/admin/orders", publicHref: "/orders" },
   { slug: "products", label: "Produits", icon: "package", description: "Catalogue produit et fiches detail.", href: "/admin/products", publicHref: "/products" },
-  { slug: "categories", label: "Categories", icon: "list", description: "Taxonomie de navigation et familles produit.", href: "/admin/categories", publicHref: "/categories/for-you" },
+  { slug: "categories", label: "Categories", icon: "list", description: "Taxonomie de navigation et familles produit.", href: "/admin/categories", publicHref: "/products" },
   { slug: "promotions", label: "Promotions", icon: "badge-percent", description: "Promos hero, badges et campagnes mode.", href: "/admin/promotions", publicHref: "/mode" },
   { slug: "promo-codes", label: "Codes Promo", icon: "ticket-percent", description: "Codes de reduction et activations marketing.", href: "/admin/promo-codes", publicHref: "/mode" },
   { slug: "offers", label: "Offres", icon: "gift", description: "Offres chaudes visibles en home et mode.", href: "/admin/offers", publicHref: "/trends" },

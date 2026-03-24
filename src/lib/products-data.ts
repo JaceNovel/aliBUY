@@ -24,6 +24,7 @@ export type ProductCatalogItem = {
   minUsd: number;
   maxUsd?: number;
   moq: number;
+  moqVerified?: boolean;
   unit: string;
   badge?: string;
   supplierName: string;

@@ -185,6 +185,82 @@ function getNumberValue(...candidates: unknown[]) {
   return undefined;
 }
 
+function parseWeightToGrams(value: unknown, keyHint?: string) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    if (keyHint && /gram|grams|weight_grams|weightgrams/i.test(keyHint)) {
+      return Math.round(value);
+    }
+
+    if (keyHint && /kg|kilogram/i.test(keyHint)) {
+      return Math.round(value * 1000);
+    }
+
+    return value > 0 ? Math.round(value < 10 ? value * 1000 : value) : undefined;
+  }
+
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return undefined;
+  }
+
+  const kilogramMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*(kg|kilogram)/i);
+  if (kilogramMatch) {
+    return Math.round(Number(kilogramMatch[1].replace(',', '.')) * 1000);
+  }
+
+  const gramMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*(g|gram)/i);
+  if (gramMatch && !/2\.4g|5g|4g/i.test(normalized)) {
+    return Math.round(Number(gramMatch[1].replace(',', '.')));
+  }
+
+  if (keyHint && /weight/i.test(keyHint)) {
+    const numeric = Number(normalized.replace(/[^0-9.,-]/g, '').replace(',', '.'));
+    if (Number.isFinite(numeric) && numeric > 0) {
+      return Math.round(numeric < 10 ? numeric * 1000 : numeric);
+    }
+  }
+
+  return undefined;
+}
+
+function extractWeightGrams(value: unknown, depth = 0, keyHint?: string): number | undefined {
+  if (depth > 5 || value == null) {
+    return undefined;
+  }
+
+  const direct = parseWeightToGrams(value, keyHint);
+  if (typeof direct === "number" && direct > 0) {
+    return direct;
+  }
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const candidate = extractWeightGrams(entry, depth + 1, keyHint);
+      if (typeof candidate === "number" && candidate > 0) {
+        return candidate;
+      }
+    }
+    return undefined;
+  }
+
+  if (typeof value !== "object") {
+    return undefined;
+  }
+
+  for (const [nestedKey, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+    const candidate = extractWeightGrams(nestedValue, depth + 1, nestedKey);
+    if (typeof candidate === "number" && candidate > 0) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+}
+
 function collectStrings(value: unknown): string[] {
   if (!value) {
     return [];
@@ -418,6 +494,7 @@ function mapAlibabaSearchResultToProduct(raw: Record<string, unknown>, query: st
   const supplierCompanyId = getStringValue(raw.supplier_company_id)
     ?? getStringValue(raw.company_id)
     ?? getStringValue(raw.seller_member_id);
+  const weightGrams = extractWeightGrams(raw);
 
   return {
     sourceProductId,
@@ -430,7 +507,7 @@ function mapAlibabaSearchResultToProduct(raw: Record<string, unknown>, query: st
     videoUrl: getStringValue(raw.video_url) ?? getStringValue(raw.videoUrl),
     videoPoster: images[0],
     packaging: getStringValue(raw.packaging) ?? "Carton export standard",
-    itemWeightGrams: Math.round((getNumberValue(raw.weight, raw.weight_grams, raw.weightGrams) ?? 0) * (Number(raw.weight) && Number(raw.weight) < 10 ? 1000 : 1)),
+    itemWeightGrams: weightGrams ?? 0,
     lotCbm: getStringValue(raw.cbm) ?? "0.01",
     minUsd,
     maxUsd,
@@ -506,6 +583,7 @@ function mapAlibabaIcbuProductToProduct(raw: Record<string, unknown>, query: str
     getStringValue(basicInfo.model_number) ? `Modele: ${getStringValue(basicInfo.model_number)}` : "",
     `Import Alibaba ICBU pour ${title}.`,
   ]).slice(0, 4);
+  const weightGrams = extractWeightGrams(raw);
 
   return {
     sourceProductId,
@@ -518,7 +596,7 @@ function mapAlibabaIcbuProductToProduct(raw: Record<string, unknown>, query: str
     videoUrl: undefined,
     videoPoster: images[0],
     packaging: "Carton export standard",
-    itemWeightGrams: weight ? Math.round(weight * (weight < 10 ? 1000 : 1)) : 0,
+    itemWeightGrams: weightGrams ?? (weight ? Math.round(weight * (weight < 10 ? 1000 : 1)) : 0),
     lotCbm: getStringValue(logisticsInfo.desi) ?? "0.01",
     minUsd,
     maxUsd,

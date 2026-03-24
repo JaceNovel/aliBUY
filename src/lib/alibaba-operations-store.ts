@@ -583,14 +583,45 @@ async function readAlibabaImportedProductsDb(): Promise<AlibabaImportedProduct[]
     return migrateRecordsFromFile(() => readJsonFile<AlibabaImportedProduct[]>(IMPORTED_PRODUCTS_PATH, []), writeAlibabaImportedProductsDbBulk);
   }
 
-  return records.map(mapImportedProductRecord);
+  const seenSourceIds = new Set<string>();
+  const dedupedRecords: typeof records = [];
+  const duplicateIds: string[] = [];
+
+  for (const record of records) {
+    const dedupeKey = record.sourceProductId || record.slug || record.id;
+    if (seenSourceIds.has(dedupeKey)) {
+      duplicateIds.push(record.id);
+      continue;
+    }
+
+    seenSourceIds.add(dedupeKey);
+    dedupedRecords.push(record);
+  }
+
+  if (duplicateIds.length > 0) {
+    await prisma.alibabaImportedProductRecord.deleteMany({ where: { id: { in: duplicateIds } } });
+  }
+
+  return dedupedRecords.map(mapImportedProductRecord);
 }
 
 async function writeAlibabaImportedProductDb(product: AlibabaImportedProduct): Promise<AlibabaImportedProduct> {
+  const existing = await prisma.alibabaImportedProductRecord.findFirst({
+    where: {
+      OR: [
+        { id: product.id },
+        { sourceProductId: product.sourceProductId },
+        { slug: product.slug },
+      ],
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+  const recordId = existing?.id ?? product.id;
+
   await prisma.alibabaImportedProductRecord.upsert({
-    where: { id: product.id },
+    where: { id: recordId },
     create: {
-      id: product.id,
+      id: recordId,
       sourceProductId: product.sourceProductId,
       categorySlug: product.categorySlug,
       categoryTitle: product.categoryTitle,
@@ -631,7 +662,7 @@ async function writeAlibabaImportedProductDb(product: AlibabaImportedProduct): P
       publishedToSite: product.publishedToSite,
       publishedAt: toDate(product.publishedAt),
       rawPayload: toNullablePrismaJson(product.rawPayload),
-      createdAt: toDate(product.createdAt) ?? new Date(),
+      createdAt: toDate(existing?.createdAt?.toISOString()) ?? toDate(product.createdAt) ?? new Date(),
       updatedAt: toDate(product.updatedAt) ?? new Date(),
     },
     update: {
@@ -679,7 +710,16 @@ async function writeAlibabaImportedProductDb(product: AlibabaImportedProduct): P
     },
   });
 
-  const record = await prisma.alibabaImportedProductRecord.findUnique({ where: { id: product.id } });
+  if (product.sourceProductId) {
+    await prisma.alibabaImportedProductRecord.deleteMany({
+      where: {
+        sourceProductId: product.sourceProductId,
+        id: { not: recordId },
+      },
+    });
+  }
+
+  const record = await prisma.alibabaImportedProductRecord.findUnique({ where: { id: recordId } });
   if (!record) {
     throw new Error("Impossible de relire le produit importe Alibaba en base.");
   }
@@ -688,7 +728,12 @@ async function writeAlibabaImportedProductDb(product: AlibabaImportedProduct): P
 }
 
 async function writeAlibabaImportedProductsDbBulk(products: AlibabaImportedProduct[]): Promise<AlibabaImportedProduct[]> {
+  const dedupedProducts = new Map<string, AlibabaImportedProduct>();
   for (const product of products) {
+    dedupedProducts.set(product.sourceProductId || product.slug || product.id, product);
+  }
+
+  for (const product of dedupedProducts.values()) {
     await writeAlibabaImportedProductDb(product);
   }
 
@@ -1105,10 +1150,10 @@ export async function saveAlibabaImportedProducts(products: AlibabaImportedProdu
   }
 
   const existing = await getAlibabaImportedProducts();
-  const nextMap = new Map(existing.map((item: AlibabaImportedProduct) => [item.id, item]));
+  const nextMap = new Map(existing.map((item: AlibabaImportedProduct) => [item.sourceProductId || item.id, item]));
 
   for (const product of products) {
-    nextMap.set(product.id, product);
+    nextMap.set(product.sourceProductId || product.id, product);
   }
 
   const next = [...nextMap.values()].sort((left: AlibabaImportedProduct, right: AlibabaImportedProduct) => right.updatedAt.localeCompare(left.updatedAt));
