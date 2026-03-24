@@ -324,12 +324,14 @@ export async function publishImportedProducts(productIds: string[]) {
 export async function saveAlibabaSupplierAccountInput(input: Omit<AlibabaSupplierAccount, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
   const timestamp = nowIso();
   const existing = input.id ? (await getAlibabaSupplierAccounts()).find((account) => account.id === input.id) : undefined;
+  const accountId = input.id?.trim() || createSourcingIds();
   const normalizedAppKey = input.appKey?.trim();
   const normalizedAppSecret = input.appSecret?.trim();
   const normalizedAccessToken = input.accessToken?.trim();
   const normalizedRefreshToken = input.refreshToken?.trim();
   const account: AlibabaSupplierAccount = {
-    id: input.id ?? createSourcingIds(),
+    ...input,
+    id: accountId,
     createdAt: existing?.createdAt ?? timestamp,
     updatedAt: timestamp,
     authorizeUrl: input.authorizeUrl?.trim() || ALIBABA_DEFAULT_AUTHORIZE_URL,
@@ -344,7 +346,6 @@ export async function saveAlibabaSupplierAccountInput(input: Omit<AlibabaSupplie
     hasAppSecret: normalizedAppSecret ? true : existing?.hasAppSecret,
     hasAccessToken: normalizedAccessToken ? true : existing?.hasAccessToken,
     hasRefreshToken: normalizedRefreshToken ? true : existing?.hasRefreshToken,
-    ...input,
   };
 
   account.appKey = normalizedAppKey || existing?.appKey;
@@ -369,11 +370,12 @@ export async function saveAlibabaSupplierAccountInput(input: Omit<AlibabaSupplie
 
 export async function saveAlibabaReceptionAddressInput(input: Omit<AlibabaReceptionAddress, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
   const timestamp = nowIso();
+  const addressId = input.id?.trim() || createSourcingIds();
   const address: AlibabaReceptionAddress = {
-    id: input.id ?? createSourcingIds(),
+    ...input,
+    id: addressId,
     createdAt: timestamp,
     updatedAt: timestamp,
-    ...input,
   };
   return saveAlibabaReceptionAddress(address);
 }
