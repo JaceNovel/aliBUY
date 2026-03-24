@@ -851,6 +851,7 @@ export async function searchAlibabaProducts(input: {
 
   const payload = {
     param0: {
+      keyword: input.query,
       search_word: input.query,
       page_size: Math.min(Math.max(input.limit, 1), 100),
       page_no: 1,
