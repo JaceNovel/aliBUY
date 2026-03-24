@@ -230,6 +230,8 @@ export async function saveSourcingSettings(settings: SourcingSettings) {
     } else {
       await prisma.sourcingSettings.create({ data: normalized });
     }
+
+    return normalized;
   }
 
   await writeJsonFile(SETTINGS_PATH, normalized);
@@ -390,6 +392,8 @@ export async function saveSourcingOrder(order: SourcingOrder) {
         },
       },
     });
+
+    return order;
   }
 
   const orders = await getSourcingOrders();
@@ -445,6 +449,8 @@ export async function saveSourcingSeaContainer(container: SourcingSeaContainer) 
         shipmentTriggeredAt: container.shipmentTriggeredAt,
       },
     });
+
+    return container;
   }
 
   const containers = await getSourcingSeaContainers();
@@ -480,6 +486,8 @@ export async function createAlibabaIntegrationLog(input: Omit<AlibabaIntegration
         responseBody: toPrismaJson(log.responseBody),
       },
     });
+
+    return log;
   }
 
   const logs = await getAlibabaIntegrationLogs();
