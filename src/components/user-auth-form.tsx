@@ -51,6 +51,7 @@ export function UserAuthForm({ mode, nextPath }: UserAuthFormProps) {
         body: JSON.stringify({
           email,
           password,
+          nextPath: safeNextPath,
         }),
       });
 

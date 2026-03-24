@@ -23,12 +23,8 @@ export function getAdminPasswordHash() {
   return process.env.ADMIN_PASSWORD_HASH?.trim() || "";
 }
 
-function getAdminSessionSecret() {
-  return process.env.ADMIN_SESSION_SECRET?.trim() || process.env.APP_KEY?.trim() || "";
-}
-
 export function isAdminAuthConfigured() {
-  return Boolean(getAdminEmail() && getAdminPasswordHash() && getAdminSessionSecret());
+  return Boolean(getAdminEmail() && getAdminPasswordHash());
 }
 
 export function isAdminEmail(email?: string | null) {
@@ -42,10 +38,10 @@ export async function hashAdminPassword(password: string) {
 
 export async function validateAdminCredentials(email: string, password: string) {
   if (!isAdminAuthConfigured()) {
-    throw new Error("Configuration admin incomplète. Définissez ADMIN_EMAIL, ADMIN_PASSWORD_HASH et ADMIN_SESSION_SECRET.");
+    throw new Error("Configuration admin incomplète. Définissez ADMIN_EMAIL et ADMIN_PASSWORD_HASH.");
   }
 
-  const submittedEmail = email.trim();
+  const submittedEmail = email.trim().toLowerCase();
   const submittedPasswordHash = await hashAdminPassword(password);
 
   return submittedEmail === getAdminEmail() && submittedPasswordHash === getAdminPasswordHash();
