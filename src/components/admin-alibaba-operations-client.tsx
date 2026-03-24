@@ -322,7 +322,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
             <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a3d]">Alibaba automation</div>
             <h1 className="mt-2 text-[32px] font-black tracking-[-0.05em] text-[#1f2937]">Import catalogue, achats et paiements Alibaba</h1>
             <p className="mt-3 text-[14px] leading-7 text-[#667085]">
-              Recherche par mot-cle, import massif jusqu&apos;a 100 articles, recuperation images/videos, publication catalogue site,
+              Recherche par mot-cle, SKU ou numero de modele, import massif jusqu&apos;a 100 articles, recuperation images/videos, publication catalogue site,
               creation automatique BuyNow order et orchestration du paiement Alibaba depuis le back-office.
             </p>
             <div className="mt-4 inline-flex flex-wrap items-center gap-2 rounded-[16px] bg-white px-4 py-3 text-[13px] text-[#475467] shadow-[0_8px_18px_rgba(17,24,39,0.05)]">
@@ -425,16 +425,16 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
         <section className="grid gap-4 xl:grid-cols-[0.88fr_1.12fr]">
           <article className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
             <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Import catalogue</div>
-            <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Recherche Alibaba par mot-cle</div>
+            <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Recherche Alibaba par mot-cle, SKU ou modele</div>
             <div className="mt-3 rounded-[14px] bg-[#f8fafc] px-4 py-3 text-[13px] text-[#667085]">
               {activeSupplierAccount
-                ? `Import live via ${activeSupplierAccount.name} (${activeSupplierAccount.accountLogin ?? activeSupplierAccount.email}).`
+                ? `Import live via ${activeSupplierAccount.name} (${activeSupplierAccount.accountLogin ?? activeSupplierAccount.email}). Les references exactes SKU/modele interrogent d'abord l'API ICBU vendeur, puis la recherche libre eco buyer prend le relais si besoin.`
                 : "Aucun compte Alibaba connecte. Autorise un compte dans l'onglet Comptes fournisseurs avant l'import."}
             </div>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">
-                Mot-cle
-                <input value={importForm.query} onChange={(event) => setImportForm((current) => ({ ...current, query: event.target.value }))} placeholder="Anneau, bague, piercing, souris..." className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+                Mot-cle ou reference exacte
+                <input value={importForm.query} onChange={(event) => setImportForm((current) => ({ ...current, query: event.target.value }))} placeholder="3523LDS, BCD126748, bague, piercing..." className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
               </label>
               <label className="text-[13px] font-semibold text-[#344054]">
                 Nombre a importer

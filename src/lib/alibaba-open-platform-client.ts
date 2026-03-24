@@ -40,6 +40,16 @@ type AlibabaCallResult = {
   status: number;
 };
 
+type AlibabaProductSearchResult = {
+  ok: boolean;
+  endpoint: string;
+  responseBody: unknown;
+  products: AlibabaSearchProduct[];
+  errorMessage?: string;
+  errorCode?: string;
+  skipped?: boolean;
+};
+
 function normalizeBaseUrl(value: string) {
   return value.replace(/\/+$/, "").replace(/\/rest$/, "");
 }
@@ -197,6 +207,37 @@ function collectStrings(value: unknown): string[] {
 
 function uniqueStrings(values: string[]) {
   return [...new Set(values.filter(Boolean))];
+}
+
+function isTruthyAlibabaFlag(value: unknown) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return normalized === "true" || normalized === "1";
+  }
+
+  if (typeof value === "number") {
+    return value === 1;
+  }
+
+  return false;
+}
+
+function isLikelyAlibabaProductIdentifier(query: string) {
+  const normalized = query.trim();
+
+  if (normalized.length < 2 || normalized.length > 80) {
+    return false;
+  }
+
+  if (/\s/.test(normalized)) {
+    return false;
+  }
+
+  return /^[A-Za-z0-9._\-/]+$/.test(normalized);
 }
 
 function collectCandidateRecords(value: unknown, depth = 0): Array<Record<string, unknown>> {
@@ -362,6 +403,200 @@ function mapAlibabaSearchResultToProduct(raw: Record<string, unknown>, query: st
     tiers: [{ quantityLabel: `${moq}+`, priceUsd: minUsd }],
     specs,
     rawPayload: raw,
+  };
+}
+
+function mapAlibabaIcbuProductToProduct(raw: Record<string, unknown>, query: string): AlibabaSearchProduct | null {
+  const basicInfo = (raw.basic_info && typeof raw.basic_info === "object") ? raw.basic_info as Record<string, unknown> : {};
+  const categoryInfo = (raw.category_info && typeof raw.category_info === "object") ? raw.category_info as Record<string, unknown> : {};
+  const tradeInfo = (raw.trade_info && typeof raw.trade_info === "object") ? raw.trade_info as Record<string, unknown> : {};
+  const logisticsInfo = (raw.logistics_info && typeof raw.logistics_info === "object") ? raw.logistics_info as Record<string, unknown> : {};
+  const skuInfo = Array.isArray(raw.sku_info)
+    ? raw.sku_info as Array<Record<string, unknown>>
+    : Array.isArray(tradeInfo.sku_info)
+      ? tradeInfo.sku_info as Array<Record<string, unknown>>
+      : [];
+
+  const sourceProductId = getStringValue(basicInfo.product_id) ?? getStringValue(raw.product_id);
+  const title = getStringValue(basicInfo.title) ?? getStringValue(raw.title);
+  const images = uniqueStrings([
+    ...collectStrings(basicInfo.product_images),
+    ...collectStrings(basicInfo.product_image),
+    ...collectStrings(raw.product_images),
+    ...collectStrings(raw.product_image),
+    ...skuInfo.flatMap((sku) => collectStrings(sku.sale_attributes)),
+  ]).filter((entry) => entry.startsWith("http") || entry.startsWith("/"));
+
+  if (!sourceProductId || !title || images.length === 0) {
+    return null;
+  }
+
+  const categoryAttributes = Array.isArray(categoryInfo.attributes)
+    ? categoryInfo.attributes as Array<Record<string, unknown>>
+    : [];
+  const minUsd = getNumberValue(
+    (tradeInfo.price as { range_price?: { min_price?: unknown } } | undefined)?.range_price?.min_price,
+    (tradeInfo.price as { tiered_price?: Array<{ price?: unknown }> } | undefined)?.tiered_price?.[0]?.price,
+    skuInfo[0] && typeof skuInfo[0].sku_price === "object" ? (skuInfo[0].sku_price as { price?: unknown }).price : undefined,
+  ) ?? 1;
+  const maxUsd = getNumberValue((tradeInfo.price as { range_price?: { max_price?: unknown } } | undefined)?.range_price?.max_price);
+  const moq = Math.max(1, Math.round(getNumberValue(tradeInfo.moq) ?? 1));
+  const weight = getNumberValue(logisticsInfo.weight);
+  const keywords = uniqueStrings([
+    ...collectStrings(basicInfo.keywords),
+    getStringValue(basicInfo.model_number) ?? "",
+    ...skuInfo.map((sku) => getStringValue(sku.sku_code) ?? ""),
+    ...query.split(/[\s,;]+/g).map((entry) => entry.trim().toLowerCase()),
+  ]).filter(Boolean);
+  const specs = categoryAttributes.slice(0, 8).map((attribute, index) => ({
+    label: getStringValue(attribute.attribute_name) ?? `Spec ${index + 1}`,
+    value: getStringValue(attribute.attribute_value) ?? "-",
+  }));
+  const overview = uniqueStrings([
+    getStringValue(basicInfo.description) ?? "",
+    getStringValue(categoryInfo.category_name) ? `Categorie Alibaba: ${getStringValue(categoryInfo.category_name)}` : "",
+    getStringValue(basicInfo.model_number) ? `Modele: ${getStringValue(basicInfo.model_number)}` : "",
+    `Import Alibaba ICBU pour ${title}.`,
+  ]).slice(0, 4);
+
+  return {
+    sourceProductId,
+    slug: sourceProductId,
+    title,
+    shortTitle: title.length > 72 ? `${title.slice(0, 69)}...` : title,
+    keywords,
+    image: images[0],
+    gallery: images,
+    videoUrl: undefined,
+    videoPoster: images[0],
+    packaging: "Carton export standard",
+    itemWeightGrams: weight ? Math.round(weight * (weight < 10 ? 1000 : 1)) : 0,
+    lotCbm: getStringValue(logisticsInfo.desi) ?? "0.01",
+    minUsd,
+    maxUsd,
+    moq,
+    unit: getStringValue(tradeInfo.unit) ?? "piece",
+    badge: "Alibaba ICBU",
+    supplierName: "Catalogue vendeur Alibaba",
+    supplierLocation: getStringValue(basicInfo.language) ?? "en_US",
+    supplierCompanyId: getStringValue(basicInfo.owner_ali_id),
+    responseTime: "Catalogue deja liste",
+    yearsInBusiness: 1,
+    transactionsLabel: getStringValue(basicInfo.status) ?? "Alibaba listing",
+    soldLabel: getStringValue(skuInfo[0]?.sku_code) ?? `MOQ ${moq}`,
+    customizationLabel: getStringValue(basicInfo.audit_status) ?? "Selon fiche fournisseur",
+    shippingLabel: getStringValue(logisticsInfo.shipping_template_id) ? `Template ${getStringValue(logisticsInfo.shipping_template_id)}` : "Transport a configurer",
+    overview,
+    variantGroups: [],
+    tiers: [{ quantityLabel: `${moq}+`, priceUsd: minUsd }],
+    specs,
+    rawPayload: raw,
+  };
+}
+
+async function searchAlibabaIcbuProducts(input: {
+  query: string;
+  limit: number;
+}): Promise<AlibabaProductSearchResult> {
+  const normalizedQuery = input.query.trim();
+
+  if (!isLikelyAlibabaProductIdentifier(normalizedQuery)) {
+    return {
+      ok: true,
+      endpoint: "/alibaba/icbu/product/search/v2",
+      responseBody: null,
+      products: [] as AlibabaSearchProduct[],
+      skipped: true,
+    };
+  }
+
+  const credentials = await resolveAlibabaCredentialsForLiveCall();
+  const attempts: Array<"sku_code" | "model_number"> = ["sku_code", "model_number"];
+  const collectedProducts: AlibabaSearchProduct[] = [];
+  const seenProductIds = new Set<string>();
+  const responseBodies: unknown[] = [];
+  let lastMessage: string | undefined;
+  let lastErrorCode: string | undefined;
+
+  for (const field of attempts) {
+    const pageSize = Math.min(Math.max(input.limit, 1), 20);
+    const pageCount = Math.max(1, Math.ceil(Math.min(Math.max(input.limit, 1), 100) / pageSize));
+
+    for (let pageIndex = 1; pageIndex <= pageCount && collectedProducts.length < input.limit; pageIndex += 1) {
+      const result = await callAlibabaEndpoint("/alibaba/icbu/product/search/v2", {
+        page_index: pageIndex,
+        page_size: pageSize,
+        [field]: normalizedQuery,
+      }, {
+        credentials,
+        method: "GET",
+      });
+
+      const response = result.responseBody as Record<string, unknown> | null;
+      responseBodies.push(result.responseBody);
+      const productInfo = Array.isArray(response?.product_info)
+        ? response.product_info as Array<Record<string, unknown>>
+        : [];
+      const message = getStringValue(response?.message);
+      const msgCode = getStringValue(response?.msg_code);
+      lastMessage = message ?? lastMessage;
+      lastErrorCode = msgCode ?? lastErrorCode;
+
+      if (!result.ok || !isTruthyAlibabaFlag(response?.success)) {
+        return {
+          ok: false,
+          endpoint: "/alibaba/icbu/product/search/v2",
+          responseBody: result.responseBody,
+          products: [] as AlibabaSearchProduct[],
+          errorMessage: message
+            ? `La recherche catalogue Alibaba ICBU a echoue: ${message}`
+            : "La recherche catalogue Alibaba ICBU a echoue.",
+        };
+      }
+
+      for (const record of productInfo) {
+        const mapped = mapAlibabaIcbuProductToProduct(record, normalizedQuery);
+        if (!mapped || seenProductIds.has(mapped.sourceProductId)) {
+          continue;
+        }
+
+        seenProductIds.add(mapped.sourceProductId);
+        collectedProducts.push(mapped);
+
+        if (collectedProducts.length >= input.limit) {
+          break;
+        }
+      }
+
+      const page = (response?.page && typeof response.page === "object") ? response.page as Record<string, unknown> : null;
+      const totalPages = Math.max(1, Math.round(getNumberValue(page?.total_page) ?? 1));
+
+      if (productInfo.length < pageSize || pageIndex >= totalPages) {
+        break;
+      }
+    }
+
+    if (collectedProducts.length > 0) {
+      break;
+    }
+  }
+
+  if (collectedProducts.length === 0) {
+    return {
+      ok: true,
+      endpoint: "/alibaba/icbu/product/search/v2",
+      responseBody: responseBodies[responseBodies.length - 1] ?? null,
+      products: [] as AlibabaSearchProduct[],
+      errorMessage: lastMessage,
+      errorCode: lastErrorCode,
+    };
+  }
+
+  return {
+    ok: true,
+    endpoint: "/alibaba/icbu/product/search/v2",
+    responseBody: responseBodies[responseBodies.length - 1] ?? null,
+    products: collectedProducts.slice(0, input.limit),
   };
 }
 
@@ -548,7 +783,20 @@ export async function searchAlibabaProducts(input: {
   query: string;
   limit: number;
   fulfillmentChannel: AlibabaFulfillmentChannel;
-}) {
+}): Promise<AlibabaProductSearchResult> {
+  const icbuResult = await searchAlibabaIcbuProducts({
+    query: input.query,
+    limit: Math.min(Math.max(input.limit, 1), 100),
+  });
+
+  if (!icbuResult.ok) {
+    return icbuResult;
+  }
+
+  if (icbuResult.products.length > 0) {
+    return icbuResult;
+  }
+
   const payload = {
     param0: {
       search_word: input.query,
@@ -598,6 +846,8 @@ export async function searchAlibabaProducts(input: {
     console.error("[alibaba/search] no usable products", {
       query: input.query,
       fulfillmentChannel: input.fulfillmentChannel,
+      icbuErrorMessage: icbuResult.errorMessage,
+      icbuErrorCode: "errorCode" in icbuResult ? icbuResult.errorCode : undefined,
       responseCode,
       responseMessage,
       topLevelKeys: response ? Object.keys(response).slice(0, 20) : [],
@@ -611,9 +861,11 @@ export async function searchAlibabaProducts(input: {
       products: [] as AlibabaSearchProduct[],
       errorMessage: responseMessage
         ? `Alibaba a repondu mais aucun produit exploitable n'a ete detecte: ${responseMessage}`
-        : responseCode
-          ? `Alibaba a repondu sans produit exploitable. Code: ${responseCode}.`
-          : "Alibaba n'a renvoye aucun produit exploitable pour cette recherche.",
+        : icbuResult.errorMessage
+          ? `Aucun produit exploitable detecte. La recherche ICBU par SKU/modele a repondu: ${icbuResult.errorMessage}`
+          : responseCode
+            ? `Alibaba a repondu sans produit exploitable. Code: ${responseCode}.`
+            : "Alibaba n'a renvoye aucun produit exploitable pour cette recherche.",
     };
   }
 
