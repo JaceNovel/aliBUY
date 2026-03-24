@@ -8,6 +8,26 @@ const nextConfig: NextConfig = {
         hostname: "s.alicdn.com",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "**.alicdn.com",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "**.alibaba.com",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "**.alibabausercontent.com",
+        pathname: "/**",
+      },
+      {
+        protocol: "http",
+        hostname: "**.alicdn.com",
+        pathname: "/**",
+      },
     ],
   },
 };
