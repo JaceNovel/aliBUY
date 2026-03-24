@@ -142,14 +142,14 @@ export function HomeDiscoveryShowcase({ categories = [], historyCard, historyCar
 
       <div className={[
         "hidden sm:grid",
-        "grid gap-3 xl:items-stretch",
+        "grid gap-2.5 xl:items-stretch",
         hasCategoryPanel
           ? hasSlides
             ? "xl:grid-cols-[minmax(220px,0.92fr)_minmax(250px,0.96fr)_minmax(220px,0.84fr)_minmax(220px,0.84fr)_minmax(300px,1.24fr)]"
             : "xl:grid-cols-[minmax(220px,0.98fr)_minmax(250px,1fr)_minmax(220px,0.88fr)_minmax(220px,0.88fr)]"
           : hasSlides
             ? "xl:grid-cols-[minmax(250px,1fr)_minmax(220px,0.9fr)_minmax(220px,0.9fr)_minmax(320px,1.18fr)]"
-            : "xl:grid-cols-[minmax(250px,1fr)_minmax(220px,0.9fr)_minmax(220px,0.9fr)]",
+            : "xl:grid-cols-[minmax(240px,1.08fr)_minmax(185px,0.84fr)_minmax(185px,0.84fr)_minmax(185px,0.84fr)]",
       ].join(" ")}>
         {hasCategoryPanel ? (
           <article className="relative min-w-0 h-[260px] rounded-[22px] bg-[#fbfbfb] px-3 py-3 ring-1 ring-black/5 sm:h-[300px] xl:h-[318px]">
@@ -204,11 +204,11 @@ export function HomeDiscoveryShowcase({ categories = [], historyCard, historyCar
           </article>
         ) : null}
 
-        <article className="relative flex min-w-0 h-[260px] flex-col rounded-[22px] bg-[#f8f8f8] p-3 ring-1 ring-black/5 sm:h-[300px] xl:h-[318px]">
-          <div className="text-[16px] font-bold leading-7 tracking-[-0.03em] text-[#222] sm:text-[18px]">
+        <article className="relative flex min-w-0 h-[248px] flex-col rounded-[20px] bg-[#f8f8f8] p-2.5 ring-1 ring-black/5 sm:h-[282px] xl:h-[292px]">
+          <div className="text-[15px] font-bold leading-6 tracking-[-0.03em] text-[#222] sm:text-[17px]">
             Historique de recherche
           </div>
-          <div className="relative mt-4 flex-1 overflow-hidden rounded-[18px] bg-white">
+          <div className="relative mt-3 flex-1 overflow-hidden rounded-[16px] bg-white">
             {resolvedHistoryCard.href ? (
               <Link href={resolvedHistoryCard.href} className="absolute inset-0 z-[1] block" aria-label={resolvedHistoryCard.title}>
                 <div className="relative h-full w-full">
@@ -237,31 +237,31 @@ export function HomeDiscoveryShowcase({ categories = [], historyCard, historyCar
             <button
               type="button"
               onClick={() => setActiveHistoryIndex((current) => (current - 1 + resolvedHistoryCards.length) % resolvedHistoryCards.length)}
-              className="absolute left-3 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white text-[#333] shadow-[0_8px_18px_rgba(0,0,0,0.16)]"
+              className="absolute left-2.5 top-1/2 z-10 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-[#333] shadow-[0_8px_18px_rgba(0,0,0,0.16)]"
             >
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronLeft className="h-4.5 w-4.5" />
             </button>
             <button
               type="button"
               onClick={() => setActiveHistoryIndex((current) => (current + 1) % resolvedHistoryCards.length)}
-              className="absolute right-3 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white text-[#333] shadow-[0_8px_18px_rgba(0,0,0,0.16)]"
+              className="absolute right-2.5 top-1/2 z-10 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-[#333] shadow-[0_8px_18px_rgba(0,0,0,0.16)]"
             >
-              <ChevronRight className="h-5 w-5" />
+              <ChevronRight className="h-4.5 w-4.5" />
             </button>
-            <div className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-white px-3 py-1.5 text-[16px] font-bold text-[#222] shadow-[0_8px_18px_rgba(0,0,0,0.12)]">
+            <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-white px-2.5 py-1 text-[14px] font-bold text-[#222] shadow-[0_8px_18px_rgba(0,0,0,0.12)]">
               {resolvedHistoryCard.price}
             </div>
           </div>
         </article>
 
         {exploreCards.map((card) => (
-          <article key={card.id} className="flex min-w-0 h-[260px] flex-col rounded-[22px] bg-[#f8f8f8] p-3 ring-1 ring-black/5 sm:h-[300px] xl:h-[318px]">
-            <div className="text-[16px] font-bold leading-6 tracking-[-0.03em] text-[#222]">{card.title}</div>
-            <div className="min-h-[36px] text-[11px] leading-[1.35] text-[#707070]">{card.subtitle}</div>
-            <div className="mt-3 grid flex-1 grid-cols-2 gap-2.5">
+          <article key={card.id} className="flex min-w-0 h-[248px] flex-col rounded-[20px] bg-[#f8f8f8] p-2.5 ring-1 ring-black/5 sm:h-[282px] xl:h-[292px]">
+            <div className="text-[15px] font-bold leading-5 tracking-[-0.03em] text-[#222]">{card.title}</div>
+            <div className="min-h-[30px] text-[10px] leading-[1.3] text-[#707070]">{card.subtitle}</div>
+            <div className="mt-2.5 grid flex-1 grid-cols-2 gap-2">
               {card.items.map((item) => (
-                <div key={item.title} className="relative overflow-hidden rounded-[16px] bg-white">
-                  <div className="relative h-full min-h-[118px] w-full">
+                <div key={item.title} className="relative overflow-hidden rounded-[14px] bg-white">
+                  <div className="relative h-full min-h-[100px] w-full">
                     {item.href ? (
                       <Link href={item.href} className="absolute inset-0 block" aria-label={item.title}>
                         <Image src={item.image} alt={item.title} fill sizes="(min-width: 1280px) 10vw, (min-width: 768px) 18vw, 40vw" className="object-contain" />
@@ -270,7 +270,7 @@ export function HomeDiscoveryShowcase({ categories = [], historyCard, historyCar
                       <Image src={item.image} alt={item.title} fill sizes="(min-width: 1280px) 10vw, (min-width: 768px) 18vw, 40vw" className="object-contain" />
                     )}
                   </div>
-                  <div className="absolute bottom-2 left-2 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-[#222] shadow-[0_8px_18px_rgba(0,0,0,0.12)]">
+                  <div className="absolute bottom-1.5 left-1.5 rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-[#222] shadow-[0_8px_18px_rgba(0,0,0,0.12)]">
                     {item.price}
                   </div>
                 </div>

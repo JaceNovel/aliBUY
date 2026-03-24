@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Boxes, Building2, CheckCircle2, Globe2, MapPin, Package2, RefreshCcw, Search, ShoppingBag, Wallet } from "lucide-react";
+import { Boxes, Building2, CheckCircle2, Globe2, MapPin, Package2, RefreshCcw, Search, ShoppingBag, Trash2, Wallet } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 
@@ -51,6 +51,12 @@ const panelLinks: Array<{ key: AlibabaPanelSlug; label: string; href: string }> 
   { key: "lots", label: "Lots d'achat", href: "/admin/alibaba-sourcing/lots" },
   { key: "receptions", label: "Receptions", href: "/admin/alibaba-sourcing/receptions" },
 ];
+
+function formatImportedPrice(product: AlibabaImportedProduct) {
+  return typeof product.maxUsd === "number"
+    ? `$${product.minUsd.toFixed(2)} - $${product.maxUsd.toFixed(2)}`
+    : `$${product.minUsd.toFixed(2)}`;
+}
 
 export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
   const router = useRouter();
@@ -158,6 +164,45 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
     }
 
     setFeedback("Lot d'achat cree. Paiement/URL Alibaba prepare.");
+    refresh();
+  };
+
+  const deleteImportedItem = async (importedProductId: string) => {
+    setFeedback(null);
+
+    if (!window.confirm("Supprimer cet article importé du catalogue admin ?")) {
+      return;
+    }
+
+    const response = await fetch(`/api/admin/alibaba/import/${importedProductId}`, {
+      method: "DELETE",
+    });
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      setFeedback(payload?.message ?? "Suppression de l'article importé impossible.");
+      return;
+    }
+
+    setSelectedProductIds((current) => current.filter((entry) => entry !== importedProductId));
+    setFeedback("Article importé supprimé.");
+    refresh();
+  };
+
+  const reenrichImportedItem = async (importedProductId: string) => {
+    setFeedback(null);
+
+    const response = await fetch(`/api/admin/alibaba/import/${importedProductId}/reenrich`, {
+      method: "POST",
+    });
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      setFeedback(payload?.message ?? "Réenrichissement impossible.");
+      return;
+    }
+
+    setFeedback("Article réenrichi avec les données fournisseur les plus récentes.");
     refresh();
   };
 
@@ -490,14 +535,22 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
                           <div>
                             <div className="line-clamp-2 text-[15px] font-semibold text-[#1f2937]">{product.shortTitle}</div>
                             <div className="mt-1 text-[13px] text-[#667085]">{product.supplierName} · MOQ {product.moq} {product.unit}</div>
-                            <div className="mt-1 text-[12px] text-[#98a2b3]">{product.gallery.length} images · {product.videoUrl ? "video recuperee" : "pas de video"} · stock {product.inventory}</div>
+                            <div className="mt-1 text-[12px] text-[#98a2b3]">{product.gallery.length} images · {product.videoUrl ? "video recuperee" : "pas de video"} · stock estime {product.inventory}</div>
                           </div>
                           <div className="rounded-full bg-[#fff7ed] px-3 py-1 text-[12px] font-semibold text-[#c2410c]">{product.status}</div>
                         </div>
                         <div className="mt-3 flex flex-wrap items-center gap-3">
-                          <div className="text-[14px] font-bold text-[#111827]">${product.minUsd.toFixed(2)}</div>
+                          <div className="text-[14px] font-bold text-[#111827]">{formatImportedPrice(product)}</div>
                           <input value={quantityByProduct[product.id] ?? product.moq} onChange={(event) => setQuantityByProduct((current) => ({ ...current, [product.id]: Number(event.target.value) }))} type="number" min={1} className="h-10 w-28 rounded-[12px] border border-[#d7dce5] px-3 text-[13px] text-[#111827] outline-none focus:border-[#ff6a00]" />
                           <button type="button" onClick={() => createPurchaseOrder(product.id)} className="inline-flex h-10 items-center justify-center rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]">Auto achat</button>
+                          <button type="button" onClick={() => reenrichImportedItem(product.id)} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#dbe2ea] bg-white px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
+                            <RefreshCcw className="h-4 w-4" />
+                            Réenrichir
+                          </button>
+                          <button type="button" onClick={() => deleteImportedItem(product.id)} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#f2d1d1] bg-[#fff8f8] px-4 text-[13px] font-semibold text-[#c74444] transition hover:bg-[#fff1f1]">
+                            <Trash2 className="h-4 w-4" />
+                            Supprimer
+                          </button>
                           {product.publishedToSite ? <span className="inline-flex h-10 items-center rounded-[12px] bg-[#eafaf0] px-4 text-[13px] font-semibold text-[#15803d]">Deja sur le site</span> : null}
                         </div>
                       </div>

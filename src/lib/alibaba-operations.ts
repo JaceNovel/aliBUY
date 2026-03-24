@@ -402,11 +402,8 @@ export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogIt
       return undefined;
     }
 
-    if (value.startsWith("//")) {
-      return `https:${value}`;
-    }
-
-    return value;
+    const normalized = value.startsWith("//") ? `https:${value}` : value;
+    return normalized.replace(/(\.(?:jpg|jpeg|png|webp))_\d+x\d+\1$/i, "$1");
   };
 
   const rawPayloadRecord = item.rawPayload && typeof item.rawPayload === "object"

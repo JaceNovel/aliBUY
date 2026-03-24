@@ -26,10 +26,13 @@ type AlibabaCredentials = {
   refreshUrl: string;
 };
 
-type AlibabaSearchProduct = ProductCatalogItem & {
+export type AlibabaSearchProduct = ProductCatalogItem & {
   sourceProductId: string;
   supplierCompanyId?: string;
   rawPayload: unknown;
+  moqVerified?: boolean;
+  weightVerified?: boolean;
+  priceVerified?: boolean;
 };
 
 type AlibabaCallResult = {
@@ -175,14 +178,106 @@ function getNumberValue(...candidates: unknown[]) {
     }
 
     if (typeof candidate === "string") {
-      const normalized = Number(candidate.replace(/[^0-9.\-]/g, ""));
-      if (Number.isFinite(normalized) && normalized > 0) {
-        return normalized;
+      const matches = candidate.match(/\d+(?:[.,]\d+)?/g) ?? [];
+      for (const match of matches) {
+        const normalized = Number(match.replace(',', '.'));
+        if (Number.isFinite(normalized) && normalized > 0) {
+          return normalized;
+        }
       }
     }
   }
 
   return undefined;
+}
+
+function getPriceBounds(...candidates: unknown[]) {
+  const values: number[] = [];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0) {
+      values.push(candidate);
+      continue;
+    }
+
+    if (typeof candidate !== "string") {
+      continue;
+    }
+
+    const matches = candidate.match(/\d+(?:[.,]\d+)?/g) ?? [];
+    for (const match of matches) {
+      const normalized = Number(match.replace(',', '.'));
+      if (Number.isFinite(normalized) && normalized > 0) {
+        values.push(normalized);
+      }
+    }
+  }
+
+  if (values.length === 0) {
+    return { min: undefined, max: undefined };
+  }
+
+  return {
+    min: Math.min(...values),
+    max: values.length > 1 ? Math.max(...values) : undefined,
+  };
+}
+
+function extractVerifiedMoq(value: unknown, depth = 0, keyHint?: string): number | undefined {
+  if (depth > 5 || value == null) {
+    return undefined;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value) && /moq|min[_ -]?order|begin_amount|quantity_min/i.test(keyHint ?? "")) {
+    return Math.max(1, Math.round(value));
+  }
+
+  if (typeof value === "string") {
+    if (/moq|min[_ -]?order|begin_amount|quantity_min/i.test(keyHint ?? "")) {
+      const numeric = Number((value.match(/\d+(?:[.,]\d+)?/)?.[0] ?? "").replace(',', '.'));
+      if (Number.isFinite(numeric) && numeric > 0) {
+        return Math.max(1, Math.round(numeric));
+      }
+    }
+
+    return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const nested = extractVerifiedMoq(entry, depth + 1, keyHint);
+      if (typeof nested === "number" && nested > 0) {
+        return nested;
+      }
+    }
+
+    return undefined;
+  }
+
+  if (typeof value !== "object") {
+    return undefined;
+  }
+
+  for (const [nestedKey, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+    const nested = extractVerifiedMoq(nestedValue, depth + 1, nestedKey);
+    if (typeof nested === "number" && nested > 0) {
+      return nested;
+    }
+  }
+
+  return undefined;
+}
+
+function hasCoherentPrice(bounds: { min?: number; max?: number }) {
+  if (typeof bounds.min !== "number" || !Number.isFinite(bounds.min) || bounds.min <= 0) {
+    return false;
+  }
+
+  if (typeof bounds.max === "number") {
+    return Number.isFinite(bounds.max) && bounds.max >= bounds.min;
+  }
+
+  return true;
 }
 
 function isWeightKeyHint(keyHint?: string) {
@@ -291,6 +386,162 @@ function collectStrings(value: unknown): string[] {
 
 function uniqueStrings(values: string[]) {
   return [...new Set(values.filter(Boolean))];
+}
+
+function normalizeAlibabaImageUrl(value: string) {
+  const normalized = value.startsWith("//") ? `https:${value}` : value;
+  return normalized.replace(/(\.(?:jpg|jpeg|png|webp))_\d+x\d+\1$/i, "$1");
+}
+
+function extractImagesFromAlibabaRecord(raw: Record<string, unknown>) {
+  const basicInfo = (raw.basic_info && typeof raw.basic_info === "object") ? raw.basic_info as Record<string, unknown> : {};
+  const tradeInfo = (raw.trade_info && typeof raw.trade_info === "object") ? raw.trade_info as Record<string, unknown> : {};
+  const rawImage = (raw.image && typeof raw.image === "object") ? raw.image as Record<string, unknown> : {};
+  const skuInfo = Array.isArray(raw.sku_info)
+    ? raw.sku_info as Array<Record<string, unknown>>
+    : Array.isArray(tradeInfo.sku_info)
+      ? tradeInfo.sku_info as Array<Record<string, unknown>>
+      : [];
+
+  return uniqueStrings([
+    ...collectStrings(raw.main_image_url),
+    ...collectStrings(raw.image_url),
+    ...collectStrings(raw.display_big_image_url),
+    ...collectStrings(raw.product_main_image_url),
+    ...collectStrings(raw.productMainImageUrl),
+    ...collectStrings(raw.mainImage),
+    ...collectStrings(raw.mainImageUrl),
+    ...collectStrings(raw.imageUrl),
+    ...collectStrings(raw.imageUrls),
+    ...collectStrings(raw.image_url_list),
+    ...collectStrings(raw.imageUrlList),
+    ...collectStrings(raw.images),
+    ...collectStrings(raw.image),
+    ...collectStrings(raw.product_image),
+    ...collectStrings(raw.productImage),
+    ...collectStrings(raw.gallery),
+    ...collectStrings(rawImage.main_image),
+    ...collectStrings(rawImage.multi_image),
+    ...collectStrings(basicInfo.product_images),
+    ...collectStrings(basicInfo.product_image),
+    ...collectStrings(raw.product_images),
+    ...collectStrings(raw.product_image),
+    ...skuInfo.flatMap((sku) => collectStrings(sku.sale_attributes)),
+  ]).filter((entry) => entry.startsWith("http") || entry.startsWith("/")).map(normalizeAlibabaImageUrl);
+}
+
+function extractAlibabaProductDetailRecord(response: Record<string, unknown> | null) {
+  const result = response?.result && typeof response.result === "object" ? response.result as Record<string, unknown> : null;
+  const data = response?.data && typeof response.data === "object" ? response.data as Record<string, unknown> : null;
+  const resultData = result?.data && typeof result.data === "object" ? result.data as Record<string, unknown> : null;
+  const candidates = [response?.product_info, result?.product_info, data?.product_info, resultData?.product_info, response?.productInfo, result?.productInfo];
+
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+      return candidate as Record<string, unknown>;
+    }
+  }
+
+  return null;
+}
+
+async function fetchAlibabaProductDetail(sourceProductId: string, credentials?: AlibabaCredentials | null) {
+  const resolvedCredentials = credentials ?? await resolveAlibabaCredentialsForLiveCall();
+  if (!resolvedCredentials) {
+    return null;
+  }
+
+  const result = await callAlibabaEndpoint("/alibaba/icbu/product/get/v2", {
+    product_id: sourceProductId,
+  }, {
+    credentials: resolvedCredentials,
+    method: "GET",
+  });
+
+  const response = result.responseBody as Record<string, unknown> | null;
+  if (!result.ok || (response && response.success != null && !isTruthyAlibabaFlag(response.success))) {
+    return null;
+  }
+
+  return extractAlibabaProductDetailRecord(response);
+}
+
+export async function fetchAlibabaProductSnapshot(input: {
+  sourceProductId: string;
+  query?: string;
+}): Promise<AlibabaSearchProduct | null> {
+  const query = input.query?.trim() || input.sourceProductId;
+  const detailRecord = await fetchAlibabaProductDetail(input.sourceProductId);
+
+  if (!detailRecord) {
+    return null;
+  }
+
+  const mapped = mapAlibabaIcbuProductToProduct(detailRecord, query)
+    ?? mapAlibabaSearchResultToProduct(detailRecord, query);
+
+  if (!mapped) {
+    return null;
+  }
+
+  return enrichAlibabaSearchProduct(mapped, detailRecord);
+}
+
+function enrichAlibabaSearchProduct(product: AlibabaSearchProduct, detailRecord: Record<string, unknown> | null): AlibabaSearchProduct {
+  if (!detailRecord) {
+    return product;
+  }
+
+  const tradeInfo = (detailRecord.trade_info && typeof detailRecord.trade_info === "object") ? detailRecord.trade_info as Record<string, unknown> : {};
+  const logisticsInfo = (detailRecord.logistics_info && typeof detailRecord.logistics_info === "object") ? detailRecord.logistics_info as Record<string, unknown> : {};
+  const priceBounds = getPriceBounds(
+    detailRecord.price,
+    detailRecord.min_price,
+    detailRecord.max_price,
+    (tradeInfo.price as { range_price?: { min_price?: unknown; max_price?: unknown } } | undefined)?.range_price?.min_price,
+    (tradeInfo.price as { range_price?: { min_price?: unknown; max_price?: unknown } } | undefined)?.range_price?.max_price,
+    (tradeInfo.price as { tiered_price?: Array<{ price?: unknown }> } | undefined)?.tiered_price?.[0]?.price,
+  );
+  const verifiedMoq = extractVerifiedMoq(detailRecord) ?? extractVerifiedMoq(tradeInfo);
+  const moq = verifiedMoq ?? product.moq;
+  const weightFromLogistics = getNumberValue(logisticsInfo.weight);
+  const weightGrams = extractWeightGrams(detailRecord) ?? (weightFromLogistics ? Math.round(weightFromLogistics * (weightFromLogistics < 10 ? 1000 : 1)) : undefined);
+  const images = extractImagesFromAlibabaRecord(detailRecord);
+  const mergedPayload = product.rawPayload && typeof product.rawPayload === "object" && !Array.isArray(product.rawPayload)
+    ? { ...(product.rawPayload as Record<string, unknown>), detail: detailRecord }
+    : { search: product.rawPayload, detail: detailRecord };
+
+  return {
+    ...product,
+    image: images[0] ?? product.image,
+    gallery: images.length > 0 ? images : product.gallery,
+    videoUrl: getStringValue(detailRecord.video_url) ?? getStringValue(detailRecord.videoUrl) ?? product.videoUrl,
+    videoPoster: images[0] ?? product.videoPoster,
+    itemWeightGrams: weightGrams ?? product.itemWeightGrams,
+    minUsd: priceBounds.min ?? product.minUsd,
+    maxUsd: priceBounds.max ?? product.maxUsd,
+    moq,
+    moqVerified: typeof verifiedMoq === "number" && verifiedMoq > 0,
+    weightVerified: typeof weightGrams === "number" && weightGrams > 0,
+    priceVerified: hasCoherentPrice(priceBounds),
+    rawPayload: mergedPayload,
+  };
+}
+
+async function enrichAlibabaSearchProducts(products: AlibabaSearchProduct[], credentials?: AlibabaCredentials | null) {
+  const resolvedCredentials = credentials ?? await resolveAlibabaCredentialsForLiveCall();
+  if (!resolvedCredentials || products.length === 0) {
+    return products;
+  }
+
+  return Promise.all(products.map(async (product) => {
+    try {
+      const detailRecord = await fetchAlibabaProductDetail(product.sourceProductId, resolvedCredentials);
+      return enrichAlibabaSearchProduct(product, detailRecord);
+    } catch {
+      return product;
+    }
+  }));
 }
 
 function isTruthyAlibabaFlag(value: unknown) {
@@ -438,44 +689,28 @@ function mapAlibabaSearchResultToProduct(raw: Record<string, unknown>, query: st
     ?? getStringValue(raw.displaySubject)
     ?? getStringValue(raw.name);
 
-  const images = uniqueStrings([
-    ...collectStrings(raw.main_image_url),
-    ...collectStrings(raw.image_url),
-    ...collectStrings(raw.display_big_image_url),
-    ...collectStrings(raw.product_main_image_url),
-    ...collectStrings(raw.productMainImageUrl),
-    ...collectStrings(raw.mainImage),
-    ...collectStrings(raw.mainImageUrl),
-    ...collectStrings(raw.imageUrl),
-    ...collectStrings(raw.imageUrls),
-    ...collectStrings(raw.image_url_list),
-    ...collectStrings(raw.imageUrlList),
-    ...collectStrings(raw.images),
-    ...collectStrings(raw.image),
-    ...collectStrings(raw.product_image),
-    ...collectStrings(raw.productImage),
-    ...collectStrings(raw.gallery),
-  ]).filter((entry) => entry.startsWith("http") || entry.startsWith("/"));
+  const images = extractImagesFromAlibabaRecord(raw);
 
   if (!sourceProductId || !title || images.length === 0) {
     return null;
   }
 
-  const minUsd = getNumberValue(
+  const priceBounds = getPriceBounds(
     raw.min_price,
     raw.minPrice,
     raw.price,
     raw.sale_price,
-    (raw.priceRange as { min?: unknown } | undefined)?.min,
-    (raw.price_range as { min?: unknown } | undefined)?.min,
-  ) ?? 1;
-  const maxUsd = getNumberValue(
     raw.max_price,
     raw.maxPrice,
+    (raw.priceRange as { min?: unknown } | undefined)?.min,
     (raw.priceRange as { max?: unknown } | undefined)?.max,
+    (raw.price_range as { min?: unknown } | undefined)?.min,
     (raw.price_range as { max?: unknown } | undefined)?.max,
   );
-  const moq = Math.max(1, Math.round(getNumberValue(raw.moq, raw.min_order_quantity, raw.minOrderQuantity) ?? 1));
+  const minUsd = priceBounds.min ?? 1;
+  const maxUsd = priceBounds.max;
+  const verifiedMoq = extractVerifiedMoq(raw);
+  const moq = verifiedMoq ?? 1;
   const unit = getStringValue(raw.unit) ?? getStringValue(raw.unit_name) ?? "piece";
   const supplierName = getStringValue(raw.company_name)
     ?? getStringValue(raw.supplier_name)
@@ -535,6 +770,9 @@ function mapAlibabaSearchResultToProduct(raw: Record<string, unknown>, query: st
     variantGroups: [],
     tiers: [{ quantityLabel: `${moq}+`, priceUsd: minUsd }],
     specs,
+    moqVerified: typeof verifiedMoq === "number" && verifiedMoq > 0,
+    weightVerified: typeof weightGrams === "number" && weightGrams > 0,
+    priceVerified: hasCoherentPrice(priceBounds),
     rawPayload: raw,
   };
 }
@@ -552,13 +790,7 @@ function mapAlibabaIcbuProductToProduct(raw: Record<string, unknown>, query: str
 
   const sourceProductId = getStringValue(basicInfo.product_id) ?? getStringValue(raw.product_id);
   const title = getStringValue(basicInfo.title) ?? getStringValue(raw.title);
-  const images = uniqueStrings([
-    ...collectStrings(basicInfo.product_images),
-    ...collectStrings(basicInfo.product_image),
-    ...collectStrings(raw.product_images),
-    ...collectStrings(raw.product_image),
-    ...skuInfo.flatMap((sku) => collectStrings(sku.sale_attributes)),
-  ]).filter((entry) => entry.startsWith("http") || entry.startsWith("/"));
+  const images = extractImagesFromAlibabaRecord(raw);
 
   if (!sourceProductId || !title || images.length === 0) {
     return null;
@@ -567,13 +799,16 @@ function mapAlibabaIcbuProductToProduct(raw: Record<string, unknown>, query: str
   const categoryAttributes = Array.isArray(categoryInfo.attributes)
     ? categoryInfo.attributes as Array<Record<string, unknown>>
     : [];
-  const minUsd = getNumberValue(
+  const priceBounds = getPriceBounds(
     (tradeInfo.price as { range_price?: { min_price?: unknown } } | undefined)?.range_price?.min_price,
+    (tradeInfo.price as { range_price?: { max_price?: unknown } } | undefined)?.range_price?.max_price,
     (tradeInfo.price as { tiered_price?: Array<{ price?: unknown }> } | undefined)?.tiered_price?.[0]?.price,
     skuInfo[0] && typeof skuInfo[0].sku_price === "object" ? (skuInfo[0].sku_price as { price?: unknown }).price : undefined,
-  ) ?? 1;
-  const maxUsd = getNumberValue((tradeInfo.price as { range_price?: { max_price?: unknown } } | undefined)?.range_price?.max_price);
-  const moq = Math.max(1, Math.round(getNumberValue(tradeInfo.moq) ?? 1));
+  );
+  const minUsd = priceBounds.min ?? 1;
+  const maxUsd = priceBounds.max;
+  const verifiedMoq = extractVerifiedMoq(raw) ?? extractVerifiedMoq(tradeInfo);
+  const moq = verifiedMoq ?? 1;
   const weight = getNumberValue(logisticsInfo.weight);
   const keywords = uniqueStrings([
     ...collectStrings(basicInfo.keywords),
@@ -592,6 +827,7 @@ function mapAlibabaIcbuProductToProduct(raw: Record<string, unknown>, query: str
     `Import Alibaba ICBU pour ${title}.`,
   ]).slice(0, 4);
   const weightGrams = extractWeightGrams(raw);
+  const verifiedWeightGrams = weightGrams ?? (weight ? Math.round(weight * (weight < 10 ? 1000 : 1)) : undefined);
 
   return {
     sourceProductId,
@@ -604,7 +840,7 @@ function mapAlibabaIcbuProductToProduct(raw: Record<string, unknown>, query: str
     videoUrl: undefined,
     videoPoster: images[0],
     packaging: "Carton export standard",
-    itemWeightGrams: weightGrams ?? (weight ? Math.round(weight * (weight < 10 ? 1000 : 1)) : 0),
+    itemWeightGrams: verifiedWeightGrams ?? 0,
     lotCbm: getStringValue(logisticsInfo.desi) ?? "0.01",
     minUsd,
     maxUsd,
@@ -624,6 +860,9 @@ function mapAlibabaIcbuProductToProduct(raw: Record<string, unknown>, query: str
     variantGroups: [],
     tiers: [{ quantityLabel: `${moq}+`, priceUsd: minUsd }],
     specs,
+    moqVerified: typeof verifiedMoq === "number" && verifiedMoq > 0,
+    weightVerified: typeof verifiedWeightGrams === "number" && verifiedWeightGrams > 0,
+    priceVerified: hasCoherentPrice(priceBounds),
     rawPayload: raw,
   };
 }
@@ -932,7 +1171,11 @@ export async function searchAlibabaProducts(input: {
   }
 
   if (icbuResult.products.length > 0) {
-    return icbuResult;
+    const enrichedIcbuProducts = await enrichAlibabaSearchProducts(icbuResult.products);
+    return {
+      ...icbuResult,
+      products: enrichedIcbuProducts,
+    };
   }
 
   const payload = {
@@ -972,6 +1215,7 @@ export async function searchAlibabaProducts(input: {
     .map((candidate) => mapAlibabaSearchResultToProduct(candidate, input.query))
     .filter((candidate): candidate is AlibabaSearchProduct => candidate !== null)
     .slice(0, Math.min(Math.max(input.limit, 1), 100));
+  const enrichedProducts = await enrichAlibabaSearchProducts(products, credentials);
   const responseCode = extractAlibabaResponseCode(response);
 
   if (!result.ok) {
@@ -986,7 +1230,7 @@ export async function searchAlibabaProducts(input: {
     };
   }
 
-  if (products.length === 0) {
+  if (enrichedProducts.length === 0) {
     console.error("[alibaba/search] no usable products", {
       query: input.query,
       fulfillmentChannel: input.fulfillmentChannel,
@@ -1017,7 +1261,7 @@ export async function searchAlibabaProducts(input: {
     ok: true,
     endpoint: "/eco/buyer/product/search",
     responseBody: result.responseBody,
-    products,
+    products: enrichedProducts,
   };
 }
 

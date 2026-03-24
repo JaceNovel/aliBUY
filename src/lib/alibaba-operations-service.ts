@@ -1,6 +1,7 @@
 import type { ProductCatalogItem } from "@/lib/products-data";
 import { createAlibabaIntegrationLog, createSourcingIds, getAlibabaCatalogMappings } from "@/lib/sourcing-store";
 import {
+  deleteAlibabaImportedProduct,
   getAlibabaCountryProfiles,
   getAlibabaImportJobs,
   getAlibabaImportedProducts,
@@ -35,6 +36,7 @@ import {
 import {
   createAlibabaBuyNowOrder,
   createAlibabaDropshippingPayment,
+  fetchAlibabaProductSnapshot,
   queryAlibabaPaymentResult,
   searchAlibabaProducts,
 } from "@/lib/alibaba-open-platform-client";
@@ -256,7 +258,12 @@ export async function runAlibabaCatalogImport(input: {
     }
 
     const uniqueSearchProducts = searchResult.products.filter((product, index, products) => products.findIndex((entry) => entry.sourceProductId === product.sourceProductId) === index);
-    const freshProducts = uniqueSearchProducts.filter((product) => !existingSourceProductIds.has(product.sourceProductId));
+    const productsWithRequiredData = uniqueSearchProducts.filter((product) => product.priceVerified && product.moqVerified && product.weightVerified && product.itemWeightGrams > 0);
+    const freshProducts = productsWithRequiredData.filter((product) => !existingSourceProductIds.has(product.sourceProductId));
+
+    if (productsWithRequiredData.length === 0) {
+      throw new Error("Alibaba n'expose pas de prix coherent, MOQ verifie et poids exploitable pour cette recherche.");
+    }
 
     const importedProducts = freshProducts.map((product) => ({
       ...toImportedProduct(product, job.query, input.autoPublish),
@@ -298,7 +305,8 @@ export async function runAlibabaCatalogImport(input: {
       requestBody: input,
       responseBody: {
         importedCount: importedProducts.length,
-        skippedExistingCount: uniqueSearchProducts.length - freshProducts.length,
+        skippedExistingCount: productsWithRequiredData.length - freshProducts.length,
+        skippedMissingRequiredDataCount: uniqueSearchProducts.length - productsWithRequiredData.length,
         fallback: false,
       },
     });
@@ -328,6 +336,122 @@ export async function publishImportedProducts(productIds: string[]) {
     : product);
   await saveAlibabaImportedProducts(next);
   return next.filter((product) => productIds.includes(product.id));
+}
+
+export async function deleteImportedProduct(importedProductId: string) {
+  const products = await getAlibabaImportedProducts();
+  const product = products.find((entry) => entry.id === importedProductId);
+
+  if (!product) {
+    throw new Error("Produit importe introuvable.");
+  }
+
+  await deleteAlibabaImportedProduct(importedProductId);
+  await createAlibabaIntegrationLog({
+    action: "catalog-import-delete",
+    endpoint: "internal/imported-products/delete",
+    status: "success",
+    requestBody: { importedProductId },
+    responseBody: {
+      importedProductId,
+      sourceProductId: product.sourceProductId,
+      title: product.title,
+    },
+  });
+
+  return { deletedId: importedProductId, sourceProductId: product.sourceProductId };
+}
+
+export async function reenrichImportedProduct(importedProductId: string) {
+  const products = await getAlibabaImportedProducts();
+  const product = products.find((entry) => entry.id === importedProductId);
+
+  if (!product) {
+    throw new Error("Produit importe introuvable.");
+  }
+
+  const snapshot = await fetchAlibabaProductSnapshot({
+    sourceProductId: product.sourceProductId,
+    query: product.query,
+  });
+  const effectiveSnapshot = snapshot ?? {
+    ...product,
+    sourceProductId: product.sourceProductId,
+    supplierCompanyId: product.supplierCompanyId,
+    rawPayload: product.rawPayload,
+  };
+
+  const categoryInfo = extractAlibabaCategoryInfo({
+    rawPayload: effectiveSnapshot.rawPayload,
+    query: product.query,
+    title: effectiveSnapshot.title,
+    keywords: effectiveSnapshot.keywords,
+  });
+  const timestamp = nowIso();
+  const nextProduct: AlibabaImportedProduct = {
+    ...product,
+    categorySlug: categoryInfo.slug,
+    categoryTitle: categoryInfo.title,
+    categoryPath: categoryInfo.path,
+    title: effectiveSnapshot.title,
+    shortTitle: effectiveSnapshot.shortTitle,
+    description: effectiveSnapshot.overview.join(" "),
+    keywords: effectiveSnapshot.keywords ?? product.keywords,
+    image: effectiveSnapshot.image,
+    gallery: effectiveSnapshot.gallery,
+    videoUrl: effectiveSnapshot.videoUrl,
+    videoPoster: effectiveSnapshot.videoPoster,
+    packaging: effectiveSnapshot.packaging,
+    itemWeightGrams: effectiveSnapshot.itemWeightGrams > 0 ? effectiveSnapshot.itemWeightGrams : product.itemWeightGrams,
+    lotCbm: effectiveSnapshot.lotCbm,
+    minUsd: effectiveSnapshot.minUsd,
+    maxUsd: effectiveSnapshot.maxUsd,
+    moq: effectiveSnapshot.moq,
+    unit: effectiveSnapshot.unit,
+    badge: effectiveSnapshot.badge,
+    supplierName: effectiveSnapshot.supplierName,
+    supplierLocation: effectiveSnapshot.supplierLocation,
+    supplierCompanyId: effectiveSnapshot.supplierCompanyId ?? product.supplierCompanyId,
+    responseTime: effectiveSnapshot.responseTime,
+    yearsInBusiness: effectiveSnapshot.yearsInBusiness,
+    transactionsLabel: effectiveSnapshot.transactionsLabel,
+    soldLabel: effectiveSnapshot.soldLabel,
+    customizationLabel: effectiveSnapshot.customizationLabel,
+    shippingLabel: effectiveSnapshot.shippingLabel,
+    overview: effectiveSnapshot.overview,
+    variantGroups: effectiveSnapshot.variantGroups,
+    tiers: [{
+      quantityLabel: `${effectiveSnapshot.moq}+`,
+      priceUsd: effectiveSnapshot.minUsd,
+      note: typeof effectiveSnapshot.maxUsd === "number" ? `Jusqu'à ${effectiveSnapshot.maxUsd.toFixed(2)} USD` : undefined,
+    }],
+    specs: effectiveSnapshot.specs,
+    inventory: Math.max(effectiveSnapshot.moq * 5, 50),
+    updatedAt: timestamp,
+    rawPayload: effectiveSnapshot.rawPayload,
+  };
+
+  await saveAlibabaImportedProducts([nextProduct]);
+  await createAlibabaIntegrationLog({
+    action: "catalog-import-reenrich",
+    endpoint: "/alibaba/icbu/product/get/v2",
+    status: "success",
+    requestBody: {
+      importedProductId,
+      sourceProductId: product.sourceProductId,
+    },
+    responseBody: {
+      importedProductId,
+      sourceProductId: product.sourceProductId,
+      source: snapshot ? "live-detail" : "stored-raw-payload",
+      minUsd: nextProduct.minUsd,
+      maxUsd: nextProduct.maxUsd,
+      moq: nextProduct.moq,
+      itemWeightGrams: nextProduct.itemWeightGrams,
+    },
+  });
+
+  return nextProduct;
 }
 
 export async function saveAlibabaSupplierAccountInput(input: Omit<AlibabaSupplierAccount, "id" | "createdAt" | "updatedAt"> & { id?: string }) {

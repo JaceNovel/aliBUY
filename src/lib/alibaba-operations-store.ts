@@ -180,6 +180,134 @@ function toNullablePrismaJson(value: unknown): Prisma.InputJsonValue | typeof Pr
   return value as Prisma.InputJsonValue;
 }
 
+function normalizeAlibabaMediaUrl(value?: string) {
+  if (!value) {
+    return undefined;
+  }
+
+  const normalized = value.startsWith("//") ? `https:${value}` : value;
+  return normalized.replace(/(\.(?:jpg|jpeg|png|webp))_\d+x\d+\1$/i, "$1");
+}
+
+function extractPriceValues(candidate: unknown): number[] {
+  if (typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0) {
+    return [candidate];
+  }
+
+  if (typeof candidate !== "string") {
+    return [];
+  }
+
+  const matches = candidate.match(/\d+(?:[.,]\d+)?/g) ?? [];
+  return matches
+    .map((value) => Number(value.replace(',', '.')))
+    .filter((value) => Number.isFinite(value) && value > 0);
+}
+
+function extractRawPriceBounds(rawPayload: Prisma.JsonValue | null) {
+  if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) {
+    return {} as { minUsd?: number; maxUsd?: number };
+  }
+
+  const record = rawPayload as Record<string, unknown>;
+  const candidates = [
+    record.price,
+    record.min_price,
+    record.minPrice,
+    record.max_price,
+    record.maxPrice,
+    (record.priceRange as { min?: unknown; max?: unknown } | undefined)?.min,
+    (record.priceRange as { min?: unknown; max?: unknown } | undefined)?.max,
+    (record.price_range as { min?: unknown; max?: unknown } | undefined)?.min,
+    (record.price_range as { min?: unknown; max?: unknown } | undefined)?.max,
+  ];
+  const values = candidates.flatMap((candidate) => extractPriceValues(candidate));
+
+  if (values.length === 0) {
+    return {} as { minUsd?: number; maxUsd?: number };
+  }
+
+  return {
+    minUsd: Math.min(...values),
+    maxUsd: values.length > 1 ? Math.max(...values) : undefined,
+  };
+}
+
+function parseWeightCandidate(value: unknown, keyHint?: string): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    if (/gram|grams|weight_grams|weightgrams/i.test(keyHint ?? "")) {
+      return Math.round(value);
+    }
+
+    if (/kg|kilogram|weight/i.test(keyHint ?? "")) {
+      return Math.round(value < 10 ? value * 1000 : value);
+    }
+  }
+
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return undefined;
+  }
+
+  const kilogramMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*(kg|kilogram)/i);
+  if (kilogramMatch) {
+    return Math.round(Number(kilogramMatch[1].replace(',', '.')) * 1000);
+  }
+
+  const gramMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*(g|gram)/i);
+  if (gramMatch && !/2\.4g|5g|4g/i.test(normalized)) {
+    return Math.round(Number(gramMatch[1].replace(',', '.')));
+  }
+
+  if (/weight|gross_weight|net_weight|package_weight|shipping_weight|item_weight/i.test(keyHint ?? "")) {
+    const numeric = Number(normalized.replace(/[^0-9.,-]/g, '').replace(',', '.'));
+    if (Number.isFinite(numeric) && numeric > 0) {
+      return Math.round(numeric < 10 ? numeric * 1000 : numeric);
+    }
+  }
+
+  return undefined;
+}
+
+function extractRawWeightGrams(value: unknown, depth = 0, keyHint?: string): number | undefined {
+  if (depth > 5 || value == null) {
+    return undefined;
+  }
+
+  const direct = parseWeightCandidate(value, keyHint);
+  if (typeof direct === "number" && direct > 0) {
+    return direct;
+  }
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const nested = extractRawWeightGrams(entry, depth + 1, keyHint);
+      if (typeof nested === "number" && nested > 0) {
+        return nested;
+      }
+    }
+
+    return undefined;
+  }
+
+  if (typeof value !== "object") {
+    return undefined;
+  }
+
+  for (const [nestedKey, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+    const nested = extractRawWeightGrams(nestedValue, depth + 1, nestedKey);
+    if (typeof nested === "number" && nested > 0) {
+      return nested;
+    }
+  }
+
+  return undefined;
+}
+
 function toSafeInt(value: number, fallback = 0) {
   if (!Number.isFinite(value)) {
     return fallback;
@@ -536,6 +664,11 @@ function mapImportedProductRecord(record: {
   createdAt: Date;
   updatedAt: Date;
 }): AlibabaImportedProduct {
+  const normalizedImage = normalizeAlibabaMediaUrl(record.image) ?? record.image;
+  const normalizedGallery = toStringArray(record.gallery).map((image) => normalizeAlibabaMediaUrl(image) ?? image);
+  const rawPriceBounds = extractRawPriceBounds(record.rawPayload ?? null);
+  const rawWeightGrams = extractRawWeightGrams(record.rawPayload);
+
   return {
     id: record.id,
     sourceProductId: record.sourceProductId,
@@ -548,15 +681,15 @@ function mapImportedProductRecord(record: {
     description: record.description,
     query: record.query,
     keywords: toStringArray(record.keywords),
-    image: record.image,
-    gallery: toStringArray(record.gallery),
-    videoUrl: record.videoUrl ?? undefined,
-    videoPoster: record.videoPoster ?? undefined,
+    image: normalizedImage,
+    gallery: normalizedGallery,
+    videoUrl: normalizeAlibabaMediaUrl(record.videoUrl ?? undefined) ?? undefined,
+    videoPoster: normalizeAlibabaMediaUrl(record.videoPoster ?? undefined) ?? undefined,
     packaging: record.packaging,
-    itemWeightGrams: record.itemWeightGrams,
+    itemWeightGrams: record.itemWeightGrams > 0 ? record.itemWeightGrams : rawWeightGrams ?? 0,
     lotCbm: record.lotCbm,
-    minUsd: record.minUsd,
-    maxUsd: record.maxUsd ?? undefined,
+    minUsd: rawPriceBounds.minUsd ?? record.minUsd,
+    maxUsd: rawPriceBounds.maxUsd ?? record.maxUsd ?? undefined,
     moq: record.moq,
     unit: record.unit,
     badge: record.badge ?? undefined,
@@ -1172,6 +1305,17 @@ export async function saveAlibabaImportedProducts(products: AlibabaImportedProdu
   const next = [...nextMap.values()].sort((left: AlibabaImportedProduct, right: AlibabaImportedProduct) => right.updatedAt.localeCompare(left.updatedAt));
   await writeJsonFile(IMPORTED_PRODUCTS_PATH, next);
   return next;
+}
+
+export async function deleteAlibabaImportedProduct(importedProductId: string): Promise<void> {
+  if (hasDatabase()) {
+    await prisma.alibabaImportedProductRecord.deleteMany({ where: { id: importedProductId } });
+    return;
+  }
+
+  const products = await getAlibabaImportedProducts();
+  const next = products.filter((product: AlibabaImportedProduct) => product.id !== importedProductId);
+  await writeJsonFile(IMPORTED_PRODUCTS_PATH, next);
 }
 
 export async function getAlibabaSupplierAccounts(): Promise<AlibabaSupplierAccount[]> {
