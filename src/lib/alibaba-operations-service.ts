@@ -261,10 +261,6 @@ export async function runAlibabaCatalogImport(input: {
     const productsWithRequiredData = uniqueSearchProducts.filter((product) => product.priceVerified && product.moqVerified && product.weightVerified && product.itemWeightGrams > 0);
     const freshProducts = productsWithRequiredData.filter((product) => !existingSourceProductIds.has(product.sourceProductId));
 
-    if (productsWithRequiredData.length === 0) {
-      throw new Error("Alibaba n'expose pas de prix coherent, MOQ verifie et poids exploitable pour cette recherche.");
-    }
-
     const importedProducts = freshProducts.map((product) => ({
       ...toImportedProduct(product, job.query, input.autoPublish),
       ...(() => {
@@ -286,9 +282,16 @@ export async function runAlibabaCatalogImport(input: {
       rawPayload: product.rawPayload,
     }));
 
+    const skippedMissingRequiredDataCount = uniqueSearchProducts.length - productsWithRequiredData.length;
+    const skippedExistingCount = productsWithRequiredData.length - freshProducts.length;
+
     if (importedProducts.length > 0) {
       await saveAlibabaImportedProducts(importedProducts);
     }
+
+    const warningMessage = importedProducts.length === 0 && skippedMissingRequiredDataCount > 0
+      ? "Import termine sans ajout: Alibaba n'expose pas de prix coherent, MOQ verifie et poids exploitable pour les articles trouves."
+      : undefined;
 
     const completedJob: AlibabaImportJob = {
       ...job,
@@ -305,9 +308,10 @@ export async function runAlibabaCatalogImport(input: {
       requestBody: input,
       responseBody: {
         importedCount: importedProducts.length,
-        skippedExistingCount: productsWithRequiredData.length - freshProducts.length,
-        skippedMissingRequiredDataCount: uniqueSearchProducts.length - productsWithRequiredData.length,
+        skippedExistingCount,
+        skippedMissingRequiredDataCount,
         fallback: false,
+        warningMessage,
       },
     });
 
@@ -315,6 +319,9 @@ export async function runAlibabaCatalogImport(input: {
       job: completedJob,
       products: importedProducts,
       usedFallback: false,
+      skippedExistingCount,
+      skippedMissingRequiredDataCount,
+      warningMessage,
     };
   } catch (error) {
     const failedJob: AlibabaImportJob = {

@@ -119,7 +119,13 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
       setFeedback(payload?.message ?? "Import Alibaba impossible.");
       return;
     }
-    setFeedback("Import Alibaba live termine et catalogue mis a jour.");
+    if (payload?.warningMessage) {
+      setFeedback(`${payload.warningMessage}${typeof payload?.skippedMissingRequiredDataCount === "number" ? ` Rejets: ${payload.skippedMissingRequiredDataCount}.` : ""}`);
+      refresh();
+      return;
+    }
+
+    setFeedback(`Import Alibaba live termine et catalogue mis a jour.${typeof payload?.skippedExistingCount === "number" && payload.skippedExistingCount > 0 ? ` Deja importes ignores: ${payload.skippedExistingCount}.` : ""}`);
     refresh();
   };
 
