@@ -228,12 +228,12 @@ function extractVerifiedMoq(value: unknown, depth = 0, keyHint?: string): number
     return undefined;
   }
 
-  if (typeof value === "number" && Number.isFinite(value) && /moq|min[_ -]?order|begin_amount|quantity_min/i.test(keyHint ?? "")) {
+  if (typeof value === "number" && Number.isFinite(value) && /moq|min(?:imum)?[_ -]?order|begin_amount|quantity_min|min[_ -]?qty|min[_ -]?quantity|start[_ -]?quantity|order[_ -]?qty|order[_ -]?quantity/i.test(keyHint ?? "")) {
     return Math.max(1, Math.round(value));
   }
 
   if (typeof value === "string") {
-    if (/moq|min[_ -]?order|begin_amount|quantity_min/i.test(keyHint ?? "")) {
+    if (/moq|min(?:imum)?[_ -]?order|begin_amount|quantity_min|min[_ -]?qty|min[_ -]?quantity|start[_ -]?quantity|order[_ -]?qty|order[_ -]?quantity/i.test(keyHint ?? "")) {
       const numeric = Number((value.match(/\d+(?:[.,]\d+)?/)?.[0] ?? "").replace(',', '.'));
       if (Number.isFinite(numeric) && numeric > 0) {
         return Math.max(1, Math.round(numeric));
@@ -281,7 +281,7 @@ function hasCoherentPrice(bounds: { min?: number; max?: number }) {
 }
 
 function isWeightKeyHint(keyHint?: string) {
-  return Boolean(keyHint && /(weight|gross_weight|net_weight|package_weight|shipping_weight|item_weight|weight_grams|weightgrams|gram|grams|kg|kilogram)/i.test(keyHint));
+  return Boolean(keyHint && /(weight|gross[_ -]?weight|net[_ -]?weight|package[_ -]?weight|shipping[_ -]?weight|item[_ -]?weight|product[_ -]?weight|parcel[_ -]?weight|weight[_ -]?grams|weightgrams|gram|grams|kg|kilogram|lb|lbs|pound|ounces|oz)/i.test(keyHint));
 }
 
 function parseWeightToGrams(value: unknown, keyHint?: string) {
@@ -313,6 +313,16 @@ function parseWeightToGrams(value: unknown, keyHint?: string) {
   const kilogramMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*(kg|kilogram)/i);
   if (kilogramMatch) {
     return Math.round(Number(kilogramMatch[1].replace(',', '.')) * 1000);
+  }
+
+  const poundMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*(lb|lbs|pound)/i);
+  if (poundMatch) {
+    return Math.round(Number(poundMatch[1].replace(',', '.')) * 453.59237);
+  }
+
+  const ounceMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*(oz|ounce)/i);
+  if (ounceMatch) {
+    return Math.round(Number(ounceMatch[1].replace(',', '.')) * 28.349523125);
   }
 
   const gramMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*(g|gram)/i);
@@ -427,7 +437,7 @@ function extractImagesFromAlibabaRecord(raw: Record<string, unknown>) {
     ...collectStrings(raw.product_images),
     ...collectStrings(raw.product_image),
     ...skuInfo.flatMap((sku) => collectStrings(sku.sale_attributes)),
-  ]).filter((entry) => entry.startsWith("http") || entry.startsWith("/")).map(normalizeAlibabaImageUrl);
+  ]).filter((entry) => entry.startsWith("http") || entry.startsWith("/") || entry.startsWith("//")).map(normalizeAlibabaImageUrl);
 }
 
 function extractAlibabaProductDetailRecord(response: Record<string, unknown> | null) {
@@ -445,10 +455,164 @@ function extractAlibabaProductDetailRecord(response: Record<string, unknown> | n
   return null;
 }
 
+function isAlibabaBusinessSuccess(response: Record<string, unknown> | null) {
+  const result = response?.result && typeof response.result === "object" ? response.result as Record<string, unknown> : null;
+  const codes = [
+    getStringValue(response?.result_code),
+    getStringValue(response?.code),
+    getStringValue(result?.result_code),
+    getStringValue(result?.code),
+    getStringValue(response?.success),
+  ].filter(Boolean).map((value) => value!.trim().toLowerCase());
+
+  if (codes.length === 0) {
+    return true;
+  }
+
+  return codes.some((code) => code === "0" || code === "00" || code === "200" || code === "success" || code === "true" || code === "1");
+}
+
+function collectObjectNodes(value: unknown, depth = 0): Array<Record<string, unknown>> {
+  if (depth > 4 || value == null || typeof value !== "object") {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => collectObjectNodes(entry, depth + 1));
+  }
+
+  const record = value as Record<string, unknown>;
+  return [
+    record,
+    ...Object.values(record).flatMap((entry) => collectObjectNodes(entry, depth + 1)),
+  ];
+}
+
+function scoreAlibabaDetailRecord(record: Record<string, unknown>, sourceProductId: string) {
+  let score = 0;
+  const recordProductId = getStringValue(record.product_id) ?? getStringValue(record.productId);
+
+  if (recordProductId === sourceProductId) {
+    score += 5;
+  }
+
+  if (getStringValue(record.detail_url) || getStringValue(record.detailUrl)) {
+    score += 3;
+  }
+
+  if (record.images != null || record.image != null || record.image_url_list != null || record.imageUrlList != null) {
+    score += 2;
+  }
+
+  if (record.skus != null || record.sku_info != null || record.wholesale_trade != null || record.trade_info != null) {
+    score += 3;
+  }
+
+  if (record.supplier != null || record.supplier_info != null || record.e_company_id != null) {
+    score += 2;
+  }
+
+  if (record.attributes != null || record.key_attributes != null || record.keyattributes != null) {
+    score += 1;
+  }
+
+  if (record.weight != null || record.logistics_info != null) {
+    score += 1;
+  }
+
+  return score;
+}
+
+function extractAlibabaEcoBuyerDetailRecord(response: Record<string, unknown> | null, sourceProductId: string) {
+  if (!response) {
+    return null;
+  }
+
+  const candidates = collectObjectNodes(response)
+    .filter((record) => scoreAlibabaDetailRecord(record, sourceProductId) > 0)
+    .sort((left, right) => scoreAlibabaDetailRecord(right, sourceProductId) - scoreAlibabaDetailRecord(left, sourceProductId));
+
+  return candidates[0] ?? null;
+}
+
+async function callAlibabaGetWithAppKeyFallback(pathOrUrl: string, payload: Record<string, unknown>, credentials: AlibabaCredentials) {
+  let result = await callAlibabaEndpoint(pathOrUrl, payload, {
+    credentials,
+    method: "GET",
+    systemParamsInHeaders: false,
+  });
+  let response = result.responseBody as Record<string, unknown> | null;
+
+  if (isMissingAlibabaAppKeyMessage(extractAlibabaResponseMessage(response))) {
+    result = await callAlibabaEndpoint(pathOrUrl, payload, {
+      credentials,
+      method: "GET",
+      systemParamsInHeaders: true,
+    });
+    response = result.responseBody as Record<string, unknown> | null;
+  }
+
+  return { result, response };
+}
+
+async function fetchAlibabaEcoBuyerProductDetail(sourceProductId: string, credentials: AlibabaCredentials) {
+  const payloadAttempts = [
+    { query_req: { product_id: sourceProductId } },
+    { query_req: { offer_id: sourceProductId } },
+    { query_req: { productId: sourceProductId } },
+  ];
+
+  for (const payload of payloadAttempts) {
+    const descriptionCall = await callAlibabaGetWithAppKeyFallback("/eco/buyer/product/description", payload, credentials);
+    if (!descriptionCall.result.ok || !isAlibabaBusinessSuccess(descriptionCall.response)) {
+      continue;
+    }
+
+    const descriptionRecord = extractAlibabaEcoBuyerDetailRecord(descriptionCall.response, sourceProductId);
+    if (!descriptionRecord) {
+      continue;
+    }
+
+    let keyattributesRecord: Record<string, unknown> | null = null;
+    const queryReq = (payload.query_req && typeof payload.query_req === "object")
+      ? payload.query_req as Record<string, unknown>
+      : {};
+    const keyattributesPayloads = [
+      { query_req: { ...queryReq, attr_type: "ALL" } },
+      { query_req: { ...queryReq, type: "ALL" } },
+      payload,
+    ];
+
+    for (const keyPayload of keyattributesPayloads) {
+      const keyattributesCall = await callAlibabaGetWithAppKeyFallback("/eco/buyer/product/keyattributes", keyPayload, credentials);
+      if (!keyattributesCall.result.ok || !isAlibabaBusinessSuccess(keyattributesCall.response)) {
+        continue;
+      }
+
+      keyattributesRecord = extractAlibabaEcoBuyerDetailRecord(keyattributesCall.response, sourceProductId)
+        ?? (keyattributesCall.response ?? null);
+      break;
+    }
+
+    return {
+      ...descriptionRecord,
+      eco_buyer_description: descriptionCall.response,
+      eco_buyer_keyattributes: keyattributesRecord,
+    };
+  }
+
+  return null;
+}
+
 async function fetchAlibabaProductDetail(sourceProductId: string, credentials?: AlibabaCredentials | null) {
   const resolvedCredentials = credentials ?? await resolveAlibabaCredentialsForLiveCall();
   if (!resolvedCredentials) {
     return null;
+  }
+
+  const ecoBuyerRecord = await fetchAlibabaEcoBuyerProductDetail(sourceProductId, resolvedCredentials);
+  if (ecoBuyerRecord) {
+    return ecoBuyerRecord;
   }
 
   const result = await callAlibabaEndpoint("/alibaba/icbu/product/get/v2", {
