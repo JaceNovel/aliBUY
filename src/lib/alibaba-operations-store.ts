@@ -14,6 +14,7 @@ import type {
   AlibabaSupplierAccount,
 } from "@/lib/alibaba-operations";
 import { prisma } from "@/lib/prisma";
+import { sanitizeItemWeightGrams } from "@/lib/product-weight";
 
 const DEFAULT_COUNTRY_PROFILES: AlibabaCountryProfile[] = [
   {
@@ -299,11 +300,11 @@ function extractRawMediaGallery(rawPayload: Prisma.JsonValue | null) {
 function parseWeightCandidate(value: unknown, keyHint?: string): number | undefined {
   if (typeof value === "number" && Number.isFinite(value) && value > 0) {
     if (/gram|grams|weight_grams|weightgrams/i.test(keyHint ?? "")) {
-      return Math.round(value);
+      return sanitizeItemWeightGrams(Math.round(value));
     }
 
     if (/kg|kilogram|weight/i.test(keyHint ?? "")) {
-      return Math.round(value < 10 ? value * 1000 : value);
+      return sanitizeItemWeightGrams(Math.round(value < 10 ? value * 1000 : value));
     }
   }
 
@@ -318,18 +319,18 @@ function parseWeightCandidate(value: unknown, keyHint?: string): number | undefi
 
   const kilogramMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*(kg|kilogram)/i);
   if (kilogramMatch) {
-    return Math.round(Number(kilogramMatch[1].replace(',', '.')) * 1000);
+    return sanitizeItemWeightGrams(Math.round(Number(kilogramMatch[1].replace(',', '.')) * 1000));
   }
 
   const gramMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*(g|gram)/i);
   if (gramMatch && !/2\.4g|5g|4g/i.test(normalized)) {
-    return Math.round(Number(gramMatch[1].replace(',', '.')));
+    return sanitizeItemWeightGrams(Math.round(Number(gramMatch[1].replace(',', '.'))));
   }
 
   if (/weight|gross_weight|net_weight|package_weight|shipping_weight|item_weight/i.test(keyHint ?? "")) {
     const numeric = Number(normalized.replace(/[^0-9.,-]/g, '').replace(',', '.'));
     if (Number.isFinite(numeric) && numeric > 0) {
-      return Math.round(numeric < 10 ? numeric * 1000 : numeric);
+      return sanitizeItemWeightGrams(Math.round(numeric < 10 ? numeric * 1000 : numeric));
     }
   }
 
@@ -733,6 +734,7 @@ function mapImportedProductRecord(record: {
   const effectiveGallery = normalizedGallery.length > 0 ? normalizedGallery : rawMediaGallery;
   const rawPriceBounds = extractRawPriceBounds(record.rawPayload ?? null);
   const rawWeightGrams = extractRawWeightGrams(record.rawPayload);
+  const storedWeightGrams = sanitizeItemWeightGrams(record.itemWeightGrams > 0 ? record.itemWeightGrams : undefined);
 
   return {
     id: record.id,
@@ -751,7 +753,7 @@ function mapImportedProductRecord(record: {
     videoUrl: normalizeAlibabaMediaUrl(record.videoUrl ?? undefined) ?? undefined,
     videoPoster: normalizeAlibabaMediaUrl(record.videoPoster ?? undefined) ?? undefined,
     packaging: record.packaging,
-    itemWeightGrams: record.itemWeightGrams > 0 ? record.itemWeightGrams : rawWeightGrams ?? 0,
+    itemWeightGrams: storedWeightGrams ?? rawWeightGrams ?? 0,
     lotCbm: record.lotCbm,
     minUsd: rawPriceBounds.minUsd ?? record.minUsd,
     maxUsd: rawPriceBounds.maxUsd ?? record.maxUsd ?? undefined,

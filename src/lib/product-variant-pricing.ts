@@ -388,6 +388,24 @@ export function extractAlibabaVariantPricing(rawPayload: unknown): ProductVarian
   });
 }
 
+export function deriveVariantGroupsFromPricing(rules: ProductVariantPrice[]) {
+  const groups = new Map<string, string[]>();
+
+  rules.forEach((rule) => {
+    Object.entries(normalizeSelection(rule.selections)).forEach(([label, value]) => {
+      const existing = groups.get(label) ?? [];
+      if (!existing.includes(value)) {
+        existing.push(value);
+        groups.set(label, existing);
+      }
+    });
+  });
+
+  return [...groups.entries()]
+    .map(([label, values]) => ({ label, values }))
+    .filter((group) => group.values.length > 1);
+}
+
 function matchVariantRules(product: VariantPricedProduct, selection?: VariantSelection) {
   const normalizedSelection = normalizeSelection(selection);
   const rules = product.variantPricing ?? [];

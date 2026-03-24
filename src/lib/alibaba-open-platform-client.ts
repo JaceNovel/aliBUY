@@ -9,6 +9,7 @@ import {
   type AlibabaSupplierAccount,
 } from "@/lib/alibaba-operations";
 import { getInternalSupplierFulfillment } from "@/lib/internal-fulfillment";
+import { sanitizeItemWeightGrams } from "@/lib/product-weight";
 import type { SourcingOrder, AlibabaCatalogMapping } from "@/lib/alibaba-sourcing";
 import type { ProductCatalogItem } from "@/lib/products-data";
 import { getAlibabaSupplierAccounts, saveAlibabaSupplierAccount } from "@/lib/alibaba-operations-store";
@@ -636,15 +637,15 @@ function isWeightKeyHint(keyHint?: string) {
 function parseWeightToGrams(value: unknown, keyHint?: string) {
   if (typeof value === "number" && Number.isFinite(value)) {
     if (keyHint && /gram|grams|weight_grams|weightgrams/i.test(keyHint)) {
-      return Math.round(value);
+      return sanitizeItemWeightGrams(Math.round(value));
     }
 
     if (keyHint && /kg|kilogram/i.test(keyHint)) {
-      return Math.round(value * 1000);
+      return sanitizeItemWeightGrams(Math.round(value * 1000));
     }
 
     if (isWeightKeyHint(keyHint) && value > 0) {
-      return Math.round(value < 10 ? value * 1000 : value);
+      return sanitizeItemWeightGrams(Math.round(value < 10 ? value * 1000 : value));
     }
 
     return undefined;
@@ -661,28 +662,28 @@ function parseWeightToGrams(value: unknown, keyHint?: string) {
 
   const kilogramMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*(kg|kilogram)/i);
   if (kilogramMatch) {
-    return Math.round(Number(kilogramMatch[1].replace(',', '.')) * 1000);
+    return sanitizeItemWeightGrams(Math.round(Number(kilogramMatch[1].replace(',', '.')) * 1000));
   }
 
   const poundMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*(lb|lbs|pound)/i);
   if (poundMatch) {
-    return Math.round(Number(poundMatch[1].replace(',', '.')) * 453.59237);
+    return sanitizeItemWeightGrams(Math.round(Number(poundMatch[1].replace(',', '.')) * 453.59237));
   }
 
   const ounceMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*(oz|ounce)/i);
   if (ounceMatch) {
-    return Math.round(Number(ounceMatch[1].replace(',', '.')) * 28.349523125);
+    return sanitizeItemWeightGrams(Math.round(Number(ounceMatch[1].replace(',', '.')) * 28.349523125));
   }
 
   const gramMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*(g|gram)/i);
   if (gramMatch && !/2\.4g|5g|4g/i.test(normalized)) {
-    return Math.round(Number(gramMatch[1].replace(',', '.')));
+    return sanitizeItemWeightGrams(Math.round(Number(gramMatch[1].replace(',', '.'))));
   }
 
   if (isWeightKeyHint(keyHint)) {
     const numeric = Number(normalized.replace(/[^0-9.,-]/g, '').replace(',', '.'));
     if (Number.isFinite(numeric) && numeric > 0) {
-      return Math.round(numeric < 10 ? numeric * 1000 : numeric);
+      return sanitizeItemWeightGrams(Math.round(numeric < 10 ? numeric * 1000 : numeric));
     }
   }
 
@@ -1237,7 +1238,7 @@ function enrichAlibabaSearchProduct(product: AlibabaSearchProduct, detailRecord:
   const verifiedMoq = extractVerifiedMoq(detailRecord) ?? extractVerifiedMoq(tradeInfo);
   const moq = verifiedMoq ?? product.moq;
   const weightFromLogistics = getNumberValue(logisticsInfo.weight);
-  const weightGrams = extractWeightGrams(detailRecord) ?? (weightFromLogistics ? Math.round(weightFromLogistics * (weightFromLogistics < 10 ? 1000 : 1)) : undefined);
+  const weightGrams = extractWeightGrams(detailRecord) ?? sanitizeItemWeightGrams(weightFromLogistics ? Math.round(weightFromLogistics * (weightFromLogistics < 10 ? 1000 : 1)) : undefined);
   const images = extractImagesFromAlibabaRecord(detailRecord);
   const variantGroups = extractAlibabaVariantGroups(detailRecord);
   const mergedPayload = product.rawPayload && typeof product.rawPayload === "object" && !Array.isArray(product.rawPayload)
@@ -1579,7 +1580,7 @@ function mapAlibabaIcbuProductToProduct(raw: Record<string, unknown>, query: str
     `Import Alibaba ICBU pour ${title}.`,
   ]).slice(0, 4);
   const weightGrams = extractWeightGrams(raw);
-  const verifiedWeightGrams = weightGrams ?? (weight ? Math.round(weight * (weight < 10 ? 1000 : 1)) : undefined);
+  const verifiedWeightGrams = weightGrams ?? sanitizeItemWeightGrams(weight ? Math.round(weight * (weight < 10 ? 1000 : 1)) : undefined);
   const variantGroups = extractAlibabaVariantGroups(raw, tradeInfo);
 
   return {

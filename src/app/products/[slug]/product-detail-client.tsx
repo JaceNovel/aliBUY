@@ -260,6 +260,10 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
         return sum + (unitPrice * quantity);
       }, 0)
     : currentUnitPrice * totalSelectedQuantity;
+  const dynamicPriceLabel = hasVariantSpecificPricing ? formatMoney(currentUnitPrice) : product.formattedPriceRange;
+  const dynamicPriceHint = hasVariantSpecificPricing
+    ? `Prix pour ${Object.entries(previewSelection).map(([, value]) => value).filter(Boolean).join(" · ") || "la variante choisie"}`
+    : product.moqLabel;
   const updateMixQuantity = (value: string, delta: number) => {
     setMixQuantities((current) => {
       const nextValue = Math.max(0, (current[value] ?? 0) + delta);
@@ -968,12 +972,12 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
             <div className="mt-6 rounded-[24px] bg-[#fff8f2] px-5 py-5 ring-1 ring-[#ffe3cb]">
               <div className="text-[13px] font-semibold uppercase tracking-[0.14em] text-[#b66724]">Prix de référence</div>
               <div className="mt-2 text-[28px] font-bold tracking-[-0.05em] text-[#f05a00] sm:text-[34px] lg:text-[42px]">
-                {product.formattedPriceRange}
+                {dynamicPriceLabel}
               </div>
-              <div className="mt-2 text-[14px] text-[#6e5b4b]">{product.moqLabel}</div>
+              <div className="mt-2 text-[14px] text-[#6e5b4b]">{dynamicPriceHint}</div>
 
               <div className="mt-5 overflow-hidden rounded-[18px] border border-[#ffd7b7] bg-white">
-                {product.tiers.map((tier, index) => (
+                {sortedTiers.map((tier, index) => (
                   <div key={tier.quantityLabel} className={["grid grid-cols-1 gap-1 px-4 py-3 text-[14px] sm:grid-cols-[1.1fr_0.8fr_1fr] sm:gap-3", index > 0 ? "border-t border-[#f4e2d5]" : ""].join(" ")}>
                     <div className="font-semibold text-[#222]">{tier.quantityLabel}</div>
                     <div className="font-bold text-[#f05a00]">{tier.formattedPrice}</div>
