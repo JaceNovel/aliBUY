@@ -36,15 +36,25 @@ export async function hashAdminPassword(password: string) {
   return sha256Hex(password);
 }
 
+export async function getAdminCredentialDiagnostics(email: string, password: string) {
+  const submittedEmail = email.trim().toLowerCase();
+  const submittedPasswordHash = password ? await hashAdminPassword(password) : "";
+
+  return {
+    configured: isAdminAuthConfigured(),
+    emailMatch: Boolean(submittedEmail) && submittedEmail === getAdminEmail(),
+    hashMatch: Boolean(submittedPasswordHash) && submittedPasswordHash === getAdminPasswordHash(),
+  };
+}
+
 export async function validateAdminCredentials(email: string, password: string) {
   if (!isAdminAuthConfigured()) {
     throw new Error("Configuration admin incomplète. Définissez ADMIN_EMAIL et ADMIN_PASSWORD_HASH.");
   }
 
-  const submittedEmail = email.trim().toLowerCase();
-  const submittedPasswordHash = await hashAdminPassword(password);
+  const diagnostics = await getAdminCredentialDiagnostics(email, password);
 
-  return submittedEmail === getAdminEmail() && submittedPasswordHash === getAdminPasswordHash();
+  return diagnostics.emailMatch && diagnostics.hashMatch;
 }
 
 export async function isAdminAuthenticated() {

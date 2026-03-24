@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { isAdminAuthConfigured, isAdminEmail } from "@/lib/admin-auth";
+import { getAdminCredentialDiagnostics, isAdminAuthConfigured, isAdminEmail } from "@/lib/admin-auth";
 import { createAuthenticatedUserSession, getUserSessionCookieConfig, validateUserCredentials } from "@/lib/user-auth";
 
 export async function POST(request: Request) {
@@ -16,6 +16,17 @@ export async function POST(request: Request) {
 
   const user = await validateUserCredentials(email, password);
   if (!user) {
+    const diagnostics = await getAdminCredentialDiagnostics(email, password);
+    console.error("[auth/login] invalid credentials", {
+      expectsAdminAccess,
+      configured: diagnostics.configured,
+      adminEmailAttempt: isAdminEmail(email),
+      emailMatch: diagnostics.emailMatch,
+      hashMatch: diagnostics.hashMatch,
+      emailLength: email.trim().length,
+      passwordLength: password.length,
+    });
+
     return NextResponse.json({ message: "Identifiants invalides." }, { status: 401 });
   }
 
