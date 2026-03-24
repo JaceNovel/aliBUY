@@ -160,6 +160,31 @@ function hasDatabase() {
   return Boolean(process.env.DATABASE_URL);
 }
 
+let databaseFallbackForced = false;
+
+function canUseDatabase() {
+  return hasDatabase() && !databaseFallbackForced;
+}
+
+function isPrismaDatabaseUnavailable(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as { code?: unknown; message?: unknown; name?: unknown };
+  const message = typeof candidate.message === "string" ? candidate.message : "";
+  return candidate.code === "P1001"
+    || message.includes("Can't reach database server")
+    || message.includes("db.prisma.io:5432");
+}
+
+function enableDatabaseFallback(error: unknown) {
+  if (!databaseFallbackForced) {
+    databaseFallbackForced = true;
+    console.warn("[alibaba-operations-store] database unavailable, falling back to JSON storage", error);
+  }
+}
+
 function toPrismaJson(value: unknown): Prisma.InputJsonValue | undefined {
   if (typeof value === "undefined") {
     return undefined;
@@ -1302,16 +1327,32 @@ async function writeAlibabaReceptionRecordsDbBulk(records: AlibabaReceptionRecor
 }
 
 export async function getAlibabaImportJobs(): Promise<AlibabaImportJob[]> {
-  if (hasDatabase()) {
-    return readAlibabaImportJobsDb();
+  if (canUseDatabase()) {
+    try {
+      return await readAlibabaImportJobsDb();
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   return readJsonFile<AlibabaImportJob[]>(IMPORT_JOBS_PATH, []);
 }
 
 export async function saveAlibabaImportJob(job: AlibabaImportJob): Promise<AlibabaImportJob> {
-  if (hasDatabase()) {
-    return writeAlibabaImportJobDb(job);
+  if (canUseDatabase()) {
+    try {
+      return await writeAlibabaImportJobDb(job);
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const jobs = await getAlibabaImportJobs();
@@ -1323,16 +1364,32 @@ export async function saveAlibabaImportJob(job: AlibabaImportJob): Promise<Aliba
 }
 
 export async function getAlibabaImportedProducts(): Promise<AlibabaImportedProduct[]> {
-  if (hasDatabase()) {
-    return readAlibabaImportedProductsDb();
+  if (canUseDatabase()) {
+    try {
+      return await readAlibabaImportedProductsDb();
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   return readJsonFile<AlibabaImportedProduct[]>(IMPORTED_PRODUCTS_PATH, []);
 }
 
 export async function saveAlibabaImportedProducts(products: AlibabaImportedProduct[]): Promise<AlibabaImportedProduct[]> {
-  if (hasDatabase()) {
-    return writeAlibabaImportedProductsDbBulk(products);
+  if (canUseDatabase()) {
+    try {
+      return await writeAlibabaImportedProductsDbBulk(products);
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const existing = await getAlibabaImportedProducts();
@@ -1348,9 +1405,17 @@ export async function saveAlibabaImportedProducts(products: AlibabaImportedProdu
 }
 
 export async function deleteAlibabaImportedProduct(importedProductId: string): Promise<void> {
-  if (hasDatabase()) {
-    await prisma.alibabaImportedProductRecord.deleteMany({ where: { id: importedProductId } });
-    return;
+  if (canUseDatabase()) {
+    try {
+      await prisma.alibabaImportedProductRecord.deleteMany({ where: { id: importedProductId } });
+      return;
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const products = await getAlibabaImportedProducts();
@@ -1359,16 +1424,32 @@ export async function deleteAlibabaImportedProduct(importedProductId: string): P
 }
 
 export async function getAlibabaSupplierAccounts(): Promise<AlibabaSupplierAccount[]> {
-  if (hasDatabase()) {
-    return readAlibabaSupplierAccountsDb();
+  if (canUseDatabase()) {
+    try {
+      return await readAlibabaSupplierAccountsDb();
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   return readAlibabaSupplierAccountsFile();
 }
 
 export async function saveAlibabaSupplierAccount(account: AlibabaSupplierAccount): Promise<AlibabaSupplierAccount> {
-  if (hasDatabase()) {
-    return writeAlibabaSupplierAccountDb(account);
+  if (canUseDatabase()) {
+    try {
+      return await writeAlibabaSupplierAccountDb(account);
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const accounts = await getAlibabaSupplierAccounts();
@@ -1380,16 +1461,32 @@ export async function saveAlibabaSupplierAccount(account: AlibabaSupplierAccount
 }
 
 export async function getAlibabaCountryProfiles(): Promise<AlibabaCountryProfile[]> {
-  if (hasDatabase()) {
-    return readAlibabaCountryProfilesDb();
+  if (canUseDatabase()) {
+    try {
+      return await readAlibabaCountryProfilesDb();
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   return readJsonFile<AlibabaCountryProfile[]>(COUNTRY_PROFILES_PATH, DEFAULT_COUNTRY_PROFILES);
 }
 
 export async function saveAlibabaCountryProfiles(profiles: AlibabaCountryProfile[]): Promise<AlibabaCountryProfile[]> {
-  if (hasDatabase()) {
-    return writeAlibabaCountryProfilesDb(profiles);
+  if (canUseDatabase()) {
+    try {
+      return await writeAlibabaCountryProfilesDb(profiles);
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   await writeJsonFile(COUNTRY_PROFILES_PATH, profiles);
@@ -1397,16 +1494,32 @@ export async function saveAlibabaCountryProfiles(profiles: AlibabaCountryProfile
 }
 
 export async function getAlibabaReceptionAddresses(): Promise<AlibabaReceptionAddress[]> {
-  if (hasDatabase()) {
-    return readAlibabaReceptionAddressesDb();
+  if (canUseDatabase()) {
+    try {
+      return await readAlibabaReceptionAddressesDb();
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   return readJsonFile<AlibabaReceptionAddress[]>(RECEPTION_ADDRESSES_PATH, []);
 }
 
 export async function saveAlibabaReceptionAddress(address: AlibabaReceptionAddress): Promise<AlibabaReceptionAddress> {
-  if (hasDatabase()) {
-    return writeAlibabaReceptionAddressDb(address);
+  if (canUseDatabase()) {
+    try {
+      return await writeAlibabaReceptionAddressDb(address);
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const addresses = await getAlibabaReceptionAddresses();
@@ -1421,16 +1534,32 @@ export async function saveAlibabaReceptionAddress(address: AlibabaReceptionAddre
 }
 
 export async function getAlibabaPurchaseOrders(): Promise<AlibabaPurchaseOrder[]> {
-  if (hasDatabase()) {
-    return readAlibabaPurchaseOrdersDb();
+  if (canUseDatabase()) {
+    try {
+      return await readAlibabaPurchaseOrdersDb();
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   return readJsonFile<AlibabaPurchaseOrder[]>(PURCHASE_ORDERS_PATH, []);
 }
 
 export async function saveAlibabaPurchaseOrder(order: AlibabaPurchaseOrder): Promise<AlibabaPurchaseOrder> {
-  if (hasDatabase()) {
-    return writeAlibabaPurchaseOrderDb(order);
+  if (canUseDatabase()) {
+    try {
+      return await writeAlibabaPurchaseOrderDb(order);
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const orders = await getAlibabaPurchaseOrders();
@@ -1442,16 +1571,32 @@ export async function saveAlibabaPurchaseOrder(order: AlibabaPurchaseOrder): Pro
 }
 
 export async function getAlibabaReceptionRecords(): Promise<AlibabaReceptionRecord[]> {
-  if (hasDatabase()) {
-    return readAlibabaReceptionRecordsDb();
+  if (canUseDatabase()) {
+    try {
+      return await readAlibabaReceptionRecordsDb();
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   return readJsonFile<AlibabaReceptionRecord[]>(RECEPTIONS_PATH, []);
 }
 
 export async function saveAlibabaReceptionRecord(record: AlibabaReceptionRecord): Promise<AlibabaReceptionRecord> {
-  if (hasDatabase()) {
-    return writeAlibabaReceptionRecordDb(record);
+  if (canUseDatabase()) {
+    try {
+      return await writeAlibabaReceptionRecordDb(record);
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const records = await getAlibabaReceptionRecords();
