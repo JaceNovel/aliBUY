@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { cookies, headers } from "next/headers";
 
 import {
@@ -72,7 +73,7 @@ function formatPriceForCountry(
   }).format(localizedAmount);
 }
 
-export async function getPricingContext(
+export const getPricingContext = cache(async function getPricingContext(
   explicitCountryCode?: string,
   explicitCurrencyCode?: string,
   explicitLanguageCode?: string,
@@ -120,4 +121,4 @@ export async function getPricingContext(
       return formatPriceForCountry(amountUsd, selectedLanguage.locale, selectedCurrency.code, selectedCurrency.rateFromUsd);
     },
   };
-}
+});

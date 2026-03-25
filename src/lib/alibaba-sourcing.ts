@@ -63,6 +63,9 @@ export type ShippingMethodQuote = {
   deliveryWindow: string;
   isFree: boolean;
   tradeLabel: string;
+  tradeDescriptor?: string;
+  tradeRateFcfa?: number;
+  tradeRateUnit?: string;
 };
 
 export type AlibabaSourcingQuote = {
@@ -221,8 +224,8 @@ export type AlibabaCatalogMapping = {
 const FCFA_LOCALE = "fr-FR";
 const SOURCING_META_KEY = "__afripaySourcingMeta";
 export const USD_TO_FCFA = 610;
-export const SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES = ["TG"] as const;
-export const SUPPORTED_FORWARDER_COUNTRY_CODES = ["CN", "TG"] as const;
+export const SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES = ["TG", "BJ", "GH", "CI", "BF"] as const;
+export const SUPPORTED_FORWARDER_COUNTRY_CODES = ["CN"] as const;
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -392,6 +395,18 @@ export function formatSourcingAmount(amountFcfa: number, input?: { currencyCode?
   }).format(localizedAmount);
 }
 
+export function formatShippingTradeLabel(
+  option: Pick<ShippingMethodQuote, "tradeLabel" | "tradeDescriptor" | "tradeRateFcfa" | "tradeRateUnit">,
+  input?: { currencyCode?: string; locale?: string },
+) {
+  if (typeof option.tradeRateFcfa !== "number" || !option.tradeRateUnit) {
+    return option.tradeLabel;
+  }
+
+  const rateLabel = `${formatSourcingAmount(option.tradeRateFcfa, input)}/${option.tradeRateUnit}`;
+  return option.tradeDescriptor ? `${option.tradeDescriptor} · ${rateLabel}` : rateLabel;
+}
+
 export function getSourcingOrderMeta(order: Pick<SourcingOrder, "supplierOrderPayload">): SourcingOrderMeta {
   if (!isObjectRecord(order.supplierOrderPayload)) {
     return {};
@@ -440,22 +455,21 @@ export function resolveSourcingDeliveryPlan(input: {
   workflow: SourcingOrderWorkflow;
 } {
   const countryCode = input.countryCode?.trim().toUpperCase() || "TG";
-  const city = input.city?.trim().toLowerCase() || "";
   const requestedProfile = input.deliveryProfile;
   const requestedMode = requestedProfile?.mode === "forwarder" ? "forwarder" : "direct";
   const isChinaAddress = countryCode === "CN";
-  const isLomeAddress = countryCode === "TG" && ["lome", "lomé"].includes(city);
+  const isSupportedDirectCountry = SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES.includes(countryCode as (typeof SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES)[number]);
   const forcedForwarder = requestedMode === "forwarder" || isChinaAddress;
 
-  if (!forcedForwarder && !isLomeAddress) {
+  if (!forcedForwarder && !isSupportedDirectCountry) {
     return {
       supported: false,
-      unsupportedMessage: "Ce pays n'est pas pris en charge par nos transporteurs. Veuillez utiliser un transitaire en Chine ou a Lome.",
+      unsupportedMessage: "Ce pays n'est pas pris en charge par nos transporteurs. Utilisez un transitaire en Chine.",
       deliveryProfile: {
         mode: "direct",
         ...requestedProfile,
         unsupportedCountry: true,
-        unsupportedMessage: "Ce pays n'est pas pris en charge par nos transporteurs. Veuillez utiliser un transitaire en Chine ou a Lome.",
+        unsupportedMessage: "Ce pays n'est pas pris en charge par nos transporteurs. Utilisez un transitaire en Chine.",
       },
       workflow: {
         routeType: "afripay-final-mile",
@@ -470,7 +484,7 @@ export function resolveSourcingDeliveryPlan(input: {
     ? normalizeHub(requestedProfile.forwarder.hub)
     : isChinaAddress
       ? "china"
-      : "lome";
+      : "china";
 
   if (forcedForwarder) {
     return {

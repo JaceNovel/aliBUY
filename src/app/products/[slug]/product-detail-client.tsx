@@ -78,7 +78,7 @@ type ProductDetailClientProps = {
     badge?: string;
   };
   relatedProducts: RelatedProduct[];
-  initialIsFavorite: boolean;
+  initialIsFavorite: boolean | null;
 };
 
 export function ProductDetailClient({ product, relatedProducts, initialIsFavorite }: ProductDetailClientProps) {
@@ -88,7 +88,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const [activeMedia, setActiveMedia] = useState<"photo" | "video">("photo");
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<"overview" | "details" | "related">("overview");
-  const [isFavorite, setIsFavorite] = useState(initialIsFavorite);
+  const [isFavorite, setIsFavorite] = useState(initialIsFavorite ?? false);
   const [favoritePulse, setFavoritePulse] = useState(false);
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
@@ -103,6 +103,39 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   useEffect(() => {
     router.prefetch("/cart");
   }, [router]);
+
+  useEffect(() => {
+    if (initialIsFavorite !== null) {
+      setIsFavorite(initialIsFavorite);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const hydrateFavorite = async () => {
+      try {
+        const response = await fetch(`/api/favorites?productSlug=${encodeURIComponent(product.slug)}`, {
+          method: "GET",
+          cache: "no-store",
+        });
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok || isCancelled || typeof payload?.isFavorite !== "boolean") {
+          return;
+        }
+
+        setIsFavorite(payload.isFavorite);
+      } catch {
+        // Ignore non-critical hydration errors for favorite state.
+      }
+    };
+
+    void hydrateFavorite();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [initialIsFavorite, product.slug]);
   const mixGroup = product.variantGroups[0];
   const modalGroups = product.variantGroups.slice(1);
   const [mixQuantities, setMixQuantities] = useState<Record<string, number>>(() => {
@@ -1156,7 +1189,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       </section>
       </div>
 
-      <div className="fixed inset-x-0 bottom-[72px] z-[95] border-t border-black/10 bg-white/96 px-4 py-3 backdrop-blur sm:hidden">
+      <div className="fixed inset-x-0 bottom-[72px] z-[140] border-t border-black/10 bg-white/96 px-4 py-3 backdrop-blur sm:hidden">
         <div className="flex items-center gap-3">
           <button
             type="button"

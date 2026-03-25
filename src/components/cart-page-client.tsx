@@ -6,7 +6,7 @@ import { Minus, Plus, Ship, ShoppingCart, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { useCart, useCartQuote } from "@/components/cart-provider";
-import { buildCartItemKey, formatSourcingAmount } from "@/lib/alibaba-sourcing";
+import { buildCartItemKey, formatShippingTradeLabel, formatSourcingAmount } from "@/lib/alibaba-sourcing";
 
 export function CartPageClient({ currencyCode, locale }: { currencyCode: string; locale: string }) {
   const { items, updateItem, removeItem, clearCart } = useCart();
@@ -137,7 +137,7 @@ export function CartPageClient({ currencyCode, locale }: { currencyCode: string;
                         <div className="text-[16px] font-semibold text-[#1f2937]">{option.label}</div>
                         <div className="text-[16px] font-black tracking-[-0.03em] text-[#1f2937]">{option.isFree ? "Gratuite" : formatSourcingAmount(option.priceFcfa, { currencyCode, locale })}</div>
                       </div>
-                      <div className="mt-1 text-[13px] text-[#667085]">{option.tradeLabel}</div>
+                      <div className="mt-1 text-[13px] text-[#667085]">{formatShippingTradeLabel(option, { currencyCode, locale })}</div>
                       <div className="mt-1 text-[13px] text-[#667085]">Délai estimé: {option.deliveryWindow}</div>
                     </div>
                   </button>

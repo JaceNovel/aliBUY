@@ -143,6 +143,9 @@ export async function createAlibabaSourcingQuote(
           deliveryWindow: settings.airEstimatedDays,
           isFree: airIsFree,
           tradeLabel: `Express payant · ${formatFcfa(settings.airRatePerKgFcfa)}/kg`,
+          tradeDescriptor: "Express payant",
+          tradeRateFcfa: settings.airRatePerKgFcfa,
+          tradeRateUnit: "kg",
         },
         {
           key: "sea",
@@ -151,6 +154,9 @@ export async function createAlibabaSourcingQuote(
           deliveryWindow: settings.seaEstimatedDays,
           isFree: false,
           tradeLabel: `Groupage · ${formatFcfa(settings.seaSellRatePerCbmFcfa)}/m3`,
+          tradeDescriptor: "Groupage",
+          tradeRateFcfa: settings.seaSellRatePerCbmFcfa,
+          tradeRateUnit: "m3",
         },
       ]
     : [
@@ -161,6 +167,9 @@ export async function createAlibabaSourcingQuote(
           deliveryWindow: settings.airEstimatedDays,
           isFree: airIsFree,
           tradeLabel: `Express · ${formatFcfa(settings.airRatePerKgFcfa)}/kg`,
+          tradeDescriptor: "Express",
+          tradeRateFcfa: settings.airRatePerKgFcfa,
+          tradeRateUnit: "kg",
         },
       ];
 

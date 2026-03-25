@@ -150,7 +150,7 @@ export default async function Home() {
       items: showcaseProducts.slice(0, 3).map((product) => ({
         title: product.title,
         image: product.image,
-        price: pricing.formatPrice(product.minUsd),
+        price: formatTierAwarePrice(pricing.formatPrice, product),
         href: `/products/${product.slug}`,
       })),
     },
@@ -161,7 +161,7 @@ export default async function Home() {
       items: showcaseProducts.slice(3, 6).map((product) => ({
         title: product.title,
         image: product.image,
-        price: pricing.formatPrice(product.minUsd),
+        price: formatTierAwarePrice(pricing.formatPrice, product),
         href: `/products/${product.slug}`,
       })),
     },
@@ -172,7 +172,7 @@ export default async function Home() {
       items: showcaseProducts.slice(6, 9).map((product) => ({
         title: product.title,
         image: product.image,
-        price: pricing.formatPrice(product.minUsd),
+        price: formatTierAwarePrice(pricing.formatPrice, product),
         href: `/products/${product.slug}`,
       })),
     },
@@ -358,13 +358,13 @@ export default async function Home() {
       </header>
 
       <section className="relative z-0 border-t border-black/6 bg-white">
-        <div className="mx-auto flex max-w-[1800px] flex-col gap-5 px-4 py-6 lg:flex-row lg:items-center lg:justify-between lg:px-10 lg:py-8 xl:px-14">
+        <div className="mx-auto flex max-w-[1800px] flex-col gap-4 px-4 py-5 lg:flex-row lg:items-center lg:justify-between lg:px-10 lg:py-8 xl:px-14">
           <h2 className="text-[26px] font-bold tracking-[-0.04em] text-[#222]">
             {messages.welcome.title}
           </h2>
-          <div className="grid gap-3 text-[#222] sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center lg:gap-5 lg:justify-end">
+          <div className="grid gap-2.5 text-[#222] sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center lg:gap-5 lg:justify-end">
             {quickActions.map((item, index) => (
-              <div key={item.title} className="flex items-center gap-5 rounded-[20px] bg-white px-4 py-4 ring-1 ring-black/5 lg:bg-transparent lg:px-0 lg:py-0 lg:ring-0">
+              <div key={item.title} className="flex items-center gap-4 rounded-[18px] bg-white px-3 py-3 ring-1 ring-black/5 lg:bg-transparent lg:px-0 lg:py-0 lg:ring-0">
                 {index > 0 ? <span className="hidden h-8 w-px bg-[#d8d8d8] lg:block" /> : null}
                 <QuickActionItem item={item} />
               </div>
@@ -372,19 +372,19 @@ export default async function Home() {
           </div>
         </div>
       </section>
-      <div className="mx-auto max-w-[1580px] px-4 pb-16 pt-6 sm:px-6 sm:pt-8 xl:px-10">
+      <div className="mx-auto max-w-[1580px] px-4 pb-14 pt-5 sm:px-6 sm:pt-8 xl:px-10">
         {hasPublishedProducts ? (
           <HomeDiscoveryShowcase
             historyCard={discoveryHistoryItems[0] ? {
               title: discoveryHistoryItems[0].title,
               image: discoveryHistoryItems[0].image,
-              price: pricing.formatPrice(discoveryHistoryItems[0].minUsd),
+              price: formatTierAwarePrice(pricing.formatPrice, discoveryHistoryItems[0]),
               href: `/products/${discoveryHistoryItems[0].slug}`,
             } : undefined}
             historyCards={discoveryHistoryItems.map((item) => ({
               title: item.title,
               image: item.image,
-              price: pricing.formatPrice(item.minUsd),
+              price: formatTierAwarePrice(pricing.formatPrice, item),
               href: `/products/${item.slug}`,
             }))}
             exploreCards={discoveryExploreCards}

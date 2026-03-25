@@ -347,8 +347,17 @@ export async function getUserFavoriteSlugs(userId: string) {
 }
 
 export async function isUserFavoriteProduct(userId: string, productSlug: string) {
-  const slugs = await getUserFavoriteSlugs(userId);
-  return slugs.includes(productSlug);
+  const record = await prisma.favorite.findUnique({
+    where: {
+      userId_productSlug: {
+        userId,
+        productSlug,
+      },
+    },
+    select: { id: true },
+  });
+
+  return Boolean(record);
 }
 
 export async function toggleUserFavorite(input: { userId: string; userEmail: string; productSlug: string }) {

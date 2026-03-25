@@ -33,6 +33,7 @@
   --brand-deep: #d64000;
   --warm: #fff4eb;
   --mobile-bottom-nav-height: calc(72px + env(safe-area-inset-bottom));
+  --mobile-floating-cta-height: 72px;
 }
 
 @theme inline {
@@ -92,12 +93,12 @@ input::placeholder {
   iframe[src*="assistloop.ai"],
   [id*="assistloop"],
   [class*="assistloop"] {
-    bottom: calc(var(--mobile-bottom-nav-height) + 14px) !important;
-    right: 10px !important;
+    bottom: calc(var(--mobile-bottom-nav-height) + var(--mobile-floating-cta-height) + 18px) !important;
+    right: 8px !important;
   }
 
   iframe[src*="assistloop.ai"] {
-    transform: scale(0.84) !important;
+    transform: scale(0.78) !important;
     transform-origin: bottom right !important;
   }
 }

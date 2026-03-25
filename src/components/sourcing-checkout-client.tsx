@@ -7,13 +7,15 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useCart, useCartQuote } from "@/components/cart-provider";
 import {
+  formatShippingTradeLabel,
   formatSourcingAmount,
   resolveSourcingDeliveryPlan,
+  SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES,
   type SourcingDeliveryMode,
-  type SourcingForwarderHub,
 } from "@/lib/alibaba-sourcing";
 import { buildAddressQuickInput } from "@/lib/address-autofill";
 import type { CustomerAddressRecord } from "@/lib/customer-addresses";
+import { COUNTRY_CONFIG, type CountryCode } from "@/lib/pricing-options";
 
 const defaultForm = {
   customerAddressId: "",
@@ -88,6 +90,16 @@ function formatSavedAddress(address: CustomerAddressRecord) {
     .join(" · ");
 }
 
+const SUPPORTED_DELIVERY_COUNTRIES = SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES.map((code) => ({
+  code,
+  label: COUNTRY_CONFIG[code].countryLabel,
+  flagEmoji: COUNTRY_CONFIG[code].flagEmoji,
+}));
+
+function isSupportedDirectCountry(code: string) {
+  return SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES.includes(code as (typeof SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES)[number]);
+}
+
 export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCode, locale }: SourcingCheckoutClientProps) {
   const { items, clearCart } = useCart();
   const router = useRouter();
@@ -99,9 +111,9 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
     ...(defaultAddress ? buildFormFromAddress(defaultAddress, initialUser) : {}),
   });
   const [deliveryMode, setDeliveryMode] = useState<SourcingDeliveryMode>("direct");
-  const [forwarderHub, setForwarderHub] = useState<SourcingForwarderHub>("china");
   const [forwarderAddressBlock, setForwarderAddressBlock] = useState("");
   const [forwarderParcelMarking, setForwarderParcelMarking] = useState("");
+  const [useExternalCountryFlow, setUseExternalCountryFlow] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [isResolvingMapsLink, setIsResolvingMapsLink] = useState(false);
@@ -121,13 +133,13 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
       detectedCity: form.city,
       forwarder: deliveryMode === "forwarder"
         ? {
-            hub: forwarderHub,
+            hub: "china",
             addressBlock: forwarderAddressBlock,
             parcelMarking: forwarderParcelMarking || undefined,
           }
         : undefined,
     },
-  }), [deliveryMode, form.city, form.countryCode, form.googleMapsUrl, forwarderAddressBlock, forwarderHub, forwarderParcelMarking]);
+  }), [deliveryMode, form.city, form.countryCode, form.googleMapsUrl, forwarderAddressBlock, forwarderParcelMarking]);
 
   const { quote, isLoading } = useCartQuote({ disableFreeAir: !deliveryPlan.workflow.freeDeliveryEligible });
   const shippingOptions = quote.shippingOptions;
@@ -181,8 +193,26 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
   const applySavedAddress = (address: CustomerAddressRecord) => {
     const nextAddress = buildFormFromAddress(address, initialUser);
     setForm((current) => ({ ...current, ...nextAddress, notes: current.notes }));
-    setDeliveryMode("direct");
+    const shouldUseForwarder = !isSupportedDirectCountry(address.countryCode);
+    setUseExternalCountryFlow(shouldUseForwarder);
+    setDeliveryMode(shouldUseForwarder ? "forwarder" : "direct");
     setLocationFeedback(null);
+  };
+
+  const selectSupportedCountry = (value: string) => {
+    const normalized = value.toUpperCase() as CountryCode;
+    updateFormField("countryCode", normalized);
+    setUseExternalCountryFlow(false);
+    if (deliveryMode !== "forwarder") {
+      setDeliveryMode("direct");
+    }
+  };
+
+  const enableExternalCountryFlow = () => {
+    setUseExternalCountryFlow(true);
+    setDeliveryMode("forwarder");
+    setErrorMessage(null);
+    setLocationFeedback("Utilisez un agent en Chine. AfriPay livre jusqu'a votre agent et la commande sera close des la remise.");
   };
 
   const hydrateAddressFromCoordinates = async (latitude: number, longitude: number) => {
@@ -275,7 +305,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
       return;
     }
 
-    if (deliveryMode === "forwarder" && form.countryCode !== "CN" && !forwarderAddressBlock.trim()) {
+    if (deliveryMode === "forwarder" && !forwarderAddressBlock.trim()) {
       setErrorMessage("L'adresse bloc du transitaire est obligatoire.");
       return;
     }
@@ -331,14 +361,14 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
     <div className="grid gap-6 xl:grid-cols-[1.04fr_0.96fr]">
       <section className="rounded-[30px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)] sm:p-7">
         <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Checkout sourcing</div>
-        <h1 className="mt-2 text-[30px] font-black tracking-[-0.05em] text-[#1f2937]">Adresse, agent et livraison finale</h1>
-        <p className="mt-3 text-[14px] leading-6 text-[#667085]">Renseignez votre position exacte ou choisissez un transitaire. Si le pays n'est pas supporté, le flux bascule vers un agent en Chine ou à Lomé.</p>
+        <h1 className="mt-2 text-[26px] font-black tracking-[-0.05em] text-[#1f2937] sm:text-[30px]">Adresse, agent et livraison finale</h1>
+        <p className="mt-3 text-[13px] leading-6 text-[#667085] sm:text-[14px]">Choisissez un pays livré directement par AfriPay. Si votre pays n'est pas dans la liste, passez par votre agent en Chine.</p>
 
         <div className="mt-5 rounded-[24px] bg-[linear-gradient(135deg,#fff7ef_0%,#ffffff_52%,#eef6ff_100%)] p-4 ring-1 ring-[#f1ddcd] sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85300]">Carnet d'adresses</div>
-              <div className="mt-1 text-[14px] text-[#5f534a]">Sélectionnez une adresse existante ou saisissez une nouvelle destination.</div>
+              <div className="mt-1 text-[13px] text-[#5f534a] sm:text-[14px]">Sélectionnez une adresse existante ou saisissez une nouvelle destination.</div>
             </div>
             <Link href="/account/addresses" className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[#e3c9b8] bg-white px-4 text-[13px] font-semibold text-[#49352a] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
               <MapPinned className="h-4 w-4" />
@@ -395,15 +425,18 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
             <input value={form.customerEmail} onChange={(event) => updateFormField("customerEmail", event.target.value)} type="email" autoComplete="email" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
           </label>
 
-          <div className="sm:col-span-2 rounded-[24px] border border-[#dce3ec] bg-[#fbfcfe] p-4 sm:p-5">
+          <div className="sm:col-span-2 rounded-[20px] border border-[#dce3ec] bg-[#fbfcfe] p-4 sm:rounded-[24px] sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a00]">Mode de livraison</div>
-                <div className="mt-1 text-[14px] text-[#667085]">Direct sur le corridor AfriPay à Lomé, ou via votre propre transitaire.</div>
+                <div className="mt-1 text-[13px] text-[#667085] sm:text-[14px]">Livraison directe sur pays supportés ou livraison via votre agent en Chine.</div>
               </div>
               <div className="inline-flex rounded-full bg-[#eef2f6] p-1">
                 <button type="button" onClick={() => setDeliveryMode("direct")} className={["rounded-full px-4 py-2 text-[13px] font-semibold transition", deliveryMode === "direct" ? "bg-white text-[#111827] shadow-[0_4px_14px_rgba(15,23,42,0.08)]" : "text-[#667085]"].join(" ")}>Livraison directe</button>
-                <button type="button" onClick={() => setDeliveryMode("forwarder")} className={["rounded-full px-4 py-2 text-[13px] font-semibold transition", deliveryMode === "forwarder" ? "bg-white text-[#111827] shadow-[0_4px_14px_rgba(15,23,42,0.08)]" : "text-[#667085]"].join(" ")}>Adresse transitaire</button>
+                <button type="button" onClick={() => {
+                  setDeliveryMode("forwarder");
+                  setUseExternalCountryFlow(true);
+                }} className={["rounded-full px-4 py-2 text-[13px] font-semibold transition", deliveryMode === "forwarder" ? "bg-white text-[#111827] shadow-[0_4px_14px_rgba(15,23,42,0.08)]" : "text-[#667085]"].join(" ")}>Agent en Chine</button>
               </div>
             </div>
 
@@ -432,13 +465,27 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
                 <input value={form.addressLine1} onChange={(event) => updateFormField("addressLine1", event.target.value)} autoComplete="address-line1" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
               </label>
               <label className="text-[13px] font-semibold text-[#344054]">
-                Pays
-                <input value={form.countryCode} onChange={(event) => updateFormField("countryCode", event.target.value.toUpperCase())} autoComplete="country" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] uppercase text-[#111827] outline-none focus:border-[#ff6a00]" />
+                Pays de livraison supporté
+                <select value={isSupportedDirectCountry(form.countryCode) ? form.countryCode : SUPPORTED_DELIVERY_COUNTRIES[0]?.code} onChange={(event) => selectSupportedCountry(event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] bg-white px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]">
+                  {SUPPORTED_DELIVERY_COUNTRIES.map((country) => (
+                    <option key={country.code} value={country.code}>{country.flagEmoji} {country.label}</option>
+                  ))}
+                </select>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] font-medium text-[#667085]">
+                  <span>Votre pays n'est pas dans la liste ?</span>
+                  <button type="button" onClick={enableExternalCountryFlow} className="inline-flex items-center justify-center rounded-full border border-[#d7dce5] px-3 py-1 text-[12px] font-semibold text-[#111827] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">Cliquez ici</button>
+                </div>
               </label>
               <label className="text-[13px] font-semibold text-[#344054]">
                 Région / État
                 <input value={form.state} onChange={(event) => updateFormField("state", event.target.value)} autoComplete="address-level1" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
               </label>
+              {useExternalCountryFlow ? (
+                <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
+                  Votre pays / code pays
+                  <input value={form.countryCode} onChange={(event) => updateFormField("countryCode", event.target.value.toUpperCase())} autoComplete="country" placeholder="Ex: NG, SN, ML" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] uppercase text-[#111827] outline-none focus:border-[#ff6a00]" />
+                </label>
+              ) : null}
               <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
                 Résumé détecté
                 <input value={quickAddress} readOnly className="mt-2 h-11 w-full rounded-[14px] border border-[#e3e8ef] bg-[#f8fafc] px-4 text-[13px] text-[#667085] outline-none" />
@@ -451,7 +498,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   <div>
                     <div className="font-semibold">{deliveryPlan.deliveryProfile.unsupportedMessage}</div>
-                    <div className="mt-1">Utilisez un agent en Chine ou à Lomé. Si vous choisissez cette option, AfriPay n'applique pas la livraison gratuite et la commande sera considérée livrée dès remise à votre agent.</div>
+                    <div className="mt-1">Utilisez un agent en Chine. AfriPay n'applique pas la livraison gratuite et la commande sera considérée livrée dès remise à votre agent.</div>
                     <button type="button" onClick={() => setDeliveryMode("forwarder")} className="mt-3 inline-flex h-10 items-center justify-center rounded-full bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]">Mettre l'adresse du transitaire</button>
                   </div>
                 </div>
@@ -460,12 +507,8 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
 
             {deliveryMode === "forwarder" ? (
               <div className="mt-4 rounded-[20px] border border-[#dbe7f5] bg-[#f6fbff] p-4">
-                <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#1d4f91]">Transitaire</div>
-                <div className="mt-1 text-[14px] text-[#56708d]">Pris en charge uniquement en Chine et à Lomé. Collez l'adresse bloc fournie par votre agent puis indiquez le marquage à mettre sur le colis.</div>
-                <div className="mt-4 inline-flex rounded-full bg-white p-1 ring-1 ring-[#dbe7f5]">
-                  <button type="button" onClick={() => setForwarderHub("china")} className={["rounded-full px-4 py-2 text-[13px] font-semibold transition", forwarderHub === "china" ? "bg-[#111827] text-white" : "text-[#344054]"].join(" ")}>Agent Chine</button>
-                  <button type="button" onClick={() => setForwarderHub("lome")} className={["rounded-full px-4 py-2 text-[13px] font-semibold transition", forwarderHub === "lome" ? "bg-[#111827] text-white" : "text-[#344054]"].join(" ")}>Agent Lomé</button>
-                </div>
+                <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#1d4f91]">Agent en Chine</div>
+                <div className="mt-1 text-[13px] text-[#56708d] sm:text-[14px]">Collez l'adresse complète fournie par votre agent en Chine puis ajoutez le marquage du colis.</div>
                 <div className="mt-4 grid gap-4">
                   <label className="text-[13px] font-semibold text-[#344054]">
                     Adresse complète du transitaire
@@ -477,9 +520,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
                   </label>
                 </div>
                 <div className="mt-4 rounded-[16px] bg-white px-4 py-3 text-[13px] leading-6 text-[#43556c] ring-1 ring-[#dbe7f5]">
-                  {forwarderHub === "china"
-                    ? "Adresse Chine détectée ou transitaire Chine sélectionné: cette adresse sera utilisée pour commander immédiatement. La livraison gratuite AfriPay ne s'applique pas."
-                    : "Transitaire à Lomé: AfriPay livre jusqu'à votre agent. Une fois remis à cet agent, la commande sera marquée livrée avec preuve archivée dans l'admin."}
+                  Adresse agent Chine sélectionnée: AfriPay n'applique pas la livraison gratuite et la commande sera clôturée dès remise au transitaire.
                 </div>
               </div>
             ) : null}
@@ -524,7 +565,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
                       <div className="text-[16px] font-semibold text-[#1f2937]">{option.label}</div>
                       <div className="text-[16px] font-black tracking-[-0.03em] text-[#1f2937]">{option.isFree ? "Gratuite" : formatSourcingAmount(option.priceFcfa, { currencyCode, locale })}</div>
                     </div>
-                    <div className="mt-1 text-[13px] text-[#667085]">{option.tradeLabel}</div>
+                    <div className="mt-1 text-[13px] text-[#667085]">{formatShippingTradeLabel(option, { currencyCode, locale })}</div>
                     <div className="mt-1 text-[13px] text-[#667085]">Délai estimé: {option.deliveryWindow}</div>
                   </div>
                 </button>
@@ -552,7 +593,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
           </div>
           <div className="mt-1 flex items-center justify-between text-[13px] text-[#667085]">
             <span>Route logistique</span>
-            <span>{deliveryPlan.workflow.routeType === "customer-forwarder" ? "Vers votre agent" : "Corridor AfriPay Lomé"}</span>
+            <span>{deliveryPlan.workflow.routeType === "customer-forwarder" ? "Vers votre agent en Chine" : "Livraison AfriPay"}</span>
           </div>
           <div className="mt-4 border-t border-[#edf1f6] pt-4">
             <div className="flex items-center justify-between">
@@ -562,7 +603,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
           </div>
           {deliveryPlan.workflow.routeType === "customer-forwarder" ? (
             <div className="mt-4 rounded-[18px] bg-[#fff8ee] px-4 py-4 text-[13px] leading-6 text-[#8a4b16] ring-1 ring-[#f6deb5]">
-              La commande sera clôturée dès remise au transitaire. Toutes les preuves de livraison à l'agent seront archivées en back-office et visibles dans votre suivi.
+              La commande sera clôturée dès remise au transitaire.
             </div>
           ) : null}
           <button type="button" onClick={submitOrder} disabled={isSubmitting || isLoading || !selectedOption} className="mt-5 inline-flex h-12 w-full items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[15px] font-semibold text-white transition hover:bg-[#e55e00] disabled:cursor-not-allowed disabled:opacity-70">

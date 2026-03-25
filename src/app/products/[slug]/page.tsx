@@ -5,8 +5,6 @@ import { InternalPageShell } from "@/components/internal-page-shell";
 import { getCatalogProductBySlug, getCatalogProducts, getCatalogRelatedProducts } from "@/lib/catalog-service";
 import { formatTierAwarePrice } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
-import { getCurrentUser } from "@/lib/user-auth";
-import { isUserFavoriteProduct } from "@/lib/customer-data-store";
 
 export async function generateStaticParams() {
   const products = await getCatalogProducts();
@@ -18,17 +16,14 @@ export default async function ProductPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  const [{ slug }, pricing, user] = await Promise.all([params, getPricingContext(), getCurrentUser()]);
+  const [{ slug }, pricing] = await Promise.all([params, getPricingContext()]);
   const product = await getCatalogProductBySlug(slug);
 
   if (!product) {
     notFound();
   }
 
-  const [relatedCatalogProducts, initialIsFavorite] = await Promise.all([
-    getCatalogRelatedProducts(product.slug),
-    user ? isUserFavoriteProduct(user.id, product.slug) : Promise.resolve(false),
-  ]);
+  const relatedCatalogProducts = await getCatalogRelatedProducts(product.slug);
   const relatedProducts = relatedCatalogProducts.map((relatedProduct) => ({
     slug: relatedProduct.slug,
     title: relatedProduct.shortTitle,
@@ -86,7 +81,7 @@ export default async function ProductPage({
           badge: product.badge,
         }}
         relatedProducts={relatedProducts}
-        initialIsFavorite={initialIsFavorite}
+        initialIsFavorite={null}
       />
     </InternalPageShell>
   );

@@ -102,17 +102,17 @@ export function HomeDiscoveryShowcase({ categories = [], historyCard, historyCar
 
   return (
     <section className="overflow-hidden bg-transparent px-0 py-0 shadow-none ring-0 sm:rounded-[26px] sm:bg-white sm:px-4 sm:py-4 sm:shadow-[0_12px_36px_rgba(24,39,75,0.06)] sm:ring-1 sm:ring-black/5">
-      <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:hidden">
+      <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:hidden">
         {mobileArticleCards.map((item) => {
           const cardContent = (
             <>
               <div className="relative aspect-square w-full overflow-hidden rounded-[10px] bg-[#f3f3f3]">
-                <Image src={item.image} alt={item.title} fill sizes="96px" className="object-cover" />
+                <Image src={item.image} alt={item.title} fill sizes="88px" className="object-cover" />
               </div>
-              <div className="px-1 pb-1 pt-2">
+              <div className="px-1 pb-1 pt-1.5">
                 <div className="line-clamp-1 text-[9px] font-medium uppercase tracking-[0.08em] text-[#8a8a8a]">{item.caption}</div>
-                <div className="mt-1 line-clamp-2 min-h-[28px] text-[11px] font-medium leading-[1.25] text-[#222]">{item.title}</div>
-                <div className="mt-1.5 text-[12px] font-bold leading-none text-[#222]">{item.price}</div>
+                <div className="mt-1 line-clamp-2 min-h-[26px] text-[10px] font-medium leading-[1.2] text-[#222]">{item.title}</div>
+                <div className="mt-1 text-[11px] font-bold leading-none text-[#222]">{item.price}</div>
               </div>
             </>
           );
@@ -122,7 +122,7 @@ export function HomeDiscoveryShowcase({ categories = [], historyCard, historyCar
               <Link
                 key={item.id}
                 href={item.href}
-                className="w-[96px] shrink-0 rounded-[12px] bg-white p-1.5 shadow-[0_1px_0_rgba(0,0,0,0.03),0_10px_18px_rgba(17,24,39,0.06)] ring-1 ring-black/5"
+                className="w-[88px] shrink-0 rounded-[11px] bg-white p-1 shadow-[0_1px_0_rgba(0,0,0,0.03),0_10px_18px_rgba(17,24,39,0.06)] ring-1 ring-black/5"
               >
                 {cardContent}
               </Link>
@@ -132,7 +132,7 @@ export function HomeDiscoveryShowcase({ categories = [], historyCard, historyCar
           return (
             <article
               key={item.id}
-              className="w-[96px] shrink-0 rounded-[12px] bg-white p-1.5 shadow-[0_1px_0_rgba(0,0,0,0.03),0_10px_18px_rgba(17,24,39,0.06)] ring-1 ring-black/5"
+              className="w-[88px] shrink-0 rounded-[11px] bg-white p-1 shadow-[0_1px_0_rgba(0,0,0,0.03),0_10px_18px_rgba(17,24,39,0.06)] ring-1 ring-black/5"
             >
               {cardContent}
             </article>
