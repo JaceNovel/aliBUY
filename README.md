@@ -148,7 +148,8 @@ Required environment variables on Vercel:
 Deployment notes:
 
 - `postinstall` now runs `prisma generate`, which is required on Vercel builds.
-- Run `npm run prisma:push` once against the production database before the first deployment, or from your CI/CD pipeline before switching traffic.
+- `npm run build` only builds the Next.js app. Apply schema changes separately with `npm run deploy:db` or your CI/CD pipeline before switching traffic.
+- Run `npm run prisma:push` once against the production database before the first deployment if you are bootstrapping from the current schema instead of replaying migrations.
 - The storefront no longer reads user accounts, favorites, quotes, or support threads from local JSON files.
 
 ## Notes
@@ -156,4 +157,3 @@ Deployment notes:
 - If `DATABASE_URL` is not set, only the sourcing bootstrap layer still falls back to JSON persistence for local admin data.
 - The current Prisma schema is configured for PostgreSQL because the active database endpoint is PostgreSQL.
 - The repo currently contains other unrelated work-in-progress changes; they were not reverted.
-
