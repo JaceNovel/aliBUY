@@ -45,8 +45,7 @@ function finalizeResponse(request: NextRequest, response: NextResponse) {
 
 export default clerkMiddleware(async (auth, request) => {
   if (request.nextUrl.pathname === "/admin/login") {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("next", "/admin");
+    const loginUrl = new URL("/admin_jacen", request.url);
     return finalizeResponse(request, NextResponse.redirect(loginUrl));
   }
 
@@ -59,8 +58,10 @@ export default clerkMiddleware(async (auth, request) => {
         return finalizeResponse(request, NextResponse.json({ message: "Authentification requise." }, { status: 401 }));
       }
 
-      const loginUrl = new URL("/login", request.url);
-      loginUrl.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+      const loginUrl = new URL(request.nextUrl.pathname.startsWith("/admin") ? "/admin_jacen" : "/login", request.url);
+      if (!request.nextUrl.pathname.startsWith("/admin")) {
+        loginUrl.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+      }
       return finalizeResponse(request, NextResponse.redirect(loginUrl));
     }
   }

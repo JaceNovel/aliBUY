@@ -50,7 +50,7 @@ export function AdminLoginForm({ nextPath = "/admin" }: AdminLoginFormProps) {
     <form onSubmit={submit} className="space-y-3 rounded-[20px] border border-[#f0d7c7] bg-[#fffaf6] px-4 py-4">
       <div className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[#ff6a00]">Acces Admin</div>
       <div className="text-[13px] leading-6 text-[#5b6473]">
-        Si votre acces admin repose sur `ADMIN_EMAIL` et `ADMIN_PASSWORD_HASH`, connectez-vous ici.
+        Saisissez vos identifiants pour ouvrir l&apos;administration.
       </div>
 
       <label className="block text-[13px] font-semibold text-[#344054]">

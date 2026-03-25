@@ -98,7 +98,7 @@ export default async function AccountPage() {
           </div>
 
           <div className="flex w-full flex-col gap-3 pt-2 sm:w-auto sm:flex-row sm:items-center sm:gap-6">
-            <Link href="/account/compte/mon-profil" className="inline-flex h-12 items-center justify-center rounded-full bg-[#222] px-8 text-[15px] font-semibold text-white transition hover:bg-black sm:h-14 sm:text-[18px]">
+            <Link href="/account/compte/mon-profil" className="inline-flex h-12 items-center justify-center self-start rounded-full bg-[linear-gradient(135deg,#ff7a1a_0%,#ff5b12_100%)] px-8 text-[15px] font-semibold text-white shadow-[0_14px_30px_rgba(255,106,0,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(255,106,0,0.32)] sm:h-14 sm:self-auto sm:text-[18px]">
               Modifier mon profil
             </Link>
             <UserLogoutButton className="text-left text-[15px] font-semibold text-[#222] transition hover:text-[#ff6a00] sm:text-[18px]">Se deconnecter</UserLogoutButton>

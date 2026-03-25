@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Grid2x2, Heart, House, MessageCircleMore, UserRound } from "lucide-react";
+import { Grid2x2, House, MessageCircleMore, ShoppingCart, UserRound } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "Accueil", icon: House },
   { href: "/products", label: "Produits", icon: Grid2x2 },
   { href: "/messages", label: "Messages", icon: MessageCircleMore },
-  { href: "/favorites", label: "Favoris", icon: Heart },
+  { href: "/cart", label: "Panier", icon: ShoppingCart },
   { href: "/account", label: "Compte", icon: UserRound },
 ];
 
