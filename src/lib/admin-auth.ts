@@ -1,6 +1,7 @@
 import "server-only";
 
-import { getAdminAccessByEmail, type AdminPermission, type AdminRole } from "@/lib/admin-access-store";
+import { type AdminPermission, type AdminRole } from "@/lib/admin-access";
+import { getAdminAccessByEmail } from "@/lib/admin-access-store";
 import { getCurrentUser } from "@/lib/user-auth";
 
 function encoder() {

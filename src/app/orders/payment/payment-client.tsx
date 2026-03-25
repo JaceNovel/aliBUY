@@ -24,6 +24,7 @@ type SourcingPaymentOrder = {
   image: string;
   itemCount: number;
   shippingMethod: "air" | "sea" | "freight";
+  shippingLabel?: string;
   paymentStatus: "unpaid" | "initialized" | "pending" | "paid" | "failed" | "cancelled";
   monerooPaymentId?: string;
   monerooCheckoutUrl?: string;
@@ -36,6 +37,12 @@ type SourcingPaymentOrder = {
   thirdPartyCartNotice?: string;
   returnPaymentId?: string;
   returnPaymentStatus?: string;
+  heading?: string;
+  description?: string;
+  badgeLabel?: string;
+  backHref?: string;
+  backLabel?: string;
+  allowPromoCode?: boolean;
 };
 
 type PaymentClientProps = {
@@ -242,19 +249,25 @@ export function PaymentClient({ order }: PaymentClientProps) {
   };
 
   if (order.kind === "sourcing") {
-    const shippingLabel = order.shippingMethod === "sea" ? "Fret maritime groupe" : order.shippingMethod === "freight" ? "Fret local Chine" : "Fret aerien";
+    const shippingLabel = order.shippingLabel || (order.shippingMethod === "sea" ? "Fret maritime groupe" : order.shippingMethod === "freight" ? "Fret local Chine" : "Fret aerien");
     const statusLabel = getPaymentStatusLabel(paymentStatus);
+    const heading = order.heading || "Finaliser la commande sourcing";
+    const description = order.description || `AfriPay initialise un checkout Moneroo securise pour encaisser la commande en ${order.paymentCurrency}. Une verification serveur est relancee au retour pour confirmer le statut reel.`;
+    const badgeLabel = order.badgeLabel || "Paiement Moneroo";
+    const backHref = order.backHref || "/orders";
+    const backLabel = order.backLabel || "Retour aux commandes";
+    const allowPromoCode = order.allowPromoCode !== false;
 
     return (
       <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <section className="rounded-[28px] bg-white px-5 py-5 shadow-[0_8px_30px_rgba(24,39,75,0.05)] ring-1 ring-black/5 sm:px-7 sm:py-7">
           <div className="inline-flex items-center gap-2 rounded-full bg-[#fff2e9] px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#d85300]">
             <WalletCards className="h-4 w-4" />
-            Paiement Moneroo
+            {badgeLabel}
           </div>
-          <h1 className="mt-4 text-[28px] font-bold tracking-[-0.05em] text-[#222] sm:text-[40px]">Finaliser la commande sourcing</h1>
+          <h1 className="mt-4 text-[28px] font-bold tracking-[-0.05em] text-[#222] sm:text-[40px]">{heading}</h1>
           <p className="mt-2 max-w-[760px] text-[14px] leading-6 text-[#666] sm:text-[16px] sm:leading-8">
-            AfriPay initialise un checkout Moneroo securise pour encaisser la commande en {order.paymentCurrency}. Une verification serveur est relancee au retour pour confirmer le statut reel.
+            {description}
           </p>
           {order.thirdPartyCartNotice ? <div className="mt-4 rounded-[18px] border border-[#d8e5fb] bg-[#eef6ff] px-4 py-4 text-[14px] font-medium text-[#1d4f91]">{order.thirdPartyCartNotice}</div> : null}
 
@@ -300,7 +313,7 @@ export function PaymentClient({ order }: PaymentClientProps) {
             })}
           </div>
 
-          {paymentStatus === "unpaid" ? (
+          {paymentStatus === "unpaid" && allowPromoCode ? (
             <div className="mt-6 rounded-[20px] border border-[#e7ebf1] bg-[#f8fafc] px-4 py-4">
               <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a00]">Code promo</div>
               <div className="mt-3 flex flex-col gap-3 sm:flex-row">
@@ -339,8 +352,8 @@ export function PaymentClient({ order }: PaymentClientProps) {
             >
               {isVerifying ? "Verification..." : "Verifier le paiement"}
             </button>
-            <Link href="/orders" className="inline-flex h-12 items-center justify-center rounded-full border border-[#d7dce5] px-6 text-[15px] font-semibold text-[#475467] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
-              Retour aux commandes
+            <Link href={backHref} className="inline-flex h-12 items-center justify-center rounded-full border border-[#d7dce5] px-6 text-[15px] font-semibold text-[#475467] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
+              {backLabel}
             </Link>
           </div>
         </section>

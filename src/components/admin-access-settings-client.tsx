@@ -4,7 +4,7 @@ import { Shield, Trash2, UserCog } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { ADMIN_ROLE_PRESETS, type AdminAccessRecord, type AdminRole } from "@/lib/admin-access-store";
+import { ADMIN_ROLE_PRESETS, type AdminAccessRecord, type AdminRole } from "@/lib/admin-access";
 
 type Props = {
   initialRecords: AdminAccessRecord[];

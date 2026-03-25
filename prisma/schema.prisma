@@ -434,6 +434,77 @@ model OrderRemittanceProof {
   @@index([userId, createdAt])
 }
 
+model FreeDealConfigRecord {
+  id                String   @id
+  enabled           Boolean  @default(true)
+  pageTitle         String
+  heroBadge         String
+  heroTitle         String
+  heroSubtitle      String
+  bannerText        String
+  ctaLabel          String
+  shareTitle        String
+  shareDescription  String
+  itemLimit         Int
+  fixedPriceEur     Float
+  referralGoal      Int
+  dealTagText       String
+  productBadgeText  String
+  compareAtMultiplier Float
+  compareAtExtraEur Float
+  productSlugs      Json
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
+model FreeDealClaimRecord {
+  id                  String                       @id
+  status              String
+  userId              String?
+  customerEmail       String?
+  customerName        String?
+  orderId             String?
+  referralCode        String                       @unique
+  deviceIdHash        String
+  ipHash              String?
+  userAgentHash       String?
+  referralGoal        Int
+  referralVisitCount  Int                          @default(0)
+  itemLimit           Int
+  fixedPriceEur       Float
+  fixedPriceFcfa      Int
+  selectedProductSlugs Json
+  paidAt              DateTime?
+  unlockedAt          DateTime?
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  visits              FreeDealReferralVisitRecord[]
+
+  @@index([createdAt])
+  @@index([orderId])
+  @@index([customerEmail])
+  @@index([deviceIdHash])
+}
+
+model FreeDealReferralVisitRecord {
+  id                   String              @id @default(cuid())
+  claimId              String
+  referralCode         String
+  visitorKeyHash       String
+  visitorDeviceHash    String
+  visitorIpHash        String?
+  visitorUserAgentHash String?
+  counted              Boolean             @default(true)
+  createdAt            DateTime            @default(now())
+  claim                FreeDealClaimRecord @relation(fields: [claimId], references: [id], onDelete: Cascade)
+
+  @@unique([claimId, visitorKeyHash])
+  @@index([referralCode, createdAt])
+  @@index([claimId, counted])
+}
+
 model PromoCode {
   id              String   @id @default(cuid())
   code            String   @unique

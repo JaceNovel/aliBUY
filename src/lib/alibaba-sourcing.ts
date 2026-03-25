@@ -165,12 +165,25 @@ export type SourcingPaymentContext = {
   thirdPartyCreatorEmail?: string;
 };
 
+export type SourcingFreeDealMeta = {
+  campaignKey: string;
+  fixedPriceEur: number;
+  fixedPriceFcfa: number;
+  itemLimit: number;
+  referralGoal: number;
+  selectedProductSlugs: string[];
+  deviceIdHash: string;
+  ipHash?: string;
+  userAgentHash?: string;
+};
+
 export type SourcingOrderMeta = {
   deliveryProfile?: SourcingDeliveryProfile;
   workflow?: SourcingOrderWorkflow;
   promo?: SourcingPromoAdjustment;
   sharedCart?: SourcingSharedCartContext;
   paymentContext?: SourcingPaymentContext;
+  freeDeal?: SourcingFreeDealMeta;
 };
 
 export type SourcingCheckoutInput = SourcingCheckoutAddress & {
@@ -424,6 +437,35 @@ function normalizePaymentContext(value: unknown): SourcingPaymentContext | undef
   };
 }
 
+function normalizeFreeDealMeta(value: unknown): SourcingFreeDealMeta | undefined {
+  if (!isObjectRecord(value)) {
+    return undefined;
+  }
+
+  const campaignKey = typeof value.campaignKey === "string" ? value.campaignKey.trim() : "";
+  const deviceIdHash = typeof value.deviceIdHash === "string" ? value.deviceIdHash.trim() : "";
+  const itemLimit = typeof value.itemLimit === "number" ? value.itemLimit : Number(value.itemLimit ?? 0);
+  const referralGoal = typeof value.referralGoal === "number" ? value.referralGoal : Number(value.referralGoal ?? 0);
+
+  if (!campaignKey || !deviceIdHash || !Number.isFinite(itemLimit) || itemLimit <= 0 || !Number.isFinite(referralGoal) || referralGoal < 0) {
+    return undefined;
+  }
+
+  return {
+    campaignKey,
+    fixedPriceEur: typeof value.fixedPriceEur === "number" ? value.fixedPriceEur : Number(value.fixedPriceEur ?? 0),
+    fixedPriceFcfa: typeof value.fixedPriceFcfa === "number" ? value.fixedPriceFcfa : Number(value.fixedPriceFcfa ?? 0),
+    itemLimit,
+    referralGoal,
+    selectedProductSlugs: Array.isArray(value.selectedProductSlugs)
+      ? value.selectedProductSlugs.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+      : [],
+    deviceIdHash,
+    ipHash: typeof value.ipHash === "string" ? value.ipHash : undefined,
+    userAgentHash: typeof value.userAgentHash === "string" ? value.userAgentHash : undefined,
+  };
+}
+
 export function normalizeVariantSelection(selection?: VariantSelection) {
   if (!selection) {
     return {};
@@ -524,6 +566,7 @@ export function getSourcingOrderMeta(order: Pick<SourcingOrder, "supplierOrderPa
     promo: normalizePromoAdjustment(meta.promo),
     sharedCart: normalizeSharedCartContext(meta.sharedCart),
     paymentContext: normalizePaymentContext(meta.paymentContext),
+    freeDeal: normalizeFreeDealMeta(meta.freeDeal),
   };
 }
 
@@ -537,6 +580,10 @@ export function withSourcingOrderMeta(order: SourcingOrder, metaUpdate: Sourcing
   const nextMeta: SourcingOrderMeta = {
     deliveryProfile: metaUpdate.deliveryProfile ?? currentMeta.deliveryProfile,
     workflow: metaUpdate.workflow ?? currentMeta.workflow,
+    promo: metaUpdate.promo ?? currentMeta.promo,
+    sharedCart: metaUpdate.sharedCart ?? currentMeta.sharedCart,
+    paymentContext: metaUpdate.paymentContext ?? currentMeta.paymentContext,
+    freeDeal: metaUpdate.freeDeal ?? currentMeta.freeDeal,
   };
 
   return {

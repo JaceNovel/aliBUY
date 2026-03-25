@@ -5,12 +5,13 @@
   "description": "AliPay marketplace clone built with Next.js frontend and backend pricing context.",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma db push && next build",
+    "build": "prisma migrate deploy && next build",
     "start": "next start",
     "postinstall": "prisma generate",
     "lint": "eslint",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
+    "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:migrate:promo-share": "prisma migrate dev --name add-promo-codes-and-shared-carts"
   },
   "dependencies": {

@@ -101,11 +101,10 @@ function normalizeItems(value: unknown) {
     return [] as CartInputItem[];
   }
 
-  return value
-    .map((entry) => {
+  return value.reduce<CartInputItem[]>((items, entry) => {
       const record = typeof entry === "object" && entry !== null ? entry as Record<string, unknown> : null;
       if (!record) {
-        return null;
+        return items;
       }
 
       const slug = toNonEmptyString(record.slug);
@@ -119,16 +118,17 @@ function normalizeItems(value: unknown) {
         : undefined;
 
       if (!slug || !Number.isFinite(quantity) || quantity <= 0) {
-        return null;
+        return items;
       }
 
-      return {
+      items.push({
         slug,
         quantity,
         selectedVariants,
-      } satisfies CartInputItem;
-    })
-    .filter((entry): entry is CartInputItem => Boolean(entry));
+      } satisfies CartInputItem);
+
+      return items;
+    }, []);
 }
 
 function toPrismaJson(value: unknown): Prisma.InputJsonValue {
