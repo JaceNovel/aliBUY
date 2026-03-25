@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useCart, useCartQuote } from "@/components/cart-provider";
-import { buildCartItemKey, formatShippingTradeLabel, formatSourcingAmount } from "@/lib/alibaba-sourcing";
+import { buildCartItemKey, formatShippingTradeLabel, formatSourcingAmount, type ShippingMethodKey } from "@/lib/alibaba-sourcing";
 
 type SharedCartSummary = {
   id: string;
@@ -24,7 +24,7 @@ export function CartPageClient({ currencyCode, locale, isAuthenticated, initialS
   const router = useRouter();
   const { items, updateItem, removeItem, clearCart, sharedCartContext } = useCart();
   const { quote, isLoading } = useCartQuote();
-  const [selectedShipping, setSelectedShipping] = useState<"air" | "sea">("air");
+  const [selectedShipping, setSelectedShipping] = useState<ShippingMethodKey>("air");
   const [hasUserSelectedShipping, setHasUserSelectedShipping] = useState(false);
   const [shareMessage, setShareMessage] = useState("");
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);

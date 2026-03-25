@@ -136,6 +136,7 @@ async function mapOrderRecord(order: SourcingOrder, user: AuthenticatedUser): Pr
   const status = resolveStatus(order);
   const firstItem = order.items[0];
   const dates = formatOrderDate(order.createdAt);
+  const meta = getSourcingOrderMeta(order);
   const conversation = await ensureOrderSupportConversation({
     userId: user.id,
     userEmail: user.email,
@@ -151,6 +152,11 @@ async function mapOrderRecord(order: SourcingOrder, user: AuthenticatedUser): Pr
     dateValue: dates.dateValue,
     timeValue: dates.timeValue,
     total: formatFcfa(order.totalPriceFcfa),
+    promoCode: meta.promo?.code,
+    promoDiscountLabel: meta.promo ? formatFcfa(meta.promo.discountFcfa) : undefined,
+    thirdPartyCartNotice: meta.paymentContext?.createdFromSharedCart && meta.paymentContext.thirdPartyCreatorName
+      ? `Commande issue d'un panier tiers cree par ${meta.paymentContext.thirdPartyCreatorName}`
+      : undefined,
     seller: "AfriPay sourcing",
     title: firstItem?.title ?? `Commande ${order.orderNumber}`,
     variant: buildVariant(order),

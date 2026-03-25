@@ -13,6 +13,9 @@ export type OrderRecord = {
   dateValue: string;
   timeValue: string;
   total: string;
+  promoCode?: string;
+  promoDiscountLabel?: string;
+  thirdPartyCartNotice?: string;
   seller: string;
   title: string;
   variant: string;
