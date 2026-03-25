@@ -5,9 +5,10 @@ import "server-only";
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
 import { auth, clerkClient } from "@clerk/nextjs/server";
+import { cookies } from "next/headers";
 
-import { createUserSessionToken, getUserSessionMaxAgeSeconds, USER_SESSION_COOKIE } from "@/lib/user-session";
-import { createStoredUser, getStoredUserById, type StoredUser, upsertStoredUserFromClerk } from "@/lib/user-store";
+import { createUserSessionToken, getUserSessionMaxAgeSeconds, parseUserSessionToken, USER_SESSION_COOKIE } from "@/lib/user-session";
+import { createStoredUser, getStoredUserByEmail, getStoredUserById, type StoredUser, upsertStoredUserFromClerk } from "@/lib/user-store";
 
 export type AuthenticatedUser = {
   id: string;
@@ -149,9 +150,12 @@ export async function registerUser(input: {
 }
 
 export async function validateUserCredentials(email: string, password: string) {
-  void email;
-  void password;
-  return null;
+  const user = await getStoredUserByEmail(email);
+  if (!user || !verifyPassword(password, user)) {
+    return null;
+  }
+
+  return toAuthenticatedUser(user);
 }
 
 export async function createAuthenticatedUserSession(user: AuthenticatedUser) {
@@ -164,28 +168,34 @@ export async function createAuthenticatedUserSession(user: AuthenticatedUser) {
 
 export const getCurrentUser = cache(async function getCurrentUser() {
   const { userId } = await auth();
-  if (!userId) {
+  if (userId) {
+    const client = await clerkClient();
+    const clerkUser = await client.users.getUser(userId).catch(() => null);
+    if (clerkUser) {
+      const email = getPrimaryEmailAddress(clerkUser);
+      if (email) {
+        const syncedUser = await upsertStoredUserFromClerk({
+          clerkUserId: clerkUser.id,
+          email,
+          displayName: getClerkDisplayName(clerkUser),
+        });
+
+        return toAuthenticatedUser(syncedUser);
+      }
+    }
+  }
+
+  const cookieStore = await cookies();
+  const session = await parseUserSessionToken(cookieStore.get(USER_SESSION_COOKIE)?.value);
+  if (!session?.sub) {
+    return null;
+  }
+  const user = await getStoredUserById(session.sub);
+  if (!user) {
     return null;
   }
 
-  const client = await clerkClient();
-  const clerkUser = await client.users.getUser(userId).catch(() => null);
-  if (!clerkUser) {
-    return null;
-  }
-
-  const email = getPrimaryEmailAddress(clerkUser);
-  if (!email) {
-    return null;
-  }
-
-  const syncedUser = await upsertStoredUserFromClerk({
-    clerkUserId: clerkUser.id,
-    email,
-    displayName: getClerkDisplayName(clerkUser),
-  });
-
-  return toAuthenticatedUser(syncedUser);
+  return toAuthenticatedUser(user);
 });
 
 export async function isUserAuthenticated() {

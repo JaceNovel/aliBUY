@@ -22,7 +22,11 @@ export function UserLogoutButton({ className = "", children }: UserLogoutButtonP
     setIsSubmitting(true);
 
     try {
-      await clerk.signOut({ redirectUrl: "/" });
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      await clerk.signOut({ redirectUrl: "/" }).catch(() => null);
     } finally {
       router.replace("/");
       setIsSubmitting(false);

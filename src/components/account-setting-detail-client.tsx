@@ -265,7 +265,7 @@ export function AccountSettingDetailClient({ slug, page, initialUser, initialSet
         if (initialUser.authProvider === "clerk") {
           return (
             <div className="rounded-[18px] border border-[#ffe0c7] bg-[#fff7f1] px-4 py-4 text-[14px] leading-6 text-[#7a4b1d]">
-              Votre mot de passe est géré par Clerk. Utilisez l&apos;icône de profil visible en haut du site pour mettre à jour vos identifiants en toute sécurité.
+              Votre mot de passe est géré par Clerk. Utilisez l&apos;espace de connexion pour le mettre à jour en toute sécurité.
             </div>
           );
         }
@@ -311,7 +311,7 @@ export function AccountSettingDetailClient({ slug, page, initialUser, initialSet
         if (initialUser.authProvider === "clerk") {
           return (
             <div className="rounded-[18px] border border-[#ffe0c7] bg-[#fff7f1] px-4 py-4 text-[14px] leading-6 text-[#7a4b1d]">
-              Votre adresse e-mail principale est gérée par Clerk. Utilisez l&apos;icône de profil en haut du site pour lancer la modification et la vérification de l&apos;adresse.
+              Votre adresse e-mail principale est gérée par Clerk. Utilisez votre espace de connexion pour lancer la modification et la vérification de l&apos;adresse.
             </div>
           );
         }

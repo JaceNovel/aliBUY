@@ -132,7 +132,6 @@ export async function upsertStoredUserFromClerk(input: {
     displayName: parsedName.displayName,
   });
 }
-
 export async function updateStoredUserProfile(input: {
   id: string;
   displayName?: string;

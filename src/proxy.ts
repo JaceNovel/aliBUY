@@ -2,6 +2,7 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { FREE_DEAL_DEVICE_COOKIE, FREE_DEAL_ROUTE } from "@/lib/free-deal-constants";
+import { parseUserSessionToken, USER_SESSION_COOKIE } from "@/lib/user-session";
 
 const isProtectedRoute = createRouteMatcher([
   "/account(.*)",
@@ -51,7 +52,9 @@ export default clerkMiddleware(async (auth, request) => {
 
   if (isProtectedRoute(request)) {
     const { userId } = await auth();
-    if (!userId) {
+    const session = await parseUserSessionToken(request.cookies.get(USER_SESSION_COOKIE)?.value);
+
+    if (!userId && !session?.sub) {
       if (request.nextUrl.pathname.startsWith("/api/")) {
         return finalizeResponse(request, NextResponse.json({ message: "Authentification requise." }, { status: 401 }));
       }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { SignIn } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 
+import { AdminLoginForm } from "@/components/admin-login-form";
 import { isAdminEmail } from "@/lib/admin-auth";
 import { clerkAppearance } from "@/lib/clerk-theme";
 import { getCurrentUser } from "@/lib/user-auth";
@@ -65,6 +66,11 @@ export default async function LoginPage({
                 appearance={clerkAppearance}
               />
             </div>
+            {nextPath.startsWith("/admin") ? (
+              <div className="mt-5 sm:mt-6">
+                <AdminLoginForm nextPath={nextPath} />
+              </div>
+            ) : null}
             <div className="mt-4 text-[12px] text-[#667085] sm:mt-5 sm:text-[13px]">
               <Link href="/" className="font-semibold text-[#ff6a00] transition hover:text-[#d95a00]">Retour au site</Link>
             </div>
