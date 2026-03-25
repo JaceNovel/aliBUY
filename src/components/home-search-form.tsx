@@ -1,6 +1,7 @@
 "use client";
 
-import { Camera, LoaderCircle, Search } from "lucide-react";
+import Link from "next/link";
+import { Camera, LoaderCircle, Search, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -16,6 +17,7 @@ type HomeSearchFormProps = {
 export function HomeSearchForm({ defaultQuery, placeholderText, imageSearchLabel, searchLabel }: HomeSearchFormProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [searchQuery, setSearchQuery] = useState(defaultQuery);
   const [isUploading, setIsUploading] = useState(false);
   const [isImageButtonActive, setIsImageButtonActive] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -83,6 +85,7 @@ export function HomeSearchForm({ defaultQuery, placeholderText, imageSearchLabel
           name="q"
           defaultValue={defaultQuery}
           placeholder={placeholderText}
+          onValueChange={setSearchQuery}
           wrapperClassName="relative"
           inputClassName="h-11 w-full rounded-[12px] border border-[#e6e1db] bg-[#fbfaf8] px-3 text-[13px] text-[#444] outline-none placeholder:text-[#9a9a9a] focus:border-[#ff6a00] sm:h-auto sm:rounded-none sm:border-0 sm:bg-transparent sm:px-0 sm:text-[16px]"
           panelClassName="absolute left-0 right-0 top-[calc(100%+18px)] z-30 rounded-[28px] border border-black/5 bg-white p-6 shadow-[0_28px_60px_rgba(17,24,39,0.18)]"
@@ -116,6 +119,17 @@ export function HomeSearchForm({ defaultQuery, placeholderText, imageSearchLabel
             <Search className="h-4 w-4 transition-transform duration-200 group-hover:scale-110 sm:h-5 sm:w-5" />
             {searchLabel}
           </button>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-[12px] text-[#6d655f] sm:mt-4 sm:text-[13px]">
+          <Link
+            href={`/admin/alibaba-sourcing/import-catalog?q=${encodeURIComponent(searchQuery.trim() || defaultQuery.trim())}&source=text-search`}
+            className="inline-flex items-center gap-2 rounded-full bg-[#fff2e9] px-3 py-2 font-semibold text-[#d85300] transition hover:bg-[#ffe6d5]"
+          >
+            <Sparkles className="h-4 w-4" />
+            Recherche AI Alibaba
+          </Link>
+          <span>Préremplit l&apos;import catalogue/IA avec votre recherche actuelle.</span>
         </div>
       </form>
     </div>

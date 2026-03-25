@@ -38,6 +38,7 @@ import {
   createAlibabaDropshippingPayment,
   fetchAlibabaProductSnapshot,
   queryAlibabaPaymentResult,
+  resolveAlibabaIcbuCategoryInfo,
   searchAlibabaProducts,
 } from "@/lib/alibaba-open-platform-client";
 
@@ -277,25 +278,34 @@ export async function runAlibabaCatalogImport(input: {
       return counts;
     }, { price: 0, moq: 0, weight: 0 });
 
-    const importedProducts = freshProducts.map((product) => ({
-      ...toImportedProduct(product, job.query, input.autoPublish),
-      ...(() => {
-        const categoryInfo = extractAlibabaCategoryInfo({
-          rawPayload: product.rawPayload,
-          query: job.query,
-          title: product.title,
-          keywords: product.keywords,
-        });
+    const importedProducts = await Promise.all(freshProducts.map(async (product) => {
+      const liveCategoryInfo = await resolveAlibabaIcbuCategoryInfo({
+        rawPayload: product.rawPayload,
+      });
+      const enrichedRawPayload = product.rawPayload && typeof product.rawPayload === "object" && !Array.isArray(product.rawPayload)
+        ? {
+            ...(product.rawPayload as Record<string, unknown>),
+            ...(liveCategoryInfo ? { alibaba_category_tree: liveCategoryInfo } : {}),
+          }
+        : product.rawPayload;
+      const categoryInfo = extractAlibabaCategoryInfo({
+        rawPayload: enrichedRawPayload,
+        query: job.query,
+        title: product.title,
+        keywords: product.keywords,
+        categoryTitle: liveCategoryInfo?.title,
+        categoryPath: liveCategoryInfo?.path,
+      });
 
-        return {
-          categorySlug: categoryInfo.slug,
-          categoryTitle: categoryInfo.title,
-          categoryPath: categoryInfo.path,
-        };
-      })(),
-      sourceProductId: product.sourceProductId,
-      supplierCompanyId: product.supplierCompanyId,
-      rawPayload: product.rawPayload,
+      return {
+        ...toImportedProduct(product, job.query, input.autoPublish),
+        categorySlug: categoryInfo.slug,
+        categoryTitle: categoryInfo.title,
+        categoryPath: categoryInfo.path,
+        sourceProductId: product.sourceProductId,
+        supplierCompanyId: product.supplierCompanyId,
+        rawPayload: enrichedRawPayload,
+      };
     }));
 
     const skippedMissingRequiredDataCount = uniqueSearchProducts.length - productsWithRequiredData.length;
@@ -410,11 +420,23 @@ export async function reenrichImportedProduct(importedProductId: string) {
     rawPayload: product.rawPayload,
   };
 
-  const categoryInfo = extractAlibabaCategoryInfo({
+  const liveCategoryInfo = await resolveAlibabaIcbuCategoryInfo({
     rawPayload: effectiveSnapshot.rawPayload,
+  });
+  const enrichedRawPayload = effectiveSnapshot.rawPayload && typeof effectiveSnapshot.rawPayload === "object" && !Array.isArray(effectiveSnapshot.rawPayload)
+    ? {
+        ...(effectiveSnapshot.rawPayload as Record<string, unknown>),
+        ...(liveCategoryInfo ? { alibaba_category_tree: liveCategoryInfo } : {}),
+      }
+    : effectiveSnapshot.rawPayload;
+
+  const categoryInfo = extractAlibabaCategoryInfo({
+    rawPayload: enrichedRawPayload,
     query: product.query,
     title: effectiveSnapshot.title,
     keywords: effectiveSnapshot.keywords,
+    categoryTitle: liveCategoryInfo?.title,
+    categoryPath: liveCategoryInfo?.path,
   });
   const timestamp = nowIso();
   const nextGallery = effectiveSnapshot.gallery.length > 0
@@ -471,7 +493,7 @@ export async function reenrichImportedProduct(importedProductId: string) {
     specs: nextSpecs,
     inventory: Math.max(effectiveSnapshot.moq * 5, 50),
     updatedAt: timestamp,
-    rawPayload: effectiveSnapshot.rawPayload,
+    rawPayload: enrichedRawPayload,
   };
 
   await saveAlibabaImportedProducts([nextProduct]);

@@ -1,4 +1,4 @@
-import type { ProductCatalogItem, ProductTier, ProductVariantPrice } from "@/lib/products-data";
+import type { ProductCatalogItem, ProductTier, ProductVariantPrice, ProductVariantSku } from "@/lib/products-data";
 
 type VariantSelection = Record<string, string>;
 type VariantPricedProduct = Pick<ProductCatalogItem, "tiers"> & {
@@ -142,6 +142,8 @@ function extractVariantPairsFromAttribute(value: unknown, fallbackLabel?: string
     ?? getStringValue(record.attributeName)
     ?? getStringValue(record.attr_name)
     ?? getStringValue(record.attrName)
+    ?? getStringValue(record.attr_name_desc)
+    ?? getStringValue(record.attrNameDesc)
     ?? getStringValue(record.spec_name)
     ?? getStringValue(record.specName)
     ?? getStringValue(record.prop_name)
@@ -156,6 +158,8 @@ function extractVariantPairsFromAttribute(value: unknown, fallbackLabel?: string
     ?? getStringValue(record.attributeValue)
     ?? getStringValue(record.attr_value)
     ?? getStringValue(record.attrValue)
+    ?? getStringValue(record.attr_value_desc)
+    ?? getStringValue(record.attrValueDesc)
     ?? getStringValue(record.value_name)
     ?? getStringValue(record.valueName)
     ?? getStringValue(record.option_name)
@@ -175,6 +179,8 @@ function extractVariantPairsFromAttribute(value: unknown, fallbackLabel?: string
     "attributeValues",
     "sku_attributes",
     "skuAttributes",
+    "sku_attr_list",
+    "skuAttrList",
     "spec_attrs",
     "specAttributes",
     "props",
@@ -235,6 +241,22 @@ function extractVariantSelectionFromSkuRecord(record: Record<string, unknown>) {
   return normalizeSelection(Object.fromEntries(pairs.map((pair) => [pair.label, pair.value])));
 }
 
+function extractSkuImage(record: Record<string, unknown>) {
+  const imageRecord = record.image && typeof record.image === "object" && !Array.isArray(record.image)
+    ? record.image as Record<string, unknown>
+    : null;
+  const raw = getStringValue(imageRecord?.image_url)
+    ?? getStringValue(imageRecord?.url)
+    ?? getStringValue(record.image_url)
+    ?? getStringValue(record.imageUrl);
+
+  if (!raw) {
+    return undefined;
+  }
+
+  return raw.startsWith("//") ? `https:${raw}` : raw;
+}
+
 function extractPriceRulesFromRecord(record: Record<string, unknown>, depth = 0): Array<Omit<ProductVariantPrice, "selections">> {
   if (depth > 4) {
     return [];
@@ -262,8 +284,12 @@ function extractPriceRulesFromRecord(record: Record<string, unknown>, depth = 0)
     ?? parsePositiveNumber(record.quantityMin)
     ?? parsePositiveNumber(record.min_qty)
     ?? parsePositiveNumber(record.minQty)
+    ?? parsePositiveNumber(record.min_quantity)
+    ?? parsePositiveNumber(record.minQuantity)
     ?? parsePositiveNumber(record.start_quantity)
     ?? parsePositiveNumber(record.startQuantity)
+    ?? parsePositiveNumber(record.quantity)
+    ?? parsePositiveNumber(record.qty)
     ?? parsePositiveNumber(record.from);
   const maximumQuantity = parsePositiveNumber(record.max_order_quantity)
     ?? parsePositiveNumber(record.maxOrderQuantity)
@@ -271,6 +297,8 @@ function extractPriceRulesFromRecord(record: Record<string, unknown>, depth = 0)
     ?? parsePositiveNumber(record.quantityMax)
     ?? parsePositiveNumber(record.max_qty)
     ?? parsePositiveNumber(record.maxQty)
+    ?? parsePositiveNumber(record.max_quantity)
+    ?? parsePositiveNumber(record.maxQuantity)
     ?? parsePositiveNumber(record.end_quantity)
     ?? parsePositiveNumber(record.endQuantity)
     ?? parsePositiveNumber(record.to);
@@ -388,6 +416,73 @@ export function extractAlibabaVariantPricing(rawPayload: unknown): ProductVarian
   });
 }
 
+export function extractAlibabaVariantSkus(rawPayload: unknown): ProductVariantSku[] {
+  const deduped = new Map<string, ProductVariantSku>();
+  const visited = new Set<object>();
+
+  const visit = (value: unknown, depth = 0) => {
+    if (depth > 5 || value == null) {
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach((entry) => visit(entry, depth + 1));
+      return;
+    }
+
+    if (typeof value !== "object") {
+      return;
+    }
+
+    const record = value as Record<string, unknown>;
+    if (visited.has(record)) {
+      return;
+    }
+
+    visited.add(record);
+
+    const tradeInfo = (record.trade_info && typeof record.trade_info === "object") ? record.trade_info as Record<string, unknown> : {};
+    const skuInfo = Array.isArray(record.sku_info)
+      ? record.sku_info
+      : Array.isArray(tradeInfo.sku_info)
+        ? tradeInfo.sku_info
+        : Array.isArray(record.skus)
+          ? record.skus
+          : [];
+
+    skuInfo.forEach((sku) => {
+      if (!sku || typeof sku !== "object" || Array.isArray(sku)) {
+        return;
+      }
+
+      const skuRecord = sku as Record<string, unknown>;
+      const selections = extractVariantSelectionFromSkuRecord(skuRecord);
+      const skuId = getStringValue(skuRecord.sku_id) ?? getStringValue(skuRecord.skuId);
+      if (!skuId || Object.keys(selections).length === 0) {
+        return;
+      }
+
+      const nextSku: ProductVariantSku = {
+        selections,
+        skuId,
+        skuCode: getStringValue(skuRecord.sku_code) ?? getStringValue(skuRecord.skuCode),
+        inventory: parsePositiveNumber(skuRecord.inventory),
+        image: extractSkuImage(skuRecord),
+      };
+      const dedupeKey = `${serializeSelection(selections)}::${skuId}`;
+      if (!deduped.has(dedupeKey)) {
+        deduped.set(dedupeKey, nextSku);
+      }
+    });
+
+    Object.values(record).forEach((entry) => visit(entry, depth + 1));
+  };
+
+  visit(rawPayload);
+
+  return [...deduped.values()].sort((left, right) => serializeSelection(left.selections).localeCompare(serializeSelection(right.selections)));
+}
+
 export function deriveVariantGroupsFromPricing(rules: ProductVariantPrice[]) {
   const groups = new Map<string, string[]>();
 
@@ -404,6 +499,16 @@ export function deriveVariantGroupsFromPricing(rules: ProductVariantPrice[]) {
   return [...groups.entries()]
     .map(([label, values]) => ({ label, values }))
     .filter((group) => group.values.length > 1);
+}
+
+export function resolveVariantSku(product: Pick<ProductCatalogItem, "variantSkus">, selection?: VariantSelection) {
+  const normalizedSelection = normalizeSelection(selection);
+  const variantSkus = product.variantSkus ?? [];
+
+  return variantSkus.find((variantSku) => {
+    const ruleEntries = Object.entries(normalizeSelection(variantSku.selections));
+    return ruleEntries.length > 0 && ruleEntries.every(([label, value]) => normalizedSelection[label] === value);
+  });
 }
 
 function matchVariantRules(product: VariantPricedProduct, selection?: VariantSelection) {

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Camera, Search } from "lucide-react";
+import { Camera, Search, Sparkles } from "lucide-react";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { getCatalogProductsBySlugs } from "@/lib/catalog-service";
@@ -46,6 +46,17 @@ export default async function ImageSearchPage({
               <Search className="h-5 w-5" />
               Nouvelle recherche
             </Link>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3 text-[13px] text-[#6b7280]">
+            <Link
+              href={`/admin/alibaba-sourcing/import-catalog?q=${encodeURIComponent(name)}&source=image-search`}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#fff2e9] px-5 font-semibold text-[#d85300] transition hover:bg-[#ffe6d5]"
+            >
+              <Sparkles className="h-4 w-4" />
+              Envoyer vers l&apos;import AI Alibaba
+            </Link>
+            <span>Utilise le nom du fichier comme point de départ pour une recherche/import Alibaba assisté.</span>
           </div>
         </section>
 

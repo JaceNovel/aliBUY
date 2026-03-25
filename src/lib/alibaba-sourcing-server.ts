@@ -15,6 +15,7 @@ import {
   type ShippingMethodQuote,
   type VariantSelection,
 } from "@/lib/alibaba-sourcing";
+import { resolveVariantSku } from "@/lib/product-variant-pricing";
 
 function resolveProductVariantSelection(product: ProductCatalogItem, selection?: VariantSelection) {
   const normalizedSelection = normalizeVariantSelection(selection);
@@ -77,6 +78,7 @@ export async function createAlibabaSourcingQuote(inputItems: CartInputItem[], se
           : totalQuantityBySlug.get(product.slug) ?? item.quantity,
         selectedVariants,
       });
+      const matchedVariantSku = resolveVariantSku(product, selectedVariants);
       const marginAmountFcfa = computeMarginAmount(metrics.supplierPriceFcfa, settings);
       const finalUnitPriceFcfa = metrics.supplierPriceFcfa + marginAmountFcfa;
 
@@ -86,6 +88,7 @@ export async function createAlibabaSourcingQuote(inputItems: CartInputItem[], se
         quantity: item.quantity,
         selectedVariants,
         selectionLabel,
+        matchedVariantSku,
         ...metrics,
         marginAmountFcfa,
         finalUnitPriceFcfa,
@@ -104,6 +107,8 @@ export async function createAlibabaSourcingQuote(inputItems: CartInputItem[], se
     quantity: item.quantity,
     selectedVariants: item.selectedVariants,
     selectionLabel: item.selectionLabel,
+    supplierSkuId: item.matchedVariantSku?.skuId,
+    supplierSkuCode: item.matchedVariantSku?.skuCode,
     weightKg: item.weightKg,
     volumeCbm: item.volumeCbm,
     supplierPriceFcfa: item.supplierPriceFcfa,
@@ -120,8 +125,9 @@ export async function createAlibabaSourcingQuote(inputItems: CartInputItem[], se
   const totalCbm = Number(validItems.reduce((sum, item) => sum + item.volumeCbm * item.quantity, 0).toFixed(4));
   const airCostFcfa = Math.ceil(totalWeightKg * settings.airRatePerKgFcfa);
   const seaCostFcfa = Math.ceil(totalCbm * settings.seaSellRatePerCbmFcfa);
-  const airIsFree = settings.freeAirEnabled && cartProductsTotalFcfa >= settings.freeAirThresholdFcfa;
-  const showBothOptions = totalWeightKg > settings.airWeightThresholdKg;
+  const shouldPreferSea = totalWeightKg > settings.airWeightThresholdKg;
+  const airIsFree = !shouldPreferSea && settings.freeAirEnabled && cartProductsTotalFcfa >= settings.freeAirThresholdFcfa;
+  const showBothOptions = shouldPreferSea;
   const freeAirRemainingFcfa = Math.max(settings.freeAirThresholdFcfa - cartProductsTotalFcfa, 0);
 
   const shippingOptions: ShippingMethodQuote[] = showBothOptions
@@ -132,7 +138,7 @@ export async function createAlibabaSourcingQuote(inputItems: CartInputItem[], se
           priceFcfa: airIsFree ? 0 : airCostFcfa,
           deliveryWindow: settings.airEstimatedDays,
           isFree: airIsFree,
-          tradeLabel: `Express · ${formatFcfa(settings.airRatePerKgFcfa)}/kg`,
+          tradeLabel: `Express payant · ${formatFcfa(settings.airRatePerKgFcfa)}/kg`,
         },
         {
           key: "sea",
@@ -162,7 +168,11 @@ export async function createAlibabaSourcingQuote(inputItems: CartInputItem[], se
     shippingOptions,
     recommendedMethod: showBothOptions ? "sea" : "air",
     freeAirRemainingFcfa,
-    freeShippingMessage: airIsFree ? "Livraison avion offerte debloquee pour ce panier" : `Ajoutez ${formatFcfa(freeAirRemainingFcfa)} de plus pour obtenir la livraison avion offerte`,
+    freeShippingMessage: shouldPreferSea
+      ? `Au-dessus de ${settings.airWeightThresholdKg} kg, le bateau est recommande. L'avion reste disponible avec frais.`
+      : airIsFree
+        ? "Livraison avion offerte debloquee pour ce panier"
+        : `Ajoutez ${formatFcfa(freeAirRemainingFcfa)} de plus pour obtenir la livraison avion offerte`,
     containerProjection: {
       targetCbm: settings.containerTargetCbm,
       projectedCbm: totalCbm,

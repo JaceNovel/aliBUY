@@ -1,5 +1,5 @@
 import type { ProductCatalogItem } from "@/lib/products-data";
-import { deriveVariantGroupsFromPricing, extractAlibabaVariantPricing } from "@/lib/product-variant-pricing";
+import { deriveVariantGroupsFromPricing, extractAlibabaVariantPricing, extractAlibabaVariantSkus } from "@/lib/product-variant-pricing";
 import { resolveAlibabaMoq } from "@/lib/product-moq";
 import { sanitizeItemWeightGrams } from "@/lib/product-weight";
 
@@ -656,6 +656,7 @@ export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogIt
   const primaryImage: string = normalizeMediaUrl(item.image) || item.image;
   const rawVideoUrl = extractVideoUrl(rawPayloadRecord);
   const variantPricing = extractAlibabaVariantPricing(item.rawPayload);
+  const variantSkus = extractAlibabaVariantSkus(item.rawPayload);
   const moqInfo = resolveAlibabaMoq({
     rawValue: [rawPayloadRecord, item.soldLabel, item.overview],
     tiers: item.tiers,
@@ -704,6 +705,7 @@ export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogIt
     overview: item.overview,
     variantGroups: resolvedVariantGroups,
     variantPricing,
+    variantSkus,
     tiers: item.tiers,
     specs: item.specs,
   };

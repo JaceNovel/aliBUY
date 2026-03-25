@@ -10,6 +10,7 @@ type SearchSuggestionInputProps = {
   inputClassName: string;
   wrapperClassName?: string;
   panelClassName?: string;
+  onValueChange?: (value: string) => void;
 };
 
 export function SearchSuggestionInput({
@@ -19,10 +20,15 @@ export function SearchSuggestionInput({
   inputClassName,
   wrapperClassName,
   panelClassName,
+  onValueChange,
 }: SearchSuggestionInputProps) {
   const [query, setQuery] = useState(defaultValue);
   const [isOpen, setIsOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+
+  useEffect(() => {
+    onValueChange?.(query);
+  }, [onValueChange, query]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -84,6 +90,7 @@ export function SearchSuggestionInput({
                 onMouseDown={(event) => {
                   event.preventDefault();
                   setQuery(suggestion);
+                  onValueChange?.(suggestion);
                   setIsOpen(false);
                 }}
               >

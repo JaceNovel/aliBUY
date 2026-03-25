@@ -18,6 +18,14 @@ export type ProductVariantPrice = {
   note?: string;
 };
 
+export type ProductVariantSku = {
+  selections: Record<string, string>;
+  skuId: string;
+  skuCode?: string;
+  inventory?: number;
+  image?: string;
+};
+
 export type ProductCatalogItem = {
   slug: string;
   title: string;
@@ -47,6 +55,7 @@ export type ProductCatalogItem = {
   overview: string[];
   variantGroups: ProductVariantGroup[];
   variantPricing?: ProductVariantPrice[];
+  variantSkus?: ProductVariantSku[];
   tiers: ProductTier[];
   specs: Array<{ label: string; value: string }>;
 };

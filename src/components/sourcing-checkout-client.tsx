@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, MapPinned, Ship, ShoppingCart, Sparkles, Truck } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useCart, useCartQuote } from "@/components/cart-provider";
 import { formatFcfa } from "@/lib/alibaba-sourcing";
@@ -62,11 +62,28 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
   const [quickAddress, setQuickAddress] = useState(() => buildAddressQuickInput(defaultAddress ? buildFormFromAddress(defaultAddress, initialUser) : defaultForm));
   const [isManualAddress, setIsManualAddress] = useState(false);
   const [selectedShipping, setSelectedShipping] = useState<"air" | "sea">("air");
+  const [hasUserSelectedShipping, setHasUserSelectedShipping] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const shippingOptions = quote.shippingOptions;
+  useEffect(() => {
+    if (shippingOptions.length === 0) {
+      return;
+    }
+
+    const hasSelectedOption = shippingOptions.some((option) => option.key === selectedShipping);
+    if (!hasSelectedOption) {
+      setSelectedShipping(quote.recommendedMethod);
+      return;
+    }
+
+    if (!hasUserSelectedShipping && selectedShipping !== quote.recommendedMethod) {
+      setSelectedShipping(quote.recommendedMethod);
+    }
+  }, [hasUserSelectedShipping, quote.recommendedMethod, selectedShipping, shippingOptions]);
+
   const selectedOption = useMemo(() => {
     return shippingOptions.find((option) => option.key === selectedShipping) ?? shippingOptions[0] ?? null;
   }, [selectedShipping, shippingOptions]);
@@ -151,7 +168,8 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
         return;
       }
 
-      setErrorMessage("Impossible de créer la commande sourcing.");
+      const payload = await response.json().catch(() => null);
+      setErrorMessage(typeof payload?.message === "string" && payload.message.trim().length > 0 ? payload.message : "Impossible de créer la commande sourcing.");
       return;
     }
 
@@ -330,12 +348,16 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
 
         <section className="rounded-[28px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)]">
           <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Choix de livraison</div>
+          {quote.recommendedMethod === "sea" ? <div className="mt-3 rounded-[18px] bg-[#eef6ff] px-4 py-3 text-[13px] font-medium text-[#1d4f91]">Au-dessus de 1 kg, le bateau est recommandé et l'avion reste disponible si vous voulez payer l'express.</div> : null}
           <div className="mt-4 space-y-3">
             {shippingOptions.map((option) => {
               const Icon = option.key === "air" ? Truck : Ship;
 
               return (
-                <button key={option.key} type="button" onClick={() => setSelectedShipping(option.key)} className={["flex w-full items-start gap-3 rounded-[20px] border px-4 py-4 text-left transition", selectedShipping === option.key ? "border-[#ff6a00] bg-[#fff5ed]" : "border-[#e6eaf0] bg-white hover:border-[#ffb48a]"].join(" ")}>
+                <button key={option.key} type="button" onClick={() => {
+                  setHasUserSelectedShipping(true);
+                  setSelectedShipping(option.key);
+                }} className={["flex w-full items-start gap-3 rounded-[20px] border px-4 py-4 text-left transition", selectedShipping === option.key ? "border-[#ff6a00] bg-[#fff5ed]" : "border-[#e6eaf0] bg-white hover:border-[#ffb48a]"].join(" ")}>
                   <div className={["mt-0.5 inline-flex h-10 w-10 items-center justify-center rounded-[14px]", option.key === "air" ? "bg-[#fff0e6] text-[#ff6a00]" : "bg-[#eaf3ff] text-[#2f67f6]"].join(" ")}>
                     <Icon className="h-5 w-5" />
                   </div>

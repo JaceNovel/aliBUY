@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Minus, Plus, Ship, ShoppingCart, Truck } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useCart, useCartQuote } from "@/components/cart-provider";
 import { buildCartItemKey, formatFcfa } from "@/lib/alibaba-sourcing";
@@ -12,6 +12,23 @@ export function CartPageClient() {
   const { items, updateItem, removeItem, clearCart } = useCart();
   const { quote, isLoading } = useCartQuote();
   const [selectedShipping, setSelectedShipping] = useState<"air" | "sea">("air");
+  const [hasUserSelectedShipping, setHasUserSelectedShipping] = useState(false);
+
+  useEffect(() => {
+    if (quote.shippingOptions.length === 0) {
+      return;
+    }
+
+    const hasSelectedOption = quote.shippingOptions.some((option) => option.key === selectedShipping);
+    if (!hasSelectedOption) {
+      setSelectedShipping(quote.recommendedMethod);
+      return;
+    }
+
+    if (!hasUserSelectedShipping && selectedShipping !== quote.recommendedMethod) {
+      setSelectedShipping(quote.recommendedMethod);
+    }
+  }, [hasUserSelectedShipping, quote.recommendedMethod, quote.shippingOptions, selectedShipping]);
 
   const shipping = useMemo(() => quote.shippingOptions.find((option) => option.key === selectedShipping) ?? quote.shippingOptions[0], [quote.shippingOptions, selectedShipping]);
   const totalFcfa = quote.cartProductsTotalFcfa + (shipping?.priceFcfa ?? 0);
@@ -101,13 +118,17 @@ export function CartPageClient() {
         <aside className="space-y-4">
           <section className="rounded-[28px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)]">
             <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Options de livraison</div>
+            {quote.recommendedMethod === "sea" ? <div className="mt-3 rounded-[18px] bg-[#eef6ff] px-4 py-3 text-[13px] font-medium text-[#1d4f91]">Au-dessus de 1 kg, le bateau est recommandé. Vous pouvez quand même choisir l'avion, mais il reste payant.</div> : null}
             <div className="mt-4 space-y-3">
               {quote.shippingOptions.map((option) => {
                 const isActive = selectedShipping === option.key;
                 const Icon = option.key === "air" ? Truck : Ship;
 
                 return (
-                  <button key={option.key} type="button" onClick={() => setSelectedShipping(option.key)} className={["flex w-full items-start gap-3 rounded-[20px] border px-4 py-4 text-left transition", isActive ? "border-[#ff6a00] bg-[#fff5ed]" : "border-[#e6eaf0] bg-white hover:border-[#ffb48a]"].join(" ")}>
+                  <button key={option.key} type="button" onClick={() => {
+                    setHasUserSelectedShipping(true);
+                    setSelectedShipping(option.key);
+                  }} className={["flex w-full items-start gap-3 rounded-[20px] border px-4 py-4 text-left transition", isActive ? "border-[#ff6a00] bg-[#fff5ed]" : "border-[#e6eaf0] bg-white hover:border-[#ffb48a]"].join(" ")}>
                     <div className={["mt-0.5 inline-flex h-10 w-10 items-center justify-center rounded-[14px]", option.key === "air" ? "bg-[#fff0e6] text-[#ff6a00]" : "bg-[#eaf3ff] text-[#2f67f6]"].join(" ")}>
                       <Icon className="h-5 w-5" />
                     </div>

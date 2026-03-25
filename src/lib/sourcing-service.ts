@@ -1,6 +1,6 @@
 import { formatFcfa, type SourcingCheckoutInput, type SourcingOrder, type SourcingSeaContainer, type SourcingSettings } from "@/lib/alibaba-sourcing";
 import { createAlibabaSourcingQuote, getAlibabaSourcingCatalog } from "@/lib/alibaba-sourcing-server";
-import { runAlibabaSupplierAutomation } from "@/lib/alibaba-open-platform-client";
+import { createAlibabaSupplierOrders, verifyAlibabaSupplierFreight } from "@/lib/alibaba-open-platform-client";
 import { createAlibabaIntegrationLog, createSourcingIds, getAlibabaCatalogMappings, getSourcingOrders, getSourcingSeaContainers, getSourcingSettings, saveSourcingOrder, saveSourcingSeaContainer, saveSourcingSettings } from "@/lib/sourcing-store";
 
 function nowIso() {
@@ -137,17 +137,47 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
   await saveSourcingOrder(order);
 
   const mappings = await getAlibabaCatalogMappings();
-  const integration = await runAlibabaSupplierAutomation(order, mappings);
-  order = {
-    ...order,
-    freightStatus: integration.freightStatus,
-    supplierOrderStatus: integration.supplierOrderStatus,
-    alibabaTradeIds: integration.alibabaTradeIds,
-    freightPayload: integration.freightPayload,
-    supplierOrderPayload: integration.supplierOrderPayload,
-    status: integration.supplierOrderStatus === "created" ? "submitted_to_supplier" : order.status,
-    updatedAt: nowIso(),
-  };
+  try {
+    const freightVerification = await verifyAlibabaSupplierFreight(order, mappings);
+    order = {
+      ...order,
+      freightStatus: freightVerification.freightStatus,
+      freightPayload: freightVerification.freightPayload,
+      updatedAt: nowIso(),
+    };
+    await saveSourcingOrder(order);
+
+    const supplierOrders = await createAlibabaSupplierOrders(order, mappings, freightVerification);
+    order = {
+      ...order,
+      supplierOrderStatus: supplierOrders.supplierOrderStatus,
+      alibabaTradeIds: supplierOrders.alibabaTradeIds,
+      supplierOrderPayload: supplierOrders.supplierOrderPayload,
+      status: supplierOrders.supplierOrderStatus === "created" ? "submitted_to_supplier" : order.status,
+      updatedAt: nowIso(),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "supplier_automation_failed";
+    order = {
+      ...order,
+      freightStatus: "failed",
+      supplierOrderStatus: "failed",
+      supplierOrderPayload: { error: message },
+      updatedAt: nowIso(),
+    };
+
+    await createAlibabaIntegrationLog({
+      orderId: order.id,
+      action: "supplier-automation",
+      endpoint: "internal",
+      status: "failed",
+      requestBody: {
+        orderNumber: order.orderNumber,
+        shippingMethod: order.shippingMethod,
+      },
+      responseBody: { message },
+    });
+  }
 
   await saveSourcingOrder(order);
   await createAlibabaIntegrationLog({

@@ -77,6 +77,22 @@ function extractMoqFromRecord(record: Record<string, unknown>) {
     }
   }
 
+  const hasPriceContext = [
+    record.price,
+    record.sku_price,
+    record.sale_price,
+    record.unit_price,
+  ].some((entry) => typeof entry !== "undefined");
+
+  if (hasPriceContext) {
+    for (const key of ["quantity", "qty", "from"] as const) {
+      const parsed = parseMoqNumber(record[key]);
+      if (parsed) {
+        return parsed;
+      }
+    }
+  }
+
   const labelHint = [record.label, record.name, record.title, record.key, record.field_name]
     .filter((entry): entry is string => typeof entry === "string")
     .find((entry) => MOQ_KEY_PATTERN.test(entry));
@@ -188,6 +204,18 @@ export function resolveAlibabaMoq(input: {
   variantPricing?: MappableVariantPrice[];
   fallback?: number;
 }): AlibabaMoqInfo {
+  if (input.rawValue && typeof input.rawValue === "object" && !Array.isArray(input.rawValue)) {
+    const record = input.rawValue as Record<string, unknown>;
+    const tradeInfo = record.trade_info && typeof record.trade_info === "object" && !Array.isArray(record.trade_info)
+      ? record.trade_info as Record<string, unknown>
+      : null;
+    const directTradeMoq = tradeInfo ? extractMoqFromRecord(tradeInfo) : undefined;
+
+    if (directTradeMoq) {
+      return { value: directTradeMoq, verified: true };
+    }
+  }
+
   const extracted = extractAlibabaMoqInfo(input.rawValue);
   if (extracted.verified && extracted.value) {
     return extracted;

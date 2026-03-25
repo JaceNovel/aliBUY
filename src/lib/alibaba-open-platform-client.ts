@@ -62,6 +62,109 @@ type ExtractedPriceTier = {
   note?: string;
 };
 
+type AlibabaIcbuCategoryNode = {
+  categoryId: string;
+  title: string;
+  parentIds: string[];
+  level?: number;
+  leafCategory: boolean;
+  childIds: string[];
+};
+
+export type AlibabaResolvedCategoryInfo = {
+  categoryId: string;
+  title: string;
+  path: string[];
+  leafCategory: boolean;
+};
+
+export type AlibabaAiOptimizationConfig = {
+  keywordOptimizationEnabled?: boolean;
+  descriptionOptimizationEnabled?: boolean;
+  titleOptimizationEnabled?: boolean;
+};
+
+export type AlibabaIcbuCategorySummary = {
+  categoryId: string;
+  categoryName: string;
+  level?: number;
+  leafCategory: boolean;
+};
+
+export type AlibabaEditProductPriceInput = {
+  productId: string | number;
+  price?: Record<string, unknown>;
+  skuPrice?: Array<Record<string, unknown>>;
+};
+
+export type AlibabaBasicFreightInput = {
+  destinationCountry: string;
+  productId: string | number;
+  quantity: string | number;
+  zipCode?: string;
+  dispatchLocation?: string;
+  enableDistributionWaybill?: boolean;
+};
+
+export type AlibabaAdvancedFreightItemInput = {
+  quantity: string | number;
+  productId: string | number;
+  skuId?: string | number;
+};
+
+export type AlibabaAdvancedFreightInput = {
+  eCompanyId: string;
+  destinationCountry: string;
+  logisticsProductList: AlibabaAdvancedFreightItemInput[];
+  address?: Record<string, unknown>;
+  dispatchLocation?: string;
+  enableDistributionWaybill?: boolean;
+};
+
+export type AlibabaFreightOption = {
+  destinationCountry?: string;
+  vendorCode?: string;
+  vendorName?: string;
+  shippingType?: string;
+  dispatchCountry?: string;
+  solutionBizType?: string;
+  tradeTerm?: string;
+  deliveryTime?: string;
+  storeType?: string;
+  feeAmount?: number;
+  feeCurrency?: string;
+};
+
+export type AlibabaMergePayGroup = {
+  groupCode?: string;
+  canMergePay: boolean;
+  canNotMergePayReason?: string;
+  canNotMergePayReasonMessage?: string;
+  canMergePayOrderIds: string[];
+  canNotMergePayOrderItems: Array<{
+    orderId?: string;
+    reason?: string;
+    reasonMessage?: string;
+  }>;
+};
+
+export type AlibabaLogisticsTrackingEvent = {
+  eventCode?: string;
+  eventLocation?: string;
+  eventName?: string;
+  eventTime?: string;
+};
+
+export type AlibabaLogisticsTracking = {
+  carrier?: string;
+  trackingNumber?: string;
+  trackingUrl?: string;
+  currentEventCode?: string;
+  eventList: AlibabaLogisticsTrackingEvent[];
+};
+
+const alibabaIcbuCategoryNodeCache = new Map<string, Promise<AlibabaIcbuCategoryNode | null>>();
+
 function normalizeBaseUrl(value: string) {
   return value.replace(/\/+$/, "").replace(/\/rest$/, "");
 }
@@ -178,6 +281,177 @@ function getStringValue(candidate: unknown): string | undefined {
   }
 
   return undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseAlibabaCategoryIdList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return [...new Set(value.flatMap((entry) => parseAlibabaCategoryIdList(entry)).filter(Boolean))];
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return [String(Math.round(value))];
+  }
+
+  if (typeof value !== "string") {
+    return [] as string[];
+  }
+
+  return [...new Set(
+    value
+      .split(/[\s,;|>]+/g)
+      .map((entry) => entry.trim())
+      .filter((entry) => /^\d+$/.test(entry)),
+  )];
+}
+
+function getAlibabaCategoryLabel(record: Record<string, unknown>) {
+  return getStringValue(record.name)
+    ?? getStringValue(record.cn_name)
+    ?? getStringValue(record.category_name)
+    ?? getStringValue(record.title);
+}
+
+function extractAlibabaCategoryIdFromPayload(value: unknown, depth = 0): string | undefined {
+  if (depth > 6 || value == null) {
+    return undefined;
+  }
+
+  if (typeof value === "string" || typeof value === "number") {
+    const [firstId] = parseAlibabaCategoryIdList(value);
+    return firstId;
+  }
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const nested = extractAlibabaCategoryIdFromPayload(entry, depth + 1);
+      if (nested) {
+        return nested;
+      }
+    }
+
+    return undefined;
+  }
+
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  for (const key of ["category_id", "categoryId", "cat_id", "catId"]) {
+    const [directId] = parseAlibabaCategoryIdList(value[key]);
+    if (directId) {
+      return directId;
+    }
+  }
+
+  for (const key of ["category_info", "categoryInfo", "basic_info", "basicInfo", "detail", "search", "rawPayload"]) {
+    const nested = extractAlibabaCategoryIdFromPayload(value[key], depth + 1);
+    if (nested) {
+      return nested;
+    }
+  }
+
+  for (const nestedValue of Object.values(value)) {
+    const nested = extractAlibabaCategoryIdFromPayload(nestedValue, depth + 1);
+    if (nested) {
+      return nested;
+    }
+  }
+
+  return undefined;
+}
+
+async function fetchAlibabaIcbuCategoryNode(catId: string, credentials?: AlibabaCredentials | null): Promise<AlibabaIcbuCategoryNode | null> {
+  const normalizedId = catId.trim();
+  if (!/^\d+$/.test(normalizedId) || normalizedId === "0") {
+    return null;
+  }
+
+  const cached = alibabaIcbuCategoryNodeCache.get(normalizedId);
+  if (cached) {
+    return cached;
+  }
+
+  const pending = (async () => {
+    const resolvedCredentials = credentials ?? await resolveAlibabaCredentialsForLiveCall();
+    if (!resolvedCredentials) {
+      return null;
+    }
+
+    const result = await callAlibabaEndpoint("/icbu/product/category/get", {
+      cat_id: normalizedId,
+    }, {
+      credentials: resolvedCredentials,
+      method: "GET",
+    });
+
+    if (!result.ok) {
+      return null;
+    }
+
+    const response = isRecord(result.responseBody) ? result.responseBody : null;
+    const envelope = response && isRecord(response.result) ? response.result : response;
+    const rawNode = envelope && isRecord(envelope.result) ? envelope.result : null;
+    const success = envelope && (isTruthyAlibabaFlag(envelope.success) || getStringValue(envelope.response_code) === "200");
+
+    if (!rawNode || !success) {
+      return null;
+    }
+
+    const title = getAlibabaCategoryLabel(rawNode);
+    const categoryId = getStringValue(rawNode.category_id) ?? normalizedId;
+    if (!title || !categoryId) {
+      return null;
+    }
+
+    return {
+      categoryId,
+      title,
+      parentIds: parseAlibabaCategoryIdList(rawNode.parent_ids),
+      level: getNumberValue(rawNode.level),
+      leafCategory: isTruthyAlibabaFlag(rawNode.leaf_category),
+      childIds: parseAlibabaCategoryIdList(rawNode.child_ids),
+    } satisfies AlibabaIcbuCategoryNode;
+  })().catch(() => null);
+
+  alibabaIcbuCategoryNodeCache.set(normalizedId, pending);
+  return pending;
+}
+
+export async function resolveAlibabaIcbuCategoryInfo(input: {
+  categoryId?: string;
+  rawPayload?: unknown;
+}): Promise<AlibabaResolvedCategoryInfo | null> {
+  const categoryId = input.categoryId ?? extractAlibabaCategoryIdFromPayload(input.rawPayload);
+  if (!categoryId) {
+    return null;
+  }
+
+  const credentials = await resolveAlibabaCredentialsForLiveCall();
+  if (!credentials) {
+    return null;
+  }
+
+  const node = await fetchAlibabaIcbuCategoryNode(categoryId, credentials);
+  if (!node) {
+    return null;
+  }
+
+  const parents = await Promise.all(node.parentIds.map((parentId) => fetchAlibabaIcbuCategoryNode(parentId, credentials)));
+  const path = [...parents, node]
+    .filter((entry): entry is AlibabaIcbuCategoryNode => Boolean(entry))
+    .map((entry) => entry.title)
+    .filter(Boolean);
+
+  return {
+    categoryId: node.categoryId,
+    title: node.title,
+    path: path.length > 0 ? path : [node.title],
+    leafCategory: node.leafCategory,
+  };
 }
 
 function getNumberValue(...candidates: unknown[]) {
@@ -476,8 +750,12 @@ function extractPriceTierFromRecord(record: Record<string, unknown>, unit = "pie
     ?? parsePositiveNumber(record.quantityMin)
     ?? parsePositiveNumber(record.min_qty)
     ?? parsePositiveNumber(record.minQty)
+    ?? parsePositiveNumber(record.min_quantity)
+    ?? parsePositiveNumber(record.minQuantity)
     ?? parsePositiveNumber(record.start_quantity)
     ?? parsePositiveNumber(record.startQuantity)
+    ?? parsePositiveNumber(record.quantity)
+    ?? parsePositiveNumber(record.qty)
     ?? (isTierContextKey(keyHint) ? parsePositiveNumber(record.from) : undefined);
   const maximumQuantity = parsePositiveNumber(record.max_order_quantity)
     ?? parsePositiveNumber(record.maxOrderQuantity)
@@ -485,6 +763,8 @@ function extractPriceTierFromRecord(record: Record<string, unknown>, unit = "pie
     ?? parsePositiveNumber(record.quantityMax)
     ?? parsePositiveNumber(record.max_qty)
     ?? parsePositiveNumber(record.maxQty)
+    ?? parsePositiveNumber(record.max_quantity)
+    ?? parsePositiveNumber(record.maxQuantity)
     ?? parsePositiveNumber(record.end_quantity)
     ?? parsePositiveNumber(record.endQuantity)
     ?? (isTierContextKey(keyHint) ? parsePositiveNumber(record.to) : undefined);
@@ -795,6 +1075,8 @@ function extractVariantPairsFromAttribute(value: unknown, fallbackLabel?: string
     ?? getStringValue(record.attributeName)
     ?? getStringValue(record.attr_name)
     ?? getStringValue(record.attrName)
+    ?? getStringValue(record.attr_name_desc)
+    ?? getStringValue(record.attrNameDesc)
     ?? getStringValue(record.spec_name)
     ?? getStringValue(record.specName)
     ?? getStringValue(record.prop_name)
@@ -809,6 +1091,8 @@ function extractVariantPairsFromAttribute(value: unknown, fallbackLabel?: string
     ?? getStringValue(record.attributeValue)
     ?? getStringValue(record.attr_value)
     ?? getStringValue(record.attrValue)
+    ?? getStringValue(record.attr_value_desc)
+    ?? getStringValue(record.attrValueDesc)
     ?? getStringValue(record.value_name)
     ?? getStringValue(record.valueName)
     ?? getStringValue(record.option_name)
@@ -828,6 +1112,8 @@ function extractVariantPairsFromAttribute(value: unknown, fallbackLabel?: string
     "attributeValues",
     "sku_attributes",
     "skuAttributes",
+    "sku_attr_list",
+    "skuAttrList",
     "spec_attrs",
     "specAttributes",
     "props",
@@ -944,6 +1230,8 @@ function extractImagesFromAlibabaRecord(raw: Record<string, unknown>) {
     ...collectStrings(basicInfo.product_image),
     ...collectStrings(raw.product_images),
     ...collectStrings(raw.product_image),
+    ...skuInfo.flatMap((sku) => collectStrings(sku.image)),
+    ...skuInfo.flatMap((sku) => collectStrings(sku.sku_attr_list)),
     ...skuInfo.flatMap((sku) => collectStrings(sku.sale_attributes)),
   ]).filter((entry) => entry.startsWith("http") || entry.startsWith("/") || entry.startsWith("//")).map(normalizeAlibabaImageUrl);
 }
@@ -961,6 +1249,35 @@ function extractAlibabaProductDetailRecord(response: Record<string, unknown> | n
   }
 
   return null;
+}
+
+export function normalizeAlibabaIcbuProductInfo(responseBody: unknown) {
+  return extractAlibabaProductDetailRecord(isRecord(responseBody) ? responseBody : null);
+}
+
+function hasUsefulAlibabaPayload(responseBody: unknown) {
+  const normalizedProduct = normalizeAlibabaIcbuProductInfo(responseBody);
+  if (normalizedProduct) {
+    return true;
+  }
+
+  const response = isRecord(responseBody) ? responseBody : null;
+  if (!response) {
+    return false;
+  }
+
+  if (typeof response.value !== "undefined" && response.value !== null) {
+    return true;
+  }
+
+  if (Array.isArray(response.tracking_list)) {
+    return true;
+  }
+
+  return (Array.isArray(response.data) && response.data.length > 0)
+    || (isRecord(response.result)
+      && Array.isArray((response.result as Record<string, unknown>).data)
+      && ((response.result as Record<string, unknown>).data as unknown[]).length > 0);
 }
 
 function isAlibabaBusinessSuccess(response: Record<string, unknown> | null) {
@@ -1123,12 +1440,7 @@ async function fetchAlibabaProductDetail(sourceProductId: string, credentials?: 
     return ecoBuyerRecord;
   }
 
-  const result = await callAlibabaEndpoint("/alibaba/icbu/product/get/v2", {
-    product_id: sourceProductId,
-  }, {
-    credentials: resolvedCredentials,
-    method: "GET",
-  });
+  const result = await getAlibabaIcbuProduct({ productId: sourceProductId });
 
   const response = result.responseBody as Record<string, unknown> | null;
   if (!result.ok || (response && response.success != null && !isTruthyAlibabaFlag(response.success))) {
@@ -1157,6 +1469,23 @@ export async function fetchAlibabaProductSnapshot(input: {
   }
 
   return enrichAlibabaSearchProduct(mapped, detailRecord);
+}
+
+export async function getAlibabaIcbuProduct(input: {
+  productId?: string | number;
+  skuId?: string | number;
+}) {
+  if (!input.productId && !input.skuId) {
+    throw new Error("product_id ou sku_id est obligatoire pour lire un produit Alibaba.");
+  }
+
+  return callAlibabaEndpoint("/alibaba/icbu/product/get/v2", {
+    ...(input.productId ? { product_id: String(input.productId) } : {}),
+    ...(input.skuId ? { sku_id: String(input.skuId) } : {}),
+  }, {
+    credentials: await resolveAlibabaCredentialsForLiveCall(),
+    method: "GET",
+  });
 }
 
 function enrichAlibabaSearchProduct(product: AlibabaSearchProduct, detailRecord: Record<string, unknown> | null): AlibabaSearchProduct {
@@ -1788,6 +2117,96 @@ async function callAlibabaEndpoint(pathOrUrl: string, payload: Record<string, un
   };
 }
 
+async function callAlibabaMultipartEndpoint(input: {
+  pathOrUrl: string;
+  payload: Record<string, unknown>;
+  fileFieldName: string;
+  fileName: string;
+  fileBytes: Uint8Array;
+  credentials?: AlibabaCredentials | null;
+  includeAccessToken?: boolean;
+  accessToken?: string;
+}): Promise<AlibabaCallResult> {
+  const credentials = input.credentials ?? (input.includeAccessToken === false ? await resolveAlibabaCredentials() : await resolveAlibabaCredentialsForLiveCall());
+  if (!credentials) {
+    return {
+      ok: false,
+      endpoint: input.pathOrUrl,
+      requestBody: {
+        ...input.payload,
+        [input.fileFieldName]: { fileName: input.fileName, size: input.fileBytes.byteLength },
+      },
+      responseBody: { message: "Alibaba credentials are missing" },
+      status: 400,
+    };
+  }
+
+  const endpoint = resolveEndpoint({
+    pathOrUrl: input.pathOrUrl,
+    apiBaseUrl: credentials.apiBaseUrl,
+  });
+
+  const systemParams = new URLSearchParams();
+  systemParams.set("app_key", credentials.appKey);
+  systemParams.set("timestamp", String(Date.now()));
+  systemParams.set("sign_method", "sha256");
+  systemParams.set("simplify", "true");
+  if (input.includeAccessToken !== false && (input.accessToken ?? credentials.accessToken)) {
+    systemParams.set("access_token", input.accessToken ?? credentials.accessToken ?? "");
+  }
+
+  const payloadParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(input.payload)) {
+    payloadParams.set(key, serializeValue(value));
+  }
+
+  const signingParams = new URLSearchParams(systemParams);
+  for (const [key, value] of payloadParams.entries()) {
+    signingParams.set(key, value);
+  }
+
+  const sign = signAlibabaRequest(endpoint.apiPath, signingParams, credentials.appSecret);
+  const formData = new FormData();
+  const uploadBytes = new Uint8Array(input.fileBytes.byteLength);
+  uploadBytes.set(input.fileBytes);
+  for (const [key, value] of payloadParams.entries()) {
+    formData.append(key, value);
+  }
+  for (const [key, value] of systemParams.entries()) {
+    formData.append(key, value);
+  }
+  formData.append("sign", sign);
+  formData.append(input.fileFieldName, new Blob([uploadBytes]), input.fileName);
+
+  const response = await fetch(endpoint.requestUrl, {
+    method: "POST",
+    body: formData,
+    cache: "no-store",
+  });
+  const text = await response.text();
+
+  let parsed: unknown = text;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    // Keep raw text when the upstream response is not JSON.
+  }
+
+  return {
+    ok: response.ok,
+    endpoint: endpoint.apiPath,
+    requestBody: {
+      ...input.payload,
+      [input.fileFieldName]: {
+        fileName: input.fileName,
+        size: input.fileBytes.byteLength,
+      },
+    },
+    responseBody: parsed,
+    status: response.status,
+  };
+}
+
 async function refreshAlibabaAccountTokens(account: AlibabaSupplierAccount) {
   const credentials = getAccountCredentials(account);
   if (!credentials?.refreshToken) {
@@ -2035,9 +2454,402 @@ export async function createAlibabaBuyNowOrder(payload: Record<string, unknown>)
   });
 }
 
-export async function createAlibabaDropshippingPayment(input: { tradeId: string }) {
+function normalizeAlibabaAiOptimizationConfig(config?: AlibabaAiOptimizationConfig) {
+  if (!config) {
+    return undefined;
+  }
+
+  const normalized = {
+    keyword_optimization_enabled: String(config.keywordOptimizationEnabled ?? true),
+    description_optimization_enabled: String(config.descriptionOptimizationEnabled ?? true),
+    title_optimization_enabled: String(config.titleOptimizationEnabled ?? true),
+  };
+
+  return normalized;
+}
+
+function isAlibabaOperationSuccessful(responseBody: unknown) {
+  const response = isRecord(responseBody) ? responseBody : null;
+  const envelope = response && isRecord(response.result) ? response.result : response;
+
+  if (!envelope) {
+    return false;
+  }
+
+  const code = extractAlibabaOperationCode(responseBody)?.trim().toLowerCase();
+  const hasUsefulPayload = hasUsefulAlibabaPayload(responseBody);
+
+  if (code && !["0", "200", "null", "success", "true"].includes(code) && !hasUsefulPayload) {
+    return false;
+  }
+
+  if (typeof envelope.success !== "undefined") {
+    return isTruthyAlibabaFlag(envelope.success) || hasUsefulPayload;
+  }
+
+  return hasUsefulPayload;
+}
+
+function extractAlibabaOperationMessage(responseBody: unknown) {
+  const response = isRecord(responseBody) ? responseBody : null;
+  const envelope = response && isRecord(response.result) ? response.result : response;
+
+  return getStringValue(envelope?.message)
+    ?? getStringValue(envelope?.response_msg)
+    ?? getStringValue(response?.message);
+}
+
+function extractAlibabaOperationCode(responseBody: unknown) {
+  const response = isRecord(responseBody) ? responseBody : null;
+  const envelope = response && isRecord(response.result) ? response.result : response;
+
+  return getStringValue(envelope?.msg_code)
+    ?? getStringValue(envelope?.response_code)
+    ?? getStringValue(response?.code);
+}
+
+export async function createAlibabaIcbuProductListing(input: {
+  productInfo: Record<string, unknown>;
+  aiOptimizationConfig?: AlibabaAiOptimizationConfig;
+}) {
+  if (!isRecord(input.productInfo) || Object.keys(input.productInfo).length === 0) {
+    throw new Error("product_info est obligatoire pour creer une fiche Alibaba.");
+  }
+
+  return callAlibabaEndpoint("/alibaba/icbu/product/listing/v2", {
+    product_info: input.productInfo,
+    ...(normalizeAlibabaAiOptimizationConfig(input.aiOptimizationConfig)
+      ? { ai_optimization_config: normalizeAlibabaAiOptimizationConfig(input.aiOptimizationConfig) }
+      : {}),
+  }, {
+    credentials: await resolveAlibabaCredentialsForLiveCall(),
+  });
+}
+
+export async function getAlibabaIcbuCategories(input?: {
+  parentCategoryId?: string | number;
+}) {
+  return callAlibabaEndpoint("/alibaba/icbu/category/get/v2", {
+    ...(typeof input?.parentCategoryId !== "undefined" && input.parentCategoryId !== null && String(input.parentCategoryId).trim().length > 0
+      ? { parent_category_id: String(input.parentCategoryId) }
+      : {}),
+  }, {
+    credentials: await resolveAlibabaCredentialsForLiveCall(),
+    method: "GET",
+  });
+}
+
+export function normalizeAlibabaIcbuCategories(responseBody: unknown): AlibabaIcbuCategorySummary[] {
+  const response = isRecord(responseBody) ? responseBody : null;
+  const entries = Array.isArray(response?.data) ? response.data : [];
+
+  return entries.flatMap((entry) => {
+    if (!isRecord(entry)) {
+      return [] as AlibabaIcbuCategorySummary[];
+    }
+
+    const categoryId = getStringValue(entry.category_id);
+    const categoryName = getStringValue(entry.category_name);
+    if (!categoryId || !categoryName) {
+      return [] as AlibabaIcbuCategorySummary[];
+    }
+
+    return [{
+      categoryId,
+      categoryName,
+      level: getNumberValue(entry.level),
+      leafCategory: isTruthyAlibabaFlag(entry.leaf_category),
+    } satisfies AlibabaIcbuCategorySummary];
+  });
+}
+
+export async function editAlibabaIcbuProductPrice(input: AlibabaEditProductPriceInput) {
+  if (!String(input.productId).trim()) {
+    throw new Error("product_id est obligatoire pour modifier le prix Alibaba.");
+  }
+
+  if ((!input.price || Object.keys(input.price).length === 0) && (!input.skuPrice || input.skuPrice.length === 0)) {
+    throw new Error("Renseignez soit le prix SPU, soit les prix SKU.");
+  }
+
+  if (input.price && Object.keys(input.price).length > 0 && input.skuPrice && input.skuPrice.length > 0) {
+    throw new Error("Impossible de modifier simultanement les prix SPU et SKU.");
+  }
+
+  return callAlibabaEndpoint("/icbu/product/edit-price", {
+    product_id: String(input.productId),
+    ...(input.price && Object.keys(input.price).length > 0 ? { price: input.price } : {}),
+    ...(input.skuPrice && input.skuPrice.length > 0 ? { sku_price: input.skuPrice } : {}),
+  }, {
+    credentials: await resolveAlibabaCredentialsForLiveCall(),
+  });
+}
+
+export async function updateAlibabaIcbuProduct(input: {
+  productInfo: Record<string, unknown>;
+}) {
+  if (!isRecord(input.productInfo) || Object.keys(input.productInfo).length === 0) {
+    throw new Error("product_info est obligatoire pour mettre a jour une fiche Alibaba.");
+  }
+
+  return callAlibabaEndpoint("/alibaba/icbu/product/update/v2", {
+    product_info: input.productInfo,
+  }, {
+    credentials: await resolveAlibabaCredentialsForLiveCall(),
+  });
+}
+
+export async function calculateAlibabaBasicFreight(input: AlibabaBasicFreightInput) {
+  if (!String(input.destinationCountry).trim()) {
+    throw new Error("destination_country est obligatoire pour estimer le fret Alibaba.");
+  }
+
+  if (!String(input.productId).trim()) {
+    throw new Error("product_id est obligatoire pour estimer le fret Alibaba.");
+  }
+
+  if (!String(input.quantity).trim()) {
+    throw new Error("quantity est obligatoire pour estimer le fret Alibaba.");
+  }
+
+  return callAlibabaEndpoint("/shipping/freight/calculate", {
+    destination_country: String(input.destinationCountry).trim().toUpperCase(),
+    product_id: String(input.productId).trim(),
+    quantity: String(input.quantity).trim(),
+    ...(String(input.zipCode ?? "").trim() ? { zip_code: String(input.zipCode).trim() } : {}),
+    ...(String(input.dispatchLocation ?? "").trim() ? { dispatch_location: String(input.dispatchLocation).trim() } : {}),
+    ...(typeof input.enableDistributionWaybill === "boolean"
+      ? { enable_distribution_waybill: input.enableDistributionWaybill }
+      : {}),
+  }, {
+    credentials: await resolveAlibabaCredentialsForLiveCall(),
+  });
+}
+
+export async function calculateAlibabaAdvancedFreight(input: AlibabaAdvancedFreightInput) {
+  if (!String(input.eCompanyId).trim()) {
+    throw new Error("e_company_id est obligatoire pour le calcul avance du fret Alibaba.");
+  }
+
+  if (!String(input.destinationCountry).trim()) {
+    throw new Error("destination_country est obligatoire pour le calcul avance du fret Alibaba.");
+  }
+
+  if (!Array.isArray(input.logisticsProductList) || input.logisticsProductList.length === 0) {
+    throw new Error("logistics_product_list doit contenir au moins un produit.");
+  }
+
+  return callAlibabaEndpoint("/order/freight/calculate", {
+    e_company_id: String(input.eCompanyId).trim(),
+    destination_country: String(input.destinationCountry).trim().toUpperCase(),
+    logistics_product_list: input.logisticsProductList.map((item) => ({
+      quantity: String(item.quantity).trim(),
+      product_id: String(item.productId).trim(),
+      ...(String(item.skuId ?? "").trim() ? { sku_id: String(item.skuId).trim() } : {}),
+    })),
+    ...(input.address && isRecord(input.address) ? { address: input.address } : {}),
+    ...(String(input.dispatchLocation ?? "").trim() ? { dispatch_location: String(input.dispatchLocation).trim() } : {}),
+    ...(typeof input.enableDistributionWaybill === "boolean"
+      ? { enable_distribution_waybill: input.enableDistributionWaybill }
+      : {}),
+  }, {
+    credentials: await resolveAlibabaCredentialsForLiveCall(),
+  });
+}
+
+export function normalizeAlibabaFreightOptions(responseBody: unknown): AlibabaFreightOption[] {
+  const response = isRecord(responseBody) ? responseBody : null;
+  const entries = Array.isArray(response?.value) ? response.value : [];
+
+  return entries.flatMap((entry) => {
+    if (!isRecord(entry)) {
+      return [] as AlibabaFreightOption[];
+    }
+
+    const fee = isRecord(entry.fee) ? entry.fee : null;
+    return [{
+      destinationCountry: getStringValue(entry.destination_country),
+      vendorCode: getStringValue(entry.vendor_code),
+      vendorName: getStringValue(entry.vendor_name),
+      shippingType: getStringValue(entry.shipping_type),
+      dispatchCountry: getStringValue(entry.dispatch_country),
+      solutionBizType: getStringValue(entry.solution_biz_type),
+      tradeTerm: getStringValue(entry.trade_term),
+      deliveryTime: getStringValue(entry.delivery_time),
+      storeType: getStringValue(entry.store_type),
+      feeAmount: getNumberValue(fee?.amount),
+      feeCurrency: getStringValue(fee?.currency),
+    } satisfies AlibabaFreightOption];
+  });
+}
+
+export async function queryAlibabaMergePay(input: { orderIds: Array<string | number> }) {
+  const orderIds = Array.isArray(input.orderIds)
+    ? input.orderIds.map((value) => String(value).trim()).filter(Boolean)
+    : [];
+
+  if (orderIds.length === 0) {
+    throw new Error("order_ids doit contenir au moins une commande.");
+  }
+
+  return callAlibabaEndpoint("/order/merge/pay/query", {
+    order_ids: orderIds,
+  }, {
+    credentials: await resolveAlibabaCredentialsForLiveCall(),
+  });
+}
+
+export function normalizeAlibabaMergePayGroups(responseBody: unknown): AlibabaMergePayGroup[] {
+  const response = isRecord(responseBody) ? responseBody : null;
+  const value = isRecord(response?.value) ? response.value : null;
+  const groups = Array.isArray(value?.groups) ? value.groups : [];
+
+  return groups.flatMap((group) => {
+    if (!isRecord(group)) {
+      return [] as AlibabaMergePayGroup[];
+    }
+
+    const canMergePayOrderItems = Array.isArray(group.can_merge_pay_order_items)
+      ? group.can_merge_pay_order_items
+      : [];
+    const canNotMergePayOrderItems = Array.isArray(group.can_not_merge_pay_order_items)
+      ? group.can_not_merge_pay_order_items
+      : [];
+
+    return [{
+      groupCode: getStringValue(group.group_code),
+      canMergePay: isTruthyAlibabaFlag(group.can_merge_pay),
+      canNotMergePayReason: getStringValue(group.can_not_merge_pay_reason),
+      canNotMergePayReasonMessage: getStringValue(group.can_not_merge_pay_reason_message),
+      canMergePayOrderIds: canMergePayOrderItems.flatMap((item) => {
+        if (!isRecord(item)) {
+          return [] as string[];
+        }
+
+        const orderId = getStringValue(item.order_id);
+        return orderId ? [orderId] : [];
+      }),
+      canNotMergePayOrderItems: canNotMergePayOrderItems.flatMap((item) => {
+        if (!isRecord(item)) {
+          return [] as AlibabaMergePayGroup["canNotMergePayOrderItems"];
+        }
+
+        return [{
+          orderId: getStringValue(item.order_id),
+          reason: getStringValue(item.can_not_merge_pay_reason),
+          reasonMessage: getStringValue(item.can_not_merge_pay_reason_message),
+        }];
+      }),
+    } satisfies AlibabaMergePayGroup];
+  });
+}
+
+export async function queryAlibabaOrderLogisticsTracking(input: { tradeId: string | number }) {
+  if (!String(input.tradeId).trim()) {
+    throw new Error("trade_id est obligatoire pour lire le suivi logistique Alibaba.");
+  }
+
+  return callAlibabaEndpoint("/order/logistics/tracking/get", {
+    trade_id: String(input.tradeId).trim(),
+  }, {
+    credentials: await resolveAlibabaCredentialsForLiveCall(),
+  });
+}
+
+export async function uploadAlibabaOrderAttachment(input: {
+  fileName: string;
+  data: Uint8Array | ArrayBuffer;
+}) {
+  const normalizedName = String(input.fileName).trim();
+  if (!normalizedName) {
+    throw new Error("file_name est obligatoire pour envoyer une piece jointe Alibaba.");
+  }
+
+  if (!/\.(jpg|jpeg|png|pdf|doc)$/i.test(normalizedName)) {
+    throw new Error("file_name doit terminer par .jpg, .jpeg, .png, .pdf ou .doc.");
+  }
+
+  const fileBytes = input.data instanceof Uint8Array ? input.data : new Uint8Array(input.data);
+  if (fileBytes.byteLength === 0) {
+    throw new Error("Le fichier Alibaba est vide.");
+  }
+
+  if (fileBytes.byteLength > 5 * 1024 * 1024) {
+    throw new Error("Le fichier depasse la limite Alibaba de 5 MB.");
+  }
+
+  return callAlibabaMultipartEndpoint({
+    pathOrUrl: "/alibaba/order/attachment/upload",
+    payload: {
+      file_name: normalizedName,
+    },
+    fileFieldName: "data",
+    fileName: normalizedName,
+    fileBytes,
+  });
+}
+
+export function normalizeAlibabaLogisticsTracking(responseBody: unknown): AlibabaLogisticsTracking[] {
+  const response = isRecord(responseBody) ? responseBody : null;
+  const entries = Array.isArray(response?.tracking_list) ? response.tracking_list : [];
+
+  return entries.flatMap((entry) => {
+    if (!isRecord(entry)) {
+      return [] as AlibabaLogisticsTracking[];
+    }
+
+    const eventList = Array.isArray(entry.event_list) ? entry.event_list : [];
+    return [{
+      carrier: getStringValue(entry.carrier),
+      trackingNumber: getStringValue(entry.tracking_number),
+      trackingUrl: getStringValue(entry.tracking_url),
+      currentEventCode: getStringValue(entry.current_event_code),
+      eventList: eventList.flatMap((event) => {
+        if (!isRecord(event)) {
+          return [] as AlibabaLogisticsTrackingEvent[];
+        }
+
+        return [{
+          eventCode: getStringValue(event.event_code),
+          eventLocation: getStringValue(event.event_location),
+          eventName: getStringValue(event.event_name),
+          eventTime: getStringValue(event.event_time),
+        } satisfies AlibabaLogisticsTrackingEvent];
+      }),
+    } satisfies AlibabaLogisticsTracking];
+  });
+}
+
+export async function cancelAlibabaOrder(input: { tradeId: string | number }) {
+  if (!String(input.tradeId).trim()) {
+    throw new Error("trade_id est obligatoire pour annuler une commande Alibaba.");
+  }
+
+  return callAlibabaEndpoint("/alibaba/order/cancel", {
+    trade_id: String(input.tradeId).trim(),
+  }, {
+    credentials: await resolveAlibabaCredentialsForLiveCall(),
+  });
+}
+
+export { extractAlibabaOperationCode, extractAlibabaOperationMessage, isAlibabaOperationSuccessful };
+
+export async function createAlibabaDropshippingPayment(input: {
+  tradeId?: string;
+  paymentRequest?: Record<string, unknown>;
+}) {
+  const paymentRequest = input.paymentRequest && isRecord(input.paymentRequest)
+    ? input.paymentRequest
+    : undefined;
+
+  if (!paymentRequest && !String(input.tradeId ?? "").trim()) {
+    throw new Error("tradeId ou paymentRequest est obligatoire pour le paiement dropshipping Alibaba.");
+  }
+
   return callAlibabaEndpoint("/alibaba/dropshipping/order/pay", {
-    trade_id: input.tradeId,
+    ...(paymentRequest
+      ? { param_order_pay_request: paymentRequest }
+      : { trade_id: String(input.tradeId).trim() }),
   }, {
     credentials: await resolveAlibabaCredentialsForLiveCall(),
   });
@@ -2170,15 +2982,94 @@ function groupMappingsForOrder(order: SourcingOrder, mappings: AlibabaCatalogMap
   };
 }
 
-export async function runAlibabaSupplierAutomation(order: SourcingOrder, mappings: AlibabaCatalogMapping[]) {
+type SupplierAutomationEntry = {
+  item: SourcingOrder["items"][number];
+  mapping?: AlibabaCatalogMapping;
+};
+
+type PreparedSupplierAutomationGroup = {
+  supplierCompanyId: string;
+  entries: SupplierAutomationEntry[];
+  dispatchLocation: string;
+  carrierCode?: string;
+  freightOptions: AlibabaFreightOption[];
+  freightResponseBody?: unknown;
+};
+
+type AlibabaFreightVerificationResult = {
+  freightStatus: "verified" | "failed" | "skipped";
+  freightPayload: unknown;
+  preparedGroups: PreparedSupplierAutomationGroup[];
+  internalFulfillment?: Awaited<ReturnType<typeof getInternalSupplierFulfillment>>;
+  failureReason?: string;
+};
+
+function buildAlibabaFreightAddress(address: Awaited<ReturnType<typeof getInternalSupplierFulfillment>>["address"]) {
+  return {
+    zip: address.postalCode ?? "",
+    country: {
+      code: address.countryCode,
+      name: address.countryCode,
+    },
+    address: [address.addressLine1, address.addressLine2].filter(Boolean).join(", "),
+    province: {
+      code: address.state,
+      name: address.state,
+    },
+    city: {
+      code: address.city,
+      name: address.city,
+    },
+  };
+}
+
+function buildAlibabaShipmentAddress(address: Awaited<ReturnType<typeof getInternalSupplierFulfillment>>["address"]) {
+  return {
+    address: address.addressLine1,
+    alternate_address: address.addressLine2 ?? "",
+    city: address.city,
+    province: address.state,
+    country: address.countryCode,
+    country_code: address.countryCode,
+    zip: address.postalCode ?? "",
+    contact_person: address.contactName,
+    email: address.email,
+    port: address.port ?? "",
+    port_code: address.portCode ?? "",
+    telephone: {
+      country: address.countryCode,
+      area: "",
+      number: address.phone,
+    },
+  };
+}
+
+async function prepareSupplierAutomationContext(order: SourcingOrder, mappings: AlibabaCatalogMapping[]) {
   const credentials = await resolveAlibabaCredentials();
   const { missingMappings, groups } = groupMappingsForOrder(order, mappings);
   const internalFulfillment = await getInternalSupplierFulfillment(order.shippingMethod);
 
-  if (!credentials) {
+  return {
+    credentials,
+    missingMappings,
+    groups: groups.map(([supplierCompanyId, entries]) => ({
+      supplierCompanyId,
+      entries: entries.map((entry) => ({
+        item: entry.item,
+        mapping: entry.mapping,
+      } satisfies SupplierAutomationEntry)),
+    })),
+    internalFulfillment,
+  };
+}
+
+export async function verifyAlibabaSupplierFreight(order: SourcingOrder, mappings: AlibabaCatalogMapping[]): Promise<AlibabaFreightVerificationResult> {
+  const context = await prepareSupplierAutomationContext(order, mappings);
+
+  if (!context.credentials) {
     await createAlibabaIntegrationLog({
       orderId: order.id,
-      action: "supplier-automation",
+      action: "freight-verification",
       endpoint: "env",
       status: "skipped_missing_credentials",
       requestBody: { orderNumber: order.orderNumber },
@@ -2186,112 +3077,150 @@ export async function runAlibabaSupplierAutomation(order: SourcingOrder, mapping
     });
 
     return {
-      freightStatus: "skipped" as const,
-      supplierOrderStatus: "skipped" as const,
-      alibabaTradeIds: [] as string[],
+      freightStatus: "skipped",
       freightPayload: { skipped: true, reason: "missing_credentials" },
-      supplierOrderPayload: { skipped: true, reason: "missing_credentials" },
+      preparedGroups: [],
+      internalFulfillment: context.internalFulfillment,
+      failureReason: "missing_credentials",
     };
   }
 
-  if (missingMappings.length > 0) {
+  if (context.missingMappings.length > 0) {
+    const missingSlugs = context.missingMappings.map((entry) => entry.item.slug);
     await createAlibabaIntegrationLog({
       orderId: order.id,
-      action: "supplier-automation",
+      action: "freight-verification",
       endpoint: "catalog-mapping",
       status: "skipped_missing_mapping",
-      requestBody: { missingSlugs: missingMappings.map((entry) => entry.item.slug) },
+      requestBody: { missingSlugs },
       responseBody: { message: "One or more cart items are missing Alibaba mapping data" },
     });
 
     return {
-      freightStatus: "skipped" as const,
-      supplierOrderStatus: "skipped" as const,
-      alibabaTradeIds: [] as string[],
-      freightPayload: { skipped: true, reason: "missing_mapping", missingSlugs: missingMappings.map((entry) => entry.item.slug) },
-      supplierOrderPayload: { skipped: true, reason: "missing_mapping", missingSlugs: missingMappings.map((entry) => entry.item.slug) },
+      freightStatus: "skipped",
+      freightPayload: { skipped: true, reason: "missing_mapping", missingSlugs },
+      preparedGroups: [],
+      internalFulfillment: context.internalFulfillment,
+      failureReason: "missing_mapping",
     };
   }
 
+  const preparedGroups: PreparedSupplierAutomationGroup[] = [];
   const freightResponses: unknown[] = [];
-  const supplierResponses: unknown[] = [];
-  const tradeIds: string[] = [];
   let freightStatus: "verified" | "failed" = "verified";
-  let supplierOrderStatus: "created" | "failed" = "created";
 
-  for (const [supplierCompanyId, group] of groups) {
-    const freightPayload = {
-      e_company_id: supplierCompanyId,
-      country: internalFulfillment.address.countryCode,
-      province: internalFulfillment.address.state,
-      city: internalFulfillment.address.city,
-      address: [internalFulfillment.address.addressLine1, internalFulfillment.address.addressLine2].filter(Boolean).join(", "),
-      zip: internalFulfillment.address.postalCode ?? "",
-      dispatch_location: group[0]?.mapping?.dispatchLocation ?? "CN",
-      shipping_mark: internalFulfillment.shippingMark,
-      logistics_product_list: group.map((entry) => ({
-        product_id: entry.mapping?.alibabaProductId,
-        sku_id: entry.mapping?.skuId ?? "",
+  for (const group of context.groups) {
+    const dispatchLocation = group.entries[0]?.mapping?.dispatchLocation ?? "CN";
+    const freightResult = await calculateAlibabaAdvancedFreight({
+      eCompanyId: group.supplierCompanyId,
+      destinationCountry: context.internalFulfillment.address.countryCode,
+      address: buildAlibabaFreightAddress(context.internalFulfillment.address),
+      dispatchLocation,
+      logisticsProductList: group.entries.map((entry) => ({
+        productId: entry.mapping?.alibabaProductId ?? "",
+        skuId: entry.item.supplierSkuId ?? entry.mapping?.skuId ?? "",
         quantity: entry.item.quantity,
       })),
-    };
+    });
 
-    const freightResult = await callAlibabaEndpoint("/order/freight/calculate", freightPayload);
-    freightResponses.push(freightResult.responseBody);
+    const freightOptions = normalizeAlibabaFreightOptions(freightResult.responseBody);
+    const carrierCode = freightOptions[0]?.vendorCode;
+    const responseBody = {
+      supplierCompanyId: group.supplierCompanyId,
+      dispatchLocation,
+      options: freightOptions,
+      responseBody: freightResult.responseBody,
+      requestOk: freightResult.ok,
+    };
+    freightResponses.push(responseBody);
+
     await createAlibabaIntegrationLog({
       orderId: order.id,
       action: "freight-verification",
       endpoint: freightResult.endpoint,
       status: freightResult.ok ? "success" : "failed",
-      requestBody: freightPayload,
-      responseBody: freightResult.responseBody,
+      requestBody: {
+        eCompanyId: group.supplierCompanyId,
+        destinationCountry: context.internalFulfillment.address.countryCode,
+        dispatchLocation,
+        logisticsProductList: group.entries.map((entry) => ({
+          productId: entry.mapping?.alibabaProductId,
+          skuId: entry.item.supplierSkuId ?? entry.mapping?.skuId ?? "",
+          quantity: entry.item.quantity,
+        })),
+      },
+      responseBody,
+    });
+
+    preparedGroups.push({
+      supplierCompanyId: group.supplierCompanyId,
+      entries: group.entries,
+      dispatchLocation,
+      carrierCode,
+      freightOptions,
+      freightResponseBody: freightResult.responseBody,
     });
 
     if (!freightResult.ok) {
       freightStatus = "failed";
-      supplierOrderStatus = "failed";
-      continue;
     }
+  }
 
+  return {
+    freightStatus,
+    freightPayload: freightResponses,
+    preparedGroups,
+    internalFulfillment: context.internalFulfillment,
+    ...(freightStatus === "failed" ? { failureReason: "freight_request_failed" } : {}),
+  };
+}
+
+export async function createAlibabaSupplierOrders(order: SourcingOrder, mappings: AlibabaCatalogMapping[], verification?: AlibabaFreightVerificationResult) {
+  const freightVerification = verification ?? await verifyAlibabaSupplierFreight(order, mappings);
+
+  if (freightVerification.freightStatus !== "verified" || !freightVerification.internalFulfillment) {
+    return {
+      supplierOrderStatus: freightVerification.freightStatus === "skipped" ? "skipped" as const : "failed" as const,
+      alibabaTradeIds: [] as string[],
+      supplierOrderPayload: freightVerification.freightStatus === "skipped"
+        ? { skipped: true, reason: freightVerification.failureReason ?? "freight_not_verified" }
+        : { failed: true, reason: freightVerification.failureReason ?? "freight_not_verified" },
+    };
+  }
+
+  const supplierResponses: unknown[] = [];
+  const tradeIds: string[] = [];
+  let supplierOrderStatus: "created" | "failed" = "created";
+
+  for (const group of freightVerification.preparedGroups) {
     const supplierPayload = {
       channel_refer_id: order.orderNumber,
       logistics_detail: {
-        dispatch_location: group[0]?.mapping?.dispatchLocation ?? "CN",
-        shipment_address: {
-          address: internalFulfillment.address.addressLine1,
-          alternate_address: internalFulfillment.address.addressLine2 ?? "",
-          city: internalFulfillment.address.city,
-          province: internalFulfillment.address.state,
-          country: internalFulfillment.address.countryCode,
-          country_code: internalFulfillment.address.countryCode,
-          zip: internalFulfillment.address.postalCode ?? "",
-          contact_person: internalFulfillment.address.contactName,
-          email: internalFulfillment.address.email,
-          port: internalFulfillment.address.port ?? "",
-          port_code: internalFulfillment.address.portCode ?? "",
-          telephone: {
-            country: internalFulfillment.address.countryCode,
-            area: "",
-            number: internalFulfillment.address.phone,
-          },
-        },
+        dispatch_location: group.dispatchLocation,
+        ...(group.carrierCode ? { carrier_code: group.carrierCode } : {}),
+        shipment_address: buildAlibabaShipmentAddress(freightVerification.internalFulfillment.address),
       },
-      product_list: group.map((entry) => ({
+      product_list: group.entries.map((entry) => ({
         product_id: entry.mapping?.alibabaProductId,
-        sku_id: entry.mapping?.skuId ?? "",
+        sku_id: entry.item.supplierSkuId ?? entry.mapping?.skuId ?? "",
         quantity: String(entry.item.quantity),
       })),
       properties: {
         platform: "CommerceHQ",
         orderId: order.orderNumber,
-        assignedOperator: internalFulfillment.operatorName,
-        shippingMark: internalFulfillment.shippingMark,
+        assignedOperator: freightVerification.internalFulfillment.operatorName,
+        shippingMark: freightVerification.internalFulfillment.shippingMark,
       },
-      remark: `Internal order ${order.orderNumber} | Operator ${internalFulfillment.operatorName} | ${internalFulfillment.shippingMark}`,
+      remark: `Internal order ${order.orderNumber} | Operator ${freightVerification.internalFulfillment.operatorName} | ${freightVerification.internalFulfillment.shippingMark}`,
     };
 
     const supplierResult = await createAlibabaBuyNowOrder(supplierPayload);
-    supplierResponses.push(supplierResult.responseBody);
+    supplierResponses.push({
+      supplierCompanyId: group.supplierCompanyId,
+      carrierCode: group.carrierCode,
+      responseBody: supplierResult.responseBody,
+      requestOk: supplierResult.ok,
+    });
     await createAlibabaIntegrationLog({
       orderId: order.id,
       action: "supplier-order-create",
@@ -2314,10 +3243,21 @@ export async function runAlibabaSupplierAutomation(order: SourcingOrder, mapping
   }
 
   return {
-    freightStatus,
     supplierOrderStatus,
     alibabaTradeIds: tradeIds,
-    freightPayload: freightResponses,
     supplierOrderPayload: supplierResponses,
+  };
+}
+
+export async function runAlibabaSupplierAutomation(order: SourcingOrder, mappings: AlibabaCatalogMapping[]) {
+  const verification = await verifyAlibabaSupplierFreight(order, mappings);
+  const supplierOrders = await createAlibabaSupplierOrders(order, mappings, verification);
+
+  return {
+    freightStatus: verification.freightStatus,
+    supplierOrderStatus: supplierOrders.supplierOrderStatus,
+    alibabaTradeIds: supplierOrders.alibabaTradeIds,
+    freightPayload: verification.freightPayload,
+    supplierOrderPayload: supplierOrders.supplierOrderPayload,
   };
 }

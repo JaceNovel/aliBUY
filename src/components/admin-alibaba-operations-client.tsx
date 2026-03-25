@@ -3,8 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Boxes, Building2, CheckCircle2, Globe2, MapPin, Package2, RefreshCcw, Search, ShoppingBag, Trash2, Wallet } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
 import type {
   AlibabaCountryProfile,
@@ -63,6 +63,7 @@ function hasRecoveredVideo(product: AlibabaImportedProduct) {
 
 export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<string | null>(null);
   const [importForm, setImportForm] = useState({ query: "", limit: 24, fulfillmentChannel: "crossborder", autoPublish: true });
@@ -99,6 +100,23 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
     [accountForm.id, initialDashboard.supplierAccounts],
   );
   const hasOauthCredentials = Boolean(accountForm.appKey.trim()) && (Boolean(accountForm.appSecret.trim()) || Boolean(editingSupplierAccount?.hasAppSecret));
+
+  useEffect(() => {
+    if (initialDashboard.panel !== "import-catalog") {
+      return;
+    }
+
+    const seededQuery = (searchParams.get("q") ?? searchParams.get("seedQuery") ?? "").trim();
+    const source = (searchParams.get("source") ?? "").trim();
+    if (!seededQuery) {
+      return;
+    }
+
+    setImportForm((current) => current.query.trim() === seededQuery ? current : { ...current, query: seededQuery });
+    if (source === "image-search") {
+      setFeedback((current) => current ?? "Recherche image liee a l'import IA Alibaba. Verifie la requete puis lance l'import.");
+    }
+  }, [initialDashboard.panel, searchParams]);
 
   const refresh = () => {
     startTransition(() => {
