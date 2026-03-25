@@ -2,6 +2,7 @@ import type { ProductCatalogItem } from "@/lib/products-data";
 import { deriveVariantGroupsFromPricing, extractAlibabaVariantPricing, extractAlibabaVariantSkus } from "@/lib/product-variant-pricing";
 import { resolveAlibabaMoq } from "@/lib/product-moq";
 import { sanitizeItemWeightGrams } from "@/lib/product-weight";
+import { convertUsdToFcfa } from "@/lib/alibaba-sourcing";
 
 export const ALIBABA_PANEL_SLUGS = [
   "dashboard",
@@ -494,6 +495,38 @@ function inferAlibabaCategoryFromContent(input: {
   };
 }
 
+function extractExplicitCategoryCandidates(input: {
+  rawPayload?: unknown;
+  categoryTitle?: string;
+  categoryPath?: string[];
+}) {
+  const rawPayloadRecord = isRecord(input.rawPayload) ? input.rawPayload : null;
+  const explicitTree = rawPayloadRecord?.alibaba_category_tree;
+  const explicitTreeRecord = isRecord(explicitTree) ? explicitTree : null;
+
+  const explicitTitleCandidates = dedupeStrings([
+    input.categoryTitle ?? "",
+    typeof explicitTreeRecord?.title === "string" ? explicitTreeRecord.title : "",
+    typeof explicitTreeRecord?.leafCategory === "string" ? explicitTreeRecord.leafCategory : "",
+  ])
+    .map((candidate) => normalizeCategorySegment(candidate))
+    .filter((candidate) => isUsefulCategoryCandidate(candidate));
+
+  const explicitPathCandidates = [
+    ...(Array.isArray(input.categoryPath) ? [input.categoryPath] : []),
+    ...(Array.isArray(explicitTreeRecord?.path) ? [explicitTreeRecord.path] : []),
+  ]
+    .map((path) => path
+      .map((segment) => (typeof segment === "string" ? normalizeCategorySegment(segment) : ""))
+      .filter((segment) => isUsefulCategoryCandidate(segment)))
+    .filter((path) => path.length > 0);
+
+  return {
+    explicitTitleCandidates,
+    explicitPathCandidates,
+  };
+}
+
 export function slugifyCategoryLabel(value: string) {
   return value
     .toLowerCase()
@@ -513,22 +546,20 @@ export function extractAlibabaCategoryInfo(input: {
   categoryTitle?: string;
   categoryPath?: string[];
 }) {
-  const providedCategoryTitle = isUsefulCategoryCandidate(input.categoryTitle) ? normalizeCategorySegment(input.categoryTitle!) : undefined;
-  const inferredCategory = inferAlibabaCategoryFromContent(input);
+  const { explicitTitleCandidates, explicitPathCandidates } = extractExplicitCategoryCandidates(input);
 
-  if (input.categorySlug && providedCategoryTitle) {
-    const providedSlug = slugifyCategoryLabel(providedCategoryTitle);
-    const providedLooksFurniture = /\bmeubles?\b|\bfurniture\b/i.test(providedCategoryTitle);
-    const inferredLooksMoreSpecific = inferredCategory && inferredCategory.slug !== providedSlug;
+  const explicitPath = explicitPathCandidates.find((path) => path.length > 0) ?? [];
+  const explicitLeafTitle = explicitPath[explicitPath.length - 1] ?? explicitTitleCandidates[0];
 
-    if (!providedLooksFurniture || !inferredLooksMoreSpecific) {
-      return {
-        slug: input.categorySlug,
-        title: providedCategoryTitle,
-        path: (input.categoryPath ?? []).map((segment) => normalizeCategorySegment(segment)).filter((segment) => isUsefulCategoryCandidate(segment)) ?? [providedCategoryTitle],
-      };
-    }
+  if (explicitLeafTitle) {
+    return {
+      slug: slugifyCategoryLabel(explicitLeafTitle),
+      title: explicitLeafTitle,
+      path: explicitPath.length > 0 ? explicitPath : [explicitLeafTitle],
+    };
   }
+
+  const inferredCategory = inferAlibabaCategoryFromContent(input);
 
   if (inferredCategory) {
     return {
@@ -538,11 +569,8 @@ export function extractAlibabaCategoryInfo(input: {
     };
   }
 
-  const rawCandidates = dedupeStrings([
-    ...(input.categoryPath ?? []),
-    providedCategoryTitle ?? "",
-    ...collectCategoryStrings(input.rawPayload),
-  ]).filter((candidate) => isUsefulCategoryCandidate(candidate));
+  const rawCandidates = dedupeStrings(collectCategoryStrings(input.rawPayload))
+    .filter((candidate) => isUsefulCategoryCandidate(candidate));
 
   const pathCandidates = rawCandidates
     .map((candidate) => splitCategoryPath(candidate))
@@ -567,6 +595,68 @@ export function extractAlibabaCategoryInfo(input: {
   };
 }
 
+function collectFreightPriceCandidates(value: unknown, depth = 0, keyHint = ""): number[] {
+  if (depth > 5 || value == null) {
+    return [];
+  }
+
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return /(freight|shipping|delivery|logistics|local|domestic|inland|express|fee|cost|amount|price)/i.test(keyHint)
+      && !/(template|weight|days|time|id|sku|code)/i.test(keyHint)
+      ? [value]
+      : [];
+  }
+
+  if (typeof value === "string") {
+    if (!/(usd|\$|freight|shipping|delivery|logistics|local|domestic|inland|express)/i.test(`${keyHint} ${value}`)) {
+      return [];
+    }
+
+    const matches = value.match(/\d+(?:[.,]\d+)?/g) ?? [];
+    return matches
+      .map((match) => Number(match.replace(",", ".")))
+      .filter((candidate) => Number.isFinite(candidate) && candidate > 0);
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => collectFreightPriceCandidates(entry, depth + 1, keyHint));
+  }
+
+  if (typeof value !== "object") {
+    return [];
+  }
+
+  return Object.entries(value as Record<string, unknown>).flatMap(([nestedKey, nestedValue]) => {
+    const normalizedKey = nestedKey.toLowerCase();
+    const nextHint = `${keyHint} ${normalizedKey}`.trim();
+
+    if (/(template|weight|days|time|sku|code|number)/i.test(normalizedKey) && !/(fee|cost|price|amount)/i.test(normalizedKey)) {
+      return [];
+    }
+
+    return collectFreightPriceCandidates(nestedValue, depth + 1, nextHint);
+  });
+}
+
+function extractChinaLocalFreightInfo(item: AlibabaImportedProduct) {
+  const candidates = collectFreightPriceCandidates(item.rawPayload);
+  const labelCandidate = [item.shippingLabel, item.customizationLabel, ...(item.overview ?? [])]
+    .find((value) => typeof value === "string" && /(freight|shipping|delivery|domestic|local|express|truck|logistics)/i.test(value));
+
+  if (candidates.length === 0) {
+    return {
+      chinaLocalFreightFcfa: undefined,
+      chinaLocalFreightLabel: labelCandidate,
+    };
+  }
+
+  const usdAmount = Math.min(...candidates);
+  return {
+    chinaLocalFreightFcfa: convertUsdToFcfa(usdAmount),
+    chinaLocalFreightLabel: labelCandidate || `Fret local Chine ${usdAmount.toFixed(2)} USD`,
+  };
+}
+
 export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogItem {
   const normalizeMediaUrl = (value?: string) => {
     if (!value) {
@@ -583,25 +673,6 @@ export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogIt
   const rawImage = rawPayloadRecord?.image && typeof rawPayloadRecord.image === "object"
     ? rawPayloadRecord.image as Record<string, unknown>
     : null;
-  const collectStringCandidates = (value: unknown, depth = 0): string[] => {
-    if (depth > 4 || value == null) {
-      return [];
-    }
-
-    if (typeof value === "string") {
-      return value.trim() ? [value.trim()] : [];
-    }
-
-    if (Array.isArray(value)) {
-      return value.flatMap((entry) => collectStringCandidates(entry, depth + 1));
-    }
-
-    if (typeof value !== "object") {
-      return [];
-    }
-
-    return Object.values(value as Record<string, unknown>).flatMap((entry) => collectStringCandidates(entry, depth + 1));
-  };
   const extractVideoUrl = (value: unknown, depth = 0, keyHint?: string): string | undefined => {
     if (depth > 5 || value == null) {
       return undefined;
@@ -675,6 +746,7 @@ export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogIt
     ? resolvedShortTitle
     : normalizeDisplayTitle(item.title);
   const resolvedWeightGrams = sanitizeItemWeightGrams(item.itemWeightGrams) ?? 0;
+  const localFreight = extractChinaLocalFreightInfo(item);
 
   return {
     slug: item.slug,
@@ -702,6 +774,8 @@ export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogIt
     soldLabel: item.soldLabel,
     customizationLabel: item.customizationLabel,
     shippingLabel: item.shippingLabel,
+    chinaLocalFreightFcfa: localFreight.chinaLocalFreightFcfa,
+    chinaLocalFreightLabel: localFreight.chinaLocalFreightLabel,
     overview: item.overview,
     variantGroups: resolvedVariantGroups,
     variantPricing,

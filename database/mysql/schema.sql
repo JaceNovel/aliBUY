@@ -95,3 +95,44 @@ CREATE TABLE alibaba_integration_logs (
   INDEX idx_alibaba_logs_status (status),
   CONSTRAINT fk_alibaba_logs_order FOREIGN KEY (order_id) REFERENCES sourcing_orders(id) ON DELETE SET NULL
 );
+
+CREATE TABLE promo_codes (
+  id VARCHAR(191) PRIMARY KEY,
+  code VARCHAR(64) NOT NULL UNIQUE,
+  label VARCHAR(191) NOT NULL,
+  description TEXT NULL,
+  amount_type VARCHAR(32) NOT NULL,
+  amount_value INT NOT NULL,
+  min_order_fcfa INT NOT NULL DEFAULT 0,
+  max_discount_fcfa INT NULL,
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  starts_at DATETIME NULL,
+  ends_at DATETIME NULL,
+  usage_limit INT NULL,
+  usage_count INT NOT NULL DEFAULT 0,
+  used_order_ids JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_promo_codes_active_window (active, starts_at, ends_at)
+);
+
+CREATE TABLE shared_cart_links (
+  id VARCHAR(191) PRIMARY KEY,
+  token VARCHAR(191) NOT NULL UNIQUE,
+  owner_user_id VARCHAR(191) NOT NULL,
+  owner_email VARCHAR(191) NOT NULL,
+  owner_display_name VARCHAR(191) NOT NULL,
+  message TEXT NULL,
+  items_payload JSON NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  claim_count INT NOT NULL DEFAULT 0,
+  last_claimed_at DATETIME NULL,
+  claimed_by_user_id VARCHAR(191) NULL,
+  claimed_by_display_name VARCHAR(191) NULL,
+  claimed_order_id VARCHAR(191) NULL,
+  expires_at DATETIME NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_shared_cart_links_owner_created_at (owner_user_id, created_at),
+  INDEX idx_shared_cart_links_status_expires_at (status, expires_at)
+);

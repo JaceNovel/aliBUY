@@ -2,6 +2,7 @@ import "server-only";
 
 import { cookies } from "next/headers";
 
+import { getAdminAccessByEmail, type AdminPermission, type AdminRole } from "@/lib/admin-access-store";
 import { parseUserSessionToken, USER_SESSION_COOKIE } from "@/lib/user-session";
 
 function encoder() {
@@ -32,6 +33,14 @@ export function isAdminEmail(email?: string | null) {
   return Boolean(normalizedEmail) && normalizedEmail === getAdminEmail();
 }
 
+export type AdminAccessContext = {
+  email: string;
+  role: AdminRole;
+  permissions: AdminPermission[];
+  active: boolean;
+  isSuperAdmin: boolean;
+};
+
 export async function hashAdminPassword(password: string) {
   return sha256Hex(password);
 }
@@ -57,8 +66,42 @@ export async function validateAdminCredentials(email: string, password: string) 
   return diagnostics.emailMatch && diagnostics.hashMatch;
 }
 
-export async function isAdminAuthenticated() {
+export async function getCurrentAdminAccess() {
   const cookieStore = await cookies();
   const session = await parseUserSessionToken(cookieStore.get(USER_SESSION_COOKIE)?.value);
-  return isAdminEmail(session?.email);
+  if (!session?.email) {
+    return null;
+  }
+
+  if (isAdminEmail(session.email)) {
+    return {
+      email: session.email,
+      role: "superadmin",
+      permissions: ["dashboard.read", "users.read", "users.manage", "orders.read", "products.read", "products.manage", "promotions.manage", "support.read", "imports.read", "sourcing.manage", "settings.manage", "admin.manage"],
+      active: true,
+      isSuperAdmin: true,
+    } satisfies AdminAccessContext;
+  }
+
+  const record = await getAdminAccessByEmail(session.email);
+  if (!record || !record.active) {
+    return null;
+  }
+
+  return {
+    email: record.email,
+    role: record.role,
+    permissions: record.permissions,
+    active: record.active,
+    isSuperAdmin: false,
+  } satisfies AdminAccessContext;
+}
+
+export async function hasAdminPermission(permission: AdminPermission) {
+  const access = await getCurrentAdminAccess();
+  return Boolean(access && (access.isSuperAdmin || access.permissions.includes(permission)));
+}
+
+export async function isAdminAuthenticated() {
+  return Boolean(await getCurrentAdminAccess());
 }

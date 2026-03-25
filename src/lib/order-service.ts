@@ -92,6 +92,8 @@ function buildLogistics(order: SourcingOrder, status: OrderStatus) {
     ? `Acheminement vers votre agent ${forwarderHubLabel ?? destination}`
     : order.shippingMethod === "sea"
       ? "Groupage mer, dedouanement puis livraison finale"
+      : order.shippingMethod === "freight"
+        ? "Fret local fournisseur vers hub interne"
       : "Acheminement express et remise locale";
   const lastUpdate =
     status === "Paiement en attente"
@@ -111,6 +113,8 @@ function buildLogistics(order: SourcingOrder, status: OrderStatus) {
       ? `Agent client ${forwarderHubLabel ?? destination}`
       : order.shippingMethod === "sea"
         ? "Equipe logistique maritime"
+        : order.shippingMethod === "freight"
+          ? "Equipe fret local Chine"
         : "Equipe logistique express",
     corridorLabel,
     destinationCountry: destination,

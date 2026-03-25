@@ -106,7 +106,7 @@ function normalizeOrder(record: Record<string, unknown>): SourcingOrder {
     state: String(record.state),
     postalCode: record.postalCode ? String(record.postalCode) : undefined,
     countryCode: String(record.countryCode),
-    shippingMethod: record.shippingMethod === "sea" ? "sea" : "air",
+    shippingMethod: record.shippingMethod === "sea" ? "sea" : record.shippingMethod === "freight" ? "freight" : "air",
     shippingCostFcfa: toNumber(record.shippingCostFcfa),
     cartProductsTotalFcfa: toNumber(record.cartProductsTotalFcfa),
     totalPriceFcfa: toNumber(record.totalPriceFcfa),

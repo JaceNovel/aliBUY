@@ -1,6 +1,6 @@
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { PaymentClient } from "@/app/orders/payment/payment-client";
-import { formatFcfa } from "@/lib/alibaba-sourcing";
+import { formatFcfa, getSourcingOrderMeta } from "@/lib/alibaba-sourcing";
 import { getUserOrderRecordById } from "@/lib/order-service";
 import { getPricingContext } from "@/lib/pricing";
 import { getSourcingOrderById } from "@/lib/sourcing-store";
@@ -24,6 +24,7 @@ export default async function OrderPaymentPage({
 
   if (sourcingOrder && (sourcingOrder.userId === user.id || sourcingOrder.customerEmail.toLowerCase() === user.email.toLowerCase())) {
     const firstItem = sourcingOrder.items[0];
+    const meta = getSourcingOrderMeta(sourcingOrder);
 
     return (
       <InternalPageShell pricing={pricing}>
@@ -43,6 +44,13 @@ export default async function OrderPaymentPage({
             monerooCheckoutUrl: sourcingOrder.monerooCheckoutUrl,
             monerooPaymentStatus: sourcingOrder.monerooPaymentStatus,
             paymentCurrency: sourcingOrder.paymentCurrency,
+            promoCode: meta.promo?.code,
+            promoDiscountLabel: meta.promo ? formatFcfa(meta.promo.discountFcfa) : undefined,
+            originalTotal: meta.promo ? formatFcfa(meta.promo.baseTotalFcfa) : undefined,
+            thirdPartyCartCreatorName: meta.paymentContext?.thirdPartyCreatorName,
+            thirdPartyCartNotice: meta.paymentContext?.createdFromSharedCart && meta.paymentContext.thirdPartyCreatorName
+              ? `Commande issue d'un panier tiers créé par ${meta.paymentContext.thirdPartyCreatorName}`
+              : undefined,
             returnPaymentId: resolvedSearchParams.paymentId,
             returnPaymentStatus: resolvedSearchParams.paymentStatus || resolvedSearchParams.status,
           }}

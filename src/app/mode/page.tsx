@@ -6,6 +6,7 @@ import { InternalPageShell } from "@/components/internal-page-shell";
 import { LiveCountdownBadge } from "@/components/live-countdown-badge";
 import { ModePromoHero } from "@/components/mode-promo-hero";
 import { getCatalogProducts } from "@/lib/catalog-service";
+import { getModePromotionConfig } from "@/lib/mode-promotions-store";
 import { getPricingContext } from "@/lib/pricing";
 
 function formatPriceRange(
@@ -20,50 +21,63 @@ function formatPriceRange(
   return formatPrice(minUsd);
 }
 
+function resolvePromoProducts<T extends { slug: string }>(products: T[], slugs: string[], fallbackStart: number, limit: number, fallbackPool?: T[]) {
+  const sourcePool = fallbackPool && fallbackPool.length > 0 ? fallbackPool : products;
+  const fallback = sourcePool.slice(fallbackStart, fallbackStart + limit).length > 0
+    ? sourcePool.slice(fallbackStart, fallbackStart + limit)
+    : sourcePool.slice(0, limit);
+
+  if (slugs.length === 0) {
+    return fallback;
+  }
+
+  const productMap = new Map(products.map((product) => [product.slug, product]));
+  const selected = slugs
+    .map((slug) => productMap.get(slug))
+    .filter((product): product is T => Boolean(product));
+
+  return selected.length > 0 ? selected : fallback;
+}
+
+function getDiscountPercent(minUsd: number, maxUsd?: number) {
+  if (typeof maxUsd !== "number" || maxUsd <= minUsd) {
+    return null;
+  }
+
+  return Math.round(((maxUsd - minUsd) / maxUsd) * 100);
+}
+
 export default async function ModePage() {
-  const [pricing, catalogProducts] = await Promise.all([getPricingContext(), getCatalogProducts()]);
-  const groupedOffers = catalogProducts.slice(0, 3);
-  const dailyDeals = catalogProducts.slice(3, 6).length > 0 ? catalogProducts.slice(3, 6) : catalogProducts.slice(0, 3);
-  const premiumSelection = catalogProducts.slice(0, 6);
-  const choiceDeals = catalogProducts.slice(6, 10).length > 0 ? catalogProducts.slice(6, 10) : catalogProducts.slice(0, 4);
-  const trendPromos = catalogProducts.slice(10, 14).length > 0 ? catalogProducts.slice(10, 14) : catalogProducts.slice(0, 4);
-  const flashRushProducts = catalogProducts.slice(0, 6);
-  const finalDropProducts = catalogProducts.slice(6, 12).length > 0 ? catalogProducts.slice(6, 12) : catalogProducts.slice(0, 6);
+  const [pricing, catalogProducts, promoConfig] = await Promise.all([getPricingContext(), getCatalogProducts(), getModePromotionConfig()]);
+  const cheapProducts = [...catalogProducts].sort((left, right) => left.minUsd - right.minUsd);
+  const groupedOffers = resolvePromoProducts(catalogProducts, promoConfig.groupedOfferSlugs, 0, 3, cheapProducts);
+  const dailyDeals = resolvePromoProducts(catalogProducts, promoConfig.dailyDealSlugs, 3, 3, cheapProducts);
+  const premiumSelection = resolvePromoProducts(catalogProducts, promoConfig.premiumSelectionSlugs, 0, 6);
+  const choiceDeals = resolvePromoProducts(catalogProducts, promoConfig.choiceDealSlugs, 0, 4, cheapProducts);
+  const trendPromos = resolvePromoProducts(catalogProducts, promoConfig.trendPromoSlugs, 4, 4, cheapProducts);
+  const flashRushProducts = resolvePromoProducts(catalogProducts, promoConfig.flashRushSlugs, 0, 6, cheapProducts);
+  const finalDropProducts = resolvePromoProducts(catalogProducts, promoConfig.finalDropSlugs, 6, 6, cheapProducts);
+  const productMap = new Map(catalogProducts.map((product) => [product.slug, product]));
   const heroSpotlight = dailyDeals[0] ?? groupedOffers[0];
-  const heroSlides = [
-    {
-      id: "anniversary-promo",
-      deadlinePrefix: "Fin de la promo :",
-      endsAt: "2026-03-25T22:59:00Z",
-      headline: "Jusqu'à -60%",
-      spotlightTitle: "Les meilleures offres...",
-      spotlightPrice: heroSpotlight ? pricing.formatPrice(heroSpotlight.minUsd) : "23,99€",
-      spotlightHref: heroSpotlight ? `/products/${heroSpotlight.slug}` : "/products",
-      spotlightImage: heroSpotlight?.image ?? "/products/fashion-hoodie.svg",
-      accentColor: "#ffffff",
-      coupons: [
-        { value: "-125€", limit: "dès 899€ d'achat", code: "SMB125" },
-        { value: "-110€", limit: "dès 799€ d'achat", code: "SMB110" },
-        { value: "-85€", limit: "dès 529€ d'achat", code: "FRAS85" },
-      ],
-    },
-    {
-      id: "choice-fashion",
-      deadlinePrefix: "Choice Mode se termine dans :",
-      endsAt: "2026-03-24T21:30:00Z",
-      headline: "Mode Premium",
-      spotlightTitle: "Streetwear & activewear...",
-      spotlightPrice: pricing.formatPrice(9.85),
-      spotlightHref: "/products?q=mode",
-      spotlightImage: "/products/fashion-activewear.svg",
-      accentColor: "#ff7bd3",
-      coupons: [
-        { value: "-30%", limit: "dès 99€ d'achat", code: "STYLE30" },
-        { value: "-22%", limit: "dès 69€ d'achat", code: "LOOK22" },
-        { value: "-15%", limit: "dès 39€ d'achat", code: "PINK15" },
-      ],
-    },
-  ];
+  const heroSlides = promoConfig.heroSlides.map((slide, index) => {
+    const spotlightProduct = productMap.get(slide.spotlightProductSlug) ?? (index === 0 ? heroSpotlight : premiumSelection[index] ?? heroSpotlight);
+
+    return {
+      id: slide.id,
+      deadlinePrefix: slide.deadlinePrefix,
+      endsAt: slide.endsAt,
+      headline: slide.headline,
+      spotlightTitle: spotlightProduct?.shortTitle ?? "Sélection du moment",
+      spotlightPrice: spotlightProduct ? formatPriceRange(pricing.formatPrice, spotlightProduct.minUsd, spotlightProduct.maxUsd) : "",
+      spotlightHref: spotlightProduct ? `/products/${spotlightProduct.slug}` : "/products",
+      spotlightImage: spotlightProduct?.image ?? "/products/fashion-hoodie.svg",
+      accentColor: slide.accentColor,
+      coupons: slide.coupons,
+    };
+  });
+  const groupedOfferLeadPrice = groupedOffers.length > 0
+    ? pricing.formatPrice(Math.min(...groupedOffers.map((product) => product.minUsd)))
+    : pricing.formatPrice(0);
 
   if (catalogProducts.length === 0) {
     return (
@@ -73,7 +87,7 @@ export default async function ModePage() {
           <section className="rounded-[28px] bg-white px-6 py-8 text-center shadow-[0_18px_40px_rgba(17,24,39,0.06)] ring-1 ring-black/5 sm:px-8 sm:py-10">
             <h1 className="text-[30px] font-black tracking-[-0.05em] text-[#222]">Mode vide pour l&apos;instant</h1>
             <p className="mx-auto mt-3 max-w-[760px] text-[15px] leading-7 text-[#666]">
-              Les articles de demonstration ont ete retires du site public. Cette page affichera uniquement les produits publies sur le site.
+              Cette page affichera les produits mode publiés et les promotions réellement actives sur le site.
             </p>
           </section>
         </div>
@@ -119,7 +133,7 @@ export default async function ModePage() {
                 <p className="mt-1 text-[11px] text-[#8b5d3e] sm:hidden">Comparez vite vos meilleures offres.</p>
                 <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#fff1cc] px-4 py-2 text-[12px] font-bold text-[#111] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] sm:mt-5 sm:gap-3 sm:px-6 sm:py-3 sm:text-[17px]">
                   <TicketPercent className="h-4 w-4 text-[#ff8b00] sm:h-6 sm:w-6" />
-                  3+ dès 2,39€
+                  3+ dès {groupedOfferLeadPrice}
                   <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
               </div>
@@ -139,12 +153,12 @@ export default async function ModePage() {
                     <div className="mt-2 line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-4 tracking-[-0.03em] text-[#111] sm:mt-4 sm:min-h-0 sm:text-[18px] sm:leading-8">{product.title}</div>
                     <div className="mt-2 flex items-end gap-2 sm:mt-3">
                       <span className="text-[14px] font-black text-[#ff143c] sm:text-[19px]">{pricing.formatPrice(product.minUsd)}</span>
-                      <span className="text-[11px] text-[#8c8c8c] line-through sm:text-[16px]">{pricing.formatPrice((product.maxUsd ?? product.minUsd) * 1.14)}</span>
+                      {typeof product.maxUsd === "number" && product.maxUsd > product.minUsd ? <span className="text-[11px] text-[#8c8c8c] line-through sm:text-[16px]">{pricing.formatPrice(product.maxUsd)}</span> : null}
                     </div>
                     <div className="mt-1.5 flex items-center gap-2 text-[11px] text-[#222] sm:mt-2 sm:text-[16px]">
                       <span className="text-[#ffad14]">★</span>
-                      <span className="font-semibold">4.8</span>
-                      <span className="text-[#555]">479 vendu(s)</span>
+                      <span className="font-semibold">{product.transactionsLabel}</span>
+                      <span className="text-[#555]">{product.soldLabel}</span>
                     </div>
                     <div className="mt-2 inline-flex items-center rounded-full bg-[#111] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-white sm:hidden">
                       Livraison groupée
@@ -173,35 +187,35 @@ export default async function ModePage() {
               </div>
 
               <div className="-mx-3 mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-3 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:mt-8 sm:grid sm:overflow-visible sm:px-0 sm:pb-0 sm:[scrollbar-width:auto] sm:[&::-webkit-scrollbar]:block sm:gap-6 sm:grid-cols-3">
-                {dailyDeals.map((product, index) => (
+                {dailyDeals.map((product) => {
+                  const discountPercent = getDiscountPercent(product.minUsd, product.maxUsd);
+
+                  return (
                   <Link key={product.slug} href={`/products/${product.slug}`} className="group block min-w-[154px] snap-start rounded-[20px] bg-white p-2.5 shadow-[0_14px_28px_rgba(17,24,39,0.08)] ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-[0_18px_32px_rgba(17,24,39,0.12)] sm:min-w-0 sm:rounded-none sm:bg-transparent sm:p-0 sm:shadow-none sm:ring-0">
                     <div className="mb-2 flex items-center justify-between sm:hidden">
                       <div className="inline-flex items-center rounded-full bg-[#ffe7ea] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[#ff3b59]">
                         Flash deal
                       </div>
-                      <div className="rounded-full bg-[#111] px-2 py-1 text-[9px] font-bold text-white">
-                        -{index === 0 ? "1" : index === 1 ? "6" : "2"}%
-                      </div>
+                      {discountPercent ? <div className="rounded-full bg-[#111] px-2 py-1 text-[9px] font-bold text-white">-{discountPercent}%</div> : null}
                     </div>
                     <div className="relative aspect-[0.86] overflow-hidden rounded-[14px] bg-[#f6f6f6] sm:rounded-[18px]">
                       <Image src={product.image} alt={product.title} fill sizes="(min-width: 1280px) 18vw, 28vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
-                      <div className="absolute left-2 top-2 hidden rounded-full bg-[#ff143c] px-2 py-1 text-[10px] font-bold text-white sm:block">
-                        -{index === 0 ? "1" : index === 1 ? "6" : "2"}%
-                      </div>
+                      {discountPercent ? <div className="absolute left-2 top-2 hidden rounded-full bg-[#ff143c] px-2 py-1 text-[10px] font-bold text-white sm:block">-{discountPercent}%</div> : null}
                     </div>
                     <div className="mt-2 line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-4 tracking-[-0.03em] text-[#111] sm:mt-4 sm:min-h-0 sm:text-[18px] sm:leading-8">{product.title}</div>
                     <div className="mt-2 flex items-end gap-2 sm:mt-3">
                       <span className="text-[14px] font-black text-[#111] sm:text-[19px]">{pricing.formatPrice(product.minUsd)}</span>
-                      <span className="text-[11px] text-[#8c8c8c] line-through sm:text-[16px]">{pricing.formatPrice((product.maxUsd ?? product.minUsd) * 1.04)}</span>
+                      {typeof product.maxUsd === "number" && product.maxUsd > product.minUsd ? <span className="text-[11px] text-[#8c8c8c] line-through sm:text-[16px]">{pricing.formatPrice(product.maxUsd)}</span> : null}
                     </div>
                     <div className="mt-2 flex items-center gap-2 text-[11px] text-[#555] sm:hidden">
                       <span className="text-[#ffad14]">★</span>
-                      <span className="font-semibold text-[#222]">4.9</span>
-                      <span>stock express</span>
+                      <span className="font-semibold text-[#222]">{product.soldLabel}</span>
+                      <span>{product.responseTime}</span>
                     </div>
-                    <div className="mt-2 hidden inline-flex items-center justify-center bg-[#ff143c] px-2 py-1 text-[11px] font-bold text-white sm:mt-3 sm:inline-flex sm:text-[14px]">-{index === 0 ? "1" : index === 1 ? "6" : "2"}%</div>
+                    {discountPercent ? <div className="mt-2 hidden inline-flex items-center justify-center bg-[#ff143c] px-2 py-1 text-[11px] font-bold text-white sm:mt-3 sm:inline-flex sm:text-[14px]">-{discountPercent}%</div> : null}
                   </Link>
-                ))}
+                  );
+                })}
               </div>
             </article>
           </div>
@@ -253,18 +267,22 @@ export default async function ModePage() {
               <div className="rounded-full bg-[#fff1cc] px-4 py-2 text-[12px] font-bold text-[#222] sm:px-5 sm:text-[15px]">Expédition prioritaire</div>
             </div>
 
-                <div className="mt-5 grid grid-cols-2 gap-2.5 sm:mt-8 sm:gap-4 xl:grid-cols-4">
-              {choiceDeals.map((product, index) => (
+            <div className="mt-5 grid grid-cols-2 gap-2.5 sm:mt-8 sm:gap-4 xl:grid-cols-4">
+              {choiceDeals.map((product) => {
+                const discountPercent = getDiscountPercent(product.minUsd, product.maxUsd);
+
+                return (
                   <Link key={product.slug} href={`/products/${product.slug}`} className="group overflow-hidden rounded-[16px] border border-[#ece6e1] bg-[#fffdfc] p-2.5 transition hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(17,24,39,0.1)] sm:rounded-[22px] sm:p-3">
-                  <div className="relative aspect-square overflow-hidden rounded-[18px] bg-[#f6f6f6]">
-                    <Image src={product.image} alt={product.title} fill sizes="(min-width: 1280px) 18vw, 40vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
-                    <div className="absolute left-2 top-2 rounded-full bg-[#ff143c] px-2 py-1 text-[10px] font-bold text-white">-{12 + index * 3}%</div>
-                  </div>
-                  <div className="mt-2 line-clamp-2 text-[12px] font-semibold leading-4 text-[#222] sm:mt-3 sm:text-[15px] sm:leading-6">{product.title}</div>
-                  <div className="mt-2 text-[14px] font-black text-[#ff143c] sm:text-[18px]">{pricing.formatPrice(product.minUsd)}</div>
-                  <div className="mt-1 text-[10px] text-[#666] sm:text-[13px]">Choice • Livraison offerte</div>
-                </Link>
-              ))}
+                    <div className="relative aspect-square overflow-hidden rounded-[18px] bg-[#f6f6f6]">
+                      <Image src={product.image} alt={product.title} fill sizes="(min-width: 1280px) 18vw, 40vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                      {discountPercent ? <div className="absolute left-2 top-2 rounded-full bg-[#ff143c] px-2 py-1 text-[10px] font-bold text-white">-{discountPercent}%</div> : null}
+                    </div>
+                    <div className="mt-2 line-clamp-2 text-[12px] font-semibold leading-4 text-[#222] sm:mt-3 sm:text-[15px] sm:leading-6">{product.title}</div>
+                    <div className="mt-2 text-[14px] font-black text-[#ff143c] sm:text-[18px]">{pricing.formatPrice(product.minUsd)}</div>
+                    <div className="mt-1 text-[10px] text-[#666] sm:text-[13px]">{product.shippingLabel}</div>
+                  </Link>
+                );
+              })}
             </div>
           </article>
 
@@ -274,11 +292,7 @@ export default async function ModePage() {
             <p className="mt-2 text-[13px] leading-5 text-white/88 sm:mt-3 sm:text-[16px] sm:leading-8">Des promos courtes, lisibles et faciles à repérer.</p>
 
             <div className="mt-5 space-y-3 sm:mt-8 sm:space-y-4">
-              {[
-                { label: "Coupon mode", value: "-18€", detail: "dès 120€" },
-                { label: "Deal express", value: "-12€", detail: "dès 79€" },
-                { label: "Bundle look", value: "-8€", detail: "dès 49€" },
-              ].map((entry) => (
+              {promoConfig.featureCoupons.map((entry) => (
                 <div key={entry.label} className="flex items-center justify-between rounded-[18px] bg-white/12 px-4 py-3 ring-1 ring-white/20 backdrop-blur-sm sm:rounded-[22px] sm:px-5 sm:py-4">
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-white/72 sm:text-[14px] sm:tracking-[0.12em]">{entry.label}</div>
@@ -303,7 +317,7 @@ export default async function ModePage() {
             </Link>
           </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-2.5 sm:mt-8 sm:gap-4 lg:grid-cols-4">
+          <div className="mt-5 grid grid-cols-2 gap-2.5 sm:mt-8 sm:gap-4 lg:grid-cols-4">
             {trendPromos.map((product, index) => (
               <Link key={product.slug} href={`/products/${product.slug}`} className={["group rounded-[18px] p-3 text-white shadow-[0_16px_34px_rgba(17,24,39,0.08)] transition hover:-translate-y-1 sm:rounded-[24px] sm:p-4", index % 2 === 0 ? "bg-[linear-gradient(180deg,#ff3f7f_0%,#ff1762_100%)]" : "bg-[linear-gradient(180deg,#ffae2b_0%,#ff7d14_100%)]"].join(" ")}>
                 <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-white/76 sm:text-[12px] sm:tracking-[0.14em]">Flash pick</div>
@@ -328,17 +342,13 @@ export default async function ModePage() {
             <p className="mt-2 max-w-[420px] text-[13px] leading-5 text-white/88 sm:mt-3 sm:text-[16px] sm:leading-8">Coupons, flash deals et petits prix à activer vite.</p>
 
             <div className="mt-5 space-y-3 sm:mt-8 sm:space-y-4">
-              {[
-                { amount: "-25€", min: "dès 159€", label: "Max coupon" },
-                { amount: "-14€", min: "dès 89€", label: "Choix rapide" },
-                { amount: "-9€", min: "dès 49€", label: "Dernière chance" },
-              ].map((coupon) => (
+              {promoConfig.rushCoupons.map((coupon) => (
                 <div key={coupon.label} className="flex items-center justify-between rounded-[18px] bg-white/12 px-4 py-3 ring-1 ring-white/20 backdrop-blur-sm sm:rounded-[22px] sm:px-5 sm:py-4">
                   <div>
                     <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-white/72 sm:text-[13px] sm:tracking-[0.12em]">{coupon.label}</div>
-                    <div className="mt-1 text-[12px] text-white/88 sm:text-[15px]">{coupon.min}</div>
+                    <div className="mt-1 text-[12px] text-white/88 sm:text-[15px]">{coupon.detail}</div>
                   </div>
-                  <div className="text-[22px] font-black tracking-[-0.04em] sm:text-[30px]">{coupon.amount}</div>
+                  <div className="text-[22px] font-black tracking-[-0.04em] sm:text-[30px]">{coupon.value}</div>
                 </div>
               ))}
             </div>
@@ -359,20 +369,24 @@ export default async function ModePage() {
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-2.5 sm:mt-8 sm:gap-4 xl:grid-cols-3">
-              {flashRushProducts.map((product, index) => (
-                <Link key={product.slug} href={`/products/${product.slug}`} className="group overflow-hidden rounded-[16px] border border-[#eee5dd] bg-[#fffdfb] p-2.5 transition hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(17,24,39,0.1)] sm:rounded-[22px] sm:p-3">
-                  <div className="relative aspect-[1.05] overflow-hidden rounded-[18px] bg-[#f5f5f5]">
-                    <div className="absolute left-2 top-2 z-10 rounded-full bg-[#ff143c] px-2 py-1 text-[10px] font-bold text-white">-{8 + index * 2}%</div>
-                    <Image src={product.image} alt={product.title} fill sizes="(min-width: 1280px) 18vw, 40vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
-                  </div>
-                  <div className="mt-2 line-clamp-2 text-[12px] font-semibold leading-4 text-[#222] sm:mt-3 sm:text-[15px] sm:leading-6">{product.title}</div>
-                  <div className="mt-2 flex items-end gap-2">
-                    <span className="text-[14px] font-black text-[#ff143c] sm:text-[18px]">{pricing.formatPrice(product.minUsd)}</span>
-                    <span className="text-[10px] text-[#8c8c8c] line-through sm:text-[13px]">{pricing.formatPrice((product.maxUsd ?? product.minUsd) * 1.1)}</span>
-                  </div>
-                  <div className="mt-1 text-[10px] text-[#666] sm:text-[13px]">Flash • Stock limité</div>
-                </Link>
-              ))}
+              {flashRushProducts.map((product) => {
+                const discountPercent = getDiscountPercent(product.minUsd, product.maxUsd);
+
+                return (
+                  <Link key={product.slug} href={`/products/${product.slug}`} className="group overflow-hidden rounded-[16px] border border-[#eee5dd] bg-[#fffdfb] p-2.5 transition hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(17,24,39,0.1)] sm:rounded-[22px] sm:p-3">
+                    <div className="relative aspect-[1.05] overflow-hidden rounded-[18px] bg-[#f5f5f5]">
+                      {discountPercent ? <div className="absolute left-2 top-2 z-10 rounded-full bg-[#ff143c] px-2 py-1 text-[10px] font-bold text-white">-{discountPercent}%</div> : null}
+                      <Image src={product.image} alt={product.title} fill sizes="(min-width: 1280px) 18vw, 40vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                    </div>
+                    <div className="mt-2 line-clamp-2 text-[12px] font-semibold leading-4 text-[#222] sm:mt-3 sm:text-[15px] sm:leading-6">{product.title}</div>
+                    <div className="mt-2 flex items-end gap-2">
+                      <span className="text-[14px] font-black text-[#ff143c] sm:text-[18px]">{pricing.formatPrice(product.minUsd)}</span>
+                      {typeof product.maxUsd === "number" && product.maxUsd > product.minUsd ? <span className="text-[10px] text-[#8c8c8c] line-through sm:text-[13px]">{pricing.formatPrice(product.maxUsd)}</span> : null}
+                    </div>
+                    <div className="mt-1 text-[10px] text-[#666] sm:text-[13px]">{product.soldLabel}</div>
+                  </Link>
+                );
+              })}
             </div>
           </article>
         </section>
@@ -390,14 +404,14 @@ export default async function ModePage() {
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-2.5 sm:mt-8 sm:gap-3 md:grid-cols-3 xl:grid-cols-6">
-            {finalDropProducts.map((product, index) => (
+            {finalDropProducts.map((product) => (
               <Link key={product.slug} href={`/products/${product.slug}`} className="group overflow-hidden rounded-[20px] bg-white ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(17,24,39,0.1)]">
                 <div className="relative aspect-[0.94] bg-[#f4f4f4]">
-                  <div className="absolute left-2 top-2 z-10 rounded-full bg-[#111] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-white">Hot {index + 1}</div>
+                  <div className="absolute left-2 top-2 z-10 rounded-full bg-[#111] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-white">{product.responseTime}</div>
                   <Image src={product.image} alt={product.title} fill sizes="(min-width: 1280px) 15vw, 30vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
                 </div>
                 <div className="p-2.5 sm:p-3">
-                  <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-[#ff5d00] sm:text-[10px] sm:tracking-[0.14em]">Deal final</div>
+                  <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-[#ff5d00] sm:text-[10px] sm:tracking-[0.14em]">{product.shippingLabel}</div>
                   <div className="mt-1.5 line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-4 text-[#222] sm:mt-2 sm:min-h-[40px] sm:text-[13px] sm:leading-5">{product.title}</div>
                   <div className="mt-2 text-[14px] font-black text-[#111] sm:text-[16px]">{formatPriceRange(pricing.formatPrice, product.minUsd, product.maxUsd)}</div>
                   <div className="mt-1 text-[10px] text-[#666] sm:text-[12px]">Promo courte • MOQ {product.moq}</div>

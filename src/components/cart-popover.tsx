@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ShoppingCart } from "lucide-react";
+import { Share2, ShoppingCart } from "lucide-react";
 
 import { formatSourcingAmount } from "@/lib/alibaba-sourcing";
 import { useCart, useCartQuote } from "@/components/cart-provider";
@@ -13,13 +13,17 @@ type CartPopoverProps = {
   align?: "left" | "center" | "right";
   currencyCode?: string;
   locale?: string;
+  isAuthenticated?: boolean;
 };
 
-export function CartPopover({ className = "", align = "right", currencyCode, locale }: CartPopoverProps) {
+export function CartPopover({ className = "", align = "right", currencyCode, locale, isAuthenticated = false }: CartPopoverProps) {
   const router = useRouter();
-  const { itemCount } = useCart();
+  const { itemCount, items } = useCart();
   const { quote } = useCartQuote();
   const [isOpen, setIsOpen] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [sharePulse, setSharePulse] = useState(false);
+  const [shareFeedback, setShareFeedback] = useState<string | null>(null);
   const closeTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -60,6 +64,76 @@ export function CartPopover({ className = "", align = "right", currencyCode, loc
     }
 
     setIsOpen((current) => !current);
+  };
+
+  const triggerShareFeedback = (message: string) => {
+    setSharePulse(true);
+    setShareFeedback(message);
+    window.setTimeout(() => setSharePulse(false), 320);
+    window.setTimeout(() => {
+      setShareFeedback((current) => (current === message ? null : current));
+    }, 2200);
+  };
+
+  const shareCart = async () => {
+    if (!isAuthenticated) {
+      router.push(`/login?next=${encodeURIComponent("/cart")}`);
+      return;
+    }
+
+    if (items.length === 0) {
+      triggerShareFeedback("Panier vide");
+      return;
+    }
+
+    setIsSharing(true);
+
+    try {
+      const response = await fetch("/api/cart/shares", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ items }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.shareUrl) {
+        triggerShareFeedback(typeof payload?.message === "string" ? payload.message : "Partage indisponible");
+        return;
+      }
+
+      type ShareCapableNavigator = Navigator & {
+        clipboard?: Clipboard;
+        share?: (data?: ShareData) => Promise<void>;
+      };
+
+      const browserNavigator: ShareCapableNavigator | undefined = typeof window !== "undefined"
+        ? (window.navigator as ShareCapableNavigator)
+        : undefined;
+
+      if (browserNavigator?.share) {
+        await browserNavigator.share({
+          title: "Panier AfriPay partagé",
+          text: payload.shareText,
+          url: payload.shareUrl,
+        });
+        triggerShareFeedback("Panier partagé");
+        return;
+      }
+
+      if (browserNavigator?.clipboard?.writeText) {
+        await browserNavigator.clipboard.writeText(payload.shareText);
+        triggerShareFeedback("Lien copié");
+        return;
+      }
+
+      triggerShareFeedback(payload.shareUrl);
+    } catch {
+      triggerShareFeedback("Partage annulé");
+    } finally {
+      setIsSharing(false);
+    }
   };
 
   const alignmentClassName =
@@ -134,6 +208,19 @@ export function CartPopover({ className = "", align = "right", currencyCode, loc
             ))}
           </div>
           <div className="mt-4 rounded-[14px] bg-[#f8fafc] px-4 py-3 text-[13px] text-[#475467]">Sous-total: <span className="font-bold text-[#222]">{formatSourcingAmount(quote.cartProductsTotalFcfa, { currencyCode, locale })}</span></div>
+          <button
+            type="button"
+            onClick={shareCart}
+            disabled={isSharing}
+            className={[
+              "mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full px-5 text-[14px] font-semibold text-white transition",
+              sharePulse ? "scale-[1.02] bg-[#ff6a00] shadow-[0_14px_28px_rgba(255,106,0,0.24)]" : "bg-[#143743] hover:bg-[#102d36]",
+            ].join(" ")}
+          >
+            <Share2 className={["h-4 w-4", sharePulse ? "animate-bounce" : ""].join(" ")} />
+            {isSharing ? "Préparation..." : "Partager ce panier"}
+          </button>
+          {shareFeedback ? <div className="mt-3 rounded-[12px] bg-[#fff7f1] px-4 py-3 text-[12px] font-medium text-[#8a4b16]">{shareFeedback}</div> : null}
           <Link
             href="/cart"
             className="mt-4 inline-flex h-12 w-full items-center justify-center rounded-full border border-[#222] px-6 text-[16px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00]"

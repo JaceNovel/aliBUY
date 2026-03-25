@@ -54,6 +54,8 @@ export type ProductCatalogItem = {
   soldLabel: string;
   customizationLabel: string;
   shippingLabel: string;
+  chinaLocalFreightFcfa?: number;
+  chinaLocalFreightLabel?: string;
   overview: string[];
   variantGroups: ProductVariantGroup[];
   variantPricing?: ProductVariantPrice[];

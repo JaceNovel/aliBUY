@@ -2,17 +2,34 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Minus, Plus, Ship, ShoppingCart, Truck } from "lucide-react";
+import { Minus, Plus, Send, Share2, Ship, ShoppingCart, Sparkles, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { useCart, useCartQuote } from "@/components/cart-provider";
 import { buildCartItemKey, formatShippingTradeLabel, formatSourcingAmount } from "@/lib/alibaba-sourcing";
 
-export function CartPageClient({ currencyCode, locale }: { currencyCode: string; locale: string }) {
-  const { items, updateItem, removeItem, clearCart } = useCart();
+type SharedCartSummary = {
+  id: string;
+  token: string;
+  ownerDisplayName: string;
+  status: "active" | "claimed" | "ordered" | "expired";
+  claimCount: number;
+  claimedByDisplayName?: string;
+  claimedOrderId?: string;
+  updatedAt: string;
+};
+
+export function CartPageClient({ currencyCode, locale, isAuthenticated, initialSharedCartSummaries }: { currencyCode: string; locale: string; isAuthenticated: boolean; initialSharedCartSummaries: SharedCartSummary[] }) {
+  const router = useRouter();
+  const { items, updateItem, removeItem, clearCart, sharedCartContext } = useCart();
   const { quote, isLoading } = useCartQuote();
   const [selectedShipping, setSelectedShipping] = useState<"air" | "sea">("air");
   const [hasUserSelectedShipping, setHasUserSelectedShipping] = useState(false);
+  const [shareMessage, setShareMessage] = useState("");
+  const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+  const [sharePulse, setSharePulse] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
 
   useEffect(() => {
     if (quote.shippingOptions.length === 0) {
@@ -33,6 +50,76 @@ export function CartPageClient({ currencyCode, locale }: { currencyCode: string;
   const shipping = useMemo(() => quote.shippingOptions.find((option) => option.key === selectedShipping) ?? quote.shippingOptions[0], [quote.shippingOptions, selectedShipping]);
   const totalFcfa = quote.cartProductsTotalFcfa + (shipping?.priceFcfa ?? 0);
 
+  const triggerShareFeedback = (message: string) => {
+    setSharePulse(true);
+    setShareFeedback(message);
+    window.setTimeout(() => setSharePulse(false), 320);
+    window.setTimeout(() => {
+      setShareFeedback((current) => (current === message ? null : current));
+    }, 2200);
+  };
+
+  const shareCart = async () => {
+    if (items.length === 0) {
+      triggerShareFeedback("Panier vide");
+      return;
+    }
+
+    setIsSharing(true);
+    try {
+      const response = await fetch("/api/cart/shares", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ items, message: shareMessage }),
+      });
+
+      if (response.status === 401) {
+        router.push(`/login?next=${encodeURIComponent("/cart")}`);
+        return;
+      }
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.shareUrl) {
+        triggerShareFeedback(typeof payload?.message === "string" ? payload.message : "Partage indisponible");
+        return;
+      }
+
+      type ShareCapableNavigator = Navigator & {
+        clipboard?: Clipboard;
+        share?: (data?: ShareData) => Promise<void>;
+      };
+
+      const browserNavigator: ShareCapableNavigator | undefined = typeof window !== "undefined"
+        ? (window.navigator as ShareCapableNavigator)
+        : undefined;
+      const clipboard = browserNavigator?.clipboard;
+
+      if (browserNavigator?.share) {
+        await browserNavigator.share({
+          title: "Panier AfriPay partagé",
+          text: payload.shareText,
+          url: payload.shareUrl,
+        });
+        triggerShareFeedback("Panier partagé");
+        return;
+      }
+
+      if (clipboard?.writeText) {
+        await clipboard.writeText(payload.shareText);
+        triggerShareFeedback("Message de partage copié");
+        return;
+      }
+
+      triggerShareFeedback(payload.shareUrl);
+    } catch {
+      triggerShareFeedback("Partage annulé");
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
   if (items.length === 0) {
     return (
       <section className="rounded-[28px] border border-[#ece7df] bg-white px-5 py-10 text-center shadow-[0_16px_40px_rgba(17,24,39,0.05)] sm:px-8">
@@ -50,6 +137,22 @@ export function CartPageClient({ currencyCode, locale }: { currencyCode: string;
 
   return (
     <div className="space-y-6">
+      {sharedCartContext ? (
+        <section className="rounded-[24px] border border-[#d8e5fb] bg-[linear-gradient(135deg,#eef6ff_0%,#ffffff_100%)] px-5 py-4 shadow-[0_16px_36px_rgba(29,79,145,0.08)]">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#1d4f91]">Panier importé</div>
+              <div className="mt-1 text-[16px] font-bold text-[#1f2937]">Ce panier a été créé par {sharedCartContext.ownerDisplayName}</div>
+              <div className="mt-1 text-[13px] leading-6 text-[#50637d]">Le suivi et le paiement seront rattachés à votre compte. L’historique de commande indiquera clairement le créateur tiers du panier.</div>
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-[12px] font-semibold text-[#1d4f91] ring-1 ring-[#d8e5fb]">
+              <Sparkles className="h-4 w-4" />
+              Panier tiers actif
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <section className="rounded-[28px] border border-[#ece7df] bg-[linear-gradient(135deg,#fff6ef_0%,#ffffff_45%,#eef6ff_100%)] px-5 py-6 shadow-[0_16px_40px_rgba(17,24,39,0.05)] sm:px-8 sm:py-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -72,7 +175,54 @@ export function CartPageClient({ currencyCode, locale }: { currencyCode: string;
             </div>
           </div>
         </div>
+
+        <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
+          <label className="text-[13px] font-semibold text-[#344054]">
+            Message pour le partage
+            <input value={shareMessage} onChange={(event) => setShareMessage(event.target.value)} placeholder="Ex: valide ce panier pour moi" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] bg-white px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+          </label>
+          <button
+            type="button"
+            onClick={shareCart}
+            disabled={isSharing || !isAuthenticated}
+            className={[
+              "inline-flex h-11 items-center justify-center gap-2 rounded-full px-5 text-[14px] font-semibold text-white transition",
+              sharePulse ? "bg-[#ff6a00] shadow-[0_14px_30px_rgba(255,106,0,0.28)] scale-[1.02]" : "bg-[#143743] shadow-[0_14px_30px_rgba(20,55,67,0.22)] hover:bg-[#102d36]",
+            ].join(" ")}
+          >
+            <Share2 className={["h-4 w-4", sharePulse ? "animate-bounce" : ""].join(" ")} />
+            {isAuthenticated ? (isSharing ? "Préparation..." : "Partager ce panier") : "Connectez-vous pour partager"}
+          </button>
+        </div>
+        {shareFeedback ? <div className="mt-3 rounded-[16px] bg-white px-4 py-3 text-[13px] font-medium text-[#344054] ring-1 ring-[#ece7df]">{shareFeedback}</div> : null}
       </section>
+
+      {initialSharedCartSummaries.length > 0 ? (
+        <section className="rounded-[24px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)]">
+          <div className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">
+            <Send className="h-4 w-4" />
+            Suivi de vos paniers partagés
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {initialSharedCartSummaries.map((entry) => (
+              <article key={entry.id} className="rounded-[18px] border border-[#edf1f6] px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-[14px] font-semibold text-[#1f2937]">Lien #{entry.token.slice(0, 8)}</div>
+                  <span className="rounded-full bg-[#f8fafc] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#475467]">{entry.status}</span>
+                </div>
+                <div className="mt-2 text-[13px] leading-6 text-[#667085]">
+                  {entry.status === "ordered" && entry.claimedByDisplayName
+                    ? `Validé par ${entry.claimedByDisplayName}${entry.claimedOrderId ? ` · commande ${entry.claimedOrderId}` : ""}`
+                    : entry.status === "claimed" && entry.claimedByDisplayName
+                      ? `Importé par ${entry.claimedByDisplayName}`
+                      : "En attente d’ouverture par un tiers."}
+                </div>
+                <div className="mt-2 text-[12px] text-[#98a2b3]">{entry.claimCount} importation(s) · mise à jour {new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(entry.updatedAt))}</div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-4 rounded-[28px] border border-[#ece7df] bg-white p-4 shadow-[0_16px_40px_rgba(17,24,39,0.05)] sm:p-6">
@@ -118,7 +268,7 @@ export function CartPageClient({ currencyCode, locale }: { currencyCode: string;
         <aside className="space-y-4">
           <section className="rounded-[28px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)]">
             <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Options de livraison</div>
-            {quote.recommendedMethod === "sea" ? <div className="mt-3 rounded-[18px] bg-[#eef6ff] px-4 py-3 text-[13px] font-medium text-[#1d4f91]">Au-dessus de 1 kg, le bateau est recommandé. Vous pouvez quand même choisir l'avion, mais il reste payant.</div> : null}
+            {quote.recommendedMethod === "sea" ? <div className="mt-3 rounded-[18px] bg-[#eef6ff] px-4 py-3 text-[13px] font-medium text-[#1d4f91]">Au-dessus de 1 kg, le bateau est recommandé. Vous pouvez quand même choisir l&apos;avion, mais il reste payant.</div> : null}
             <div className="mt-4 space-y-3">
               {quote.shippingOptions.map((option) => {
                 const isActive = selectedShipping === option.key;

@@ -86,6 +86,15 @@ function verifyPassword(password: string, user: StoredUser) {
   return timingSafeEqual(expected, actual);
 }
 
+export async function verifyUserPasswordById(userId: string, password: string) {
+  const user = await getStoredUserById(userId);
+  if (!user) {
+    return false;
+  }
+
+  return verifyPassword(password, user);
+}
+
 export async function registerUser(input: {
   email: string;
   displayName?: string;

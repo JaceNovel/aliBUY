@@ -604,17 +604,17 @@ export default async function Home() {
           <div>
             <div className="text-[14px] font-semibold text-[#222]">{messages.footer.buyers}</div>
             <div className="mt-4 space-y-3 text-[14px] text-[#666]">
-              <div>{messages.footer.history}</div>
-              <div>{messages.footer.recommendedProducts}</div>
-              <div>{messages.nav.orderProtection}</div>
+              <Link href="/orders" className="transition hover:text-[#ff6a00]">{messages.footer.history}</Link>
+              <Link href="/trends" className="transition hover:text-[#ff6a00]">{messages.footer.recommendedProducts}</Link>
+              <Link href="/protection-commandes" className="transition hover:text-[#ff6a00]">{messages.nav.orderProtection}</Link>
             </div>
           </div>
           <div>
             <div className="text-[14px] font-semibold text-[#222]">{messages.footer.services}</div>
             <div className="mt-4 space-y-3 text-[14px] text-[#666]">
-              <div>{messages.footer.supportCenter}</div>
-              <div>{messages.footer.application}</div>
-              <div>{messages.footer.sellerSupport}</div>
+              <Link href="/support-center" className="transition hover:text-[#ff6a00]">{messages.footer.supportCenter}</Link>
+              <Link href="/application" className="transition hover:text-[#ff6a00]">{messages.footer.application}</Link>
+              <Link href="/seller-support" className="transition hover:text-[#ff6a00]">{messages.footer.sellerSupport}</Link>
             </div>
           </div>
           <div>

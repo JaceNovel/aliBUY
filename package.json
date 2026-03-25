@@ -10,7 +10,8 @@
     "postinstall": "prisma generate",
     "lint": "eslint",
     "prisma:generate": "prisma generate",
-    "prisma:push": "prisma db push"
+    "prisma:push": "prisma db push",
+    "prisma:migrate:promo-share": "prisma migrate dev --name add-promo-codes-and-shared-carts"
   },
   "dependencies": {
     "@prisma/client": "^6.16.2",

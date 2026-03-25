@@ -5,6 +5,7 @@ import { Check, LocateFixed, MapPinned, Pencil, Plus, Sparkles, Trash2 } from "l
 
 import type { CustomerAddressRecord } from "@/lib/customer-addresses";
 import { buildAddressQuickInput, parseAddressQuickInput } from "@/lib/address-autofill";
+import { extractCoordinatesFromGoogleMapsUrl, isGoogleMapsShortUrl } from "@/lib/google-maps";
 
 type AddressFormState = {
   label: string;
@@ -85,21 +86,6 @@ export function AccountAddressBookClient({ initialAddresses }: { initialAddresse
     setQuickAddress(buildAddressQuickInput(nextForm));
     setMapsUrl("");
     setIsManualAddress(false);
-  };
-
-  const extractCoordinatesFromGoogleMapsUrl = (value: string) => {
-    const normalized = decodeURIComponent(value.trim());
-    const queryMatch = normalized.match(/q=(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/i);
-    if (queryMatch) {
-      return { latitude: Number(queryMatch[1]), longitude: Number(queryMatch[2]) };
-    }
-
-    const atMatch = normalized.match(/@(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/i);
-    if (atMatch) {
-      return { latitude: Number(atMatch[1]), longitude: Number(atMatch[2]) };
-    }
-
-    return null;
   };
 
   const applyGeocodedAddress = (payload: {
@@ -242,7 +228,30 @@ export function AccountAddressBookClient({ initialAddresses }: { initialAddresse
   };
 
   const handleResolveMapsLink = async () => {
-    const coordinates = extractCoordinatesFromGoogleMapsUrl(mapsUrl);
+    let coordinates = extractCoordinatesFromGoogleMapsUrl(mapsUrl);
+
+    if (!coordinates && isGoogleMapsShortUrl(mapsUrl)) {
+      setIsResolvingMapsLink(true);
+      setFeedback(null);
+      try {
+        const response = await fetch("/api/location/resolve-maps-link", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ url: mapsUrl }),
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.coordinates) {
+          throw new Error(payload?.message || "Impossible de lire ce lien Google Maps.");
+        }
+
+        coordinates = payload.coordinates;
+      } catch (error) {
+        setFeedback({ type: "error", message: error instanceof Error ? error.message : "Impossible de lire ce lien Maps." });
+        setIsResolvingMapsLink(false);
+        return;
+      }
+    }
+
     if (!coordinates) {
       setFeedback({ type: "error", message: "Le lien Google Maps doit contenir des coordonnées lisibles." });
       return;
@@ -430,7 +439,7 @@ export function AccountAddressBookClient({ initialAddresses }: { initialAddresse
             </div>
 
             <div className="mt-2 text-[12px] leading-5 text-[#7b675a]">
-              Le mode rapide remplit rue, ville, région, code postal et pays. Si l'adresse est complexe, utilisez la saisie manuelle.
+              Le mode rapide remplit rue, ville, région, code postal et pays. Si l&apos;adresse est complexe, utilisez la saisie manuelle.
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-[1.25fr_0.75fr]">
@@ -451,7 +460,7 @@ export function AccountAddressBookClient({ initialAddresses }: { initialAddresse
                   <input value={form.addressLine1} onChange={(event) => setForm((current) => ({ ...current, addressLine1: event.target.value }))} autoComplete="address-line1" className="mt-2 h-11 w-full rounded-[14px] border border-[#e6d8cb] bg-white px-4 text-[14px] text-[#221f1c] outline-none focus:border-[#ff6a00]" />
                 </label>
                 <label className="sm:col-span-2 text-[13px] font-semibold text-[#4a3b31]">
-                  Complément d'adresse
+                  Complément d&apos;adresse
                   <input value={form.addressLine2} onChange={(event) => setForm((current) => ({ ...current, addressLine2: event.target.value }))} autoComplete="address-line2" className="mt-2 h-11 w-full rounded-[14px] border border-[#e6d8cb] bg-white px-4 text-[14px] text-[#221f1c] outline-none focus:border-[#ff6a00]" />
                 </label>
                 <label className="text-[13px] font-semibold text-[#4a3b31]">

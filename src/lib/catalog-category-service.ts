@@ -2,7 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 
-import { extractAlibabaCategoryInfo, toCatalogProduct, type AlibabaImportedProduct } from "@/lib/alibaba-operations";
+import { extractAlibabaCategoryInfo, toCatalogProduct } from "@/lib/alibaba-operations";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import type { ProductCatalogItem } from "@/lib/products-data";
 
@@ -29,13 +29,6 @@ type CategoryAccumulator = {
   products: ProductCatalogItem[];
 };
 
-type CanonicalCategoryMatch = {
-  slug: string;
-  title: string;
-  description: string;
-  path: string[];
-};
-
 function dedupeProducts(products: ProductCatalogItem[]) {
   const map = new Map<string, ProductCatalogItem>();
 
@@ -58,59 +51,6 @@ function buildCategoryHref(slug: string) {
   return `/products?category=${encodeURIComponent(slug)}`;
 }
 
-function looksLikeAlibabaAssetLabel(value?: string) {
-  if (!value) {
-    return false;
-  }
-
-  const normalized = value.trim();
-  return /\b220x220\b/i.test(normalized) || /^[a-z0-9]{20,}\.(png|jpg|jpeg|webp)/i.test(normalized) || /^[A-Z0-9]{20,}\.(png|jpg|jpeg|webp)/.test(normalized);
-}
-
-function matchCanonicalImportedCategory(importedProduct: AlibabaImportedProduct): CanonicalCategoryMatch | null {
-  const haystack = [
-    importedProduct.query,
-    importedProduct.title,
-    importedProduct.shortTitle,
-    importedProduct.categoryTitle,
-    ...(importedProduct.keywords ?? []),
-    ...(importedProduct.overview ?? []),
-    ...(importedProduct.specs ?? []).flatMap((spec) => [spec.label, spec.value]),
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  if (/\b(led|lighting|light strip|strip light|lamp|lampe|night light|downlight|floodlight|spotlight|ceiling light|wall light|solar light|led bulb|led panel|neon|applique)\b/.test(haystack)) {
-    return {
-      slug: "lighting-led",
-      title: "Eclairage LED",
-      description: "Lampes, rubans LED et solutions d'eclairage importes depuis Alibaba.",
-      path: ["Maison & eclairage", "Eclairage LED"],
-    };
-  }
-
-  if (/\b(lcd|oled|display|screen|touch screen|module|sensor|pcb|circuit board|motherboard|chip|ic\b|connector|converter|adapter|relay|controller|driver board|power supply)\b/.test(haystack)) {
-    return {
-      slug: "electronic-components",
-      title: "Composants electroniques",
-      description: "Modules, ecrans et composants electroniques importes depuis Alibaba.",
-      path: ["Electronique", "Composants electroniques"],
-    };
-  }
-
-  if (/\b(mouse|mice|souris|keyboard|keyboards|clavier|claviers|keypad|keycaps)\b/.test(haystack)) {
-    return {
-      slug: "keyboard-mouse",
-      title: "Claviers & souris",
-      description: "Souris gaming, claviers, combos et accessoires PC importes depuis Alibaba.",
-      path: ["Informatique", "Claviers & souris"],
-    };
-  }
-
-  return null;
-}
-
 export const getCatalogCategories = cache(async function getCatalogCategories() {
   const importedProducts = (await getAlibabaImportedProducts())
     .filter((item) => item.publishedToSite && item.status === "published");
@@ -118,14 +58,14 @@ export const getCatalogCategories = cache(async function getCatalogCategories() 
   const groups = new Map<string, CategoryAccumulator>();
 
   for (const importedProduct of importedProducts) {
-    const canonicalCategory = matchCanonicalImportedCategory(importedProduct);
     const extractedCategory = extractAlibabaCategoryInfo({
       ...importedProduct,
-      categorySlug: looksLikeAlibabaAssetLabel(importedProduct.categoryTitle) ? undefined : importedProduct.categorySlug,
-      categoryTitle: looksLikeAlibabaAssetLabel(importedProduct.categoryTitle) ? undefined : importedProduct.categoryTitle,
-      categoryPath: looksLikeAlibabaAssetLabel(importedProduct.categoryTitle) ? undefined : importedProduct.categoryPath,
+      rawPayload: importedProduct.rawPayload,
+      categorySlug: importedProduct.categorySlug,
+      categoryTitle: importedProduct.categoryTitle,
+      categoryPath: importedProduct.categoryPath,
     });
-    const category = canonicalCategory ?? {
+    const category = {
       slug: extractedCategory.slug,
       title: extractedCategory.title,
       description: buildCategoryDescription(extractedCategory.title, extractedCategory.path, 1),

@@ -382,6 +382,8 @@ export function OrdersClient({ orders }: OrdersClientProps) {
                     <div className="max-w-[740px] min-w-0">
                       <div className="line-clamp-2 text-[13px] leading-5 text-[#222] sm:text-[16px] sm:leading-6">{order.title}</div>
                       <div className="mt-1 line-clamp-1 text-[11px] text-[#666] sm:mt-2 sm:line-clamp-2 sm:text-[14px]">{order.variant}</div>
+                      {order.thirdPartyCartNotice ? <div className="mt-2 inline-flex items-center rounded-full bg-[#eef6ff] px-3 py-1 text-[10px] font-semibold text-[#1d4f91] sm:text-[12px]">{order.thirdPartyCartNotice}</div> : null}
+                      {order.promoCode && order.promoDiscountLabel ? <div className="mt-2 inline-flex items-center rounded-full bg-[#effbf2] px-3 py-1 text-[10px] font-semibold text-[#1f7a39] sm:text-[12px]">Code {order.promoCode} · -{order.promoDiscountLabel}</div> : null}
                       <div className="mt-1.5 line-clamp-2 text-[11px] leading-4 text-[#6a6a6a] sm:mt-3 sm:text-[13px] sm:leading-6">
                         {order.logistics.lastUpdate}
                       </div>

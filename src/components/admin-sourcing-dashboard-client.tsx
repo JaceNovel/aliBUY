@@ -88,7 +88,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
               <ArrowUpRight className="h-4 w-4" />
             </Link>
             <Link href="/checkout" className="inline-flex h-12 items-center justify-center gap-2 rounded-[16px] border border-[#dbe2ea] bg-white px-5 text-[14px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
-              Tester le checkout sourcing
+              Ouvrir le checkout sourcing
               <ArrowUpRight className="h-4 w-4" />
             </Link>
           </div>
@@ -266,7 +266,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
                   <tr key={order.id} className="border-t border-[#edf1f6] text-[13px] text-[#1f2937]">
                     <td className="py-3.5 pr-4 font-semibold">{order.orderNumber}</td>
                     <td className="py-3.5 pr-4">{order.customerName}</td>
-                    <td className="py-3.5 pr-4">{order.shippingMethod === "sea" ? "Bateau" : "Avion"}</td>
+                    <td className="py-3.5 pr-4">{order.shippingMethod === "sea" ? "Bateau" : order.shippingMethod === "freight" ? "Fret" : "Avion"}</td>
                     <td className="py-3.5 pr-4">{order.freightStatus}</td>
                     <td className="py-3.5 pr-4">{order.supplierOrderStatus}</td>
                     <td className="py-3.5 pr-4">{formatFcfa(order.totalPriceFcfa)}</td>

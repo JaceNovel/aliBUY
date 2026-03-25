@@ -8,7 +8,10 @@ export async function POST(request: Request) {
   const quote = await createAlibabaSourcingQuote(
     Array.isArray(body?.items) ? body.items : [],
     settings,
-    { disableFreeAir: body?.disableFreeAir === true },
+    {
+      disableFreeAir: body?.disableFreeAir === true,
+      deliveryMode: body?.deliveryMode === "forwarder" ? "forwarder" : "direct",
+    },
   );
 
   return Response.json({

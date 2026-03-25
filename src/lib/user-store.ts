@@ -79,3 +79,62 @@ export async function createStoredUser(input: {
 
   return toStoredUser(user);
 }
+
+export async function updateStoredUserProfile(input: {
+  id: string;
+  displayName?: string;
+}) {
+  const current = await prisma.user.findUnique({ where: { id: input.id } });
+  if (!current) {
+    throw new Error("Utilisateur introuvable.");
+  }
+
+  const parsedName = input.displayName ? parseDisplayName(input.displayName) : null;
+  const updated = await prisma.user.update({
+    where: { id: input.id },
+    data: {
+      displayName: parsedName?.displayName ?? current.displayName,
+      firstName: parsedName?.firstName ?? current.firstName,
+    },
+  });
+
+  return toStoredUser(updated);
+}
+
+export async function updateStoredUserEmail(input: {
+  id: string;
+  email: string;
+}) {
+  const normalizedEmail = normalizeEmail(input.email);
+  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  if (existing && existing.id !== input.id) {
+    throw new Error("Un compte existe deja avec cette adresse e-mail.");
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: input.id },
+    data: { email: normalizedEmail },
+  });
+
+  return toStoredUser(updated);
+}
+
+export async function updateStoredUserPassword(input: {
+  id: string;
+  passwordHash: string;
+  passwordSalt: string;
+}) {
+  const updated = await prisma.user.update({
+    where: { id: input.id },
+    data: {
+      passwordHash: input.passwordHash,
+      passwordSalt: input.passwordSalt,
+    },
+  });
+
+  return toStoredUser(updated);
+}
+
+export async function deleteStoredUser(id: string) {
+  await prisma.user.delete({ where: { id } });
+}

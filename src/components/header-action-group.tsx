@@ -36,7 +36,7 @@ export function HeaderActionGroup({
       >
         <Heart className={iconClassName} />
       </Link>
-      <CartPopover className={iconClassName} align={align} currencyCode={moneyFormat?.currencyCode} locale={moneyFormat?.locale} />
+      <CartPopover className={iconClassName} align={align} currencyCode={moneyFormat?.currencyCode} locale={moneyFormat?.locale} isAuthenticated={Boolean(user)} />
       <ProfileMenu className={iconClassName} align={align} user={user} />
     </div>
   );

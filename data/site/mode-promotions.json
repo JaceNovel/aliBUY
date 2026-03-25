@@ -1,0 +1,96 @@
+{
+  "heroSlides": [
+    {
+      "id": "hero-1",
+      "deadlinePrefix": "Fin de la promo :",
+      "endsAt": "2026-12-31T22:59:00Z",
+      "headline": "Promos vérifiées",
+      "accentColor": "#ffffff",
+      "spotlightProductSlug": "",
+      "coupons": [
+        {
+          "value": "-125€",
+          "limit": "dès 899€ d'achat",
+          "code": "SMB125"
+        },
+        {
+          "value": "-110€",
+          "limit": "dès 799€ d'achat",
+          "code": "SMB110"
+        },
+        {
+          "value": "-85€",
+          "limit": "dès 529€ d'achat",
+          "code": "FRAS85"
+        }
+      ]
+    },
+    {
+      "id": "hero-2",
+      "deadlinePrefix": "Mode sélectionnée jusqu'au :",
+      "endsAt": "2026-12-31T22:59:00Z",
+      "headline": "Sélection mode",
+      "accentColor": "#ff7bd3",
+      "spotlightProductSlug": "",
+      "coupons": [
+        {
+          "value": "-30%",
+          "limit": "dès 99€ d'achat",
+          "code": "STYLE30"
+        },
+        {
+          "value": "-22%",
+          "limit": "dès 69€ d'achat",
+          "code": "LOOK22"
+        },
+        {
+          "value": "-15%",
+          "limit": "dès 39€ d'achat",
+          "code": "PINK15"
+        }
+      ]
+    }
+  ],
+  "featureCoupons": [
+    {
+      "label": "Coupon mode",
+      "value": "-18€",
+      "detail": "dès 120€"
+    },
+    {
+      "label": "Deal express",
+      "value": "-12€",
+      "detail": "dès 79€"
+    },
+    {
+      "label": "Bundle look",
+      "value": "-8€",
+      "detail": "dès 49€"
+    }
+  ],
+  "rushCoupons": [
+    {
+      "label": "Max coupon",
+      "value": "-25€",
+      "detail": "dès 159€"
+    },
+    {
+      "label": "Choix rapide",
+      "value": "-14€",
+      "detail": "dès 89€"
+    },
+    {
+      "label": "Dernière chance",
+      "value": "-9€",
+      "detail": "dès 49€"
+    }
+  ],
+  "groupedOfferSlugs": [],
+  "dailyDealSlugs": [],
+  "premiumSelectionSlugs": [],
+  "choiceDealSlugs": [],
+  "trendPromoSlugs": [],
+  "flashRushSlugs": [],
+  "finalDropSlugs": [],
+  "updatedAt": "2026-03-25T00:00:00.000Z"
+}

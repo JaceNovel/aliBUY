@@ -3,7 +3,7 @@ import { resolveProductUnitPriceUsd } from "@/lib/product-variant-pricing";
 import { CURRENCY_CONFIG, type CurrencyCode } from "@/lib/pricing-options";
 
 export type MarginMode = "percent" | "fixed";
-export type ShippingMethodKey = "air" | "sea";
+export type ShippingMethodKey = "air" | "sea" | "freight";
 export type SourcingOrderStatus = "checkout_created" | "grouped_sea" | "ready_to_ship" | "submitted_to_supplier" | "shipment_triggered" | "in_transit_to_agent" | "delivered_to_agent" | "relay_ready" | "completed";
 export type FreightStatus = "not_requested" | "skipped" | "verified" | "failed";
 export type SupplierOrderStatus = "not_created" | "skipped" | "created" | "failed";
@@ -138,9 +138,39 @@ export type SourcingOrderWorkflow = {
   proofs: SourcingDeliveryProof[];
 };
 
+export type SourcingPromoAdjustment = {
+  code: string;
+  label: string;
+  discountFcfa: number;
+  baseTotalFcfa: number;
+  finalTotalFcfa: number;
+  appliedAt: string;
+};
+
+export type SourcingSharedCartContext = {
+  token: string;
+  ownerUserId: string;
+  ownerEmail: string;
+  ownerDisplayName: string;
+  message?: string;
+  importedAt: string;
+};
+
+export type SourcingPaymentContext = {
+  payerUserId?: string;
+  payerDisplayName: string;
+  payerEmail: string;
+  createdFromSharedCart: boolean;
+  thirdPartyCreatorName?: string;
+  thirdPartyCreatorEmail?: string;
+};
+
 export type SourcingOrderMeta = {
   deliveryProfile?: SourcingDeliveryProfile;
   workflow?: SourcingOrderWorkflow;
+  promo?: SourcingPromoAdjustment;
+  sharedCart?: SourcingSharedCartContext;
+  paymentContext?: SourcingPaymentContext;
 };
 
 export type SourcingCheckoutInput = SourcingCheckoutAddress & {
@@ -149,6 +179,10 @@ export type SourcingCheckoutInput = SourcingCheckoutAddress & {
   shippingMethod: ShippingMethodKey;
   notes?: string;
   deliveryProfile?: SourcingDeliveryProfile;
+  promoCode?: string;
+  sharedCartToken?: string;
+  payerDisplayName?: string;
+  payerEmail?: string;
 };
 
 export type SourcingOrderItem = CartComputedItem;
@@ -323,6 +357,73 @@ function normalizeOrderWorkflow(value: unknown): SourcingOrderWorkflow | undefin
   };
 }
 
+function normalizePromoAdjustment(value: unknown): SourcingPromoAdjustment | undefined {
+  if (!isObjectRecord(value)) {
+    return undefined;
+  }
+
+  const code = typeof value.code === "string" ? value.code.trim().toUpperCase() : "";
+  const label = typeof value.label === "string" ? value.label.trim() : "";
+  const appliedAt = typeof value.appliedAt === "string" ? value.appliedAt : "";
+  if (!code || !label || !appliedAt) {
+    return undefined;
+  }
+
+  return {
+    code,
+    label,
+    discountFcfa: typeof value.discountFcfa === "number" ? value.discountFcfa : Number(value.discountFcfa ?? 0),
+    baseTotalFcfa: typeof value.baseTotalFcfa === "number" ? value.baseTotalFcfa : Number(value.baseTotalFcfa ?? 0),
+    finalTotalFcfa: typeof value.finalTotalFcfa === "number" ? value.finalTotalFcfa : Number(value.finalTotalFcfa ?? 0),
+    appliedAt,
+  };
+}
+
+function normalizeSharedCartContext(value: unknown): SourcingSharedCartContext | undefined {
+  if (!isObjectRecord(value)) {
+    return undefined;
+  }
+
+  const token = typeof value.token === "string" ? value.token.trim() : "";
+  const ownerUserId = typeof value.ownerUserId === "string" ? value.ownerUserId.trim() : "";
+  const ownerEmail = typeof value.ownerEmail === "string" ? value.ownerEmail.trim() : "";
+  const ownerDisplayName = typeof value.ownerDisplayName === "string" ? value.ownerDisplayName.trim() : "";
+  const importedAt = typeof value.importedAt === "string" ? value.importedAt : "";
+  if (!token || !ownerUserId || !ownerEmail || !ownerDisplayName || !importedAt) {
+    return undefined;
+  }
+
+  return {
+    token,
+    ownerUserId,
+    ownerEmail,
+    ownerDisplayName,
+    message: typeof value.message === "string" ? value.message : undefined,
+    importedAt,
+  };
+}
+
+function normalizePaymentContext(value: unknown): SourcingPaymentContext | undefined {
+  if (!isObjectRecord(value)) {
+    return undefined;
+  }
+
+  const payerDisplayName = typeof value.payerDisplayName === "string" ? value.payerDisplayName.trim() : "";
+  const payerEmail = typeof value.payerEmail === "string" ? value.payerEmail.trim() : "";
+  if (!payerDisplayName || !payerEmail) {
+    return undefined;
+  }
+
+  return {
+    payerUserId: typeof value.payerUserId === "string" ? value.payerUserId : undefined,
+    payerDisplayName,
+    payerEmail,
+    createdFromSharedCart: value.createdFromSharedCart === true,
+    thirdPartyCreatorName: typeof value.thirdPartyCreatorName === "string" ? value.thirdPartyCreatorName : undefined,
+    thirdPartyCreatorEmail: typeof value.thirdPartyCreatorEmail === "string" ? value.thirdPartyCreatorEmail : undefined,
+  };
+}
+
 export function normalizeVariantSelection(selection?: VariantSelection) {
   if (!selection) {
     return {};
@@ -420,6 +521,9 @@ export function getSourcingOrderMeta(order: Pick<SourcingOrder, "supplierOrderPa
   return {
     deliveryProfile: normalizeDeliveryProfile(meta.deliveryProfile),
     workflow: normalizeOrderWorkflow(meta.workflow),
+    promo: normalizePromoAdjustment(meta.promo),
+    sharedCart: normalizeSharedCartContext(meta.sharedCart),
+    paymentContext: normalizePaymentContext(meta.paymentContext),
   };
 }
 
@@ -539,6 +643,8 @@ export function getProductSourcingMetrics(product: ProductCatalogItem, input?: {
     weightKg,
     volumeCbm,
     supplierPriceFcfa,
+    chinaLocalFreightFcfa: product.chinaLocalFreightFcfa,
+    chinaLocalFreightLabel: product.chinaLocalFreightLabel,
   };
 }
 export function createEmptyQuote(settings?: Pick<SourcingSettings, "freeAirThresholdFcfa" | "containerTargetCbm">): AlibabaSourcingQuote {

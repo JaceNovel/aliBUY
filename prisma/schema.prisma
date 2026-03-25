@@ -326,6 +326,7 @@ model User {
   quoteRequests        QuoteRequest[]
   supportConversations SupportConversation[]
   sourcingOrders       SourcingOrder[]
+  sharedCartLinks      SharedCartLink[]
 }
 
 model CustomerAddress {
@@ -430,4 +431,48 @@ model OrderRemittanceProof {
 
   @@index([orderId, createdAt])
   @@index([userId, createdAt])
+}
+
+model PromoCode {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  label           String
+  description     String?
+  amountType      String
+  amountValue     Int
+  minOrderFcfa    Int      @default(0)
+  maxDiscountFcfa Int?
+  active          Boolean  @default(true)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  usageLimit      Int?
+  usageCount      Int      @default(0)
+  usedOrderIds    Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([active, startsAt, endsAt])
+}
+
+model SharedCartLink {
+  id                   String   @id @default(cuid())
+  token                String   @unique
+  ownerUserId          String
+  ownerEmail           String
+  ownerDisplayName     String
+  message              String?
+  itemsPayload         Json
+  status               String
+  claimCount           Int      @default(0)
+  lastClaimedAt        DateTime?
+  claimedByUserId      String?
+  claimedByDisplayName String?
+  claimedOrderId       String?
+  expiresAt            DateTime
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  owner                User     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  @@index([ownerUserId, createdAt])
+  @@index([status, expiresAt])
 }

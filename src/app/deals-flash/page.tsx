@@ -228,7 +228,7 @@ export default async function DealsFlashPage() {
           <section className="rounded-[28px] bg-white px-6 py-8 text-center shadow-[0_18px_40px_rgba(17,24,39,0.06)] ring-1 ring-black/5 sm:px-8 sm:py-10">
             <h2 className="text-[28px] font-black tracking-[-0.05em] text-[#222]">Aucun deal flash publie</h2>
             <p className="mx-auto mt-3 max-w-[700px] text-[15px] leading-7 text-[#666]">
-              Les articles de test ont ete retires. Les deals flash apparaitront ici quand des produits auront ete publies sur le site.
+              Les deals flash apparaîtront ici dès qu&apos;une offre réelle sera publiée sur le site.
             </p>
           </section>
         )}

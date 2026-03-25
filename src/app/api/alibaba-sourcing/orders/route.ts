@@ -9,10 +9,11 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
+    const persistedUserId = user.id.startsWith("admin:") ? undefined : user.id;
 
     const order = await createCheckoutOrder({
-      userId: user.id,
-      customerAddressId: body?.customerAddressId ? String(body.customerAddressId) : undefined,
+      userId: persistedUserId,
+      customerAddressId: persistedUserId && body?.customerAddressId ? String(body.customerAddressId) : undefined,
       customerName: String(body?.customerName ?? user.displayName),
       customerEmail: String(body?.customerEmail ?? user.email),
       customerPhone: String(body?.customerPhone ?? ""),
@@ -24,8 +25,12 @@ export async function POST(request: Request) {
       postalCode: body?.postalCode ? String(body.postalCode) : undefined,
       countryCode: String(body?.countryCode ?? "CI"),
       deliveryProfile: typeof body?.deliveryProfile === "object" && body.deliveryProfile ? body.deliveryProfile : undefined,
-      shippingMethod: body?.shippingMethod === "sea" ? "sea" : "air",
+      shippingMethod: body?.shippingMethod === "sea" ? "sea" : body?.shippingMethod === "freight" ? "freight" : "air",
       notes: body?.notes ? String(body.notes) : undefined,
+      promoCode: body?.promoCode ? String(body.promoCode) : undefined,
+      sharedCartToken: body?.sharedCartToken ? String(body.sharedCartToken) : undefined,
+      payerDisplayName: user.displayName,
+      payerEmail: user.email,
       items: Array.isArray(body?.items) ? body.items : [],
     });
 

@@ -56,7 +56,7 @@ export const catalogCategories: CatalogCategoryDefinition[] = [
   {
     slug: "agriculture-food",
     title: "Agriculture, Aliments & Boissons",
-    description: "Selection de demonstration AfriPay pour developpements B2B multisecteurs et sourcing complementaire.",
+    description: "Produits agricoles, alimentaires et boissons pour besoins B2B et sourcing complementaire.",
     productSlugs: [
       "bean-bag-gaming-oxford",
       "bureau-esport-design-simple",

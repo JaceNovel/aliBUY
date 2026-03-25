@@ -1,30 +1,16 @@
+import Image from "next/image";
 import Link from "next/link";
-import { Camera, ChevronRight, Copy, Settings, ShieldCheck, UserCircle2 } from "lucide-react";
+import { Camera, ChevronRight } from "lucide-react";
 import { redirect } from "next/navigation";
 
+import { accountCards } from "@/app/account/compte/account-links";
+import { CopyUserIdButton } from "@/components/copy-user-id-button";
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { UserLogoutButton } from "@/components/user-logout-button";
+import { getAccountSettings } from "@/lib/account-settings-store";
 import { getCurrentUser } from "@/lib/user-auth";
 import { getPricingContext } from "@/lib/pricing";
 import { getDisplayInitial, getMaskedEmail } from "@/lib/user-session";
-
-const accountSections = [
-  {
-    title: "Informations du compte",
-    icon: UserCircle2,
-    items: ["Mon profil", "Profil de membre", "Comptes connectes", "Informations fiscales"],
-  },
-  {
-    title: "Securite du compte",
-    icon: Settings,
-    items: ["Modifier le mot de passe", "Changer l'adresse e-mail", "Changer de numero de telephone", "Supprimer le compte"],
-  },
-  {
-    title: "Preferences",
-    icon: ShieldCheck,
-    items: ["Parametres de confidentialite", "Preferences d'e-mails", "Preferences publicitaires"],
-  },
-];
 
 const mobileProfileLinks = [
   { label: "Profil", href: "/account" },
@@ -46,17 +32,18 @@ export default async function AccountPage() {
 
   const displayInitial = getDisplayInitial(user.displayName).toLowerCase();
   const maskedEmail = getMaskedEmail(user.email);
+  const settings = await getAccountSettings(user.id);
 
   return (
     <InternalPageShell pricing={pricing}>
       <section className="overflow-hidden rounded-[28px] bg-white shadow-[0_8px_30px_rgba(24,39,75,0.05)] ring-1 ring-black/5 sm:hidden">
         <div className="border-b border-[#ececec] px-5 py-5">
           <div className="flex items-center gap-4">
-            <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-[#ffe8dc] text-[30px] font-semibold text-[#ff6a00]">
-              {displayInitial}
-              <button className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full border border-[#e8e8e8] bg-white text-[#777]">
+            <div className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-[#ffe8dc] text-[30px] font-semibold text-[#ff6a00]">
+              {settings.profilePhotoUrl ? <Image src={settings.profilePhotoUrl} alt={user.displayName} fill className="object-cover" /> : displayInitial}
+              <Link href="/account/compte/mon-profil" className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full border border-[#e8e8e8] bg-white text-[#777] transition hover:text-[#ff6a00]">
                 <Camera className="h-3.5 w-3.5" />
-              </button>
+              </Link>
             </div>
             <div className="min-w-0">
               <h1 className="text-[24px] font-semibold tracking-[-0.04em] text-[#222]">{user.displayName}</h1>
@@ -88,11 +75,11 @@ export default async function AccountPage() {
       <section className="hidden rounded-[32px] bg-white px-5 py-6 shadow-[0_8px_30px_rgba(24,39,75,0.05)] ring-1 ring-black/5 sm:block sm:px-10 sm:py-10">
         <div className="flex flex-col gap-8 xl:flex-row xl:items-start xl:justify-between">
           <div className="flex flex-col items-start gap-5 sm:flex-row sm:gap-8">
-            <div className="relative flex h-[104px] w-[104px] items-center justify-center rounded-full bg-[#ffe8dc] text-[52px] font-semibold text-[#ff6a00] sm:h-[132px] sm:w-[132px] sm:text-[68px]">
-              {displayInitial}
-              <button className="absolute bottom-2 right-1 flex h-9 w-9 items-center justify-center rounded-full border border-[#e8e8e8] bg-white text-[#777]">
+            <div className="relative flex h-[104px] w-[104px] items-center justify-center overflow-hidden rounded-full bg-[#ffe8dc] text-[52px] font-semibold text-[#ff6a00] sm:h-[132px] sm:w-[132px] sm:text-[68px]">
+              {settings.profilePhotoUrl ? <Image src={settings.profilePhotoUrl} alt={user.displayName} fill className="object-cover" /> : displayInitial}
+              <Link href="/account/compte/mon-profil" className="absolute bottom-2 right-1 flex h-9 w-9 items-center justify-center rounded-full border border-[#e8e8e8] bg-white text-[#777] transition hover:text-[#ff6a00]">
                 <Camera className="h-4 w-4" />
-              </button>
+              </Link>
             </div>
             <div>
               <h1 className="text-[30px] font-bold tracking-[-0.05em] text-[#222] sm:text-[44px]">{user.displayName}</h1>
@@ -104,22 +91,22 @@ export default async function AccountPage() {
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
                   <span className="min-w-28 text-[#666]">Identifiant de membre</span>
                   <span>{user.id}</span>
-                  <Copy className="h-4 w-4 text-[#777]" />
+                  <CopyUserIdButton value={user.id} />
                 </div>
               </div>
             </div>
           </div>
 
           <div className="flex w-full flex-col gap-3 pt-2 sm:w-auto sm:flex-row sm:items-center sm:gap-6">
-            <button className="inline-flex h-12 items-center justify-center rounded-full bg-[#222] px-8 text-[15px] font-semibold text-white transition hover:bg-black sm:h-14 sm:text-[18px]">
+            <Link href="/account/compte/mon-profil" className="inline-flex h-12 items-center justify-center rounded-full bg-[#222] px-8 text-[15px] font-semibold text-white transition hover:bg-black sm:h-14 sm:text-[18px]">
               Modifier mon profil
-            </button>
+            </Link>
             <UserLogoutButton className="text-left text-[15px] font-semibold text-[#222] transition hover:text-[#ff6a00] sm:text-[18px]">Se deconnecter</UserLogoutButton>
           </div>
         </div>
 
         <div className="mt-10 grid gap-6 xl:grid-cols-2">
-          {accountSections.slice(0, 2).map((section) => {
+          {accountCards.map((section) => {
             const Icon = section.icon;
 
             return (
@@ -130,30 +117,15 @@ export default async function AccountPage() {
                 </div>
                 <div className="space-y-5 pt-6 text-[18px] text-[#333]">
                   {section.items.map((item) => (
-                    <div key={item} className="flex items-center justify-between">
-                      <span>{item}</span>
+                    <Link key={item.slug} href={`/account/compte/${item.slug}`} className="flex items-center justify-between rounded-[16px] px-2 py-2 transition hover:bg-white hover:text-[#ff6a00]">
+                      <span>{item.label}</span>
                       <ChevronRight className="h-5 w-5 text-[#777]" />
-                    </div>
+                    </Link>
                   ))}
                 </div>
               </article>
             );
           })}
-
-          <article className="rounded-[26px] bg-[#fafafa] px-8 py-7 ring-1 ring-black/5 xl:col-span-1">
-            <div className="flex items-center gap-3 border-b border-[#e8e8e8] pb-5 text-[18px] font-semibold text-[#222]">
-              <ShieldCheck className="h-6 w-6" />
-              {accountSections[2].title}
-            </div>
-            <div className="space-y-5 pt-6 text-[18px] text-[#333]">
-              {accountSections[2].items.map((item) => (
-                <div key={item} className="flex items-center justify-between">
-                  <span>{item}</span>
-                  <ChevronRight className="h-5 w-5 text-[#777]" />
-                </div>
-              ))}
-            </div>
-          </article>
         </div>
       </section>
     </InternalPageShell>

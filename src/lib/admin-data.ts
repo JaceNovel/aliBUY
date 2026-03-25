@@ -1,11 +1,21 @@
 import "server-only";
 
-import { type AdminSectionSlug } from "@/lib/admin-config";
 import { getCatalogCategories } from "@/lib/catalog-category-service";
 import { getCatalogProducts } from "@/lib/catalog-service";
-import { getQuoteRequests, getSupportConversations } from "@/lib/customer-data-store";
+import { getQuoteRequests, getSupportConversations, getUserAddresses, getUserFavoriteSlugs, getUserSupportConversations } from "@/lib/customer-data-store";
 import { getSourcingOrders } from "@/lib/sourcing-store";
-import { getStoredUsers } from "@/lib/user-store";
+import { getStoredUserById, getStoredUsers } from "@/lib/user-store";
+
+export type AdminUserRecord = {
+  id: string;
+  displayName: string;
+  email: string;
+  createdAt: string;
+  ordersCount: number;
+  quotesCount: number;
+  conversationsCount: number;
+  status: string;
+};
 
 export type AdminOrderRecord = {
   id: string;
@@ -88,8 +98,7 @@ export async function getAdminSuppliers() {
 }
 
 export async function getAdminMetrics() {
-  const [suppliers, users, orders, products, categories] = await Promise.all([
-    getAdminSuppliers(),
+  const [users, orders, products, categories] = await Promise.all([
     getStoredUsers(),
     getSourcingOrders(),
     getCatalogProducts(),
@@ -163,6 +172,62 @@ export async function getAdminOrders(): Promise<AdminOrderRecord[]> {
       createdAt: order.createdAt,
       href: `/admin/orders/${encodeURIComponent(order.id)}`,
     }));
+}
+
+export async function getAdminUsersOverview(): Promise<AdminUserRecord[]> {
+  const [users, orders, quotes, conversations] = await Promise.all([
+    getStoredUsers(),
+    getSourcingOrders(),
+    getQuoteRequests(),
+    getSupportConversations(),
+  ]);
+
+  return users.map((user) => {
+    const ordersCount = orders.filter((order) => order.userId === user.id || order.customerEmail.toLowerCase() === user.email.toLowerCase()).length;
+    const quotesCount = quotes.filter((quote) => quote.userId === user.id).length;
+    const conversationsCount = conversations.filter((conversation) => conversation.userId === user.id).length;
+    const status = ordersCount > 0 || quotesCount > 0 || conversationsCount > 0 ? "Actif" : "Nouveau";
+
+    return {
+      id: user.id,
+      displayName: user.displayName,
+      email: user.email,
+      createdAt: user.createdAt,
+      ordersCount,
+      quotesCount,
+      conversationsCount,
+      status,
+    };
+  });
+}
+
+export async function getAdminUserDetail(userId: string) {
+  const user = await getStoredUserById(userId);
+  if (!user) {
+    return null;
+  }
+
+  const [addresses, favoriteSlugs, quotes, conversations, orders, products] = await Promise.all([
+    getUserAddresses(userId),
+    getUserFavoriteSlugs(userId),
+    getQuoteRequests(),
+    getUserSupportConversations(userId),
+    getSourcingOrders(),
+    getCatalogProducts(),
+  ]);
+
+  const userQuotes = quotes.filter((quote) => quote.userId === userId);
+  const userOrders = orders.filter((order) => order.userId === userId || order.customerEmail.toLowerCase() === user.email.toLowerCase());
+  const favorites = products.filter((product) => favoriteSlugs.includes(product.slug));
+
+  return {
+    user,
+    addresses,
+    orders: userOrders,
+    quotes: userQuotes,
+    conversations,
+    favorites,
+  };
 }
 
 export async function getAdminOrderById(orderId: string) {

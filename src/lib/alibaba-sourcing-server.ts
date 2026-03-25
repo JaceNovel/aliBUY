@@ -5,12 +5,14 @@ import type { ProductCatalogItem } from "@/lib/products-data";
 import {
   buildCartItemKey,
   createEmptyQuote,
+  convertUsdToFcfa,
   formatFcfa,
   formatVariantSelection,
   getProductSourcingMetrics,
   normalizeVariantSelection,
   type CartComputedItem,
   type CartInputItem,
+  type SourcingDeliveryMode,
   type SourcingSettings,
   type ShippingMethodQuote,
   type VariantSelection,
@@ -60,7 +62,7 @@ export async function getAlibabaSourcingCatalog(settings: SourcingSettings) {
 export async function createAlibabaSourcingQuote(
   inputItems: CartInputItem[],
   settings: SourcingSettings,
-  options?: { disableFreeAir?: boolean },
+  options?: { disableFreeAir?: boolean; deliveryMode?: SourcingDeliveryMode },
 ) {
   const products = await getCatalogProducts();
   const totalQuantityBySlug = new Map<string, number>();
@@ -94,6 +96,16 @@ export async function createAlibabaSourcingQuote(
         selectionLabel,
         matchedVariantSku,
         ...metrics,
+        localChinaFreight: typeof metrics.chinaLocalFreightFcfa === "number" && Number.isFinite(metrics.chinaLocalFreightFcfa) && metrics.chinaLocalFreightFcfa > 0
+          ? { priceFcfa: Math.round(metrics.chinaLocalFreightFcfa), estimated: false }
+          : {
+              priceFcfa: Math.max(
+                convertUsdToFcfa(0.5),
+                Math.round(metrics.weightKg * settings.airRatePerKgFcfa * 0.08),
+                Math.round(metrics.supplierPriceFcfa * 0.025),
+              ),
+              estimated: true,
+            },
         marginAmountFcfa,
         finalUnitPriceFcfa,
       };
@@ -127,12 +139,46 @@ export async function createAlibabaSourcingQuote(
   const cartProductsTotalFcfa = items.reduce((sum, item) => sum + item.finalLinePriceFcfa, 0);
   const totalWeightKg = Number(validItems.reduce((sum, item) => sum + item.weightKg * item.quantity, 0).toFixed(3));
   const totalCbm = Number(validItems.reduce((sum, item) => sum + item.volumeCbm * item.quantity, 0).toFixed(4));
+  const totalLocalChinaFreightFcfa = validItems.reduce((sum, item) => sum + (item.localChinaFreight.priceFcfa * item.quantity), 0);
+  const hasEstimatedLocalFreight = validItems.some((item) => item.localChinaFreight.estimated);
   const airCostFcfa = Math.ceil(totalWeightKg * settings.airRatePerKgFcfa);
   const seaCostFcfa = Math.ceil(totalCbm * settings.seaSellRatePerCbmFcfa);
   const shouldPreferSea = totalWeightKg > settings.airWeightThresholdKg;
   const airIsFree = !options?.disableFreeAir && !shouldPreferSea && settings.freeAirEnabled && cartProductsTotalFcfa >= settings.freeAirThresholdFcfa;
   const showBothOptions = shouldPreferSea;
   const freeAirRemainingFcfa = Math.max(settings.freeAirThresholdFcfa - cartProductsTotalFcfa, 0);
+
+  if (options?.deliveryMode === "forwarder") {
+    return {
+      items,
+      cartProductsTotalFcfa,
+      totalWeightKg,
+      totalCbm,
+      shippingOptions: [
+        {
+          key: "freight",
+          label: "Fret",
+          priceFcfa: totalLocalChinaFreightFcfa,
+          deliveryWindow: "2-5 jours en Chine",
+          isFree: false,
+          tradeLabel: hasEstimatedLocalFreight
+            ? "Routier local Chine · estimation fournisseur -> transitaire"
+            : "Routier local Chine · fournisseur -> transitaire",
+          tradeDescriptor: hasEstimatedLocalFreight ? "Fret local estimé" : "Fret local",
+        },
+      ],
+      recommendedMethod: "freight",
+      freeAirRemainingFcfa: 0,
+      freeShippingMessage: hasEstimatedLocalFreight
+        ? "Le fret local en Chine inclut une estimation quand le fournisseur ne publie pas de montant exploitable."
+        : "Le fret local en Chine couvre seulement le trajet fournisseur -> transitaire.",
+      containerProjection: {
+        targetCbm: settings.containerTargetCbm,
+        projectedCbm: totalCbm,
+        projectedFillPercent: Math.min(100, Math.round((totalCbm / settings.containerTargetCbm) * 100)),
+      },
+    };
+  }
 
   const shippingOptions: ShippingMethodQuote[] = showBothOptions
     ? [

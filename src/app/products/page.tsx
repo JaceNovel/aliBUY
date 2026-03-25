@@ -66,16 +66,6 @@ export default async function ProductsPage({
                 Rechercher
               </button>
             </form>
-            <div className="flex flex-wrap items-center gap-3 text-[13px] text-[#6b7280]">
-              <Link
-                href={`/admin/alibaba-sourcing/import-catalog?q=${encodeURIComponent(query)}&source=text-search`}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#fff2e9] px-5 font-semibold text-[#d85300] transition hover:bg-[#ffe6d5]"
-              >
-                <Sparkles className="h-4 w-4" />
-                Ouvrir en import AI Alibaba
-              </Link>
-              <span>Préremplit l&apos;import Alibaba avec votre requête actuelle.</span>
-            </div>
           </div>
         </section>
 

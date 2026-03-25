@@ -8,11 +8,21 @@ import {
   withSourcingOrderMeta,
 } from "@/lib/alibaba-sourcing";
 import { createAlibabaSourcingQuote, getAlibabaSourcingCatalog } from "@/lib/alibaba-sourcing-server";
+import { getSharedCartByToken, markSharedCartOrdered } from "@/lib/cart-share-store";
 import { createAlibabaSupplierOrders, verifyAlibabaSupplierFreight } from "@/lib/alibaba-open-platform-client";
+import { consumePromoCode, validatePromoCodeForAmount } from "@/lib/promo-codes-store";
 import { createAlibabaIntegrationLog, createSourcingIds, getAlibabaCatalogMappings, getSourcingOrders, getSourcingSeaContainers, getSourcingSettings, saveSourcingOrder, saveSourcingSeaContainer, saveSourcingSettings } from "@/lib/sourcing-store";
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function normalizePersistedUserId(userId?: string) {
+  if (!userId || userId.startsWith("admin:")) {
+    return undefined;
+  }
+
+  return userId;
 }
 
 function createOrderNumber(existingCount: number) {
@@ -88,6 +98,7 @@ async function assignOrderToSeaContainer(order: SourcingOrder, settings: Sourcin
 }
 
 export async function createCheckoutOrder(input: SourcingCheckoutInput) {
+  const persistedUserId = normalizePersistedUserId(input.userId);
   const settings = await getSourcingSettings();
   const deliveryPlan = resolveSourcingDeliveryPlan({
     countryCode: input.countryCode,
@@ -110,12 +121,23 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
 
   const existingOrders = await getSourcingOrders();
   const timestamp = nowIso();
+  const baseTotalPriceFcfa = quote.cartProductsTotalFcfa + shippingOption.priceFcfa;
+  const sharedCart = input.sharedCartToken ? await getSharedCartByToken(input.sharedCartToken) : null;
+
+  if (input.sharedCartToken && !sharedCart) {
+    throw new Error("Le lien de panier partagé est introuvable ou expiré.");
+  }
+
+  const promoAdjustment = input.promoCode
+    ? await validatePromoCodeForAmount({ code: input.promoCode, totalFcfa: baseTotalPriceFcfa })
+    : null;
+  const finalTotalPriceFcfa = promoAdjustment?.finalTotalFcfa ?? baseTotalPriceFcfa;
 
   let order: SourcingOrder = {
     id: createSourcingIds(),
     orderNumber: createOrderNumber(existingOrders.length),
-    userId: input.userId,
-    customerAddressId: input.customerAddressId,
+    userId: persistedUserId,
+    customerAddressId: persistedUserId ? input.customerAddressId : undefined,
     customerName: input.customerName,
     customerEmail: input.customerEmail,
     customerPhone: input.customerPhone,
@@ -129,7 +151,7 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
     shippingMethod: input.shippingMethod,
     shippingCostFcfa: shippingOption.priceFcfa,
     cartProductsTotalFcfa: quote.cartProductsTotalFcfa,
-    totalPriceFcfa: quote.cartProductsTotalFcfa + shippingOption.priceFcfa,
+    totalPriceFcfa: finalTotalPriceFcfa,
     totalWeightKg: quote.totalWeightKg,
     totalVolumeCbm: quote.totalCbm,
     status: input.shippingMethod === "sea" ? "grouped_sea" : "checkout_created",
@@ -147,6 +169,34 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
   order = withSourcingOrderMeta(order, {
     deliveryProfile: deliveryPlan.deliveryProfile,
     workflow: deliveryPlan.workflow,
+    promo: promoAdjustment
+      ? {
+          code: promoAdjustment.promoCode.code,
+          label: promoAdjustment.promoCode.label,
+          discountFcfa: promoAdjustment.discountFcfa,
+          baseTotalFcfa: baseTotalPriceFcfa,
+          finalTotalFcfa: promoAdjustment.finalTotalFcfa,
+          appliedAt: timestamp,
+        }
+      : undefined,
+    sharedCart: sharedCart
+      ? {
+          token: sharedCart.token,
+          ownerUserId: sharedCart.ownerUserId,
+          ownerEmail: sharedCart.ownerEmail,
+          ownerDisplayName: sharedCart.ownerDisplayName,
+          message: sharedCart.message,
+          importedAt: timestamp,
+        }
+      : undefined,
+    paymentContext: {
+      payerUserId: persistedUserId,
+      payerDisplayName: input.payerDisplayName || input.customerName,
+      payerEmail: input.payerEmail || input.customerEmail,
+      createdFromSharedCart: Boolean(sharedCart),
+      thirdPartyCreatorName: sharedCart?.ownerDisplayName,
+      thirdPartyCreatorEmail: sharedCart?.ownerEmail,
+    },
   });
 
   if (input.shippingMethod === "sea") {
@@ -160,6 +210,19 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
   }
 
   await saveSourcingOrder(order);
+
+  if (promoAdjustment) {
+    await consumePromoCode({ code: promoAdjustment.promoCode.code, orderId: order.id });
+  }
+
+  if (sharedCart) {
+    await markSharedCartOrdered({
+      token: sharedCart.token,
+      claimerUserId: persistedUserId ?? "guest",
+      claimerDisplayName: input.payerDisplayName || input.customerName,
+      orderId: order.id,
+    });
+  }
 
   const mappings = await getAlibabaCatalogMappings();
   try {

@@ -12,9 +12,11 @@ import {
   resolveSourcingDeliveryPlan,
   SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES,
   type SourcingDeliveryMode,
+  type ShippingMethodKey,
 } from "@/lib/alibaba-sourcing";
 import { buildAddressQuickInput } from "@/lib/address-autofill";
 import type { CustomerAddressRecord } from "@/lib/customer-addresses";
+import { extractCoordinatesFromGoogleMapsUrl, isGoogleMapsShortUrl } from "@/lib/google-maps";
 import { COUNTRY_CONFIG, type CountryCode } from "@/lib/pricing-options";
 
 const defaultForm = {
@@ -69,21 +71,6 @@ function buildFormFromAddress(address: CustomerAddressRecord, initialUser: Sourc
   };
 }
 
-function extractCoordinatesFromGoogleMapsUrl(value: string) {
-  const normalized = decodeURIComponent(value.trim());
-  const queryMatch = normalized.match(/q=(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/i);
-  if (queryMatch) {
-    return { latitude: Number(queryMatch[1]), longitude: Number(queryMatch[2]) };
-  }
-
-  const atMatch = normalized.match(/@(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/i);
-  if (atMatch) {
-    return { latitude: Number(atMatch[1]), longitude: Number(atMatch[2]) };
-  }
-
-  return null;
-}
-
 function formatSavedAddress(address: CustomerAddressRecord) {
   return [address.addressLine1, address.addressLine2, `${address.city}, ${address.state}`, address.postalCode, address.countryCode]
     .filter(Boolean)
@@ -101,7 +88,7 @@ function isSupportedDirectCountry(code: string) {
 }
 
 export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCode, locale }: SourcingCheckoutClientProps) {
-  const { items, clearCart } = useCart();
+  const { items, clearCart, sharedCartContext, clearSharedCartContext } = useCart();
   const router = useRouter();
   const defaultAddress = savedAddresses.find((address) => address.isDefault) ?? savedAddresses[0];
   const [form, setForm] = useState({
@@ -115,12 +102,16 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
   const [forwarderParcelMarking, setForwarderParcelMarking] = useState("");
   const [useExternalCountryFlow, setUseExternalCountryFlow] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [promoCodeInput, setPromoCodeInput] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; label: string; discountFcfa: number; finalTotalFcfa: number; baseTotalFcfa: number } | null>(null);
+  const [promoMessage, setPromoMessage] = useState<string | null>(null);
+  const [isApplyingPromo, setIsApplyingPromo] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [isResolvingMapsLink, setIsResolvingMapsLink] = useState(false);
   const [locationFeedback, setLocationFeedback] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hasUserSelectedShipping, setHasUserSelectedShipping] = useState(false);
-  const [selectedShipping, setSelectedShipping] = useState<"air" | "sea">("air");
+  const [selectedShipping, setSelectedShipping] = useState<ShippingMethodKey>("air");
 
   const deliveryPlan = useMemo(() => resolveSourcingDeliveryPlan({
     countryCode: form.countryCode,
@@ -141,7 +132,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
     },
   }), [deliveryMode, form.city, form.countryCode, form.googleMapsUrl, forwarderAddressBlock, forwarderParcelMarking]);
 
-  const { quote, isLoading } = useCartQuote({ disableFreeAir: !deliveryPlan.workflow.freeDeliveryEligible });
+  const { quote, isLoading } = useCartQuote({ disableFreeAir: !deliveryPlan.workflow.freeDeliveryEligible, deliveryMode });
   const shippingOptions = quote.shippingOptions;
 
   useEffect(() => {
@@ -167,8 +158,20 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
   }, [deliveryMode, deliveryPlan.deliveryProfile.mode]);
 
   const selectedOption = useMemo(() => shippingOptions.find((option) => option.key === selectedShipping) ?? shippingOptions[0] ?? null, [selectedShipping, shippingOptions]);
-  const totalPrice = quote.cartProductsTotalFcfa + (selectedOption?.priceFcfa ?? 0);
+  const baseTotalPrice = quote.cartProductsTotalFcfa + (selectedOption?.priceFcfa ?? 0);
+  const totalPrice = appliedPromo?.baseTotalFcfa === baseTotalPrice ? appliedPromo.finalTotalFcfa : baseTotalPrice;
   const quickAddress = useMemo(() => buildAddressQuickInput(form), [form]);
+
+  useEffect(() => {
+    if (!appliedPromo) {
+      return;
+    }
+
+    if (appliedPromo.baseTotalFcfa !== baseTotalPrice) {
+      setAppliedPromo(null);
+      setPromoMessage("Le panier a changé. Réappliquez le code promo.");
+    }
+  }, [appliedPromo, baseTotalPrice]);
 
   const updateFormField = <Key extends keyof typeof form>(key: Key, value: (typeof form)[Key]) => {
     setForm((current) => ({
@@ -272,7 +275,33 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
   };
 
   const resolveMapsLink = async () => {
-    const coordinates = extractCoordinatesFromGoogleMapsUrl(form.googleMapsUrl);
+    let coordinates = extractCoordinatesFromGoogleMapsUrl(form.googleMapsUrl);
+
+    if (!coordinates && isGoogleMapsShortUrl(form.googleMapsUrl)) {
+      setIsResolvingMapsLink(true);
+      setErrorMessage(null);
+      setLocationFeedback(null);
+      try {
+        const response = await fetch("/api/location/resolve-maps-link", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ url: form.googleMapsUrl }),
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.coordinates) {
+          throw new Error(payload?.message || "Impossible de lire ce lien Google Maps.");
+        }
+
+        coordinates = payload.coordinates;
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : "Impossible de lire cette position Maps.");
+        setIsResolvingMapsLink(false);
+        return;
+      }
+    }
+
     if (!coordinates) {
       setErrorMessage("Le lien Google Maps doit contenir des coordonnées exploitables.");
       return;
@@ -295,8 +324,13 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
       return;
     }
 
-    if (!form.customerName || !form.customerPhone || !form.city) {
-      setErrorMessage("Le nom, le téléphone et la ville sont obligatoires.");
+    if (!form.customerName || !form.customerPhone) {
+      setErrorMessage("Le nom et le téléphone sont obligatoires.");
+      return;
+    }
+
+    if (deliveryMode === "direct" && !form.city) {
+      setErrorMessage("La ville est obligatoire pour la livraison directe.");
       return;
     }
 
@@ -320,9 +354,22 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
       },
       body: JSON.stringify({
         ...form,
+        ...(deliveryMode === "forwarder"
+          ? {
+              googleMapsUrl: undefined,
+              addressLine1: forwarderAddressBlock.split(/\r?\n|,/).map((entry) => entry.trim()).filter(Boolean)[0] || "Adresse du transitaire en Chine",
+              addressLine2: undefined,
+              city: "Shenzhen",
+              state: "Guangdong",
+              postalCode: undefined,
+              countryCode: "CN",
+            }
+          : {}),
         shippingMethod: selectedOption.key,
         items,
         deliveryProfile: deliveryPlan.deliveryProfile,
+        promoCode: appliedPromo?.code,
+        sharedCartToken: sharedCartContext?.token,
       }),
     });
 
@@ -341,7 +388,48 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
 
     const payload = await response.json();
     clearCart();
+    clearSharedCartContext();
     router.push(`/orders/payment?orderId=${encodeURIComponent(payload.order.id)}`);
+  };
+
+  const applyPromoCode = async () => {
+    if (!promoCodeInput.trim()) {
+      setPromoMessage("Saisissez un code promo.");
+      return;
+    }
+
+    setIsApplyingPromo(true);
+    setPromoMessage(null);
+    try {
+      const response = await fetch("/api/promo-codes/preview", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          code: promoCodeInput,
+          totalFcfa: baseTotalPrice,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.promoCode) {
+        setAppliedPromo(null);
+        setPromoMessage(typeof payload?.message === "string" ? payload.message : "Code promo invalide.");
+        return;
+      }
+
+      setAppliedPromo({
+        code: payload.promoCode.code,
+        label: payload.promoCode.label,
+        discountFcfa: payload.discountFcfa,
+        finalTotalFcfa: payload.finalTotalFcfa,
+        baseTotalFcfa: baseTotalPrice,
+      });
+      setPromoCodeInput(payload.promoCode.code);
+      setPromoMessage(`Code ${payload.promoCode.code} appliqué.`);
+    } finally {
+      setIsApplyingPromo(false);
+    }
   };
 
   if (items.length === 0) {
@@ -362,12 +450,18 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
       <section className="rounded-[30px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)] sm:p-7">
         <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Checkout sourcing</div>
         <h1 className="mt-2 text-[26px] font-black tracking-[-0.05em] text-[#1f2937] sm:text-[30px]">Adresse, agent et livraison finale</h1>
-        <p className="mt-3 text-[13px] leading-6 text-[#667085] sm:text-[14px]">Choisissez un pays livré directement par AfriPay. Si votre pays n'est pas dans la liste, passez par votre agent en Chine.</p>
+        <p className="mt-3 text-[13px] leading-6 text-[#667085] sm:text-[14px]">Choisissez un pays livré directement par AfriPay. Si votre pays n&apos;est pas dans la liste, passez par votre agent en Chine.</p>
+
+        {sharedCartContext ? (
+          <div className="mt-5 rounded-[18px] border border-[#d8e5fb] bg-[#eef6ff] px-4 py-4 text-[13px] leading-6 text-[#1d4f91]">
+            Vous validez un panier créé par <span className="font-semibold">{sharedCartContext.ownerDisplayName}</span>. La commande sera gérée depuis votre compte payeur, avec mention claire du créateur tiers dans l’historique.
+          </div>
+        ) : null}
 
         <div className="mt-5 rounded-[24px] bg-[linear-gradient(135deg,#fff7ef_0%,#ffffff_52%,#eef6ff_100%)] p-4 ring-1 ring-[#f1ddcd] sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85300]">Carnet d'adresses</div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85300]">Carnet d&apos;adresses</div>
               <div className="mt-1 text-[13px] text-[#5f534a] sm:text-[14px]">Sélectionnez une adresse existante ou saisissez une nouvelle destination.</div>
             </div>
             <Link href="/account/addresses" className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[#e3c9b8] bg-white px-4 text-[13px] font-semibold text-[#49352a] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
@@ -415,7 +509,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
         {errorMessage ? <div className="mt-4 rounded-[18px] bg-[#fde8e8] px-4 py-4 text-[13px] font-semibold text-[#b42318]">{errorMessage}</div> : null}
         {locationFeedback ? <div className="mt-4 rounded-[18px] bg-[#eef6ff] px-4 py-4 text-[13px] font-semibold text-[#1d4f91]">{locationFeedback}</div> : null}
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <div className="mt-6 grid gap-4 sm:grid-cols-3">
           <label className="text-[13px] font-semibold text-[#344054]">
             Nom complet
             <input value={form.customerName} onChange={(event) => updateFormField("customerName", event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
@@ -424,8 +518,12 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
             Email
             <input value={form.customerEmail} onChange={(event) => updateFormField("customerEmail", event.target.value)} type="email" autoComplete="email" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
           </label>
+          <label className="text-[13px] font-semibold text-[#344054]">
+            Téléphone (WhatsApp)
+            <input value={form.customerPhone} onChange={(event) => updateFormField("customerPhone", event.target.value)} autoComplete="tel" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+          </label>
 
-          <div className="sm:col-span-2 rounded-[20px] border border-[#dce3ec] bg-[#fbfcfe] p-4 sm:rounded-[24px] sm:p-5">
+          <div className="sm:col-span-3 rounded-[20px] border border-[#dce3ec] bg-[#fbfcfe] p-4 sm:rounded-[24px] sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a00]">Mode de livraison</div>
@@ -440,7 +538,9 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
               </div>
             </div>
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-[1.3fr_0.7fr]">
+            {deliveryMode === "direct" ? (
+              <>
+                <div className="mt-5 grid gap-4 sm:grid-cols-[1.3fr_0.7fr]">
               <label className="text-[13px] font-semibold text-[#344054]">
                 Lien Google Maps
                 <input value={form.googleMapsUrl} onChange={(event) => updateFormField("googleMapsUrl", event.target.value)} placeholder="https://www.google.com/maps?q=..." className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
@@ -451,14 +551,10 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
               </div>
             </div>
 
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <label className="text-[13px] font-semibold text-[#344054]">
                 Ville
                 <input value={form.city} onChange={(event) => updateFormField("city", event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
-              </label>
-              <label className="text-[13px] font-semibold text-[#344054]">
-                Téléphone (WhatsApp)
-                <input value={form.customerPhone} onChange={(event) => updateFormField("customerPhone", event.target.value)} autoComplete="tel" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
               </label>
               <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
                 Adresse exacte
@@ -472,7 +568,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
                   ))}
                 </select>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] font-medium text-[#667085]">
-                  <span>Votre pays n'est pas dans la liste ?</span>
+                  <span>Votre pays n&apos;est pas dans la liste ?</span>
                   <button type="button" onClick={enableExternalCountryFlow} className="inline-flex items-center justify-center rounded-full border border-[#d7dce5] px-3 py-1 text-[12px] font-semibold text-[#111827] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">Cliquez ici</button>
                 </div>
               </label>
@@ -490,7 +586,9 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
                 Résumé détecté
                 <input value={quickAddress} readOnly className="mt-2 h-11 w-full rounded-[14px] border border-[#e3e8ef] bg-[#f8fafc] px-4 text-[13px] text-[#667085] outline-none" />
               </label>
-            </div>
+                </div>
+              </>
+            ) : null}
 
             {deliveryPlan.deliveryProfile.unsupportedCountry && deliveryMode !== "forwarder" ? (
               <div className="mt-4 rounded-[18px] border border-[#f8d7a6] bg-[#fff8ee] px-4 py-4 text-[13px] leading-6 text-[#8a4b16]">
@@ -498,8 +596,8 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   <div>
                     <div className="font-semibold">{deliveryPlan.deliveryProfile.unsupportedMessage}</div>
-                    <div className="mt-1">Utilisez un agent en Chine. AfriPay n'applique pas la livraison gratuite et la commande sera considérée livrée dès remise à votre agent.</div>
-                    <button type="button" onClick={() => setDeliveryMode("forwarder")} className="mt-3 inline-flex h-10 items-center justify-center rounded-full bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]">Mettre l'adresse du transitaire</button>
+                    <div className="mt-1">Utilisez un agent en Chine. AfriPay n&apos;applique pas la livraison gratuite et la commande sera considérée livrée dès remise à votre agent.</div>
+                    <button type="button" onClick={() => setDeliveryMode("forwarder")} className="mt-3 inline-flex h-10 items-center justify-center rounded-full bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]">Mettre l&apos;adresse du transitaire</button>
                   </div>
                 </div>
               </div>
@@ -508,11 +606,11 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
             {deliveryMode === "forwarder" ? (
               <div className="mt-4 rounded-[20px] border border-[#dbe7f5] bg-[#f6fbff] p-4">
                 <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#1d4f91]">Agent en Chine</div>
-                <div className="mt-1 text-[13px] text-[#56708d] sm:text-[14px]">Collez l'adresse complète fournie par votre agent en Chine puis ajoutez le marquage du colis.</div>
+                <div className="mt-1 text-[13px] text-[#56708d] sm:text-[14px]">Collez l&apos;adresse complète fournie par votre agent en Chine puis ajoutez le marquage du colis.</div>
                 <div className="mt-4 grid gap-4">
                   <label className="text-[13px] font-semibold text-[#344054]">
                     Adresse complète du transitaire
-                    <textarea value={forwarderAddressBlock} onChange={(event) => setForwarderAddressBlock(event.target.value)} placeholder="Collez ici le bloc d'adresse complet donné par votre agent" className="mt-2 min-h-[120px] w-full rounded-[18px] border border-[#d7dce5] px-4 py-3 text-[14px] text-[#111827] outline-none focus:border-[#1d4f91]" />
+                    <textarea value={forwarderAddressBlock} onChange={(event) => setForwarderAddressBlock(event.target.value)} placeholder="Collez ici le bloc d&apos;adresse complet donné par votre agent" className="mt-2 min-h-[120px] w-full rounded-[18px] border border-[#d7dce5] px-4 py-3 text-[14px] text-[#111827] outline-none focus:border-[#1d4f91]" />
                   </label>
                   <label className="text-[13px] font-semibold text-[#344054]">
                     Informations à mettre sur le colis
@@ -520,13 +618,13 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
                   </label>
                 </div>
                 <div className="mt-4 rounded-[16px] bg-white px-4 py-3 text-[13px] leading-6 text-[#43556c] ring-1 ring-[#dbe7f5]">
-                  Adresse agent Chine sélectionnée: AfriPay n'applique pas la livraison gratuite et la commande sera clôturée dès remise au transitaire.
+                  Adresse agent Chine sélectionnée: AfriPay n&apos;applique pas la livraison gratuite et la commande sera clôturée dès remise au transitaire.
                 </div>
               </div>
             ) : null}
           </div>
 
-          <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
+          <label className="sm:col-span-3 text-[13px] font-semibold text-[#344054]">
             Note de commande
             <textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} className="mt-2 min-h-[120px] w-full rounded-[18px] border border-[#d7dce5] px-4 py-3 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
           </label>
@@ -547,17 +645,18 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
 
         <section className="rounded-[28px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)]">
           <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Choix de livraison</div>
-          {quote.recommendedMethod === "sea" ? <div className="mt-3 rounded-[18px] bg-[#eef6ff] px-4 py-3 text-[13px] font-medium text-[#1d4f91]">Au-dessus de 1 kg, le bateau est recommandé et l'avion reste disponible si vous voulez payer l'express.</div> : null}
+          {deliveryMode === "direct" && quote.recommendedMethod === "sea" ? <div className="mt-3 rounded-[18px] bg-[#eef6ff] px-4 py-3 text-[13px] font-medium text-[#1d4f91]">Au-dessus de 1 kg, le bateau est recommandé et l&apos;avion reste disponible si vous voulez payer l&apos;express.</div> : null}
+          {deliveryMode === "forwarder" ? <div className="mt-3 rounded-[18px] bg-[#eef6ff] px-4 py-3 text-[13px] font-medium text-[#1d4f91]">Pour une adresse agent en Chine, seul le fret local fournisseur -&gt; transitaire est facturé.</div> : null}
           <div className="mt-4 space-y-3">
             {shippingOptions.map((option) => {
-              const Icon = option.key === "air" ? Truck : Ship;
+              const Icon = option.key === "air" ? Truck : option.key === "sea" ? Ship : Truck;
 
               return (
                 <button key={option.key} type="button" onClick={() => {
                   setHasUserSelectedShipping(true);
                   setSelectedShipping(option.key);
                 }} className={["flex w-full items-start gap-3 rounded-[20px] border px-4 py-4 text-left transition", selectedShipping === option.key ? "border-[#ff6a00] bg-[#fff5ed]" : "border-[#e6eaf0] bg-white hover:border-[#ffb48a]"].join(" ")}>
-                  <div className={["mt-0.5 inline-flex h-10 w-10 items-center justify-center rounded-[14px]", option.key === "air" ? "bg-[#fff0e6] text-[#ff6a00]" : "bg-[#eaf3ff] text-[#2f67f6]"].join(" ")}>
+                  <div className={["mt-0.5 inline-flex h-10 w-10 items-center justify-center rounded-[14px]", option.key === "air" ? "bg-[#fff0e6] text-[#ff6a00]" : option.key === "sea" ? "bg-[#eaf3ff] text-[#2f67f6]" : "bg-[#eef6ff] text-[#1d4f91]"].join(" ")}>
                     <Icon className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -580,7 +679,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
             <div className="text-[16px] font-bold text-[#1f2937]">{formatSourcingAmount(quote.cartProductsTotalFcfa, { currencyCode, locale })}</div>
           </div>
           <div className="mt-3 flex items-center justify-between">
-            <div className="text-[16px] font-semibold text-[#1f2937]">Livraison</div>
+            <div className="text-[16px] font-semibold text-[#1f2937]">{deliveryMode === "forwarder" ? "Fret" : "Livraison"}</div>
             <div className="text-[16px] font-bold text-[#1f2937]">{selectedOption ? (selectedOption.isFree ? "Gratuite" : formatSourcingAmount(selectedOption.priceFcfa, { currencyCode, locale })) : formatSourcingAmount(0, { currencyCode, locale })}</div>
           </div>
           <div className="mt-3 flex items-center justify-between text-[13px] text-[#667085]">
@@ -593,8 +692,24 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
           </div>
           <div className="mt-1 flex items-center justify-between text-[13px] text-[#667085]">
             <span>Route logistique</span>
-            <span>{deliveryPlan.workflow.routeType === "customer-forwarder" ? "Vers votre agent en Chine" : "Livraison AfriPay"}</span>
+            <span>{deliveryPlan.workflow.routeType === "customer-forwarder" ? "Fournisseur -> transitaire Chine" : "Livraison AfriPay"}</span>
           </div>
+          <div className="mt-4 rounded-[18px] border border-[#edf1f6] bg-[#f8fafc] p-4">
+            <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a00]">Code promo</div>
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+              <input value={promoCodeInput} onChange={(event) => setPromoCodeInput(event.target.value.toUpperCase())} placeholder="Ex: WELCOME10" className="h-11 flex-1 rounded-[14px] border border-[#d7dce5] bg-white px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+              <button type="button" onClick={applyPromoCode} disabled={isApplyingPromo || !selectedOption} className="inline-flex h-11 items-center justify-center rounded-full bg-[#143743] px-5 text-[13px] font-semibold text-white transition hover:bg-[#102d36] disabled:cursor-not-allowed disabled:opacity-70">
+                {isApplyingPromo ? "Vérification..." : "Appliquer"}
+              </button>
+            </div>
+            {promoMessage ? <div className="mt-3 text-[12px] font-medium text-[#475467]">{promoMessage}</div> : null}
+          </div>
+          {appliedPromo?.baseTotalFcfa === baseTotalPrice ? (
+            <div className="mt-3 flex items-center justify-between text-[15px] font-semibold text-[#1d4f91]">
+              <span>Réduction {appliedPromo.code}</span>
+              <span>-{formatSourcingAmount(appliedPromo.discountFcfa, { currencyCode, locale })}</span>
+            </div>
+          ) : null}
           <div className="mt-4 border-t border-[#edf1f6] pt-4">
             <div className="flex items-center justify-between">
               <div className="text-[18px] font-black tracking-[-0.04em] text-[#1f2937]">Total</div>

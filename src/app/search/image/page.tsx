@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Camera, Search, Sparkles } from "lucide-react";
+import { Camera, Search } from "lucide-react";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { getCatalogProductsBySlugs } from "@/lib/catalog-service";
@@ -47,17 +47,6 @@ export default async function ImageSearchPage({
               Nouvelle recherche
             </Link>
           </div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-3 text-[13px] text-[#6b7280]">
-            <Link
-              href={`/admin/alibaba-sourcing/import-catalog?q=${encodeURIComponent(name)}&source=image-search`}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#fff2e9] px-5 font-semibold text-[#d85300] transition hover:bg-[#ffe6d5]"
-            >
-              <Sparkles className="h-4 w-4" />
-              Envoyer vers l&apos;import AI Alibaba
-            </Link>
-            <span>Utilise le nom du fichier comme point de départ pour une recherche/import Alibaba assisté.</span>
-          </div>
         </section>
 
         {results.length > 0 ? (
@@ -82,7 +71,7 @@ export default async function ImageSearchPage({
           <section className="rounded-[30px] bg-white px-6 py-8 text-center shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5">
             <h2 className="text-[30px] font-bold tracking-[-0.04em] text-[#222]">Aucun resultat visuel</h2>
             <p className="mx-auto mt-3 max-w-[620px] text-[16px] leading-8 text-[#555]">
-              Aucun produit importe et publie ne correspond encore a cette image. Importez vos articles depuis l&apos;admin Alibaba puis relancez la recherche.
+              Aucun produit publié ne correspond encore à cette image. Essayez une autre image ou relancez une recherche avec un autre visuel.
             </p>
             <Link href="/" className="mt-6 inline-flex h-13 items-center justify-center rounded-full bg-[#ff6a00] px-7 text-[16px] font-semibold text-white transition hover:bg-[#ec6100]">
               Retour a l&apos;accueil

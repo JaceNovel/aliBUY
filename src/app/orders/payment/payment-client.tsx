@@ -23,12 +23,17 @@ type SourcingPaymentOrder = {
   total: string;
   image: string;
   itemCount: number;
-  shippingMethod: "air" | "sea";
+  shippingMethod: "air" | "sea" | "freight";
   paymentStatus: "unpaid" | "initialized" | "pending" | "paid" | "failed" | "cancelled";
   monerooPaymentId?: string;
   monerooCheckoutUrl?: string;
   monerooPaymentStatus?: string;
   paymentCurrency: string;
+  promoCode?: string;
+  promoDiscountLabel?: string;
+  originalTotal?: string;
+  thirdPartyCartCreatorName?: string;
+  thirdPartyCartNotice?: string;
   returnPaymentId?: string;
   returnPaymentStatus?: string;
 };
@@ -64,10 +69,16 @@ export function PaymentClient({ order }: PaymentClientProps) {
   const [selectedMethod, setSelectedMethod] = useState(methods[0].key);
   const [isPaid, setIsPaid] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState(order.kind === "sourcing" ? order.paymentStatus : "unpaid");
+  const [promoCode, setPromoCode] = useState(order.kind === "sourcing" ? order.promoCode ?? "" : "");
+  const [promoDiscountLabel, setPromoDiscountLabel] = useState(order.kind === "sourcing" ? order.promoDiscountLabel : undefined);
+  const [displayTotal, setDisplayTotal] = useState(order.total);
+  const [originalTotal, setOriginalTotal] = useState(order.kind === "sourcing" ? order.originalTotal : undefined);
+  const [promoInput, setPromoInput] = useState("");
   const [monerooPaymentId, setMonerooPaymentId] = useState(order.kind === "sourcing" ? order.monerooPaymentId : undefined);
   const [monerooCheckoutUrl, setMonerooCheckoutUrl] = useState(order.kind === "sourcing" ? order.monerooCheckoutUrl : undefined);
   const [isInitializing, setIsInitializing] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isApplyingPromo, setIsApplyingPromo] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const verifiedPaymentIdRef = useRef<string | null>(null);
 
@@ -191,8 +202,47 @@ export function PaymentClient({ order }: PaymentClientProps) {
     }
   };
 
+  const applyPromoCode = async () => {
+    if (order.kind !== "sourcing") {
+      return;
+    }
+
+    if (!promoInput.trim()) {
+      setFeedbackMessage("Saisissez un code promo.");
+      return;
+    }
+
+    setIsApplyingPromo(true);
+    setFeedbackMessage(null);
+
+    try {
+      const response = await fetch(`/api/alibaba-sourcing/orders/${encodeURIComponent(order.id)}/promo`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ code: promoInput }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.order) {
+        throw new Error(payload?.message || "Impossible d'appliquer ce code promo.");
+      }
+
+      setPromoCode(payload.promoCode || promoInput.trim().toUpperCase());
+      setPromoDiscountLabel(payload.promoDiscountLabel);
+      setOriginalTotal(payload.originalTotal);
+      setDisplayTotal(payload.total || order.total);
+      setFeedbackMessage(`Code ${payload.promoCode} appliqué sur la commande.`);
+    } catch (error) {
+      setFeedbackMessage(error instanceof Error ? error.message : "Impossible d'appliquer ce code promo.");
+    } finally {
+      setIsApplyingPromo(false);
+    }
+  };
+
   if (order.kind === "sourcing") {
-    const shippingLabel = order.shippingMethod === "sea" ? "Fret maritime groupe" : "Fret aerien";
+    const shippingLabel = order.shippingMethod === "sea" ? "Fret maritime groupe" : order.shippingMethod === "freight" ? "Fret local Chine" : "Fret aerien";
     const statusLabel = getPaymentStatusLabel(paymentStatus);
 
     return (
@@ -206,6 +256,7 @@ export function PaymentClient({ order }: PaymentClientProps) {
           <p className="mt-2 max-w-[760px] text-[14px] leading-6 text-[#666] sm:text-[16px] sm:leading-8">
             AfriPay initialise un checkout Moneroo securise pour encaisser la commande en {order.paymentCurrency}. Une verification serveur est relancee au retour pour confirmer le statut reel.
           </p>
+          {order.thirdPartyCartNotice ? <div className="mt-4 rounded-[18px] border border-[#d8e5fb] bg-[#eef6ff] px-4 py-4 text-[14px] font-medium text-[#1d4f91]">{order.thirdPartyCartNotice}</div> : null}
 
           {feedbackMessage ? (
             <div className={["mt-5 rounded-[18px] border px-4 py-4 text-[14px] font-medium", paymentStatus === "paid" ? "border-[#c8ead1] bg-[#effbf2] text-[#1f7a39]" : paymentStatus === "failed" || paymentStatus === "cancelled" ? "border-[#f5c2c7] bg-[#fff1f2] text-[#b42318]" : "border-[#f3d7bf] bg-[#fff7f1] text-[#8a4b16]"].join(" ")}>
@@ -249,11 +300,33 @@ export function PaymentClient({ order }: PaymentClientProps) {
             })}
           </div>
 
+          {paymentStatus === "unpaid" ? (
+            <div className="mt-6 rounded-[20px] border border-[#e7ebf1] bg-[#f8fafc] px-4 py-4">
+              <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a00]">Code promo</div>
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+                <input
+                  value={promoInput}
+                  onChange={(event) => setPromoInput(event.target.value.toUpperCase())}
+                  placeholder={promoCode || "Ex: WELCOME10"}
+                  className="h-11 flex-1 rounded-[14px] border border-[#d7dce5] bg-white px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]"
+                />
+                <button
+                  type="button"
+                  onClick={applyPromoCode}
+                  disabled={isApplyingPromo || isInitializing || isVerifying || Boolean(promoCode)}
+                  className="inline-flex h-11 items-center justify-center rounded-full bg-[#143743] px-5 text-[13px] font-semibold text-white transition hover:bg-[#102d36] disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {promoCode ? "Déjà appliqué" : isApplyingPromo ? "Application..." : "Appliquer"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <button
               type="button"
               onClick={initializeMonerooCheckout}
-              disabled={isInitializing || isVerifying || paymentStatus === "paid"}
+              disabled={isInitializing || isVerifying || isApplyingPromo || paymentStatus === "paid"}
               className="inline-flex h-12 items-center justify-center rounded-full bg-[#ea5c00] px-6 text-[15px] font-semibold text-white transition hover:bg-[#d85400] disabled:cursor-not-allowed disabled:opacity-70"
             >
               {paymentStatus === "paid" ? "Commande payee" : isInitializing ? "Ouverture du checkout..." : paymentStatus === "initialized" || paymentStatus === "pending" ? "Reprendre le paiement" : "Payer avec Moneroo"}
@@ -288,10 +361,23 @@ export function PaymentClient({ order }: PaymentClientProps) {
             <div className="flex items-center justify-between gap-4">
               <div>
                 <div className="text-[12px] text-[#777]">Montant a payer</div>
-                <div className="mt-1 text-[22px] font-bold tracking-[-0.04em] text-[#ea5c00]">{order.total}</div>
+                <div className="mt-1 text-[22px] font-bold tracking-[-0.04em] text-[#ea5c00]">{displayTotal}</div>
+                {originalTotal ? <div className="mt-1 text-[12px] text-[#667085]">Avant réduction: {originalTotal}</div> : null}
               </div>
               <div className="rounded-full bg-[#fff2e9] px-3 py-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#d85300]">{statusLabel}</div>
             </div>
+            {promoCode && promoDiscountLabel ? (
+              <div>
+                <div className="text-[12px] text-[#777]">Code promo</div>
+                <div className="mt-1 text-[15px] font-semibold text-[#1f7a39]">{promoCode} · -{promoDiscountLabel}</div>
+              </div>
+            ) : null}
+            {order.thirdPartyCartCreatorName ? (
+              <div>
+                <div className="text-[12px] text-[#777]">Créateur du panier tiers</div>
+                <div className="mt-1 text-[15px] font-semibold text-[#222]">{order.thirdPartyCartCreatorName}</div>
+              </div>
+            ) : null}
             <div>
               <div className="text-[12px] text-[#777]">Livraison</div>
               <div className="mt-1 text-[15px] font-semibold text-[#222]">{shippingLabel}</div>

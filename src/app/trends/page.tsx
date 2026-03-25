@@ -122,7 +122,7 @@ export default async function TrendsPage() {
             <div className="mt-5 rounded-[24px] bg-[#fff7f2] px-5 py-8 text-center ring-1 ring-[#f4d8c6]">
               <h2 className="text-[26px] font-bold tracking-[-0.04em] text-[#222]">Aucune tendance publiee</h2>
               <p className="mx-auto mt-3 max-w-[680px] text-[15px] leading-7 text-[#666]">
-                Les articles de demonstration ont ete retires. Cette page affichera uniquement les produits publies sur le site.
+                Les tendances apparaîtront ici automatiquement à partir des produits réellement publiés sur le site.
               </p>
             </div>
           )}
