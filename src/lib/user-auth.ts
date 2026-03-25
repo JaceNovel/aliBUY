@@ -4,27 +4,30 @@ import "server-only";
 
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
-import { cookies } from "next/headers";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 
-import { isAdminEmail, validateAdminCredentials } from "@/lib/admin-auth";
-import { createUserSessionToken, getUserSessionMaxAgeSeconds, parseUserSessionToken, USER_SESSION_COOKIE } from "@/lib/user-session";
-import { createStoredUser, getStoredUserByEmail, getStoredUserById, type StoredUser } from "@/lib/user-store";
+import { createUserSessionToken, getUserSessionMaxAgeSeconds, USER_SESSION_COOKIE } from "@/lib/user-session";
+import { createStoredUser, getStoredUserById, type StoredUser, upsertStoredUserFromClerk } from "@/lib/user-store";
 
 export type AuthenticatedUser = {
   id: string;
+  clerkUserId: string | null;
   email: string;
   displayName: string;
   firstName: string;
   createdAt: string;
+  authProvider: "clerk" | "legacy";
 };
 
 function toAuthenticatedUser(user: StoredUser): AuthenticatedUser {
   return {
     id: user.id,
+    clerkUserId: user.clerkUserId,
     email: user.email,
     displayName: user.displayName,
     firstName: user.firstName,
     createdAt: user.createdAt,
+    authProvider: user.clerkUserId ? "clerk" : "legacy",
   };
 }
 
@@ -53,6 +56,25 @@ function deriveDisplayName(email: string) {
     .join(" ");
 }
 
+function getPrimaryEmailAddress(clerkUser: {
+  primaryEmailAddressId: string | null;
+  emailAddresses: Array<{ id: string; emailAddress: string }>;
+}) {
+  return clerkUser.emailAddresses.find((email) => email.id === clerkUser.primaryEmailAddressId)?.emailAddress
+    ?? clerkUser.emailAddresses[0]?.emailAddress
+    ?? null;
+}
+
+function getClerkDisplayName(clerkUser: {
+  fullName: string | null;
+  firstName: string | null;
+  emailAddresses: Array<{ id: string; emailAddress: string }>;
+  primaryEmailAddressId: string | null;
+}) {
+  const primaryEmail = getPrimaryEmailAddress(clerkUser);
+  return clerkUser.fullName?.trim() || clerkUser.firstName?.trim() || deriveDisplayName(primaryEmail ?? "");
+}
+
 export function getUserSessionCookieConfig() {
   return {
     name: USER_SESSION_COOKIE,
@@ -75,6 +97,10 @@ export function hashUserPassword(password: string, saltHex = randomBytes(16).toS
 }
 
 function verifyPassword(password: string, user: StoredUser) {
+  if (!user.passwordHash || !user.passwordSalt) {
+    return false;
+  }
+
   const { passwordHash } = hashUserPassword(password, user.passwordSalt);
   const expected = Buffer.from(user.passwordHash, "hex");
   const actual = Buffer.from(passwordHash, "hex");
@@ -88,7 +114,7 @@ function verifyPassword(password: string, user: StoredUser) {
 
 export async function verifyUserPasswordById(userId: string, password: string) {
   const user = await getStoredUserById(userId);
-  if (!user) {
+  if (!user || !user.passwordHash || !user.passwordSalt) {
     return false;
   }
 
@@ -123,31 +149,9 @@ export async function registerUser(input: {
 }
 
 export async function validateUserCredentials(email: string, password: string) {
-  const user = await getStoredUserByEmail(email);
-  if (!user) {
-    if (isAdminEmail(email) && await validateAdminCredentials(email, password).catch(() => false)) {
-      const normalizedEmail = email.trim().toLowerCase();
-      return {
-        id: `admin:${normalizedEmail}`,
-        email: normalizedEmail,
-        displayName: "Admin AfriPay",
-        firstName: "Admin",
-        createdAt: new Date(0).toISOString(),
-      } satisfies AuthenticatedUser;
-    }
-
-    return null;
-  }
-
-  if (!verifyPassword(password, user)) {
-    if (isAdminEmail(email) && await validateAdminCredentials(email, password).catch(() => false)) {
-      return toAuthenticatedUser(user);
-    }
-
-    return null;
-  }
-
-  return toAuthenticatedUser(user);
+  void email;
+  void password;
+  return null;
 }
 
 export async function createAuthenticatedUserSession(user: AuthenticatedUser) {
@@ -159,29 +163,29 @@ export async function createAuthenticatedUserSession(user: AuthenticatedUser) {
 }
 
 export const getCurrentUser = cache(async function getCurrentUser() {
-  const cookieStore = await cookies();
-  const session = await parseUserSessionToken(cookieStore.get(USER_SESSION_COOKIE)?.value);
-
-  if (!session) {
+  const { userId } = await auth();
+  if (!userId) {
     return null;
   }
 
-  const user = await getStoredUserById(session.sub);
-  if (!user) {
-    if (isAdminEmail(session.email)) {
-      return {
-        id: session.sub,
-        email: session.email,
-        displayName: session.displayName,
-        firstName: session.firstName,
-        createdAt: new Date(0).toISOString(),
-      } satisfies AuthenticatedUser;
-    }
-
+  const client = await clerkClient();
+  const clerkUser = await client.users.getUser(userId).catch(() => null);
+  if (!clerkUser) {
     return null;
   }
 
-  return toAuthenticatedUser(user);
+  const email = getPrimaryEmailAddress(clerkUser);
+  if (!email) {
+    return null;
+  }
+
+  const syncedUser = await upsertStoredUserFromClerk({
+    clerkUserId: clerkUser.id,
+    email,
+    displayName: getClerkDisplayName(clerkUser),
+  });
+
+  return toAuthenticatedUser(syncedUser);
 });
 
 export async function isUserAuthenticated() {

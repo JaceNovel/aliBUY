@@ -1,5 +1,6 @@
 "use client";
 
+import { useClerk } from "@clerk/nextjs";
 import {
   BadgePercent,
   Bell,
@@ -48,13 +49,12 @@ type AdminShellProps = {
 };
 
 export function AdminShell({ children }: AdminShellProps) {
+  const clerk = useClerk();
   const pathname = usePathname();
   const router = useRouter();
 
   const logout = async () => {
-    await fetch("/api/auth/logout", {
-      method: "POST",
-    });
+    await clerk.signOut({ redirectUrl: "/login" });
     router.replace("/login");
     router.refresh();
   };

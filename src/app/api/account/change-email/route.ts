@@ -17,6 +17,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "La nouvelle adresse e-mail est invalide." }, { status: 400 });
   }
 
+  if (user.clerkUserId) {
+    return NextResponse.json({ message: "Cette adresse e-mail est gérée par Clerk. Utilisez l'icône de profil en haut du site pour la modifier et la valider." }, { status: 400 });
+  }
+
   if (!(await verifyUserPasswordById(user.id, password))) {
     return NextResponse.json({ message: "Mot de passe incorrect." }, { status: 400 });
   }
@@ -24,10 +28,12 @@ export async function POST(request: Request) {
   const updatedUser = await updateStoredUserEmail({ id: user.id, email: newEmail });
   const token = await createAuthenticatedUserSession({
     id: updatedUser.id,
+    clerkUserId: updatedUser.clerkUserId,
     email: updatedUser.email,
     displayName: updatedUser.displayName,
     firstName: updatedUser.firstName,
     createdAt: updatedUser.createdAt,
+    authProvider: updatedUser.clerkUserId ? "clerk" : "legacy",
   });
 
   const response = NextResponse.json({ ok: true, email: updatedUser.email });

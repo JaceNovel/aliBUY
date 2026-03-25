@@ -1,9 +1,7 @@
 import "server-only";
 
-import { cookies } from "next/headers";
-
 import { getAdminAccessByEmail, type AdminPermission, type AdminRole } from "@/lib/admin-access-store";
-import { parseUserSessionToken, USER_SESSION_COOKIE } from "@/lib/user-session";
+import { getCurrentUser } from "@/lib/user-auth";
 
 function encoder() {
   return new TextEncoder();
@@ -67,15 +65,14 @@ export async function validateAdminCredentials(email: string, password: string) 
 }
 
 export async function getCurrentAdminAccess() {
-  const cookieStore = await cookies();
-  const session = await parseUserSessionToken(cookieStore.get(USER_SESSION_COOKIE)?.value);
-  if (!session?.email) {
+  const user = await getCurrentUser();
+  if (!user?.email) {
     return null;
   }
 
-  if (isAdminEmail(session.email)) {
+  if (isAdminEmail(user.email)) {
     return {
-      email: session.email,
+      email: user.email,
       role: "superadmin",
       permissions: ["dashboard.read", "users.read", "users.manage", "orders.read", "products.read", "products.manage", "promotions.manage", "support.read", "imports.read", "sourcing.manage", "settings.manage", "admin.manage"],
       active: true,
@@ -83,7 +80,7 @@ export async function getCurrentAdminAccess() {
     } satisfies AdminAccessContext;
   }
 
-  const record = await getAdminAccessByEmail(session.email);
+  const record = await getAdminAccessByEmail(user.email);
   if (!record || !record.active) {
     return null;
   }

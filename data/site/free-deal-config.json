@@ -1,0 +1,22 @@
+{
+  "id": "free-deal-default",
+  "enabled": true,
+  "pageTitle": "Articles gratuits",
+  "heroBadge": "OFFRE TRAFIC",
+  "heroTitle": "Choisissez votre lot d'articles et payez seulement 10 EUR",
+  "heroSubtitle": "Cette page sert a faire entrer de nouveaux clients. Choisissez les articles du lot, reglez le forfait fixe puis partagez votre lien pour debloquer un nouveau passage.",
+  "bannerText": "Article gratuit des 10 euro",
+  "ctaLabel": "Payer le lot promo",
+  "shareTitle": "Acces bloque sur cet appareil apres achat",
+  "shareDescription": "Partagez votre lien a 20 personnes. Chaque visite unique qui arrive vraiment sur cette page vous rapproche du prochain debloquage.",
+  "itemLimit": 7,
+  "fixedPriceEur": 10,
+  "referralGoal": 20,
+  "dealTagText": "-60%",
+  "productBadgeText": "Free",
+  "compareAtMultiplier": 1.55,
+  "compareAtExtraEur": 1.25,
+  "productSlugs": [],
+  "updatedAt": "2026-03-25T00:00:00.000Z",
+  "createdAt": "2026-03-25T00:00:00.000Z"
+}

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { clerkClient } from "@clerk/nextjs/server";
+
 import { deleteAccountSettings } from "@/lib/account-settings-store";
 import { getCurrentUser, getUserSessionCookieConfig, verifyUserPasswordById } from "@/lib/user-auth";
 import { deleteStoredUser } from "@/lib/user-store";
@@ -18,8 +20,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Tapez SUPPRIMER pour confirmer." }, { status: 400 });
   }
 
-  if (!(await verifyUserPasswordById(user.id, password))) {
+  if (!user.clerkUserId && !(await verifyUserPasswordById(user.id, password))) {
     return NextResponse.json({ message: "Mot de passe incorrect." }, { status: 400 });
+  }
+
+  if (user.clerkUserId) {
+    const client = await clerkClient();
+    await client.users.deleteUser(user.clerkUserId);
   }
 
   await deleteAccountSettings(user.id);

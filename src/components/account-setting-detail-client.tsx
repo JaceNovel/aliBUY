@@ -8,13 +8,14 @@ import { useState } from "react";
 
 import type { AccountSettingsRecord } from "@/lib/account-settings-store";
 import type { AccountPageSlug } from "@/app/account/compte/account-links";
+import { UserLogoutButton } from "@/components/user-logout-button";
 
 type Props = {
   slug: AccountPageSlug;
   page: {
     title: string;
     description: string;
-    bullets: string[];
+    bullets: readonly string[];
     accent: string;
   };
   initialUser: {
@@ -22,6 +23,7 @@ type Props = {
     displayName: string;
     firstName: string;
     createdAt: string;
+    authProvider: "clerk" | "legacy";
   };
   initialSettings: AccountSettingsRecord;
 };
@@ -260,6 +262,14 @@ export function AccountSettingDetailClient({ slug, page, initialUser, initialSet
           </div>
         );
       case "modifier-mot-de-passe":
+        if (initialUser.authProvider === "clerk") {
+          return (
+            <div className="rounded-[18px] border border-[#ffe0c7] bg-[#fff7f1] px-4 py-4 text-[14px] leading-6 text-[#7a4b1d]">
+              Votre mot de passe est géré par Clerk. Utilisez l&apos;icône de profil visible en haut du site pour mettre à jour vos identifiants en toute sécurité.
+            </div>
+          );
+        }
+
         return (
           <div className="grid gap-4">
             <label className="text-[13px] font-semibold text-[#344054]">Mot de passe actuel
@@ -291,15 +301,21 @@ export function AccountSettingDetailClient({ slug, page, initialUser, initialSet
               <div className="text-[14px] leading-6 text-[#667085]">Créé le: {new Date(initialUser.createdAt).toLocaleDateString("fr-FR")}</div>
               <div className="text-[14px] leading-6 text-[#667085]">Statut: active</div>
             </div>
-            <form action="/api/auth/logout" method="post">
-              <button type="submit" className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-[#222] px-5 text-[14px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
+            <UserLogoutButton className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-[#222] px-5 text-[14px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
                 <LogOut className="h-4 w-4" />
                 Déconnecter cette session
-              </button>
-            </form>
+            </UserLogoutButton>
           </div>
         );
       case "changer-adresse-email":
+        if (initialUser.authProvider === "clerk") {
+          return (
+            <div className="rounded-[18px] border border-[#ffe0c7] bg-[#fff7f1] px-4 py-4 text-[14px] leading-6 text-[#7a4b1d]">
+              Votre adresse e-mail principale est gérée par Clerk. Utilisez l&apos;icône de profil en haut du site pour lancer la modification et la vérification de l&apos;adresse.
+            </div>
+          );
+        }
+
         return (
           <div className="grid gap-4">
             <label className="text-[13px] font-semibold text-[#344054]">Adresse actuelle
@@ -369,15 +385,25 @@ export function AccountSettingDetailClient({ slug, page, initialUser, initialSet
             <label className="text-[13px] font-semibold text-[#344054]">Tapez SUPPRIMER
               <input value={deleteForm.confirmation} onChange={(event) => setDeleteForm((current) => ({ ...current, confirmation: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#c74444]" />
             </label>
-            <label className="text-[13px] font-semibold text-[#344054]">Mot de passe
-              <input type="password" value={deleteForm.password} onChange={(event) => setDeleteForm((current) => ({ ...current, password: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#c74444]" />
-            </label>
+            {initialUser.authProvider === "legacy" ? (
+              <label className="text-[13px] font-semibold text-[#344054]">Mot de passe
+                <input type="password" value={deleteForm.password} onChange={(event) => setDeleteForm((current) => ({ ...current, password: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#c74444]" />
+              </label>
+            ) : (
+              <div className="rounded-[16px] border border-[#f3d4d9] bg-white px-4 py-3 text-[13px] leading-6 text-[#667085]">
+                Pour un compte Clerk, la suppression fermera aussi votre compte d&apos;authentification principal.
+              </div>
+            )}
           </div>
         );
     }
   };
 
-  const primaryAction = slug === "modifier-mot-de-passe"
+  const isClerkManagedCredentialPage = initialUser.authProvider === "clerk" && (slug === "modifier-mot-de-passe" || slug === "changer-adresse-email");
+
+  const primaryAction = isClerkManagedCredentialPage
+    ? undefined
+    : slug === "modifier-mot-de-passe"
     ? submitPassword
     : slug === "changer-adresse-email"
       ? submitEmail

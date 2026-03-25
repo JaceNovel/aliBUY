@@ -5,11 +5,12 @@ import { prisma } from "@/lib/prisma";
 
 export type StoredUser = {
   id: string;
+  clerkUserId: string | null;
   email: string;
   displayName: string;
   firstName: string;
-  passwordHash: string;
-  passwordSalt: string;
+  passwordHash: string | null;
+  passwordSalt: string | null;
   createdAt: string;
 };
 
@@ -19,20 +20,22 @@ function normalizeEmail(email: string) {
 
 function toStoredUser(user: {
   id: string;
+  clerkUserId?: string | null;
   email: string;
   displayName: string;
   firstName: string;
-  passwordHash: string;
-  passwordSalt: string;
+  passwordHash?: string | null;
+  passwordSalt?: string | null;
   createdAt: Date;
 }) {
   return {
     id: user.id,
+    clerkUserId: user.clerkUserId ?? null,
     email: user.email,
     displayName: user.displayName,
     firstName: user.firstName,
-    passwordHash: user.passwordHash,
-    passwordSalt: user.passwordSalt,
+    passwordHash: user.passwordHash ?? null,
+    passwordSalt: user.passwordSalt ?? null,
     createdAt: user.createdAt.toISOString(),
   } satisfies StoredUser;
 }
@@ -48,6 +51,11 @@ export async function getStoredUserByEmail(email: string) {
   return user ? toStoredUser(user) : null;
 }
 
+export async function getStoredUserByClerkUserId(clerkUserId: string) {
+  const user = await prisma.user.findFirst({ where: { clerkUserId } as never });
+  return user ? toStoredUser(user) : null;
+}
+
 export async function getStoredUserById(id: string) {
   const user = await prisma.user.findUnique({ where: { id } });
   return user ? toStoredUser(user) : null;
@@ -56,8 +64,9 @@ export async function getStoredUserById(id: string) {
 export async function createStoredUser(input: {
   email: string;
   displayName: string;
-  passwordHash: string;
-  passwordSalt: string;
+  passwordHash?: string | null;
+  passwordSalt?: string | null;
+  clerkUserId?: string | null;
 }) {
   const normalizedEmail = normalizeEmail(input.email);
 
@@ -69,15 +78,59 @@ export async function createStoredUser(input: {
   const name = parseDisplayName(input.displayName);
   const user = await prisma.user.create({
     data: {
+      clerkUserId: input.clerkUserId ?? null,
       email: normalizedEmail,
       displayName: name.displayName,
       firstName: name.firstName,
-      passwordHash: input.passwordHash,
-      passwordSalt: input.passwordSalt,
-    },
+      passwordHash: input.passwordHash ?? null,
+      passwordSalt: input.passwordSalt ?? null,
+    } as never,
   });
 
   return toStoredUser(user);
+}
+
+export async function upsertStoredUserFromClerk(input: {
+  clerkUserId: string;
+  email: string;
+  displayName: string;
+}) {
+  const normalizedEmail = normalizeEmail(input.email);
+  const parsedName = parseDisplayName(input.displayName);
+
+  const existingByClerkUserId = await prisma.user.findFirst({ where: { clerkUserId: input.clerkUserId } as never });
+  if (existingByClerkUserId) {
+    const updated = await prisma.user.update({
+      where: { id: existingByClerkUserId.id },
+      data: {
+        email: normalizedEmail,
+        displayName: parsedName.displayName,
+        firstName: parsedName.firstName,
+      } as never,
+    });
+
+    return toStoredUser(updated);
+  }
+
+  const existingByEmail = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  if (existingByEmail) {
+    const updated = await prisma.user.update({
+      where: { id: existingByEmail.id },
+      data: {
+        clerkUserId: input.clerkUserId,
+        displayName: parsedName.displayName,
+        firstName: parsedName.firstName,
+      } as never,
+    });
+
+    return toStoredUser(updated);
+  }
+
+  return createStoredUser({
+    clerkUserId: input.clerkUserId,
+    email: normalizedEmail,
+    displayName: parsedName.displayName,
+  });
 }
 
 export async function updateStoredUserProfile(input: {

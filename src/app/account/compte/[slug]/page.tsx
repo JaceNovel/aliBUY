@@ -41,6 +41,7 @@ export default async function AccountSettingDetailPage({
           displayName: user.displayName,
           firstName: user.firstName,
           createdAt: user.createdAt,
+          authProvider: user.authProvider,
         }}
         initialSettings={initialSettings}
       />

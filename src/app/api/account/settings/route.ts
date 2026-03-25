@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 
+import { clerkClient } from "@clerk/nextjs/server";
+
 import { getAccountSettings, updateAccountSettings } from "@/lib/account-settings-store";
+import { parseDisplayName } from "@/lib/user-session";
 import { getCurrentUser } from "@/lib/user-auth";
 import { updateStoredUserProfile } from "@/lib/user-store";
 
@@ -32,6 +35,16 @@ export async function PATCH(request: Request) {
   const body = await request.json().catch(() => null);
   try {
     if (typeof body?.displayName === "string" && body.displayName.trim().length >= 2) {
+      if (user.clerkUserId) {
+        const parsed = parseDisplayName(body.displayName.trim());
+        const [firstName, ...rest] = parsed.displayName.split(" ");
+        const client = await clerkClient();
+        await client.users.updateUser(user.clerkUserId, {
+          firstName: firstName || parsed.firstName,
+          lastName: rest.join(" ") || undefined,
+        });
+      }
+
       await updateStoredUserProfile({ id: user.id, displayName: body.displayName.trim() });
     }
 

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { clerkClient } from "@clerk/nextjs/server";
+
 import { hashUserPassword, getCurrentUser, verifyUserPasswordById } from "@/lib/user-auth";
 import { updateStoredUserPassword } from "@/lib/user-store";
 
@@ -20,6 +22,22 @@ export async function POST(request: Request) {
 
   if (newPassword !== confirmPassword) {
     return NextResponse.json({ message: "La confirmation du mot de passe ne correspond pas." }, { status: 400 });
+  }
+
+  if (user.clerkUserId) {
+    const client = await clerkClient();
+    const verified = await client.users.verifyPassword({ userId: user.clerkUserId, password: currentPassword }).catch(() => null);
+
+    if (!verified?.verified) {
+      return NextResponse.json({ message: "Le mot de passe actuel est incorrect." }, { status: 400 });
+    }
+
+    await client.users.updateUser(user.clerkUserId, {
+      password: newPassword,
+      signOutOfOtherSessions: false,
+      skipPasswordChecks: false,
+    });
+    return NextResponse.json({ ok: true });
   }
 
   if (!(await verifyUserPasswordById(user.id, currentPassword))) {

@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { SignIn } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 
 import { isAdminEmail } from "@/lib/admin-auth";
-import { UserAuthForm } from "@/components/user-auth-form";
+import { clerkAppearance } from "@/lib/clerk-theme";
 import { getCurrentUser } from "@/lib/user-auth";
 
 function getSafeNextPath(nextPath?: string) {
@@ -51,12 +52,18 @@ export default async function LoginPage({
               Nouveau sur AfriPay ?
               <div>
                 <Link href={`/register${nextPath ? `?next=${encodeURIComponent(nextPath)}` : ""}`} className="font-semibold text-[#ff6a00] transition hover:text-[#d95a00]">
-                  Ouvrir la page d'inscription
+                  Ouvrir la page d&apos;inscription
                 </Link>
               </div>
             </div>
             <div className="mt-5 sm:mt-6">
-              <UserAuthForm mode="login" nextPath={nextPath} />
+              <SignIn
+                routing="path"
+                path="/login"
+                signUpUrl={`/register${nextPath ? `?next=${encodeURIComponent(nextPath)}` : ""}`}
+                fallbackRedirectUrl={nextPath}
+                appearance={clerkAppearance}
+              />
             </div>
             <div className="mt-4 text-[12px] text-[#667085] sm:mt-5 sm:text-[13px]">
               <Link href="/" className="font-semibold text-[#ff6a00] transition hover:text-[#d95a00]">Retour au site</Link>

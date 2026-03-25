@@ -1,5 +1,6 @@
 "use client";
 
+import { useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 
@@ -9,6 +10,7 @@ type UserLogoutButtonProps = {
 };
 
 export function UserLogoutButton({ className = "", children }: UserLogoutButtonProps) {
+  const clerk = useClerk();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -20,7 +22,7 @@ export function UserLogoutButton({ className = "", children }: UserLogoutButtonP
     setIsSubmitting(true);
 
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await clerk.signOut({ redirectUrl: "/" });
     } finally {
       router.replace("/");
       setIsSubmitting(false);

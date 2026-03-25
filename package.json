@@ -14,6 +14,7 @@
     "prisma:migrate:promo-share": "prisma migrate dev --name add-promo-codes-and-shared-carts"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.0.7",
     "@prisma/client": "^6.16.2",
     "@vercel/blob": "^2.3.1",
     "lucide-react": "^0.577.0",
