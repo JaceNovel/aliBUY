@@ -1,4 +1,4 @@
-CREATE TABLE "FreeDealConfigRecord" (
+CREATE TABLE IF NOT EXISTS "FreeDealConfigRecord" (
   "id" TEXT NOT NULL,
   "enabled" BOOLEAN NOT NULL DEFAULT true,
   "pageTitle" TEXT NOT NULL,
@@ -23,7 +23,7 @@ CREATE TABLE "FreeDealConfigRecord" (
   CONSTRAINT "FreeDealConfigRecord_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE "FreeDealClaimRecord" (
+CREATE TABLE IF NOT EXISTS "FreeDealClaimRecord" (
   "id" TEXT NOT NULL,
   "status" TEXT NOT NULL,
   "userId" TEXT,
@@ -48,7 +48,7 @@ CREATE TABLE "FreeDealClaimRecord" (
   CONSTRAINT "FreeDealClaimRecord_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE "FreeDealReferralVisitRecord" (
+CREATE TABLE IF NOT EXISTS "FreeDealReferralVisitRecord" (
   "id" TEXT NOT NULL,
   "claimId" TEXT NOT NULL,
   "referralCode" TEXT NOT NULL,
@@ -62,17 +62,26 @@ CREATE TABLE "FreeDealReferralVisitRecord" (
   CONSTRAINT "FreeDealReferralVisitRecord_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "FreeDealClaimRecord_referralCode_key" ON "FreeDealClaimRecord"("referralCode");
-CREATE UNIQUE INDEX "FreeDealReferralVisitRecord_claimId_visitorKeyHash_key" ON "FreeDealReferralVisitRecord"("claimId", "visitorKeyHash");
+CREATE UNIQUE INDEX IF NOT EXISTS "FreeDealClaimRecord_referralCode_key" ON "FreeDealClaimRecord"("referralCode");
+CREATE UNIQUE INDEX IF NOT EXISTS "FreeDealReferralVisitRecord_claimId_visitorKeyHash_key" ON "FreeDealReferralVisitRecord"("claimId", "visitorKeyHash");
 
-CREATE INDEX "FreeDealConfigRecord_updatedAt_idx" ON "FreeDealConfigRecord"("updatedAt");
-CREATE INDEX "FreeDealClaimRecord_createdAt_idx" ON "FreeDealClaimRecord"("createdAt");
-CREATE INDEX "FreeDealClaimRecord_orderId_idx" ON "FreeDealClaimRecord"("orderId");
-CREATE INDEX "FreeDealClaimRecord_customerEmail_idx" ON "FreeDealClaimRecord"("customerEmail");
-CREATE INDEX "FreeDealClaimRecord_deviceIdHash_idx" ON "FreeDealClaimRecord"("deviceIdHash");
-CREATE INDEX "FreeDealReferralVisitRecord_referralCode_createdAt_idx" ON "FreeDealReferralVisitRecord"("referralCode", "createdAt");
-CREATE INDEX "FreeDealReferralVisitRecord_claimId_counted_idx" ON "FreeDealReferralVisitRecord"("claimId", "counted");
+CREATE INDEX IF NOT EXISTS "FreeDealConfigRecord_updatedAt_idx" ON "FreeDealConfigRecord"("updatedAt");
+CREATE INDEX IF NOT EXISTS "FreeDealClaimRecord_createdAt_idx" ON "FreeDealClaimRecord"("createdAt");
+CREATE INDEX IF NOT EXISTS "FreeDealClaimRecord_orderId_idx" ON "FreeDealClaimRecord"("orderId");
+CREATE INDEX IF NOT EXISTS "FreeDealClaimRecord_customerEmail_idx" ON "FreeDealClaimRecord"("customerEmail");
+CREATE INDEX IF NOT EXISTS "FreeDealClaimRecord_deviceIdHash_idx" ON "FreeDealClaimRecord"("deviceIdHash");
+CREATE INDEX IF NOT EXISTS "FreeDealReferralVisitRecord_referralCode_createdAt_idx" ON "FreeDealReferralVisitRecord"("referralCode", "createdAt");
+CREATE INDEX IF NOT EXISTS "FreeDealReferralVisitRecord_claimId_counted_idx" ON "FreeDealReferralVisitRecord"("claimId", "counted");
 
-ALTER TABLE "FreeDealReferralVisitRecord"
-ADD CONSTRAINT "FreeDealReferralVisitRecord_claimId_fkey"
-FOREIGN KEY ("claimId") REFERENCES "FreeDealClaimRecord"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'FreeDealReferralVisitRecord_claimId_fkey'
+  ) THEN
+    ALTER TABLE "FreeDealReferralVisitRecord"
+    ADD CONSTRAINT "FreeDealReferralVisitRecord_claimId_fkey"
+    FOREIGN KEY ("claimId") REFERENCES "FreeDealClaimRecord"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
