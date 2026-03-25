@@ -6,9 +6,9 @@ import { Minus, Plus, Ship, ShoppingCart, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { useCart, useCartQuote } from "@/components/cart-provider";
-import { buildCartItemKey, formatFcfa } from "@/lib/alibaba-sourcing";
+import { buildCartItemKey, formatSourcingAmount } from "@/lib/alibaba-sourcing";
 
-export function CartPageClient() {
+export function CartPageClient({ currencyCode, locale }: { currencyCode: string; locale: string }) {
   const { items, updateItem, removeItem, clearCart } = useCart();
   const { quote, isLoading } = useCartQuote();
   const [selectedShipping, setSelectedShipping] = useState<"air" | "sea">("air");
@@ -68,7 +68,7 @@ export function CartPageClient() {
             </div>
             <div className="rounded-[18px] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
               <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#98a2b3]">Sous-total</div>
-              <div className="mt-2 text-[23px] font-black tracking-[-0.04em] text-[#1f2937]">{formatFcfa(quote.cartProductsTotalFcfa)}</div>
+              <div className="mt-2 text-[23px] font-black tracking-[-0.04em] text-[#1f2937]">{formatSourcingAmount(quote.cartProductsTotalFcfa, { currencyCode, locale })}</div>
             </div>
           </div>
         </div>
@@ -89,10 +89,10 @@ export function CartPageClient() {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <div className="text-[17px] font-semibold text-[#1f2937]">{item.title}</div>
-                      <div className="mt-1 text-[13px] text-[#667085]">Prix fournisseur: {formatFcfa(item.supplierPriceFcfa)} · Marge/unité: {formatFcfa(item.marginAmountFcfa)}</div>
+                      <div className="mt-1 text-[13px] text-[#667085]">Prix fournisseur: {formatSourcingAmount(item.supplierPriceFcfa, { currencyCode, locale })} · Marge/unité: {formatSourcingAmount(item.marginAmountFcfa, { currencyCode, locale })}</div>
                       <div className="mt-1 text-[13px] text-[#667085]">{item.weightKg.toFixed(2)} kg/unité · {item.volumeCbm.toFixed(4)} CBM/unité</div>
                     </div>
-                    <div className="text-[18px] font-black tracking-[-0.04em] text-[#1f2937]">{formatFcfa(item.finalLinePriceFcfa)}</div>
+                    <div className="text-[18px] font-black tracking-[-0.04em] text-[#1f2937]">{formatSourcingAmount(item.finalLinePriceFcfa, { currencyCode, locale })}</div>
                   </div>
 
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -135,7 +135,7 @@ export function CartPageClient() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-[16px] font-semibold text-[#1f2937]">{option.label}</div>
-                        <div className="text-[16px] font-black tracking-[-0.03em] text-[#1f2937]">{option.isFree ? "Gratuite" : formatFcfa(option.priceFcfa)}</div>
+                        <div className="text-[16px] font-black tracking-[-0.03em] text-[#1f2937]">{option.isFree ? "Gratuite" : formatSourcingAmount(option.priceFcfa, { currencyCode, locale })}</div>
                       </div>
                       <div className="mt-1 text-[13px] text-[#667085]">{option.tradeLabel}</div>
                       <div className="mt-1 text-[13px] text-[#667085]">Délai estimé: {option.deliveryWindow}</div>
@@ -144,7 +144,7 @@ export function CartPageClient() {
                 );
               })}
             </div>
-            <div className="mt-4 rounded-[18px] bg-[#f8fafc] px-4 py-3 text-[13px] font-medium text-[#475467]">Free delivery from 15,000 FCFA. {quote.freeShippingMessage}</div>
+            <div className="mt-4 rounded-[18px] bg-[#f8fafc] px-4 py-3 text-[13px] font-medium text-[#475467]">Seuil gratuité appliqué selon votre mode de livraison. {quote.freeShippingMessage}</div>
           </section>
 
           <section className="rounded-[28px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)]">
@@ -162,16 +162,16 @@ export function CartPageClient() {
           <section className="rounded-[28px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)]">
             <div className="flex items-center justify-between">
               <div className="text-[16px] font-semibold text-[#1f2937]">Sous-total produits</div>
-              <div className="text-[16px] font-bold text-[#1f2937]">{formatFcfa(quote.cartProductsTotalFcfa)}</div>
+              <div className="text-[16px] font-bold text-[#1f2937]">{formatSourcingAmount(quote.cartProductsTotalFcfa, { currencyCode, locale })}</div>
             </div>
             <div className="mt-3 flex items-center justify-between">
               <div className="text-[16px] font-semibold text-[#1f2937]">Livraison</div>
-              <div className="text-[16px] font-bold text-[#1f2937]">{shipping ? (shipping.isFree ? "Gratuite" : formatFcfa(shipping.priceFcfa)) : formatFcfa(0)}</div>
+              <div className="text-[16px] font-bold text-[#1f2937]">{shipping ? (shipping.isFree ? "Gratuite" : formatSourcingAmount(shipping.priceFcfa, { currencyCode, locale })) : formatSourcingAmount(0, { currencyCode, locale })}</div>
             </div>
             <div className="mt-4 border-t border-[#edf1f6] pt-4">
               <div className="flex items-center justify-between">
                 <div className="text-[18px] font-black tracking-[-0.04em] text-[#1f2937]">Total</div>
-                <div className="text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{formatFcfa(totalFcfa)}</div>
+                <div className="text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{formatSourcingAmount(totalFcfa, { currencyCode, locale })}</div>
               </div>
             </div>
             <div className="mt-5 grid gap-3">

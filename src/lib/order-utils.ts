@@ -28,6 +28,21 @@ export type OrderRecord = {
     merchantPickupCompleted: boolean;
     trackingCode: string;
     lastUpdate: string;
+    deliveryRouteType?: "afripay-final-mile" | "customer-forwarder";
+    relayPointAddress?: string;
+    relayPointLabel?: string;
+    availableForPickupAt?: string;
+    deliveredToAgentAt?: string;
+    forwarderHubLabel?: string;
+    proofs?: Array<{
+      id: string;
+      role: string;
+      title: string;
+      note?: string;
+      mediaUrl?: string;
+      actorLabel?: string;
+      createdAt: string;
+    }>;
   };
 };
 

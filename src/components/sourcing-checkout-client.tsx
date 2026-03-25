@@ -2,12 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, MapPinned, Ship, ShoppingCart, Sparkles, Truck } from "lucide-react";
+import { AlertTriangle, Check, LocateFixed, MapPinned, Ship, ShoppingCart, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { useCart, useCartQuote } from "@/components/cart-provider";
-import { formatFcfa } from "@/lib/alibaba-sourcing";
-import { buildAddressQuickInput, parseAddressQuickInput } from "@/lib/address-autofill";
+import {
+  formatSourcingAmount,
+  resolveSourcingDeliveryPlan,
+  type SourcingDeliveryMode,
+  type SourcingForwarderHub,
+} from "@/lib/alibaba-sourcing";
+import { buildAddressQuickInput } from "@/lib/address-autofill";
 import type { CustomerAddressRecord } from "@/lib/customer-addresses";
 
 const defaultForm = {
@@ -15,12 +20,13 @@ const defaultForm = {
   customerName: "",
   customerEmail: "",
   customerPhone: "",
+  googleMapsUrl: "",
   addressLine1: "",
   addressLine2: "",
   city: "",
   state: "",
   postalCode: "",
-  countryCode: "CI",
+  countryCode: "TG",
   notes: "",
 };
 
@@ -30,6 +36,19 @@ type SourcingCheckoutClientProps = {
     email: string;
   };
   savedAddresses: CustomerAddressRecord[];
+  currencyCode: string;
+  locale: string;
+};
+
+type ReverseGeocodeResponse = {
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  countryCode?: string;
+  countryLabel?: string;
+  displayName?: string;
 };
 
 function buildFormFromAddress(address: CustomerAddressRecord, initialUser: SourcingCheckoutClientProps["initialUser"]) {
@@ -48,9 +67,29 @@ function buildFormFromAddress(address: CustomerAddressRecord, initialUser: Sourc
   };
 }
 
-export function SourcingCheckoutClient({ initialUser, savedAddresses }: SourcingCheckoutClientProps) {
+function extractCoordinatesFromGoogleMapsUrl(value: string) {
+  const normalized = decodeURIComponent(value.trim());
+  const queryMatch = normalized.match(/q=(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/i);
+  if (queryMatch) {
+    return { latitude: Number(queryMatch[1]), longitude: Number(queryMatch[2]) };
+  }
+
+  const atMatch = normalized.match(/@(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/i);
+  if (atMatch) {
+    return { latitude: Number(atMatch[1]), longitude: Number(atMatch[2]) };
+  }
+
+  return null;
+}
+
+function formatSavedAddress(address: CustomerAddressRecord) {
+  return [address.addressLine1, address.addressLine2, `${address.city}, ${address.state}`, address.postalCode, address.countryCode]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCode, locale }: SourcingCheckoutClientProps) {
   const { items, clearCart } = useCart();
-  const { quote, isLoading } = useCartQuote();
   const router = useRouter();
   const defaultAddress = savedAddresses.find((address) => address.isDefault) ?? savedAddresses[0];
   const [form, setForm] = useState({
@@ -59,15 +98,40 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
     customerEmail: initialUser.email,
     ...(defaultAddress ? buildFormFromAddress(defaultAddress, initialUser) : {}),
   });
-  const [quickAddress, setQuickAddress] = useState(() => buildAddressQuickInput(defaultAddress ? buildFormFromAddress(defaultAddress, initialUser) : defaultForm));
-  const [isManualAddress, setIsManualAddress] = useState(false);
-  const [selectedShipping, setSelectedShipping] = useState<"air" | "sea">("air");
-  const [hasUserSelectedShipping, setHasUserSelectedShipping] = useState(false);
+  const [deliveryMode, setDeliveryMode] = useState<SourcingDeliveryMode>("direct");
+  const [forwarderHub, setForwarderHub] = useState<SourcingForwarderHub>("china");
+  const [forwarderAddressBlock, setForwarderAddressBlock] = useState("");
+  const [forwarderParcelMarking, setForwarderParcelMarking] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [isResolvingMapsLink, setIsResolvingMapsLink] = useState(false);
+  const [locationFeedback, setLocationFeedback] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [hasUserSelectedShipping, setHasUserSelectedShipping] = useState(false);
+  const [selectedShipping, setSelectedShipping] = useState<"air" | "sea">("air");
 
+  const deliveryPlan = useMemo(() => resolveSourcingDeliveryPlan({
+    countryCode: form.countryCode,
+    city: form.city,
+    deliveryProfile: {
+      mode: deliveryMode,
+      useExactPosition: Boolean(form.googleMapsUrl),
+      googleMapsUrl: form.googleMapsUrl || undefined,
+      detectedCountryCode: form.countryCode,
+      detectedCity: form.city,
+      forwarder: deliveryMode === "forwarder"
+        ? {
+            hub: forwarderHub,
+            addressBlock: forwarderAddressBlock,
+            parcelMarking: forwarderParcelMarking || undefined,
+          }
+        : undefined,
+    },
+  }), [deliveryMode, form.city, form.countryCode, form.googleMapsUrl, forwarderAddressBlock, forwarderHub, forwarderParcelMarking]);
+
+  const { quote, isLoading } = useCartQuote({ disableFreeAir: !deliveryPlan.workflow.freeDeliveryEligible });
   const shippingOptions = quote.shippingOptions;
+
   useEffect(() => {
     if (shippingOptions.length === 0) {
       return;
@@ -84,10 +148,15 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
     }
   }, [hasUserSelectedShipping, quote.recommendedMethod, selectedShipping, shippingOptions]);
 
-  const selectedOption = useMemo(() => {
-    return shippingOptions.find((option) => option.key === selectedShipping) ?? shippingOptions[0] ?? null;
-  }, [selectedShipping, shippingOptions]);
+  useEffect(() => {
+    if (deliveryPlan.deliveryProfile.mode === "forwarder" && deliveryMode !== "forwarder") {
+      setDeliveryMode("forwarder");
+    }
+  }, [deliveryMode, deliveryPlan.deliveryProfile.mode]);
+
+  const selectedOption = useMemo(() => shippingOptions.find((option) => option.key === selectedShipping) ?? shippingOptions[0] ?? null, [selectedShipping, shippingOptions]);
   const totalPrice = quote.cartProductsTotalFcfa + (selectedOption?.priceFcfa ?? 0);
+  const quickAddress = useMemo(() => buildAddressQuickInput(form), [form]);
 
   const updateFormField = <Key extends keyof typeof form>(key: Key, value: (typeof form)[Key]) => {
     setForm((current) => ({
@@ -97,6 +166,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
         key === "customerName" ||
         key === "customerEmail" ||
         key === "customerPhone" ||
+        key === "googleMapsUrl" ||
         key === "addressLine1" ||
         key === "addressLine2" ||
         key === "city" ||
@@ -110,23 +180,84 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
 
   const applySavedAddress = (address: CustomerAddressRecord) => {
     const nextAddress = buildFormFromAddress(address, initialUser);
-    setForm((current) => ({
-      ...current,
-      ...nextAddress,
-      notes: current.notes,
-    }));
-    setQuickAddress(buildAddressQuickInput(nextAddress));
-    setIsManualAddress(false);
+    setForm((current) => ({ ...current, ...nextAddress, notes: current.notes }));
+    setDeliveryMode("direct");
+    setLocationFeedback(null);
   };
 
-  const applyQuickAddress = (value: string) => {
-    setQuickAddress(value);
-    const parsedAddress = parseAddressQuickInput(value, form.countryCode || "CI");
+  const hydrateAddressFromCoordinates = async (latitude: number, longitude: number) => {
+    const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
+    const response = await fetch("/api/location/reverse-geocode", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ latitude, longitude }),
+    });
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok || !payload) {
+      throw new Error(payload?.message || "Impossible de localiser cette position.");
+    }
+
+    const geocoded = payload as ReverseGeocodeResponse;
     setForm((current) => ({
       ...current,
-      ...parsedAddress,
+      googleMapsUrl: mapsUrl,
+      addressLine1: geocoded.addressLine1 || geocoded.displayName || current.addressLine1,
+      addressLine2: geocoded.addressLine2 || current.addressLine2,
+      city: geocoded.city || current.city,
+      state: geocoded.state || geocoded.city || current.state,
+      postalCode: geocoded.postalCode || current.postalCode,
+      countryCode: geocoded.countryCode || current.countryCode,
       customerAddressId: "",
     }));
+    setLocationFeedback(`Adresse détectée: ${geocoded.displayName || [geocoded.city, geocoded.countryLabel].filter(Boolean).join(", ")}`);
+  };
+
+  const useCurrentPosition = () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setErrorMessage("La géolocalisation n'est pas disponible sur cet appareil.");
+      return;
+    }
+
+    setIsLocating(true);
+    setErrorMessage(null);
+    setLocationFeedback(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        void hydrateAddressFromCoordinates(position.coords.latitude, position.coords.longitude)
+          .catch((error) => {
+            setErrorMessage(error instanceof Error ? error.message : "Impossible de remplir l'adresse depuis votre position.");
+          })
+          .finally(() => {
+            setIsLocating(false);
+          });
+      },
+      () => {
+        setIsLocating(false);
+        setErrorMessage("Impossible d'accéder à votre position exacte.");
+      },
+      { enableHighAccuracy: true, timeout: 12000 },
+    );
+  };
+
+  const resolveMapsLink = async () => {
+    const coordinates = extractCoordinatesFromGoogleMapsUrl(form.googleMapsUrl);
+    if (!coordinates) {
+      setErrorMessage("Le lien Google Maps doit contenir des coordonnées exploitables.");
+      return;
+    }
+
+    setIsResolvingMapsLink(true);
+    setErrorMessage(null);
+    setLocationFeedback(null);
+    try {
+      await hydrateAddressFromCoordinates(coordinates.latitude, coordinates.longitude);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Impossible de lire cette position Maps.");
+    } finally {
+      setIsResolvingMapsLink(false);
+    }
   };
 
   const submitOrder = async () => {
@@ -134,19 +265,23 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
       return;
     }
 
-    const normalizedForm = isManualAddress
-      ? form
-      : {
-          ...form,
-          ...parseAddressQuickInput(quickAddress, form.countryCode || "CI"),
-          customerAddressId: form.customerAddressId,
-        };
+    if (!form.customerName || !form.customerPhone || !form.city) {
+      setErrorMessage("Le nom, le téléphone et la ville sont obligatoires.");
+      return;
+    }
 
-    setForm(normalizedForm);
+    if (!deliveryPlan.supported) {
+      setErrorMessage(deliveryPlan.unsupportedMessage ?? "Cette adresse n'est pas prise en charge en livraison directe.");
+      return;
+    }
+
+    if (deliveryMode === "forwarder" && form.countryCode !== "CN" && !forwarderAddressBlock.trim()) {
+      setErrorMessage("L'adresse bloc du transitaire est obligatoire.");
+      return;
+    }
 
     setIsSubmitting(true);
     setErrorMessage(null);
-    setSuccessMessage(null);
 
     const response = await fetch("/api/alibaba-sourcing/orders", {
       method: "POST",
@@ -154,9 +289,10 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        ...normalizedForm,
+        ...form,
         shippingMethod: selectedOption.key,
         items,
+        deliveryProfile: deliveryPlan.deliveryProfile,
       }),
     });
 
@@ -192,17 +328,17 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
-      <section className="rounded-[28px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)] sm:p-7">
+    <div className="grid gap-6 xl:grid-cols-[1.04fr_0.96fr]">
+      <section className="rounded-[30px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)] sm:p-7">
         <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Checkout sourcing</div>
-        <h1 className="mt-2 text-[30px] font-black tracking-[-0.05em] text-[#1f2937]">Adresse de livraison et création de commande</h1>
-        <p className="mt-3 text-[14px] leading-6 text-[#667085]">Cette étape crée la commande sourcing, calcule le freight, prépare la création fournisseur Alibaba puis vous redirige vers la page de paiement Moneroo.</p>
+        <h1 className="mt-2 text-[30px] font-black tracking-[-0.05em] text-[#1f2937]">Adresse, agent et livraison finale</h1>
+        <p className="mt-3 text-[14px] leading-6 text-[#667085]">Renseignez votre position exacte ou choisissez un transitaire. Si le pays n'est pas supporté, le flux bascule vers un agent en Chine ou à Lomé.</p>
 
-        <div className="mt-5 rounded-[22px] bg-[#fff7ef] p-4 ring-1 ring-[#f1ddcd] sm:p-5">
+        <div className="mt-5 rounded-[24px] bg-[linear-gradient(135deg,#fff7ef_0%,#ffffff_52%,#eef6ff_100%)] p-4 ring-1 ring-[#f1ddcd] sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85300]">Adresses enregistrées</div>
-              <div className="mt-1 text-[14px] text-[#5f534a]">Choisissez une adresse sauvegardée ou gérez votre carnet d'adresses.</div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85300]">Carnet d'adresses</div>
+              <div className="mt-1 text-[14px] text-[#5f534a]">Sélectionnez une adresse existante ou saisissez une nouvelle destination.</div>
             </div>
             <Link href="/account/addresses" className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[#e3c9b8] bg-white px-4 text-[13px] font-semibold text-[#49352a] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
               <MapPinned className="h-4 w-4" />
@@ -238,20 +374,16 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
                       {address.isDefault ? <span className="rounded-full bg-[#fff2e9] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#d85300]">Par défaut</span> : null}
                     </div>
                     <div className="mt-2 text-[14px] font-medium text-[#221f1c]">{address.recipientName}</div>
-                    <div className="mt-1 text-[13px] leading-6 text-[#6b7280]">{[address.addressLine1, address.addressLine2, `${address.city}, ${address.state}`, address.postalCode, address.countryCode].filter(Boolean).join(" · ")}</div>
+                    <div className="mt-1 text-[13px] leading-6 text-[#6b7280]">{formatSavedAddress(address)}</div>
                   </button>
                 );
               })}
             </div>
-          ) : (
-            <div className="mt-4 rounded-[18px] border border-dashed border-[#e1cbb8] bg-white/80 px-4 py-4 text-[13px] leading-6 text-[#6b5a4d]">
-              Aucune adresse enregistrée pour le moment. Vous pouvez renseigner votre adresse ci-dessous puis l'enregistrer depuis votre espace compte.
-            </div>
-          )}
+          ) : null}
         </div>
 
-        {successMessage ? <div className="mt-4 rounded-[18px] bg-[#edf8f1] px-4 py-4 text-[13px] font-semibold text-[#127a46]">{successMessage}</div> : null}
         {errorMessage ? <div className="mt-4 rounded-[18px] bg-[#fde8e8] px-4 py-4 text-[13px] font-semibold text-[#b42318]">{errorMessage}</div> : null}
+        {locationFeedback ? <div className="mt-4 rounded-[18px] bg-[#eef6ff] px-4 py-4 text-[13px] font-semibold text-[#1d4f91]">{locationFeedback}</div> : null}
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <label className="text-[13px] font-semibold text-[#344054]">
@@ -262,75 +394,97 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
             Email
             <input value={form.customerEmail} onChange={(event) => updateFormField("customerEmail", event.target.value)} type="email" autoComplete="email" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
           </label>
-          <label className="text-[13px] font-semibold text-[#344054]">
-            Téléphone
-            <input value={form.customerPhone} onChange={(event) => updateFormField("customerPhone", event.target.value)} autoComplete="tel" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
-          </label>
-          <div className="sm:col-span-2 rounded-[20px] border border-[#e6eaf0] bg-[#fbfcfe] p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
+
+          <div className="sm:col-span-2 rounded-[24px] border border-[#dce3ec] bg-[#fbfcfe] p-4 sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <div className="inline-flex items-center gap-2 rounded-full bg-[#fff2e9] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#d85300]">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Adresse rapide
-                </div>
-                <p className="mt-2 text-[13px] leading-6 text-[#667085]">
-                  Saisissez votre adresse actuelle en une ligne puis laissez le formulaire répartir les informations.
-                </p>
+                <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a00]">Mode de livraison</div>
+                <div className="mt-1 text-[14px] text-[#667085]">Direct sur le corridor AfriPay à Lomé, ou via votre propre transitaire.</div>
               </div>
-              <button type="button" onClick={() => {
-                if (isManualAddress) {
-                  setQuickAddress(buildAddressQuickInput(form));
-                }
-                setIsManualAddress((current) => !current);
-              }} className="inline-flex h-10 items-center justify-center rounded-full border border-[#d7dce5] px-4 text-[13px] font-semibold text-[#344054] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
-                {isManualAddress ? "Masquer les champs manuels" : "Saisir l'adresse manuellement"}
-              </button>
+              <div className="inline-flex rounded-full bg-[#eef2f6] p-1">
+                <button type="button" onClick={() => setDeliveryMode("direct")} className={["rounded-full px-4 py-2 text-[13px] font-semibold transition", deliveryMode === "direct" ? "bg-white text-[#111827] shadow-[0_4px_14px_rgba(15,23,42,0.08)]" : "text-[#667085]"].join(" ")}>Livraison directe</button>
+                <button type="button" onClick={() => setDeliveryMode("forwarder")} className={["rounded-full px-4 py-2 text-[13px] font-semibold transition", deliveryMode === "forwarder" ? "bg-white text-[#111827] shadow-[0_4px_14px_rgba(15,23,42,0.08)]" : "text-[#667085]"].join(" ")}>Adresse transitaire</button>
+              </div>
             </div>
 
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-              <label className="min-w-0 flex-1 text-[13px] font-semibold text-[#344054]">
-                Mon adresse actuelle
-                <input value={quickAddress} onChange={(event) => setQuickAddress(event.target.value)} placeholder="Ex: Yopougon Maroc, Abidjan, Lagunes, CI" autoComplete="street-address" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+            <div className="mt-5 grid gap-4 sm:grid-cols-[1.3fr_0.7fr]">
+              <label className="text-[13px] font-semibold text-[#344054]">
+                Lien Google Maps
+                <input value={form.googleMapsUrl} onChange={(event) => updateFormField("googleMapsUrl", event.target.value)} placeholder="https://www.google.com/maps?q=..." className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
               </label>
-              <button type="button" onClick={() => applyQuickAddress(quickAddress)} className="inline-flex h-11 items-center justify-center rounded-full bg-[#1f2937] px-5 text-[13px] font-semibold text-white transition hover:bg-[#101828] sm:mt-[26px]">
-                Auto-remplir
-              </button>
+              <div className="grid gap-2 sm:pt-[26px]">
+                <button type="button" onClick={resolveMapsLink} disabled={isResolvingMapsLink || !form.googleMapsUrl.trim()} className="inline-flex h-11 items-center justify-center rounded-full border border-[#d7dce5] px-4 text-[13px] font-semibold text-[#344054] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">{isResolvingMapsLink ? "Lecture du lien..." : "Lire le lien"}</button>
+                <button type="button" onClick={useCurrentPosition} disabled={isLocating} className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#143743] px-4 text-[13px] font-semibold text-white transition hover:bg-[#102d36] disabled:cursor-not-allowed disabled:opacity-70"><LocateFixed className="h-4 w-4" />{isLocating ? "Localisation..." : "Ma position actuelle"}</button>
+              </div>
             </div>
 
-            <div className="mt-2 text-[12px] leading-5 text-[#667085]">
-              Le mode rapide préremplit rue, ville, région, code postal et pays. Pour une adresse détaillée, ouvrez la saisie manuelle.
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <label className="text-[13px] font-semibold text-[#344054]">
+                Ville
+                <input value={form.city} onChange={(event) => updateFormField("city", event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+              </label>
+              <label className="text-[13px] font-semibold text-[#344054]">
+                Téléphone (WhatsApp)
+                <input value={form.customerPhone} onChange={(event) => updateFormField("customerPhone", event.target.value)} autoComplete="tel" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+              </label>
+              <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
+                Adresse exacte
+                <input value={form.addressLine1} onChange={(event) => updateFormField("addressLine1", event.target.value)} autoComplete="address-line1" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+              </label>
+              <label className="text-[13px] font-semibold text-[#344054]">
+                Pays
+                <input value={form.countryCode} onChange={(event) => updateFormField("countryCode", event.target.value.toUpperCase())} autoComplete="country" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] uppercase text-[#111827] outline-none focus:border-[#ff6a00]" />
+              </label>
+              <label className="text-[13px] font-semibold text-[#344054]">
+                Région / État
+                <input value={form.state} onChange={(event) => updateFormField("state", event.target.value)} autoComplete="address-level1" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+              </label>
+              <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
+                Résumé détecté
+                <input value={quickAddress} readOnly className="mt-2 h-11 w-full rounded-[14px] border border-[#e3e8ef] bg-[#f8fafc] px-4 text-[13px] text-[#667085] outline-none" />
+              </label>
             </div>
 
-            {isManualAddress ? (
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <label className="text-[13px] font-semibold text-[#344054]">
-                  Pays
-                  <input value={form.countryCode} onChange={(event) => updateFormField("countryCode", event.target.value.toUpperCase())} autoComplete="country" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] uppercase text-[#111827] outline-none focus:border-[#ff6a00]" />
-                </label>
-                <div />
-                <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
-                  Adresse
-                  <input value={form.addressLine1} onChange={(event) => updateFormField("addressLine1", event.target.value)} autoComplete="address-line1" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
-                </label>
-                <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
-                  Complément d&apos;adresse
-                  <input value={form.addressLine2} onChange={(event) => updateFormField("addressLine2", event.target.value)} autoComplete="address-line2" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
-                </label>
-                <label className="text-[13px] font-semibold text-[#344054]">
-                  Ville
-                  <input value={form.city} onChange={(event) => updateFormField("city", event.target.value)} autoComplete="address-level2" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
-                </label>
-                <label className="text-[13px] font-semibold text-[#344054]">
-                  Région / État
-                  <input value={form.state} onChange={(event) => updateFormField("state", event.target.value)} autoComplete="address-level1" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
-                </label>
-                <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
-                  Code postal
-                  <input value={form.postalCode} onChange={(event) => updateFormField("postalCode", event.target.value)} autoComplete="postal-code" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
-                </label>
+            {deliveryPlan.deliveryProfile.unsupportedCountry && deliveryMode !== "forwarder" ? (
+              <div className="mt-4 rounded-[18px] border border-[#f8d7a6] bg-[#fff8ee] px-4 py-4 text-[13px] leading-6 text-[#8a4b16]">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div>
+                    <div className="font-semibold">{deliveryPlan.deliveryProfile.unsupportedMessage}</div>
+                    <div className="mt-1">Utilisez un agent en Chine ou à Lomé. Si vous choisissez cette option, AfriPay n'applique pas la livraison gratuite et la commande sera considérée livrée dès remise à votre agent.</div>
+                    <button type="button" onClick={() => setDeliveryMode("forwarder")} className="mt-3 inline-flex h-10 items-center justify-center rounded-full bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]">Mettre l'adresse du transitaire</button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {deliveryMode === "forwarder" ? (
+              <div className="mt-4 rounded-[20px] border border-[#dbe7f5] bg-[#f6fbff] p-4">
+                <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#1d4f91]">Transitaire</div>
+                <div className="mt-1 text-[14px] text-[#56708d]">Pris en charge uniquement en Chine et à Lomé. Collez l'adresse bloc fournie par votre agent puis indiquez le marquage à mettre sur le colis.</div>
+                <div className="mt-4 inline-flex rounded-full bg-white p-1 ring-1 ring-[#dbe7f5]">
+                  <button type="button" onClick={() => setForwarderHub("china")} className={["rounded-full px-4 py-2 text-[13px] font-semibold transition", forwarderHub === "china" ? "bg-[#111827] text-white" : "text-[#344054]"].join(" ")}>Agent Chine</button>
+                  <button type="button" onClick={() => setForwarderHub("lome")} className={["rounded-full px-4 py-2 text-[13px] font-semibold transition", forwarderHub === "lome" ? "bg-[#111827] text-white" : "text-[#344054]"].join(" ")}>Agent Lomé</button>
+                </div>
+                <div className="mt-4 grid gap-4">
+                  <label className="text-[13px] font-semibold text-[#344054]">
+                    Adresse complète du transitaire
+                    <textarea value={forwarderAddressBlock} onChange={(event) => setForwarderAddressBlock(event.target.value)} placeholder="Collez ici le bloc d'adresse complet donné par votre agent" className="mt-2 min-h-[120px] w-full rounded-[18px] border border-[#d7dce5] px-4 py-3 text-[14px] text-[#111827] outline-none focus:border-[#1d4f91]" />
+                  </label>
+                  <label className="text-[13px] font-semibold text-[#344054]">
+                    Informations à mettre sur le colis
+                    <input value={forwarderParcelMarking} onChange={(event) => setForwarderParcelMarking(event.target.value)} placeholder="Nom, code client, numéro, référence..." className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#1d4f91]" />
+                  </label>
+                </div>
+                <div className="mt-4 rounded-[16px] bg-white px-4 py-3 text-[13px] leading-6 text-[#43556c] ring-1 ring-[#dbe7f5]">
+                  {forwarderHub === "china"
+                    ? "Adresse Chine détectée ou transitaire Chine sélectionné: cette adresse sera utilisée pour commander immédiatement. La livraison gratuite AfriPay ne s'applique pas."
+                    : "Transitaire à Lomé: AfriPay livre jusqu'à votre agent. Une fois remis à cet agent, la commande sera marquée livrée avec preuve archivée dans l'admin."}
+                </div>
               </div>
             ) : null}
           </div>
+
           <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
             Note de commande
             <textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} className="mt-2 min-h-[120px] w-full rounded-[18px] border border-[#d7dce5] px-4 py-3 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
@@ -341,9 +495,13 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
       <aside className="space-y-4">
         <section className="rounded-[28px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)]">
           <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Prix et transport</div>
-          <div className="mt-2 text-[24px] font-black tracking-[-0.05em] text-[#1f2937]">{formatFcfa(quote.cartProductsTotalFcfa)}</div>
+          <div className="mt-2 text-[24px] font-black tracking-[-0.05em] text-[#1f2937]">{formatSourcingAmount(quote.cartProductsTotalFcfa, { currencyCode, locale })}</div>
           <div className="mt-2 text-[13px] text-[#667085]">Produits finalisés avec marge, hors transport.</div>
-          <div className="mt-4 rounded-[18px] bg-[#f8fafc] px-4 py-3 text-[13px] font-medium text-[#475467]">Livraison offerte dès {formatFcfa(15000)}. {quote.freeShippingMessage}</div>
+          <div className="mt-4 rounded-[18px] bg-[#f8fafc] px-4 py-3 text-[13px] font-medium text-[#475467]">
+            {deliveryPlan.workflow.freeDeliveryEligible
+              ? quote.freeShippingMessage
+              : "Mode transitaire: aucune livraison gratuite AfriPay. Seuls les frais jusqu'à votre agent sont calculés."}
+          </div>
         </section>
 
         <section className="rounded-[28px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)]">
@@ -364,7 +522,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-[16px] font-semibold text-[#1f2937]">{option.label}</div>
-                      <div className="text-[16px] font-black tracking-[-0.03em] text-[#1f2937]">{option.isFree ? "Gratuite" : formatFcfa(option.priceFcfa)}</div>
+                      <div className="text-[16px] font-black tracking-[-0.03em] text-[#1f2937]">{option.isFree ? "Gratuite" : formatSourcingAmount(option.priceFcfa, { currencyCode, locale })}</div>
                     </div>
                     <div className="mt-1 text-[13px] text-[#667085]">{option.tradeLabel}</div>
                     <div className="mt-1 text-[13px] text-[#667085]">Délai estimé: {option.deliveryWindow}</div>
@@ -378,11 +536,11 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
         <section className="rounded-[28px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)]">
           <div className="flex items-center justify-between">
             <div className="text-[16px] font-semibold text-[#1f2937]">Produits</div>
-            <div className="text-[16px] font-bold text-[#1f2937]">{formatFcfa(quote.cartProductsTotalFcfa)}</div>
+            <div className="text-[16px] font-bold text-[#1f2937]">{formatSourcingAmount(quote.cartProductsTotalFcfa, { currencyCode, locale })}</div>
           </div>
           <div className="mt-3 flex items-center justify-between">
             <div className="text-[16px] font-semibold text-[#1f2937]">Livraison</div>
-            <div className="text-[16px] font-bold text-[#1f2937]">{selectedOption ? (selectedOption.isFree ? "Gratuite" : formatFcfa(selectedOption.priceFcfa)) : formatFcfa(0)}</div>
+            <div className="text-[16px] font-bold text-[#1f2937]">{selectedOption ? (selectedOption.isFree ? "Gratuite" : formatSourcingAmount(selectedOption.priceFcfa, { currencyCode, locale })) : formatSourcingAmount(0, { currencyCode, locale })}</div>
           </div>
           <div className="mt-3 flex items-center justify-between text-[13px] text-[#667085]">
             <span>Poids total</span>
@@ -392,12 +550,21 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses }: Sourcing
             <span>Volume total</span>
             <span>{quote.totalCbm.toFixed(4)} CBM</span>
           </div>
+          <div className="mt-1 flex items-center justify-between text-[13px] text-[#667085]">
+            <span>Route logistique</span>
+            <span>{deliveryPlan.workflow.routeType === "customer-forwarder" ? "Vers votre agent" : "Corridor AfriPay Lomé"}</span>
+          </div>
           <div className="mt-4 border-t border-[#edf1f6] pt-4">
             <div className="flex items-center justify-between">
               <div className="text-[18px] font-black tracking-[-0.04em] text-[#1f2937]">Total</div>
-              <div className="text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{formatFcfa(totalPrice)}</div>
+              <div className="text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{formatSourcingAmount(totalPrice, { currencyCode, locale })}</div>
             </div>
           </div>
+          {deliveryPlan.workflow.routeType === "customer-forwarder" ? (
+            <div className="mt-4 rounded-[18px] bg-[#fff8ee] px-4 py-4 text-[13px] leading-6 text-[#8a4b16] ring-1 ring-[#f6deb5]">
+              La commande sera clôturée dès remise au transitaire. Toutes les preuves de livraison à l'agent seront archivées en back-office et visibles dans votre suivi.
+            </div>
+          ) : null}
           <button type="button" onClick={submitOrder} disabled={isSubmitting || isLoading || !selectedOption} className="mt-5 inline-flex h-12 w-full items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[15px] font-semibold text-white transition hover:bg-[#e55e00] disabled:cursor-not-allowed disabled:opacity-70">
             {isSubmitting ? "Création en cours..." : "Continuer vers le paiement"}
           </button>

@@ -1,19 +1,21 @@
+import { cache } from "react";
+
 import { type ProductCatalogItem } from "@/lib/products-data";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { toCatalogProduct } from "@/lib/alibaba-operations";
 
-export async function getCatalogProducts() {
+export const getCatalogProducts = cache(async function getCatalogProducts() {
   const imported = (await getAlibabaImportedProducts())
     .filter((item) => item.publishedToSite && item.status === "published")
     .map(toCatalogProduct);
 
   return imported;
-}
+});
 
-export async function getCatalogProductBySlug(slug: string) {
+export const getCatalogProductBySlug = cache(async function getCatalogProductBySlug(slug: string) {
   const products = await getCatalogProducts();
   return products.find((product) => product.slug === slug) ?? null;
-}
+});
 
 export async function getCatalogProductsBySlugs(slugs: string[]) {
   const products = await getCatalogProducts();
@@ -23,10 +25,10 @@ export async function getCatalogProductsBySlugs(slugs: string[]) {
     .filter((product): product is ProductCatalogItem => product !== null);
 }
 
-export async function getCatalogRelatedProducts(currentSlug: string, limit = 4) {
+export const getCatalogRelatedProducts = cache(async function getCatalogRelatedProducts(currentSlug: string, limit = 4) {
   const products = await getCatalogProducts();
   return products.filter((product) => product.slug !== currentSlug).slice(0, limit);
-}
+});
 
 export async function searchCatalogProducts(query: string, limit?: number) {
   const normalizedQuery = query.trim().toLowerCase();

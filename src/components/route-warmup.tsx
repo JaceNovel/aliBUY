@@ -4,16 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 const HOT_ROUTES = [
-  "/",
   "/products",
   "/cart",
-  "/favorites",
-  "/login",
-  "/register",
-  "/account",
-  "/orders",
-  "/messages",
-  "/quotes",
 ];
 
 export function RouteWarmup() {
@@ -33,14 +25,14 @@ export function RouteWarmup() {
 
     const requestIdle = globalThis.requestIdleCallback;
     if (typeof requestIdle === "function") {
-      const idleId = requestIdle(() => warmRoutes(), { timeout: 1500 });
+      const idleId = requestIdle(() => warmRoutes(), { timeout: 3000 });
       return () => {
         cancelled = true;
         globalThis.cancelIdleCallback?.(idleId);
       };
     }
 
-    const timeoutId = window.setTimeout(warmRoutes, 300);
+    const timeoutId = window.setTimeout(warmRoutes, 1200);
     return () => {
       cancelled = true;
       window.clearTimeout(timeoutId);

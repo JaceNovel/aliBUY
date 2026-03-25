@@ -3,7 +3,7 @@ import "server-only";
 import type { AuthenticatedUser } from "@/lib/user-auth";
 import { type OrderRecord, type OrderStatus, type OrderTabKey } from "@/lib/order-utils";
 import { ensureOrderSupportConversation } from "@/lib/customer-data-store";
-import { formatFcfa, type SourcingOrder } from "@/lib/alibaba-sourcing";
+import { formatFcfa, getSourcingOrderMeta, type SourcingOrder } from "@/lib/alibaba-sourcing";
 import { getUserSourcingOrders } from "@/lib/sourcing-store";
 
 const countryLabels: Record<string, string> = {
@@ -16,7 +16,7 @@ const countryLabels: Record<string, string> = {
 
 function resolveStatus(order: SourcingOrder): OrderStatus {
   if (order.paymentStatus === "paid") {
-    if (order.status === "shipment_triggered") {
+    if (order.status === "delivered_to_agent" || order.status === "completed") {
       return "Commande Livree";
     }
 
@@ -76,24 +76,55 @@ function buildTrackingNumber(order: Pick<OrderRecord, "id" | "orderNumber">) {
 }
 
 function buildLogistics(order: SourcingOrder, status: OrderStatus) {
+  const meta = getSourcingOrderMeta(order);
+  const workflow = meta.workflow;
+  const profile = meta.deliveryProfile;
+  const forwarderHubLabel = profile?.forwarder?.hub === "china" || order.countryCode === "CN"
+    ? "Chine"
+    : profile?.forwarder?.hub === "lome"
+      ? "Lomé"
+      : undefined;
   const destination = countryLabels[order.countryCode] ?? order.countryCode;
-  const corridorLabel = `Hub AfriPay -> ${destination}`;
+  const corridorLabel = workflow?.routeType === "customer-forwarder"
+    ? `Fournisseur -> votre agent ${forwarderHubLabel ?? destination}`
+    : `Hub AfriPay -> ${destination}`;
+  const transitMode = workflow?.routeType === "customer-forwarder"
+    ? `Acheminement vers votre agent ${forwarderHubLabel ?? destination}`
+    : order.shippingMethod === "sea"
+      ? "Groupage mer, dedouanement puis livraison finale"
+      : "Acheminement express et remise locale";
+  const lastUpdate =
+    status === "Paiement en attente"
+      ? "Paiement en attente de validation avant lancement logistique."
+      : status === "Expedition en attente"
+        ? "Commande confirmee. Le dossier est en preparation logistique."
+        : workflow?.routeType === "customer-forwarder" && order.status === "delivered_to_agent"
+          ? "Le colis a ete remis a votre agent. La commande est cloturee avec preuve de remise."
+          : order.status === "relay_ready" && workflow?.relayPointAddress
+            ? `Votre colis est disponible au point relais ${workflow.relayPointAddress}.`
+            : status === "Livraison en attente"
+              ? "Le transport est en cours. La remise finale est en attente de confirmation."
+              : "Commande remise et archivee dans votre historique.";
 
   return {
-    agentName: order.shippingMethod === "sea" ? "Equipe logistique maritime" : "Equipe logistique express",
+    agentName: workflow?.routeType === "customer-forwarder"
+      ? `Agent client ${forwarderHubLabel ?? destination}`
+      : order.shippingMethod === "sea"
+        ? "Equipe logistique maritime"
+        : "Equipe logistique express",
     corridorLabel,
     destinationCountry: destination,
-    transitMode: order.shippingMethod === "sea" ? "Groupage mer, dedouanement puis livraison finale" : "Acheminement express et remise locale",
+    transitMode,
     merchantPickupCompleted: order.paymentStatus !== "unpaid",
     trackingCode: buildTrackingNumber({ id: order.id, orderNumber: order.orderNumber }),
-    lastUpdate:
-      status === "Paiement en attente"
-        ? "Paiement en attente de validation avant lancement logistique."
-        : status === "Expedition en attente"
-          ? "Commande confirmee. Le dossier est en preparation logistique."
-          : status === "Livraison en attente"
-            ? "Le transport est en cours. La remise finale est en attente de confirmation."
-            : "Commande remise et archivee dans votre historique.",
+    lastUpdate,
+    deliveryRouteType: workflow?.routeType,
+    relayPointAddress: workflow?.relayPointAddress,
+    relayPointLabel: workflow?.relayPointLabel,
+    availableForPickupAt: workflow?.availableForPickupAt,
+    deliveredToAgentAt: workflow?.deliveredToAgentAt,
+    forwarderHubLabel,
+    proofs: workflow?.proofs,
   };
 }
 

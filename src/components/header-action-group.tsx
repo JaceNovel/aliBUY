@@ -9,6 +9,10 @@ type HeaderActionGroupProps = {
   className?: string;
   iconClassName?: string;
   align?: "left" | "center" | "right";
+  moneyFormat?: {
+    currencyCode: string;
+    locale: string;
+  };
   user?: {
     displayName: string;
     firstName: string;
@@ -19,6 +23,7 @@ export function HeaderActionGroup({
   className = "flex items-center gap-3 text-[#222]",
   iconClassName = "h-5 w-5",
   align = "right",
+  moneyFormat,
   user = null,
 }: HeaderActionGroupProps) {
   return (
@@ -31,7 +36,7 @@ export function HeaderActionGroup({
       >
         <Heart className={iconClassName} />
       </Link>
-      <CartPopover className={iconClassName} align={align} />
+      <CartPopover className={iconClassName} align={align} currencyCode={moneyFormat?.currencyCode} locale={moneyFormat?.locale} />
       <ProfileMenu className={iconClassName} align={align} user={user} />
     </div>
   );

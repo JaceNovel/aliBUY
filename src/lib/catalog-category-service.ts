@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { extractAlibabaCategoryInfo, toCatalogProduct, type AlibabaImportedProduct } from "@/lib/alibaba-operations";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import type { ProductCatalogItem } from "@/lib/products-data";
@@ -109,7 +111,7 @@ function matchCanonicalImportedCategory(importedProduct: AlibabaImportedProduct)
   return null;
 }
 
-export async function getCatalogCategories() {
+export const getCatalogCategories = cache(async function getCatalogCategories() {
   const importedProducts = (await getAlibabaImportedProducts())
     .filter((item) => item.publishedToSite && item.status === "published");
 
@@ -175,9 +177,9 @@ export async function getCatalogCategories() {
 
       return right.productCount - left.productCount;
     });
-}
+});
 
-export async function getCatalogCategoryBySlug(slug: string) {
+export const getCatalogCategoryBySlug = cache(async function getCatalogCategoryBySlug(slug: string) {
   const categories = await getCatalogCategories();
   return categories.find((category) => category.slug === slug) ?? null;
-}
+});

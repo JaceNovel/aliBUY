@@ -19,8 +19,7 @@ function formatPriceRange(
 }
 
 export default async function DealsFlashPage() {
-  const pricing = await getPricingContext();
-  const products = await getCatalogProducts();
+  const [pricing, products] = await Promise.all([getPricingContext(), getCatalogProducts()]);
   const heroDeals = products.slice(0, 4);
   const rushDeals = products.slice(4, 8).length > 0 ? products.slice(4, 8) : products.slice(0, 4);
   const lastChanceDeals = products.slice(8, 12).length > 0 ? products.slice(8, 12) : products.slice(0, 4);

@@ -1,4 +1,12 @@
-import { formatFcfa, type SourcingCheckoutInput, type SourcingOrder, type SourcingSeaContainer, type SourcingSettings } from "@/lib/alibaba-sourcing";
+import {
+  formatFcfa,
+  resolveSourcingDeliveryPlan,
+  type SourcingCheckoutInput,
+  type SourcingOrder,
+  type SourcingSeaContainer,
+  type SourcingSettings,
+  withSourcingOrderMeta,
+} from "@/lib/alibaba-sourcing";
 import { createAlibabaSourcingQuote, getAlibabaSourcingCatalog } from "@/lib/alibaba-sourcing-server";
 import { createAlibabaSupplierOrders, verifyAlibabaSupplierFreight } from "@/lib/alibaba-open-platform-client";
 import { createAlibabaIntegrationLog, createSourcingIds, getAlibabaCatalogMappings, getSourcingOrders, getSourcingSeaContainers, getSourcingSettings, saveSourcingOrder, saveSourcingSeaContainer, saveSourcingSettings } from "@/lib/sourcing-store";
@@ -81,7 +89,19 @@ async function assignOrderToSeaContainer(order: SourcingOrder, settings: Sourcin
 
 export async function createCheckoutOrder(input: SourcingCheckoutInput) {
   const settings = await getSourcingSettings();
-  const quote = await createAlibabaSourcingQuote(input.items, settings);
+  const deliveryPlan = resolveSourcingDeliveryPlan({
+    countryCode: input.countryCode,
+    city: input.city,
+    deliveryProfile: input.deliveryProfile,
+  });
+
+  if (!deliveryPlan.supported) {
+    throw new Error(deliveryPlan.unsupportedMessage ?? "Cette destination n'est pas prise en charge en livraison directe.");
+  }
+
+  const quote = await createAlibabaSourcingQuote(input.items, settings, {
+    disableFreeAir: !deliveryPlan.workflow.freeDeliveryEligible,
+  });
   const shippingOption = quote.shippingOptions.find((option) => option.key === input.shippingMethod);
 
   if (!shippingOption) {
@@ -99,6 +119,7 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
     customerName: input.customerName,
     customerEmail: input.customerEmail,
     customerPhone: input.customerPhone,
+    googleMapsUrl: input.googleMapsUrl,
     addressLine1: input.addressLine1,
     addressLine2: input.addressLine2,
     city: input.city,
@@ -123,6 +144,10 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
     updatedAt: timestamp,
     items: quote.items,
   };
+  order = withSourcingOrderMeta(order, {
+    deliveryProfile: deliveryPlan.deliveryProfile,
+    workflow: deliveryPlan.workflow,
+  });
 
   if (input.shippingMethod === "sea") {
     const container = await assignOrderToSeaContainer(order, settings);

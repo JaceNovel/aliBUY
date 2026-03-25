@@ -12,7 +12,6 @@ import { SearchSuggestionInput } from "@/components/search-suggestion-input";
 import { SupportMenu } from "@/components/support-menu";
 import { UnavailableLink } from "@/components/unavailable-link";
 import { getCatalogCategories } from "@/lib/catalog-category-service";
-import { getCurrentUser } from "@/lib/user-auth";
 import { getMessages } from "@/lib/messages";
 
 type InternalPageShellProps = {
@@ -23,6 +22,7 @@ type InternalPageShellProps = {
     flagEmoji: string;
     languageCode: string;
     languageLabel: string;
+    locale: string;
   };
   children: React.ReactNode;
 };
@@ -36,7 +36,6 @@ const MOBILE_NAV_SHORTCUTS: ReadonlyArray<{ label: string; href: string }> = [
 
 export async function InternalPageShell({ pricing, children }: InternalPageShellProps) {
   const messages = getMessages(pricing.languageCode);
-  const user = await getCurrentUser();
   const categories = await getCatalogCategories();
   const megaMenuCategories: CategoryMegaMenuCategory[] = categories.slice(0, 9).map((category) => ({
     slug: category.slug,
@@ -147,7 +146,11 @@ export async function InternalPageShell({ pricing, children }: InternalPageShell
               <div className="hidden sm:block">
                 <LanguageSelectorPopover languageCode={pricing.languageCode} languageLabel={pricing.languageLabel} align="right" />
               </div>
-              <HeaderActionGroup className="flex items-center gap-3 text-[#222] sm:gap-4" iconClassName="h-5 w-5 sm:h-6 sm:w-6" user={user ? { displayName: user.displayName, firstName: user.firstName } : null} />
+              <HeaderActionGroup
+                className="flex items-center gap-3 text-[#222] sm:gap-4"
+                iconClassName="h-5 w-5 sm:h-6 sm:w-6"
+                moneyFormat={{ currencyCode: pricing.currency.code, locale: pricing.locale }}
+              />
             </div>
           </div>
 

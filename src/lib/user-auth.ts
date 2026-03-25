@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import "server-only";
 
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
@@ -147,7 +149,7 @@ export async function createAuthenticatedUserSession(user: AuthenticatedUser) {
   });
 }
 
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async function getCurrentUser() {
   const cookieStore = await cookies();
   const session = await parseUserSessionToken(cookieStore.get(USER_SESSION_COOKIE)?.value);
 
@@ -171,7 +173,7 @@ export async function getCurrentUser() {
   }
 
   return toAuthenticatedUser(user);
-}
+});
 
 export async function isUserAuthenticated() {
   return Boolean(await getCurrentUser());

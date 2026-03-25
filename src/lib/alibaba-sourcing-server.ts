@@ -57,7 +57,11 @@ export async function getAlibabaSourcingCatalog(settings: SourcingSettings) {
   });
 }
 
-export async function createAlibabaSourcingQuote(inputItems: CartInputItem[], settings: SourcingSettings) {
+export async function createAlibabaSourcingQuote(
+  inputItems: CartInputItem[],
+  settings: SourcingSettings,
+  options?: { disableFreeAir?: boolean },
+) {
   const products = await getCatalogProducts();
   const totalQuantityBySlug = new Map<string, number>();
   inputItems.forEach((item) => {
@@ -126,7 +130,7 @@ export async function createAlibabaSourcingQuote(inputItems: CartInputItem[], se
   const airCostFcfa = Math.ceil(totalWeightKg * settings.airRatePerKgFcfa);
   const seaCostFcfa = Math.ceil(totalCbm * settings.seaSellRatePerCbmFcfa);
   const shouldPreferSea = totalWeightKg > settings.airWeightThresholdKg;
-  const airIsFree = !shouldPreferSea && settings.freeAirEnabled && cartProductsTotalFcfa >= settings.freeAirThresholdFcfa;
+  const airIsFree = !options?.disableFreeAir && !shouldPreferSea && settings.freeAirEnabled && cartProductsTotalFcfa >= settings.freeAirThresholdFcfa;
   const showBothOptions = shouldPreferSea;
   const freeAirRemainingFcfa = Math.max(settings.freeAirThresholdFcfa - cartProductsTotalFcfa, 0);
 

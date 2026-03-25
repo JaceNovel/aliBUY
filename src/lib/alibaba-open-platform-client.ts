@@ -5,13 +5,14 @@ import {
   ALIBABA_DEFAULT_AUTHORIZE_URL,
   ALIBABA_DEFAULT_REFRESH_URL,
   ALIBABA_DEFAULT_TOKEN_URL,
+  type AlibabaReceptionAddress,
   type AlibabaFulfillmentChannel,
   type AlibabaSupplierAccount,
 } from "@/lib/alibaba-operations";
 import { getInternalSupplierFulfillment } from "@/lib/internal-fulfillment";
 import { resolveAlibabaMoq } from "@/lib/product-moq";
 import { sanitizeItemWeightGrams } from "@/lib/product-weight";
-import type { SourcingOrder, AlibabaCatalogMapping } from "@/lib/alibaba-sourcing";
+import { getSourcingOrderMeta, type SourcingOrder, type AlibabaCatalogMapping } from "@/lib/alibaba-sourcing";
 import type { ProductCatalogItem } from "@/lib/products-data";
 import { getAlibabaSupplierAccounts, saveAlibabaSupplierAccount } from "@/lib/alibaba-operations-store";
 import { createAlibabaIntegrationLog } from "@/lib/sourcing-store";
@@ -3044,10 +3045,100 @@ function buildAlibabaShipmentAddress(address: Awaited<ReturnType<typeof getInter
   };
 }
 
+function normalizeAddressBlockLines(value: string) {
+  return value
+    .split(/\r?\n|;/)
+    .flatMap((segment) => segment.split(/,(?!\s*\d{6}\b)/))
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+}
+
+function extractLabeledAddressValue(lines: string[], patterns: RegExp[]) {
+  for (const line of lines) {
+    for (const pattern of patterns) {
+      const match = line.match(pattern);
+      if (match?.[1]?.trim()) {
+        return match[1].trim();
+      }
+    }
+  }
+
+  return "";
+}
+
+function parseChinaForwarderAddressBlock(order: SourcingOrder, block: string) {
+  const lines = normalizeAddressBlockLines(block);
+  const collapsed = lines.join(" ");
+  const contactName = extractLabeledAddressValue(lines, [
+    /(?:contact|recipient|receiver|name|收件人|联系人)\s*[:：-]\s*(.+)$/i,
+  ]) || order.customerName;
+  const phone = extractLabeledAddressValue(lines, [
+    /(?:phone|mobile|tel|telephone|电话|手机)\s*[:：-]\s*(.+)$/i,
+  ]) || order.customerPhone;
+  const postalCode = extractLabeledAddressValue(lines, [
+    /(?:zip|postal|postcode|post code|邮编)\s*[:：-]\s*(\d{6})$/i,
+  ]) || (collapsed.match(/\b\d{6}\b/)?.[0] ?? order.postalCode ?? "");
+  const provinceMatch = collapsed.match(/([\u4e00-\u9fffA-Za-z\s]+?(?:省|自治区|特别行政区|市))/u);
+  const cityMatch = collapsed.match(/([\u4e00-\u9fffA-Za-z\s]+?市)/u);
+
+  const normalizedLines = lines.filter((line) => !/(?:contact|recipient|receiver|name|收件人|联系人|phone|mobile|tel|telephone|电话|手机|zip|postal|postcode|post code|邮编)\s*[:：-]/i.test(line));
+  const addressLine1 = normalizedLines[0] || order.addressLine1;
+  const addressLine2 = normalizedLines.length > 1 ? normalizedLines.slice(1).join(", ") : order.addressLine2;
+
+  return {
+    contactName,
+    phone,
+    postalCode,
+    state: provinceMatch?.[1]?.trim() || order.state || "Guangdong",
+    city: cityMatch?.[1]?.trim() || order.city || provinceMatch?.[1]?.trim() || "Shenzhen",
+    addressLine1,
+    addressLine2,
+  };
+}
+
+function buildCustomerForwarderFulfillment(order: SourcingOrder) {
+  const meta = getSourcingOrderMeta(order);
+  const forwarder = meta.deliveryProfile?.forwarder;
+  const useChinaHub = forwarder?.hub === "china" || order.countryCode === "CN";
+  const forwarderBlock = forwarder?.addressBlock?.trim();
+  const parsedChinaForwarder = useChinaHub && forwarderBlock ? parseChinaForwarderAddressBlock(order, forwarderBlock) : null;
+  const address: AlibabaReceptionAddress = {
+    id: `customer-forwarder-${order.id}`,
+    label: useChinaHub ? "Customer Forwarder China" : "Customer Forwarder Lome",
+    contactName: parsedChinaForwarder?.contactName || order.customerName,
+    phone: parsedChinaForwarder?.phone || order.customerPhone,
+    email: order.customerEmail,
+    addressLine1: parsedChinaForwarder?.addressLine1 || forwarderBlock?.split(/\n|,/).map((segment) => segment.trim()).filter(Boolean)[0] || order.addressLine1,
+    addressLine2: parsedChinaForwarder?.addressLine2 || (forwarderBlock && forwarderBlock !== order.addressLine1 ? forwarderBlock : order.addressLine2),
+    city: parsedChinaForwarder?.city || order.city,
+    state: parsedChinaForwarder?.state || order.state,
+    postalCode: parsedChinaForwarder?.postalCode || order.postalCode,
+    countryCode: useChinaHub ? "CN" : "TG",
+    isDefault: false,
+    createdAt: order.createdAt,
+    updatedAt: order.updatedAt,
+  };
+
+  return {
+    operatorName: useChinaHub ? "Agent client Chine" : "Agent client Lome",
+    shippingMark: forwarder?.parcelMarking?.trim() || `Client ${order.customerName} ${order.customerPhone}`,
+    address,
+  };
+}
+
+async function resolveSupplierFulfillment(order: SourcingOrder) {
+  const meta = getSourcingOrderMeta(order);
+  if (meta.workflow?.routeType === "customer-forwarder") {
+    return buildCustomerForwarderFulfillment(order);
+  }
+
+  return getInternalSupplierFulfillment(order.shippingMethod);
+}
+
 async function prepareSupplierAutomationContext(order: SourcingOrder, mappings: AlibabaCatalogMapping[]) {
   const credentials = await resolveAlibabaCredentials();
   const { missingMappings, groups } = groupMappingsForOrder(order, mappings);
-  const internalFulfillment = await getInternalSupplierFulfillment(order.shippingMethod);
+  const internalFulfillment = await resolveSupplierFulfillment(order);
 
   return {
     credentials,

@@ -14,15 +14,15 @@ export default async function ProductsPage({
 }: {
   searchParams: Promise<{ q?: string; category?: string }>;
 }) {
-  const pricing = await getPricingContext();
-  const { q = "", category: categorySlug = "" } = await searchParams;
+  const [pricing, { q = "", category: categorySlug = "" }] = await Promise.all([getPricingContext(), searchParams]);
   const query = q.trim();
-  const activeCategory = categorySlug ? await getCatalogCategoryBySlug(categorySlug.trim()) : null;
-  const visibleProducts = activeCategory
-    ? activeCategory.products
-    : query
-      ? await searchCatalogProducts(query)
-      : await getCatalogProducts();
+  const normalizedCategorySlug = categorySlug.trim();
+  const [activeCategory, searchedProducts, catalogProducts] = await Promise.all([
+    normalizedCategorySlug ? getCatalogCategoryBySlug(normalizedCategorySlug) : Promise.resolve(null),
+    query ? searchCatalogProducts(query) : Promise.resolve(null),
+    !normalizedCategorySlug && !query ? getCatalogProducts() : Promise.resolve(null),
+  ]);
+  const visibleProducts = activeCategory?.products ?? searchedProducts ?? catalogProducts ?? [];
 
   return (
     <InternalPageShell pricing={pricing}>

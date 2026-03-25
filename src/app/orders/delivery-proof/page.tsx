@@ -43,7 +43,7 @@ export default async function DeliveryProofPage({
 
           <div className="mt-4 overflow-hidden rounded-[20px] bg-[#fafafa] ring-1 ring-black/5 sm:mt-6 sm:rounded-[24px]">
             <div className="relative aspect-[1.02] bg-[#f4f4f4] sm:aspect-[1.15]">
-              <Image src={order.image} alt={order.title} fill sizes="(min-width: 1280px) 42vw, 94vw" className="object-cover" />
+              <Image src={order.logistics.proofs?.[0]?.mediaUrl || order.image} alt={order.title} fill sizes="(min-width: 1280px) 42vw, 94vw" className="object-cover" />
               <div className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-white/92 px-2.5 py-1 text-[10px] font-semibold text-[#127a46] shadow-[0_10px_20px_rgba(0,0,0,0.08)] sm:left-4 sm:top-4 sm:gap-2 sm:px-3 sm:py-1.5 sm:text-[11px]">
                 <ImageIcon className="h-4 w-4" />
                 Archive de livraison
@@ -79,6 +79,12 @@ export default async function DeliveryProofPage({
               <div className="text-[12px] text-[#777]">Dernière mise à jour</div>
               <div className="mt-1 text-[13px] leading-5 text-[#555] sm:text-[14px] sm:leading-6">{order.logistics.lastUpdate}</div>
             </div>
+            {order.logistics.proofs?.[0] ? (
+              <div>
+                <div className="text-[12px] text-[#777]">Preuve</div>
+                <div className="mt-1 text-[13px] leading-5 text-[#555] sm:text-[14px] sm:leading-6">{order.logistics.proofs[0].title}{order.logistics.proofs[0].note ? ` · ${order.logistics.proofs[0].note}` : ""}</div>
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-4 rounded-[18px] bg-[#edf8f1] px-4 py-4 ring-1 ring-[#cfe7d7] sm:mt-5 sm:rounded-[20px]">

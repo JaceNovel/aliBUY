@@ -31,11 +31,20 @@ export function SearchSuggestionInput({
   }, [onValueChange, query]);
 
   useEffect(() => {
+    const normalizedQuery = query.trim();
+    if (normalizedQuery.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+
     const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      void loadSuggestions();
+    }, 180);
 
     async function loadSuggestions() {
       try {
-        const response = await fetch(`/api/search-suggestions?q=${encodeURIComponent(query)}`, {
+        const response = await fetch(`/api/search-suggestions?q=${encodeURIComponent(normalizedQuery)}`, {
           signal: controller.signal,
         });
         const payload = await response.json();
@@ -47,9 +56,8 @@ export function SearchSuggestionInput({
       }
     }
 
-    void loadSuggestions();
-
     return () => {
+      window.clearTimeout(timeoutId);
       controller.abort();
     };
   }, [query]);

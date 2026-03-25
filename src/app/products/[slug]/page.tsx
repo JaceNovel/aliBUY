@@ -18,23 +18,24 @@ export default async function ProductPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  const pricing = await getPricingContext();
-  const user = await getCurrentUser();
-  const { slug } = await params;
+  const [{ slug }, pricing, user] = await Promise.all([params, getPricingContext(), getCurrentUser()]);
   const product = await getCatalogProductBySlug(slug);
 
   if (!product) {
     notFound();
   }
 
-  const relatedProducts = (await getCatalogRelatedProducts(product.slug)).map((relatedProduct) => ({
+  const [relatedCatalogProducts, initialIsFavorite] = await Promise.all([
+    getCatalogRelatedProducts(product.slug),
+    user ? isUserFavoriteProduct(user.id, product.slug) : Promise.resolve(false),
+  ]);
+  const relatedProducts = relatedCatalogProducts.map((relatedProduct) => ({
     slug: relatedProduct.slug,
     title: relatedProduct.shortTitle,
     image: relatedProduct.image,
     formattedPrice: formatTierAwarePrice(pricing.formatPrice, relatedProduct),
     moqLabel: relatedProduct.moqVerified ? `MOQ: ${relatedProduct.moq} ${relatedProduct.unit}` : "MOQ fournisseur a confirmer",
   }));
-  const initialIsFavorite = user ? await isUserFavoriteProduct(user.id, product.slug) : false;
 
   return (
     <InternalPageShell pricing={pricing}>

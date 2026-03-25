@@ -21,8 +21,7 @@ function formatPriceRange(
 }
 
 export default async function ModePage() {
-  const pricing = await getPricingContext();
-  const catalogProducts = await getCatalogProducts();
+  const [pricing, catalogProducts] = await Promise.all([getPricingContext(), getCatalogProducts()]);
   const groupedOffers = catalogProducts.slice(0, 3);
   const dailyDeals = catalogProducts.slice(3, 6).length > 0 ? catalogProducts.slice(3, 6) : catalogProducts.slice(0, 3);
   const premiumSelection = catalogProducts.slice(0, 6);

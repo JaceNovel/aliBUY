@@ -28,8 +28,13 @@ const profileItems = [
 
 export function ProfileMenu({ className = "", align = "right", user = null }: ProfileMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [resolvedUser, setResolvedUser] = useState(user);
   const closeTimeoutRef = useRef<number | null>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    setResolvedUser(user);
+  }, [user]);
 
   useEffect(() => {
     return () => {
@@ -50,6 +55,39 @@ export function ProfileMenu({ className = "", align = "right", user = null }: Pr
     router.prefetch("/login");
     router.prefetch("/register");
   }, [isOpen, router]);
+
+  useEffect(() => {
+    if (user !== null) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void fetch("/api/account/session", { credentials: "same-origin" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((payload) => {
+        if (cancelled) {
+          return;
+        }
+
+        const nextUser = payload?.user && typeof payload.user.displayName === "string" && typeof payload.user.firstName === "string"
+          ? {
+              displayName: payload.user.displayName,
+              firstName: payload.user.firstName,
+            }
+          : null;
+        setResolvedUser(nextUser);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResolvedUser(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const showMenu = () => {
     if (closeTimeoutRef.current) {
@@ -115,10 +153,10 @@ export function ProfileMenu({ className = "", align = "right", user = null }: Pr
       >
         <div className={["absolute -top-2 h-4 w-4 rotate-45 border-l border-t border-[#e6e6e6] bg-white", arrowClassName].join(" ")} />
 
-        {user ? (
+        {resolvedUser ? (
           <>
             <div className="flex items-center gap-3 border-b border-[#ededed] pb-5">
-              <div className="text-[18px] font-semibold text-[#222]">Bonjour, {user.firstName}</div>
+              <div className="text-[18px] font-semibold text-[#222]">Bonjour, {resolvedUser.firstName}</div>
             </div>
 
             <div className="space-y-1 py-5">

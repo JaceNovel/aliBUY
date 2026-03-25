@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import { Geist } from "next/font/google";
 import { CartProvider } from "@/components/cart-provider";
+import { AssistLoopWidget } from "@/components/assistloop-widget";
 import { RouteWarmup } from "@/components/route-warmup";
 import "./globals.css";
 
@@ -20,12 +20,9 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const cookieStore = await cookies();
-  const htmlLang = cookieStore.get("afri_language")?.value === "en" ? "en-US" : "fr-FR";
-
   return (
-    <html suppressHydrationWarning lang={htmlLang} className={`${geistSans.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col"><CartProvider><RouteWarmup />{children}</CartProvider></body>
+    <html suppressHydrationWarning lang="fr-FR" className={`${geistSans.variable} h-full antialiased`}>
+      <body className="min-h-full flex flex-col"><CartProvider><RouteWarmup />{children}<AssistLoopWidget /></CartProvider></body>
     </html>
   );
 }

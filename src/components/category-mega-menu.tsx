@@ -82,9 +82,6 @@ export function CategoryMegaMenu({
     }
 
     router.prefetch(active.href ?? `/products?category=${encodeURIComponent(active.slug)}`);
-    active.products.slice(0, 5).forEach((product) => {
-      router.prefetch(`/products/${product.slug}`);
-    });
   }, [activeSlug, categories, router]);
 
   const categoryLinks: CategoryLink[] = categories.slice(0, 9).map((category, index) => ({

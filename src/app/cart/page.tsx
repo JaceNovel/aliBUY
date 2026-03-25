@@ -10,7 +10,7 @@ export default async function CartPage() {
 
   return (
     <InternalPageShell pricing={pricing}>
-      <CartPageClient />
+      <CartPageClient currencyCode={pricing.currency.code} locale={pricing.locale} />
       <div className="hidden">
         <Image src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="" width={1} height={1} />
       </div>

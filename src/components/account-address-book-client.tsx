@@ -1,7 +1,7 @@
 "use client";
 
 import { startTransition, useMemo, useState } from "react";
-import { Check, MapPinned, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
+import { Check, LocateFixed, MapPinned, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 
 import type { CustomerAddressRecord } from "@/lib/customer-addresses";
 import { buildAddressQuickInput, parseAddressQuickInput } from "@/lib/address-autofill";
@@ -66,8 +66,11 @@ export function AccountAddressBookClient({ initialAddresses }: { initialAddresse
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [form, setForm] = useState<AddressFormState>(initialForm);
   const [quickAddress, setQuickAddress] = useState(() => buildAddressQuickInput(initialForm));
+  const [mapsUrl, setMapsUrl] = useState("");
   const [isManualAddress, setIsManualAddress] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+  const [isResolvingMapsLink, setIsResolvingMapsLink] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const editingAddress = useMemo(
@@ -80,7 +83,62 @@ export function AccountAddressBookClient({ initialAddresses }: { initialAddresse
     const nextForm = { ...emptyForm, isDefault: addresses.length === 0 };
     setForm(nextForm);
     setQuickAddress(buildAddressQuickInput(nextForm));
+    setMapsUrl("");
     setIsManualAddress(false);
+  };
+
+  const extractCoordinatesFromGoogleMapsUrl = (value: string) => {
+    const normalized = decodeURIComponent(value.trim());
+    const queryMatch = normalized.match(/q=(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/i);
+    if (queryMatch) {
+      return { latitude: Number(queryMatch[1]), longitude: Number(queryMatch[2]) };
+    }
+
+    const atMatch = normalized.match(/@(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/i);
+    if (atMatch) {
+      return { latitude: Number(atMatch[1]), longitude: Number(atMatch[2]) };
+    }
+
+    return null;
+  };
+
+  const applyGeocodedAddress = (payload: {
+    addressLine1?: string;
+    addressLine2?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    countryCode?: string;
+    displayName?: string;
+  }) => {
+    const nextForm = {
+      ...form,
+      addressLine1: payload.addressLine1 || payload.displayName || form.addressLine1,
+      addressLine2: payload.addressLine2 || form.addressLine2,
+      city: payload.city || form.city,
+      state: payload.state || payload.city || form.state,
+      postalCode: payload.postalCode || form.postalCode,
+      countryCode: payload.countryCode || form.countryCode,
+    };
+
+    setForm(nextForm);
+    setQuickAddress(buildAddressQuickInput(nextForm));
+  };
+
+  const hydrateAddressFromCoordinates = async (latitude: number, longitude: number) => {
+    const response = await fetch("/api/location/reverse-geocode", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ latitude, longitude }),
+    });
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok || !payload) {
+      throw new Error(payload?.message || "Impossible de remplir l'adresse depuis cette position.");
+    }
+
+    setMapsUrl(`https://www.google.com/maps?q=${latitude},${longitude}`);
+    applyGeocodedAddress(payload);
   };
 
   const syncAddresses = (nextAddresses: CustomerAddressRecord[]) => {
@@ -148,8 +206,58 @@ export function AccountAddressBookClient({ initialAddresses }: { initialAddresse
     const nextForm = toFormState(address);
     setForm(nextForm);
     setQuickAddress(buildAddressQuickInput(nextForm));
+    setMapsUrl("");
     setIsManualAddress(false);
     setFeedback(null);
+  };
+
+  const handleUseCurrentPosition = () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setFeedback({ type: "error", message: "La géolocalisation n'est pas disponible sur cet appareil." });
+      return;
+    }
+
+    setIsLocating(true);
+    setFeedback(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        void hydrateAddressFromCoordinates(position.coords.latitude, position.coords.longitude)
+          .then(() => {
+            setFeedback({ type: "success", message: "Adresse préremplie depuis votre position actuelle." });
+          })
+          .catch((error) => {
+            setFeedback({ type: "error", message: error instanceof Error ? error.message : "Impossible d'utiliser votre position." });
+          })
+          .finally(() => {
+            setIsLocating(false);
+          });
+      },
+      () => {
+        setIsLocating(false);
+        setFeedback({ type: "error", message: "Impossible d'accéder à votre position exacte." });
+      },
+      { enableHighAccuracy: true, timeout: 12000 },
+    );
+  };
+
+  const handleResolveMapsLink = async () => {
+    const coordinates = extractCoordinatesFromGoogleMapsUrl(mapsUrl);
+    if (!coordinates) {
+      setFeedback({ type: "error", message: "Le lien Google Maps doit contenir des coordonnées lisibles." });
+      return;
+    }
+
+    setIsResolvingMapsLink(true);
+    setFeedback(null);
+    try {
+      await hydrateAddressFromCoordinates(coordinates.latitude, coordinates.longitude);
+      setFeedback({ type: "success", message: "Adresse préremplie depuis le lien Google Maps." });
+    } catch (error) {
+      setFeedback({ type: "error", message: error instanceof Error ? error.message : "Impossible de lire ce lien Maps." });
+    } finally {
+      setIsResolvingMapsLink(false);
+    }
   };
 
   const handleSetDefault = async (addressId: string) => {
@@ -323,6 +431,17 @@ export function AccountAddressBookClient({ initialAddresses }: { initialAddresse
 
             <div className="mt-2 text-[12px] leading-5 text-[#7b675a]">
               Le mode rapide remplit rue, ville, région, code postal et pays. Si l'adresse est complexe, utilisez la saisie manuelle.
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-[1.25fr_0.75fr]">
+              <label className="text-[13px] font-semibold text-[#4a3b31]">
+                Lien Google Maps
+                <input value={mapsUrl} onChange={(event) => setMapsUrl(event.target.value)} placeholder="https://www.google.com/maps?q=..." className="mt-2 h-11 w-full rounded-[14px] border border-[#e6d8cb] bg-white px-4 text-[14px] text-[#221f1c] outline-none focus:border-[#ff6a00]" />
+              </label>
+              <div className="grid gap-2 sm:pt-[26px]">
+                <button type="button" onClick={handleResolveMapsLink} disabled={isResolvingMapsLink || mapsUrl.trim().length === 0} className="inline-flex h-11 items-center justify-center rounded-full border border-[#e2d5ca] px-4 text-[13px] font-semibold text-[#4a3b31] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">{isResolvingMapsLink ? "Lecture..." : "Lire le lien"}</button>
+                <button type="button" onClick={handleUseCurrentPosition} disabled={isLocating} className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#143743] px-4 text-[13px] font-semibold text-white transition hover:bg-[#102d36] disabled:cursor-not-allowed disabled:opacity-70"><LocateFixed className="h-4 w-4" />{isLocating ? "Localisation..." : "Ma position actuelle"}</button>
+              </div>
             </div>
 
             {isManualAddress ? (

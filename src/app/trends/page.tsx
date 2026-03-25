@@ -19,8 +19,7 @@ function formatPriceRange(
 }
 
 export default async function TrendsPage() {
-  const pricing = await getPricingContext();
-  const products = await getCatalogProducts();
+  const [pricing, products] = await Promise.all([getPricingContext(), getCatalogProducts()]);
   const promoProducts = products.filter((product) => product.badge === "Promo");
   const stockProducts = products.filter((product) => product.badge === "En stock" || product.badge === "Livraison rapide");
   const trendProducts = products

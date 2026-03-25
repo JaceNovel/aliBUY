@@ -1,14 +1,18 @@
 import { type ProductCatalogItem } from "@/lib/products-data";
 import { resolveProductUnitPriceUsd } from "@/lib/product-variant-pricing";
+import { CURRENCY_CONFIG, type CurrencyCode } from "@/lib/pricing-options";
 
 export type MarginMode = "percent" | "fixed";
 export type ShippingMethodKey = "air" | "sea";
-export type SourcingOrderStatus = "checkout_created" | "grouped_sea" | "ready_to_ship" | "submitted_to_supplier" | "shipment_triggered";
+export type SourcingOrderStatus = "checkout_created" | "grouped_sea" | "ready_to_ship" | "submitted_to_supplier" | "shipment_triggered" | "in_transit_to_agent" | "delivered_to_agent" | "relay_ready" | "completed";
 export type FreightStatus = "not_requested" | "skipped" | "verified" | "failed";
 export type SupplierOrderStatus = "not_created" | "skipped" | "created" | "failed";
 export type PaymentStatus = "unpaid" | "initialized" | "pending" | "paid" | "failed" | "cancelled";
 export type SeaContainerStatus = "pending" | "ready_to_ship" | "shipped";
 export type VariantSelection = Record<string, string>;
+export type SourcingDeliveryMode = "direct" | "forwarder";
+export type SourcingForwarderHub = "china" | "lome";
+export type SourcingDeliveryProofRole = "supplier_to_agent" | "agent_to_forwarder" | "arrival_scan" | "relay_release";
 
 export type SourcingSettings = {
   currencyCode: string;
@@ -82,6 +86,7 @@ export type SourcingCheckoutAddress = {
   customerName: string;
   customerEmail: string;
   customerPhone: string;
+  googleMapsUrl?: string;
   addressLine1: string;
   addressLine2?: string;
   city: string;
@@ -90,11 +95,57 @@ export type SourcingCheckoutAddress = {
   countryCode: string;
 };
 
+export type SourcingForwarderAddress = {
+  hub: SourcingForwarderHub;
+  addressBlock: string;
+  parcelMarking?: string;
+};
+
+export type SourcingDeliveryProfile = {
+  mode: SourcingDeliveryMode;
+  useExactPosition?: boolean;
+  googleMapsUrl?: string;
+  detectedCountryCode?: string;
+  detectedCountryLabel?: string;
+  detectedCity?: string;
+  unsupportedCountry?: boolean;
+  unsupportedMessage?: string;
+  forwarder?: SourcingForwarderAddress;
+};
+
+export type SourcingDeliveryProof = {
+  id: string;
+  role: SourcingDeliveryProofRole;
+  title: string;
+  note?: string;
+  mediaUrl?: string;
+  actorLabel?: string;
+  createdAt: string;
+};
+
+export type SourcingOrderWorkflow = {
+  routeType: "afripay-final-mile" | "customer-forwarder";
+  freeDeliveryEligible: boolean;
+  supplierDeliveryAddressRole: "afripay-agent" | "forwarder";
+  relayPointAddress?: string;
+  relayPointLabel?: string;
+  availableForPickupAt?: string;
+  deliveredToAgentAt?: string;
+  completedAt?: string;
+  proofs: SourcingDeliveryProof[];
+};
+
+export type SourcingOrderMeta = {
+  deliveryProfile?: SourcingDeliveryProfile;
+  workflow?: SourcingOrderWorkflow;
+};
+
 export type SourcingCheckoutInput = SourcingCheckoutAddress & {
   userId?: string;
   items: CartInputItem[];
   shippingMethod: ShippingMethodKey;
   notes?: string;
+  deliveryProfile?: SourcingDeliveryProfile;
 };
 
 export type SourcingOrderItem = CartComputedItem;
@@ -168,7 +219,106 @@ export type AlibabaCatalogMapping = {
 };
 
 const FCFA_LOCALE = "fr-FR";
-const USD_TO_FCFA = 610;
+const SOURCING_META_KEY = "__afripaySourcingMeta";
+export const USD_TO_FCFA = 610;
+export const SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES = ["TG"] as const;
+export const SUPPORTED_FORWARDER_COUNTRY_CODES = ["CN", "TG"] as const;
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getKnownCurrency(candidate?: string) {
+  if (!candidate) {
+    return CURRENCY_CONFIG.XOF;
+  }
+
+  const normalized = candidate.trim().toUpperCase() as CurrencyCode;
+  return CURRENCY_CONFIG[normalized] ?? CURRENCY_CONFIG.XOF;
+}
+
+function normalizeHub(candidate?: string): SourcingForwarderHub {
+  return candidate === "china" ? "china" : "lome";
+}
+
+function normalizeDeliveryProofRole(candidate?: string): SourcingDeliveryProofRole {
+  switch (candidate) {
+    case "agent_to_forwarder":
+    case "arrival_scan":
+    case "relay_release":
+      return candidate;
+    default:
+      return "supplier_to_agent";
+  }
+}
+
+function normalizeDeliveryProof(value: unknown): SourcingDeliveryProof | null {
+  if (!isObjectRecord(value)) {
+    return null;
+  }
+
+  const id = typeof value.id === "string" ? value.id : "";
+  const title = typeof value.title === "string" ? value.title.trim() : "";
+  const createdAt = typeof value.createdAt === "string" ? value.createdAt : "";
+  if (!id || !title || !createdAt) {
+    return null;
+  }
+
+  return {
+    id,
+    role: normalizeDeliveryProofRole(typeof value.role === "string" ? value.role : undefined),
+    title,
+    note: typeof value.note === "string" ? value.note : undefined,
+    mediaUrl: typeof value.mediaUrl === "string" ? value.mediaUrl : undefined,
+    actorLabel: typeof value.actorLabel === "string" ? value.actorLabel : undefined,
+    createdAt,
+  };
+}
+
+function normalizeDeliveryProfile(value: unknown): SourcingDeliveryProfile | undefined {
+  if (!isObjectRecord(value)) {
+    return undefined;
+  }
+
+  const mode = value.mode === "forwarder" ? "forwarder" : "direct";
+  const forwarder = isObjectRecord(value.forwarder)
+    ? {
+        hub: normalizeHub(typeof value.forwarder.hub === "string" ? value.forwarder.hub : undefined),
+        addressBlock: typeof value.forwarder.addressBlock === "string" ? value.forwarder.addressBlock : "",
+        parcelMarking: typeof value.forwarder.parcelMarking === "string" ? value.forwarder.parcelMarking : undefined,
+      } satisfies SourcingForwarderAddress
+    : undefined;
+
+  return {
+    mode,
+    useExactPosition: value.useExactPosition === true,
+    googleMapsUrl: typeof value.googleMapsUrl === "string" ? value.googleMapsUrl : undefined,
+    detectedCountryCode: typeof value.detectedCountryCode === "string" ? value.detectedCountryCode : undefined,
+    detectedCountryLabel: typeof value.detectedCountryLabel === "string" ? value.detectedCountryLabel : undefined,
+    detectedCity: typeof value.detectedCity === "string" ? value.detectedCity : undefined,
+    unsupportedCountry: value.unsupportedCountry === true,
+    unsupportedMessage: typeof value.unsupportedMessage === "string" ? value.unsupportedMessage : undefined,
+    forwarder,
+  };
+}
+
+function normalizeOrderWorkflow(value: unknown): SourcingOrderWorkflow | undefined {
+  if (!isObjectRecord(value)) {
+    return undefined;
+  }
+
+  return {
+    routeType: value.routeType === "customer-forwarder" ? "customer-forwarder" : "afripay-final-mile",
+    freeDeliveryEligible: value.freeDeliveryEligible !== false,
+    supplierDeliveryAddressRole: value.supplierDeliveryAddressRole === "forwarder" ? "forwarder" : "afripay-agent",
+    relayPointAddress: typeof value.relayPointAddress === "string" ? value.relayPointAddress : undefined,
+    relayPointLabel: typeof value.relayPointLabel === "string" ? value.relayPointLabel : undefined,
+    availableForPickupAt: typeof value.availableForPickupAt === "string" ? value.availableForPickupAt : undefined,
+    deliveredToAgentAt: typeof value.deliveredToAgentAt === "string" ? value.deliveredToAgentAt : undefined,
+    completedAt: typeof value.completedAt === "string" ? value.completedAt : undefined,
+    proofs: Array.isArray(value.proofs) ? value.proofs.map(normalizeDeliveryProof).filter((entry): entry is SourcingDeliveryProof => Boolean(entry)) : [],
+  };
+}
 
 export function normalizeVariantSelection(selection?: VariantSelection) {
   if (!selection) {
@@ -225,6 +375,144 @@ export function convertUsdToFcfa(amountUsd: number) {
   return Math.round(amountUsd * USD_TO_FCFA);
 }
 
+export function convertFcfaToUsd(amountFcfa: number) {
+  return Number((amountFcfa / USD_TO_FCFA).toFixed(2));
+}
+
+export function formatSourcingAmount(amountFcfa: number, input?: { currencyCode?: string; locale?: string }) {
+  const currency = getKnownCurrency(input?.currencyCode);
+  const locale = input?.locale?.trim() || FCFA_LOCALE;
+  const localizedAmount = convertFcfaToUsd(amountFcfa) * currency.rateFromUsd;
+
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: currency.code,
+    minimumFractionDigits: localizedAmount >= 100 ? 0 : 2,
+    maximumFractionDigits: localizedAmount >= 100 ? 0 : 2,
+  }).format(localizedAmount);
+}
+
+export function getSourcingOrderMeta(order: Pick<SourcingOrder, "supplierOrderPayload">): SourcingOrderMeta {
+  if (!isObjectRecord(order.supplierOrderPayload)) {
+    return {};
+  }
+
+  const meta = order.supplierOrderPayload[SOURCING_META_KEY];
+  if (!isObjectRecord(meta)) {
+    return {};
+  }
+
+  return {
+    deliveryProfile: normalizeDeliveryProfile(meta.deliveryProfile),
+    workflow: normalizeOrderWorkflow(meta.workflow),
+  };
+}
+
+export function withSourcingOrderMeta(order: SourcingOrder, metaUpdate: SourcingOrderMeta) {
+  const currentPayload = isObjectRecord(order.supplierOrderPayload)
+    ? order.supplierOrderPayload
+    : order.supplierOrderPayload === undefined
+      ? {}
+      : { rawPayload: order.supplierOrderPayload };
+  const currentMeta = getSourcingOrderMeta(order);
+  const nextMeta: SourcingOrderMeta = {
+    deliveryProfile: metaUpdate.deliveryProfile ?? currentMeta.deliveryProfile,
+    workflow: metaUpdate.workflow ?? currentMeta.workflow,
+  };
+
+  return {
+    ...order,
+    supplierOrderPayload: {
+      ...currentPayload,
+      [SOURCING_META_KEY]: nextMeta,
+    },
+  } satisfies SourcingOrder;
+}
+
+export function resolveSourcingDeliveryPlan(input: {
+  countryCode?: string;
+  city?: string;
+  deliveryProfile?: SourcingDeliveryProfile;
+}): {
+  supported: boolean;
+  unsupportedMessage?: string;
+  deliveryProfile: SourcingDeliveryProfile;
+  workflow: SourcingOrderWorkflow;
+} {
+  const countryCode = input.countryCode?.trim().toUpperCase() || "TG";
+  const city = input.city?.trim().toLowerCase() || "";
+  const requestedProfile = input.deliveryProfile;
+  const requestedMode = requestedProfile?.mode === "forwarder" ? "forwarder" : "direct";
+  const isChinaAddress = countryCode === "CN";
+  const isLomeAddress = countryCode === "TG" && ["lome", "lomé"].includes(city);
+  const forcedForwarder = requestedMode === "forwarder" || isChinaAddress;
+
+  if (!forcedForwarder && !isLomeAddress) {
+    return {
+      supported: false,
+      unsupportedMessage: "Ce pays n'est pas pris en charge par nos transporteurs. Veuillez utiliser un transitaire en Chine ou a Lome.",
+      deliveryProfile: {
+        mode: "direct",
+        ...requestedProfile,
+        unsupportedCountry: true,
+        unsupportedMessage: "Ce pays n'est pas pris en charge par nos transporteurs. Veuillez utiliser un transitaire en Chine ou a Lome.",
+      },
+      workflow: {
+        routeType: "afripay-final-mile",
+        freeDeliveryEligible: true,
+        supplierDeliveryAddressRole: "afripay-agent",
+        proofs: [],
+      },
+    };
+  }
+
+  const forwarderHub = requestedProfile?.forwarder?.hub
+    ? normalizeHub(requestedProfile.forwarder.hub)
+    : isChinaAddress
+      ? "china"
+      : "lome";
+
+  if (forcedForwarder) {
+    return {
+      supported: true,
+      deliveryProfile: {
+        mode: "forwarder",
+        ...requestedProfile,
+        unsupportedCountry: false,
+        unsupportedMessage: undefined,
+        forwarder: requestedProfile?.forwarder
+          ? {
+              ...requestedProfile.forwarder,
+              hub: forwarderHub,
+            }
+          : undefined,
+      },
+      workflow: {
+        routeType: "customer-forwarder",
+        freeDeliveryEligible: false,
+        supplierDeliveryAddressRole: "forwarder",
+        proofs: [],
+      },
+    };
+  }
+
+  return {
+    supported: true,
+    deliveryProfile: {
+      mode: "direct",
+      ...requestedProfile,
+      unsupportedCountry: false,
+      unsupportedMessage: undefined,
+    },
+    workflow: {
+      routeType: "afripay-final-mile",
+      freeDeliveryEligible: true,
+      supplierDeliveryAddressRole: "afripay-agent",
+      proofs: [],
+    },
+  };
+}
+
 export function getProductSourcingMetrics(product: ProductCatalogItem, input?: { quantity?: number; selectedVariants?: VariantSelection }) {
   const weightKg = Number((product.itemWeightGrams / 1000).toFixed(3));
   const volumeCbm = Number(parseLotCbmVolume(product.lotCbm, product.moq).toFixed(4));
@@ -239,9 +527,9 @@ export function getProductSourcingMetrics(product: ProductCatalogItem, input?: {
     supplierPriceFcfa,
   };
 }
-
 export function createEmptyQuote(settings?: Pick<SourcingSettings, "freeAirThresholdFcfa" | "containerTargetCbm">): AlibabaSourcingQuote {
   const threshold = settings?.freeAirThresholdFcfa ?? 15000;
+
   const containerTarget = settings?.containerTargetCbm ?? 1;
 
   return {

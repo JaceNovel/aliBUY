@@ -17,7 +17,12 @@ export default async function CheckoutPage() {
 
   return (
     <InternalPageShell pricing={pricing}>
-      <SourcingCheckoutClient initialUser={{ displayName: user.displayName, email: user.email }} savedAddresses={addresses} />
+      <SourcingCheckoutClient
+        initialUser={{ displayName: user.displayName, email: user.email }}
+        savedAddresses={addresses}
+        currencyCode={pricing.currency.code}
+        locale={pricing.locale}
+      />
     </InternalPageShell>
   );
 }

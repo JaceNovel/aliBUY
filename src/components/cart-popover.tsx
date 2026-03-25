@@ -5,15 +5,17 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ShoppingCart } from "lucide-react";
 
-import { formatFcfa } from "@/lib/alibaba-sourcing";
+import { formatSourcingAmount } from "@/lib/alibaba-sourcing";
 import { useCart, useCartQuote } from "@/components/cart-provider";
 
 type CartPopoverProps = {
   className?: string;
   align?: "left" | "center" | "right";
+  currencyCode?: string;
+  locale?: string;
 };
 
-export function CartPopover({ className = "", align = "right" }: CartPopoverProps) {
+export function CartPopover({ className = "", align = "right", currencyCode, locale }: CartPopoverProps) {
   const router = useRouter();
   const { itemCount } = useCart();
   const { quote } = useCartQuote();
@@ -124,14 +126,14 @@ export function CartPopover({ className = "", align = "right" }: CartPopoverProp
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="line-clamp-1 text-[14px] font-semibold text-[#222]">{item.title}</div>
-                    <div className="mt-1 text-[12px] text-[#667085]">{item.quantity} x {formatFcfa(item.finalUnitPriceFcfa)}</div>
+                    <div className="mt-1 text-[12px] text-[#667085]">{item.quantity} x {formatSourcingAmount(item.finalUnitPriceFcfa, { currencyCode, locale })}</div>
                   </div>
-                  <div className="text-[14px] font-bold text-[#222]">{formatFcfa(item.finalLinePriceFcfa)}</div>
+                  <div className="text-[14px] font-bold text-[#222]">{formatSourcingAmount(item.finalLinePriceFcfa, { currencyCode, locale })}</div>
                 </div>
               </div>
             ))}
           </div>
-          <div className="mt-4 rounded-[14px] bg-[#f8fafc] px-4 py-3 text-[13px] text-[#475467]">Sous-total: <span className="font-bold text-[#222]">{formatFcfa(quote.cartProductsTotalFcfa)}</span></div>
+          <div className="mt-4 rounded-[14px] bg-[#f8fafc] px-4 py-3 text-[13px] text-[#475467]">Sous-total: <span className="font-bold text-[#222]">{formatSourcingAmount(quote.cartProductsTotalFcfa, { currencyCode, locale })}</span></div>
           <Link
             href="/cart"
             className="mt-4 inline-flex h-12 w-full items-center justify-center rounded-full border border-[#222] px-6 text-[16px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00]"

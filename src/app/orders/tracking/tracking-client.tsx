@@ -53,7 +53,13 @@ function getTrackingSteps(order: OrderRecord) {
     {
       key: "delivered",
       title: "Livre",
-      description: currentIndex >= 3 ? "Commande remise" : "En attente",
+      description: currentIndex >= 3
+        ? order.logistics.deliveryRouteType === "customer-forwarder"
+          ? "Commande remise a votre agent"
+          : "Commande remise"
+        : order.logistics.relayPointAddress
+          ? "Disponible au point relais"
+          : "En attente",
       icon: PackageCheck,
       state: currentIndex >= 3 ? "done" : "pending",
     },
@@ -128,6 +134,29 @@ export function TrackingClient({ orders, initialOrderId, initialTracking }: Trac
           </div>
         </div>
       </article>
+
+      {selectedOrder.logistics.relayPointAddress ? (
+        <article className="mt-4 rounded-[20px] bg-[#fff8ee] px-4 py-5 ring-1 ring-[#f5dfbe] sm:px-6 sm:py-6">
+          <h2 className="text-[18px] font-bold tracking-[-0.04em] text-[#8a4b16] sm:text-[22px]">Point relais</h2>
+          <div className="mt-3 text-[14px] leading-7 text-[#8a4b16]">Votre colis est disponible au point relais {selectedOrder.logistics.relayPointAddress}.</div>
+          {selectedOrder.logistics.availableForPickupAt ? <div className="mt-2 text-[13px] text-[#9d6434]">Disponible depuis {new Date(selectedOrder.logistics.availableForPickupAt).toLocaleString("fr-FR")}</div> : null}
+        </article>
+      ) : null}
+
+      {selectedOrder.logistics.proofs && selectedOrder.logistics.proofs.length > 0 ? (
+        <article className="mt-4 rounded-[20px] bg-[#f8fafc] px-4 py-5 ring-1 ring-[#e5eaf0] sm:px-6 sm:py-6">
+          <h2 className="text-[18px] font-bold tracking-[-0.04em] text-[#111] sm:text-[22px]">Preuves archivées</h2>
+          <div className="mt-4 space-y-3">
+            {selectedOrder.logistics.proofs.map((proof) => (
+              <div key={proof.id} className="rounded-[16px] bg-white px-4 py-4 ring-1 ring-black/5">
+                <div className="text-[14px] font-semibold text-[#111]">{proof.title}</div>
+                {proof.note ? <div className="mt-1 text-[13px] leading-6 text-[#667085]">{proof.note}</div> : null}
+                <div className="mt-2 text-[12px] text-[#98a2b3]">{new Date(proof.createdAt).toLocaleString("fr-FR")}</div>
+              </div>
+            ))}
+          </div>
+        </article>
+      ) : null}
 
       <div className="mt-7 space-y-5 sm:mt-8 sm:space-y-7">
         {steps.map((step, index) => {

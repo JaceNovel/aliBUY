@@ -99,7 +99,7 @@ export function useCart() {
   return context;
 }
 
-export function useCartQuote() {
+export function useCartQuote(options?: { disableFreeAir?: boolean }) {
   const { items } = useCart();
   const [quote, setQuote] = useState<AlibabaSourcingQuote>(() => createEmptyQuote());
   const [settings, setSettings] = useState<SourcingSettings | null>(null);
@@ -122,7 +122,10 @@ export function useCartQuote() {
           headers: {
             "content-type": "application/json",
           },
-          body: JSON.stringify({ items }),
+          body: JSON.stringify({
+            items,
+            disableFreeAir: options?.disableFreeAir === true,
+          }),
           signal: controller.signal,
         });
         const payload = await response.json();
@@ -144,7 +147,7 @@ export function useCartQuote() {
     return () => {
       controller.abort();
     };
-  }, [items]);
+  }, [items, options?.disableFreeAir]);
 
   return useMemo(() => ({ quote, settings, isLoading }), [quote, settings, isLoading]);
 }
