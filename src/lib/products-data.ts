@@ -12,6 +12,8 @@ export type ProductVariantGroup = {
 export type ProductVariantPrice = {
   selections: Record<string, string>;
   priceUsd: number;
+  minPriceUsd?: number;
+  maxPriceUsd?: number;
   minimumQuantity?: number;
   maximumQuantity?: number;
   quantityLabel?: string;

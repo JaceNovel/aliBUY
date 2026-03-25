@@ -8,6 +8,12 @@ type VariantPricedProduct = Pick<ProductCatalogItem, "tiers"> & {
   moq?: number;
 };
 
+export type ProductPriceSummaryUsd = {
+  minUsd: number;
+  maxUsd?: number;
+  exact: boolean;
+};
+
 function getStringValue(candidate: unknown): string | undefined {
   if (typeof candidate === "string") {
     const trimmed = candidate.trim();
@@ -37,6 +43,41 @@ function parsePositiveNumber(candidate: unknown) {
 
   const value = Number(match[0].replace(",", "."));
   return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function parsePriceBounds(...candidates: unknown[]) {
+  let minValue: number | undefined;
+  let maxValue: number | undefined;
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0) {
+      minValue = typeof minValue === "number" ? Math.min(minValue, candidate) : candidate;
+      continue;
+    }
+
+    if (typeof candidate !== "string") {
+      continue;
+    }
+
+    const matches = [...candidate.matchAll(/\d+(?:[.,]\d+)?/g)]
+      .map((match) => Number(match[0].replace(",", ".")))
+      .filter((value) => Number.isFinite(value) && value > 0);
+    if (matches.length === 0) {
+      continue;
+    }
+
+    const nextMin = Math.min(...matches);
+    const nextMax = Math.max(...matches);
+    minValue = typeof minValue === "number" ? Math.min(minValue, nextMin) : nextMin;
+    if (matches.length > 1) {
+      maxValue = typeof maxValue === "number" ? Math.max(maxValue, nextMax) : nextMax;
+    }
+  }
+
+  return {
+    min: minValue,
+    ...(typeof maxValue === "number" && typeof minValue === "number" && maxValue > minValue ? { max: maxValue } : {}),
+  };
 }
 
 function normalizeSelection(selection?: VariantSelection) {
@@ -233,6 +274,22 @@ function getRuleMaximumQuantity(rule: Pick<ProductVariantPrice, "maximumQuantity
   return rangeMatch ? Number(rangeMatch[1]) : undefined;
 }
 
+function getRuleMinimumPrice(rule: Pick<ProductVariantPrice, "priceUsd" | "minPriceUsd">) {
+  return rule.minPriceUsd ?? rule.priceUsd;
+}
+
+function getRuleMaximumPrice(rule: Pick<ProductVariantPrice, "priceUsd" | "minPriceUsd" | "maxPriceUsd">) {
+  return rule.maxPriceUsd ?? rule.minPriceUsd ?? rule.priceUsd;
+}
+
+function buildPriceSummary(minUsd: number, maxUsd?: number): ProductPriceSummaryUsd {
+  return {
+    minUsd,
+    ...(typeof maxUsd === "number" && maxUsd > minUsd ? { maxUsd } : {}),
+    exact: typeof maxUsd !== "number" || Math.abs(maxUsd - minUsd) < 0.0001,
+  };
+}
+
 function extractVariantSelectionFromSkuRecord(record: Record<string, unknown>) {
   const pairs = Object.entries(record)
     .filter(([key]) => /(sale|attr|spec|variant|prop)/i.test(key))
@@ -262,18 +319,31 @@ function extractPriceRulesFromRecord(record: Record<string, unknown>, depth = 0)
     return [];
   }
 
-  const directPrice = parsePositiveNumber(record.price)
-    ?? parsePositiveNumber(record.sale_price)
-    ?? parsePositiveNumber(record.salePrice)
-    ?? parsePositiveNumber(record.discount_price)
-    ?? parsePositiveNumber(record.discountPrice)
-    ?? parsePositiveNumber(record.unit_price)
-    ?? parsePositiveNumber(record.unitPrice)
-    ?? parsePositiveNumber(record.display_price)
-    ?? parsePositiveNumber(record.displayPrice)
-    ?? parsePositiveNumber(record.price_value)
-    ?? parsePositiveNumber(record.priceValue)
-    ?? (record.sku_price && typeof record.sku_price === "object" ? parsePositiveNumber((record.sku_price as Record<string, unknown>).price) : undefined);
+  const priceBounds = parsePriceBounds(
+    record.price,
+    record.sale_price,
+    record.salePrice,
+    record.discount_price,
+    record.discountPrice,
+    record.unit_price,
+    record.unitPrice,
+    record.display_price,
+    record.displayPrice,
+    record.price_value,
+    record.priceValue,
+    record.price_range,
+    record.priceRange,
+    record.min_price,
+    record.minPrice,
+    record.max_price,
+    record.maxPrice,
+    record.sku_price && typeof record.sku_price === "object" ? (record.sku_price as Record<string, unknown>).price : undefined,
+    record.sku_price && typeof record.sku_price === "object" ? (record.sku_price as Record<string, unknown>).min_price : undefined,
+    record.sku_price && typeof record.sku_price === "object" ? (record.sku_price as Record<string, unknown>).max_price : undefined,
+    record.range_price && typeof record.range_price === "object" ? (record.range_price as Record<string, unknown>).min_price : undefined,
+    record.range_price && typeof record.range_price === "object" ? (record.range_price as Record<string, unknown>).max_price : undefined,
+  );
+  const directPrice = priceBounds.min;
   const minimumQuantity = parsePositiveNumber(record.begin_amount)
     ?? parsePositiveNumber(record.beginAmount)
     ?? parsePositiveNumber(record.min_order_quantity)
@@ -306,6 +376,8 @@ function extractPriceRulesFromRecord(record: Record<string, unknown>, depth = 0)
   const directRules = directPrice
     ? [{
         priceUsd: directPrice,
+        minPriceUsd: directPrice,
+        maxPriceUsd: priceBounds.max,
         minimumQuantity,
         maximumQuantity,
         quantityLabel: getStringValue(record.quantityLabel) ?? buildQuantityLabel(minimumQuantity, maximumQuantity),
@@ -313,7 +385,7 @@ function extractPriceRulesFromRecord(record: Record<string, unknown>, depth = 0)
       }]
     : [];
 
-  const nestedKeys = ["price", "sku_price", "tiered_price", "range_price", "price_info", "wholesale_trade", "tiers", "ladder"];
+  const nestedKeys = ["price", "sku_price", "tiered_price", "range_price", "price_range", "price_info", "wholesale_trade", "tiers", "ladder", "ladder_price"];
   const nestedRules = nestedKeys.flatMap((key) => {
     const value = record[key];
     if (Array.isArray(value)) {
@@ -385,6 +457,8 @@ export function extractAlibabaVariantPricing(rawPayload: unknown): ProductVarian
         const nextRule: ProductVariantPrice = {
           selections,
           priceUsd: rule.priceUsd,
+          minPriceUsd: rule.minPriceUsd,
+          maxPriceUsd: rule.maxPriceUsd,
           minimumQuantity: rule.minimumQuantity,
           maximumQuantity: rule.maximumQuantity,
           quantityLabel: rule.quantityLabel,
@@ -393,6 +467,8 @@ export function extractAlibabaVariantPricing(rawPayload: unknown): ProductVarian
         const dedupeKey = [
           serializeSelection(selections),
           nextRule.priceUsd,
+          nextRule.minPriceUsd ?? "",
+          nextRule.maxPriceUsd ?? "",
           nextRule.minimumQuantity ?? "",
           nextRule.maximumQuantity ?? "",
           nextRule.quantityLabel ?? "",
@@ -554,12 +630,14 @@ export function getDisplayPriceTiers(product: VariantPricedProduct, selection?: 
 
   return variantRules.map((rule) => ({
     quantityLabel: rule.quantityLabel ?? buildQuantityLabel(rule.minimumQuantity, rule.maximumQuantity) ?? "1+",
-    priceUsd: rule.priceUsd,
-    note: rule.note,
+    priceUsd: getRuleMinimumPrice(rule),
+    note: rule.note ?? (typeof rule.maxPriceUsd === "number" && rule.maxPriceUsd > getRuleMinimumPrice(rule)
+      ? `Jusqu'a ${rule.maxPriceUsd.toFixed(2)} USD`
+      : undefined),
   }));
 }
 
-export function resolveProductUnitPriceUsd(product: VariantPricedProduct, input?: {
+export function resolveProductPriceSummaryUsd(product: VariantPricedProduct, input?: {
   quantity?: number;
   selection?: VariantSelection;
 }) {
@@ -567,24 +645,29 @@ export function resolveProductUnitPriceUsd(product: VariantPricedProduct, input?
   const variantRules = getApplicableVariantPricing(product, input?.selection);
 
   if (variantRules.length > 0) {
-    const activeRule = [...variantRules].reverse().find((rule) => {
+    const matchedByQuantity = variantRules.filter((rule) => {
       const minimum = getRuleMinimumQuantity(rule);
       const maximum = getRuleMaximumQuantity(rule);
       return quantity >= minimum && (typeof maximum !== "number" || quantity <= maximum);
-    }) ?? variantRules[0];
-
-    return activeRule.priceUsd;
+    });
+    const activeRules = matchedByQuantity.length > 0 ? matchedByQuantity : variantRules;
+    const minUsd = Math.min(...activeRules.map((rule) => getRuleMinimumPrice(rule)));
+    const maxUsd = Math.max(...activeRules.map((rule) => getRuleMaximumPrice(rule)));
+    return buildPriceSummary(minUsd, maxUsd);
   }
 
   const sortedTiers = [...product.tiers].sort((left, right) => getTierMinimum(left) - getTierMinimum(right));
   const activeTier = [...sortedTiers].reverse().find((tier) => quantity >= getTierMinimum(tier)) ?? sortedTiers[0];
   if (activeTier) {
-    return activeTier.priceUsd;
+    return buildPriceSummary(activeTier.priceUsd);
   }
 
-  if (typeof product.maxUsd === "number" && typeof product.minUsd === "number") {
-    return (product.minUsd + product.maxUsd) / 2;
-  }
+  return buildPriceSummary(product.minUsd ?? 0, product.maxUsd);
+}
 
-  return product.minUsd ?? 0;
+export function resolveProductUnitPriceUsd(product: VariantPricedProduct, input?: {
+  quantity?: number;
+  selection?: VariantSelection;
+}) {
+  return resolveProductPriceSummaryUsd(product, input).minUsd;
 }

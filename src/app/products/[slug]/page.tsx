@@ -72,6 +72,8 @@ export default async function ProductPage({
           variantPricing: (product.variantPricing ?? []).map((rule) => ({
             selections: rule.selections,
             priceUsd: rule.priceUsd,
+            minPriceUsd: rule.minPriceUsd,
+            maxPriceUsd: rule.maxPriceUsd,
             minimumQuantity: rule.minimumQuantity,
             maximumQuantity: rule.maximumQuantity,
             quantityLabel: rule.quantityLabel,

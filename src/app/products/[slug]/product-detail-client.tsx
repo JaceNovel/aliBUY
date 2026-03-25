@@ -7,7 +7,7 @@ import { ChevronDown, ChevronRight, Heart, Minus, Play, Plus, Share2, ShieldChec
 import { useEffect, useRef, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
-import { getApplicableVariantPricing, getDisplayPriceTiers, resolveProductUnitPriceUsd } from "@/lib/product-variant-pricing";
+import { getApplicableVariantPricing, getDisplayPriceTiers, resolveProductPriceSummaryUsd, resolveProductUnitPriceUsd } from "@/lib/product-variant-pricing";
 
 type DetailVariantGroup = {
   label: string;
@@ -24,6 +24,8 @@ type DetailTier = {
 type DetailVariantPrice = {
   selections: Record<string, string>;
   priceUsd: number;
+  minPriceUsd?: number;
+  maxPriceUsd?: number;
   minimumQuantity?: number;
   maximumQuantity?: number;
   quantityLabel?: string;
@@ -182,6 +184,13 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       maximumFractionDigits: amount >= 100 ? 0 : 2,
     }).format(amount);
   };
+  const formatPriceSummary = (summary: { minUsd: number; maxUsd?: number; exact: boolean }) => {
+    if (typeof summary.maxUsd === "number" && summary.maxUsd > summary.minUsd) {
+      return `${formatMoney(summary.minUsd)} - ${formatMoney(summary.maxUsd)}`;
+    }
+
+    return formatMoney(summary.minUsd);
+  };
   const getTierMinimum = (label: string) => {
     const normalized = label.replace(/\s/g, "");
     if (normalized.startsWith(">=") || normalized.includes("+")) {
@@ -224,6 +233,14 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     tiers: product.tiers,
     variantPricing: product.variantPricing,
   }, previewSelection).length > 0;
+  const currentPriceSummary = resolveProductPriceSummaryUsd({
+    ...product,
+    tiers: product.tiers,
+    variantPricing: product.variantPricing,
+  }, {
+    quantity: hasVariantSpecificPricing ? Math.max(1, mixGroup ? (mixQuantities[previewSelection[mixGroup.label]] ?? 1) : totalSelectedQuantity) : totalSelectedQuantity,
+    selection: previewSelection,
+  });
   const currentUnitPrice = resolveProductUnitPriceUsd({
     ...product,
     tiers: product.tiers,
@@ -260,9 +277,43 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
         return sum + (unitPrice * quantity);
       }, 0)
     : currentUnitPrice * totalSelectedQuantity;
-  const dynamicPriceLabel = hasVariantSpecificPricing ? formatMoney(currentUnitPrice) : product.formattedPriceRange;
+  const subtotalRange = mixGroup
+    ? mixGroup.values.reduce((acc, value) => {
+        const quantity = mixQuantities[value] ?? 0;
+        if (quantity <= 0) {
+          return acc;
+        }
+
+        const selection = {
+          [mixGroup.label]: value,
+          ...modalSelections,
+        };
+        const summary = resolveProductPriceSummaryUsd({
+          ...product,
+          tiers: product.tiers,
+          variantPricing: product.variantPricing,
+        }, {
+          quantity: getApplicableVariantPricing({ ...product, tiers: product.tiers, variantPricing: product.variantPricing }, selection).length > 0
+            ? Math.max(1, quantity)
+            : Math.max(1, totalSelectedQuantity),
+          selection,
+        });
+
+        return {
+          minUsd: acc.minUsd + (summary.minUsd * quantity),
+          maxUsd: acc.maxUsd + ((summary.maxUsd ?? summary.minUsd) * quantity),
+        };
+      }, { minUsd: 0, maxUsd: 0 })
+    : {
+        minUsd: currentPriceSummary.minUsd * totalSelectedQuantity,
+        maxUsd: (currentPriceSummary.maxUsd ?? currentPriceSummary.minUsd) * totalSelectedQuantity,
+      };
+  const hasSubtotalRange = subtotalRange.maxUsd > subtotalRange.minUsd;
+  const dynamicPriceLabel = hasVariantSpecificPricing ? formatPriceSummary(currentPriceSummary) : product.formattedPriceRange;
   const dynamicPriceHint = hasVariantSpecificPricing
-    ? `Prix pour ${Object.entries(previewSelection).map(([, value]) => value).filter(Boolean).join(" · ") || "la variante choisie"}`
+    ? currentPriceSummary.exact
+      ? `Prix fixe pour ${Object.entries(previewSelection).map(([, value]) => value).filter(Boolean).join(" · ") || "la variante choisie"}`
+      : `Plage de prix pour ${Object.entries(previewSelection).map(([, value]) => value).filter(Boolean).join(" · ") || "la variante choisie"}`
     : product.moqLabel;
   const updateMixQuantity = (value: string, delta: number) => {
     setMixQuantities((current) => {
@@ -1226,14 +1277,14 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                       </div>
                       <div className="min-w-0">
                         <div className="text-[14px] font-medium text-[#222] sm:text-[18px]">{value}</div>
-                        <div className="mt-0.5 text-[12px] font-semibold tracking-[-0.03em] text-[#222] sm:hidden">{formatMoney(resolveProductUnitPriceUsd({ ...product, tiers: product.tiers, variantPricing: product.variantPricing }, {
+                        <div className="mt-0.5 text-[12px] font-semibold tracking-[-0.03em] text-[#222] sm:hidden">{formatPriceSummary(resolveProductPriceSummaryUsd({ ...product, tiers: product.tiers, variantPricing: product.variantPricing }, {
                           quantity: getApplicableVariantPricing({ ...product, tiers: product.tiers, variantPricing: product.variantPricing }, { [mixGroup.label]: value, ...modalSelections }).length > 0
                             ? Math.max(1, mixQuantities[value] ?? 1)
                             : Math.max(1, totalSelectedQuantity),
                           selection: { [mixGroup.label]: value, ...modalSelections },
                         }))}</div>
                       </div>
-                      <div className="hidden text-left text-[18px] font-semibold tracking-[-0.03em] text-[#222] sm:block sm:text-right sm:text-[20px]">{formatMoney(resolveProductUnitPriceUsd({ ...product, tiers: product.tiers, variantPricing: product.variantPricing }, {
+                      <div className="hidden text-left text-[18px] font-semibold tracking-[-0.03em] text-[#222] sm:block sm:text-right sm:text-[20px]">{formatPriceSummary(resolveProductPriceSummaryUsd({ ...product, tiers: product.tiers, variantPricing: product.variantPricing }, {
                         quantity: getApplicableVariantPricing({ ...product, tiers: product.tiers, variantPricing: product.variantPricing }, { [mixGroup.label]: value, ...modalSelections }).length > 0
                           ? Math.max(1, mixQuantities[value] ?? 1)
                           : Math.max(1, totalSelectedQuantity),
@@ -1279,8 +1330,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               <div>
                 <div className="text-[12px] font-semibold text-[#666] sm:text-[14px]">Sous-total</div>
                 <div className="mt-1 text-[22px] font-bold tracking-[-0.04em] text-[#222] sm:text-[28px]">
-                  {formatMoney(subtotal)}
-                  <span className="ml-1.5 text-[13px] font-medium text-[#666] sm:ml-2 sm:text-[18px]">({formatMoney(currentUnitPrice)}/pièce)</span>
+                  {hasSubtotalRange ? `${formatMoney(subtotalRange.minUsd)} - ${formatMoney(subtotalRange.maxUsd)}` : formatMoney(subtotal)}
+                  <span className="ml-1.5 text-[13px] font-medium text-[#666] sm:ml-2 sm:text-[18px]">({formatPriceSummary(currentPriceSummary)}/pièce)</span>
                 </div>
                 <div className="mt-1 text-[12px] text-[#666] sm:text-[14px]">Quantité totale: {totalSelectedQuantity} pièce(s)</div>
                 <div className="mt-1 text-[12px] text-[#666] sm:text-[14px]">Expédition: {shippingMethod === "air" ? "Par avion" : shippingMethod === "sea" ? "Par bateau" : "à choisir"}</div>
