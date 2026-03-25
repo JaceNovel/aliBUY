@@ -5,6 +5,7 @@ import { CartProvider } from "@/components/cart-provider";
 import { AssistLoopWidget } from "@/components/assistloop-widget";
 import { RouteWarmup } from "@/components/route-warmup";
 import { clerkAppearance } from "@/lib/clerk-theme";
+import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_URL } from "@/lib/site-config";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,8 +14,33 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Inspired by your history | AfriPay",
-  description: "AfriPay marketplace with country-based pricing and a B2B history-page inspired interface in Next.js.",
+  metadataBase: new URL(SITE_URL),
+  applicationName: SITE_NAME,
+  title: {
+    default: SITE_NAME,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  keywords: SITE_KEYWORDS,
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    url: SITE_URL,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default async function RootLayout({

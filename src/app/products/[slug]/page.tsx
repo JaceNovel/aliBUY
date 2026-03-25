@@ -1,14 +1,45 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 
 import { ProductDetailClient } from "@/app/products/[slug]/product-detail-client";
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { getCatalogProductBySlug, getCatalogProducts, getCatalogRelatedProducts } from "@/lib/catalog-service";
 import { formatTierAwarePrice } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
+import { SITE_URL } from "@/lib/site-config";
 
 export async function generateStaticParams() {
   const products = await getCatalogProducts();
   return products.map((product) => ({ slug: product.slug }));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const product = await getCatalogProductBySlug(slug);
+
+  if (!product) {
+    return {};
+  }
+
+  const description = `${product.shortTitle} sur AfriPay. Fournisseur ${product.supplierName}, MOQ ${product.moq} ${product.unit}, categorie catalogue structuree pour le sourcing B2B.`;
+
+  return {
+    title: product.shortTitle,
+    description,
+    alternates: {
+      canonical: `${SITE_URL}/products/${product.slug}`,
+    },
+    openGraph: {
+      title: `${product.shortTitle} | AfriPay`,
+      description,
+      url: `${SITE_URL}/products/${product.slug}`,
+      images: product.image ? [{ url: product.image }] : undefined,
+    },
+  };
 }
 
 export default async function ProductPage({

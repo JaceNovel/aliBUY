@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Search, Sparkles } from "lucide-react";
+import type { Metadata } from "next";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { SearchSuggestionInput } from "@/components/search-suggestion-input";
@@ -8,6 +9,15 @@ import { getCatalogCategoryBySlug } from "@/lib/catalog-category-service";
 import { getCatalogProducts, searchCatalogProducts } from "@/lib/catalog-service";
 import { formatTierAwarePrice } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
+import { SITE_NAME, SITE_URL } from "@/lib/site-config";
+
+export const metadata: Metadata = {
+  title: `Catalogue produits | ${SITE_NAME}`,
+  description: "Parcourez le catalogue AfriPay, filtrez les produits importes depuis Alibaba et explorez des fiches propres pour la vente et le sourcing B2B.",
+  alternates: {
+    canonical: `${SITE_URL}/products`,
+  },
+};
 
 export default async function ProductsPage({
   searchParams,

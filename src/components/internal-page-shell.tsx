@@ -9,6 +9,7 @@ import { LanguageSelectorPopover } from "@/components/language-selector-popover"
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 import { OrderProtectionMenu } from "@/components/order-protection-menu";
 import { SearchSuggestionInput } from "@/components/search-suggestion-input";
+import { SiteFooter } from "@/components/site-footer";
 import { SupportMenu } from "@/components/support-menu";
 import { UnavailableLink } from "@/components/unavailable-link";
 import { getCatalogCategories } from "@/lib/catalog-category-service";
@@ -172,6 +173,7 @@ export async function InternalPageShell({ pricing, children }: InternalPageShell
       </header>
 
       <div className="mx-auto max-w-[1680px] px-4 py-5 sm:px-6 sm:py-8 xl:px-10">{children}</div>
+      <SiteFooter pricing={{ ...pricing, shippingWindow: undefined }} />
       <MobileBottomNav />
     </main>
   );

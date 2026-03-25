@@ -2,7 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 
-import { extractAlibabaCategoryInfo, toCatalogProduct } from "@/lib/alibaba-operations";
+import { canonicalizeAlibabaCategory, extractAlibabaCategoryInfo, toCatalogProduct } from "@/lib/alibaba-operations";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import type { ProductCatalogItem } from "@/lib/products-data";
 
@@ -48,7 +48,7 @@ function buildCategoryDescription(title: string, sourcePath: string[], count: nu
 }
 
 function buildCategoryHref(slug: string) {
-  return `/products?category=${encodeURIComponent(slug)}`;
+  return `/categories/${encodeURIComponent(slug)}`;
 }
 
 export const getCatalogCategories = cache(async function getCatalogCategories() {
@@ -65,11 +65,15 @@ export const getCatalogCategories = cache(async function getCatalogCategories() 
       categoryTitle: importedProduct.categoryTitle,
       categoryPath: importedProduct.categoryPath,
     });
-    const category = {
-      slug: extractedCategory.slug,
+    const canonicalCategory = canonicalizeAlibabaCategory({
       title: extractedCategory.title,
-      description: buildCategoryDescription(extractedCategory.title, extractedCategory.path, 1),
       path: extractedCategory.path,
+    });
+    const category = {
+      slug: canonicalCategory.slug,
+      title: canonicalCategory.title,
+      description: buildCategoryDescription(canonicalCategory.title, canonicalCategory.path, 1),
+      path: canonicalCategory.path,
     };
     const catalogProduct = toCatalogProduct(importedProduct);
     const existing = groups.get(category.slug);

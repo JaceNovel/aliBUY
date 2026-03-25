@@ -2,10 +2,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Layers3, Sparkles } from "lucide-react";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { getCatalogCategories, getCatalogCategoryBySlug } from "@/lib/catalog-category-service";
 import { getPricingContext } from "@/lib/pricing";
+import { SITE_URL } from "@/lib/site-config";
 
 function formatPriceRange(
   formatPrice: (amountUsd: number) => string,
@@ -22,6 +24,33 @@ function formatPriceRange(
 export async function generateStaticParams() {
   const categories = await getCatalogCategories();
   return categories.map((category) => ({ slug: category.slug }));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const category = await getCatalogCategoryBySlug(slug);
+
+  if (!category) {
+    return {};
+  }
+
+  return {
+    title: category.title,
+    description: category.description,
+    alternates: {
+      canonical: `${SITE_URL}/categories/${category.slug}`,
+    },
+    openGraph: {
+      title: `${category.title} | AfriPay`,
+      description: category.description,
+      url: `${SITE_URL}/categories/${category.slug}`,
+      images: category.image ? [{ url: category.image }] : undefined,
+    },
+  };
 }
 
 export default async function CategoryPage({

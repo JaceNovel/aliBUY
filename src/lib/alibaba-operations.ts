@@ -537,6 +537,100 @@ export function slugifyCategoryLabel(value: string) {
     .slice(0, 72) || "catalogue-importe";
 }
 
+type CanonicalCategoryMatch = {
+  slug: string;
+  title: string;
+  path: string[];
+};
+
+function normalizeCategoryHaystack(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function matchCanonicalCategoryRule(input: { title: string; path: string[] }): CanonicalCategoryMatch | null {
+  const haystack = normalizeCategoryHaystack([input.title, ...input.path].join(" "));
+
+  if (!haystack) {
+    return null;
+  }
+
+  if (/(clothing|clothes|apparel|garment|fashion|vetement|vetements|mode)/.test(haystack)
+    && /(shoe|shoes|footwear|sneaker|sneakers|boot|boots|sandals|sandales|chaussure|chaussures)/.test(haystack)) {
+    return {
+      slug: "vetements-chaussures",
+      title: "Vetements & chaussures",
+      path: ["Mode", "Vetements & chaussures"],
+    };
+  }
+
+  if (/(furniture|furnitures|home furniture|meuble|meubles|sofa|canape|table|desk|cabinet|wardrobe|chaise|chair)/.test(haystack)) {
+    return {
+      slug: "meubles",
+      title: "Meubles",
+      path: ["Maison", "Meubles"],
+    };
+  }
+
+  if (/(jewelry|jewellery|bijou|bijoux|watch|watches|montre|montres|accessor)/.test(haystack)) {
+    return {
+      slug: "bijoux-accessoires",
+      title: "Bijoux & accessoires",
+      path: ["Mode", "Bijoux & accessoires"],
+    };
+  }
+
+  if (/(consumer electronics|electronics|electronic|electronique|electroniques|phone accessories|computer accessories|mobile accessories|usb|battery|batterie)/.test(haystack)) {
+    return {
+      slug: "electronique",
+      title: "Electronique",
+      path: ["Electronique"],
+    };
+  }
+
+  if (/(home|garden|maison|jardin|kitchen|decoration|decor|cuisine|linge de maison)/.test(haystack)) {
+    return {
+      slug: "maison-jardin",
+      title: "Maison & jardin",
+      path: ["Maison & jardin"],
+    };
+  }
+
+  return null;
+}
+
+export function canonicalizeAlibabaCategory(input: {
+  title: string;
+  path?: string[];
+}) {
+  const normalizedPath = (input.path ?? [])
+    .map((segment) => normalizeCategorySegment(segment))
+    .filter((segment) => isUsefulCategoryCandidate(segment));
+  const normalizedTitle = normalizeCategorySegment(input.title);
+  const matched = matchCanonicalCategoryRule({
+    title: normalizedTitle,
+    path: normalizedPath,
+  });
+
+  if (matched) {
+    return matched;
+  }
+
+  const title = normalizedTitle || normalizedPath[normalizedPath.length - 1] || "Catalogue importe";
+  const path = normalizedPath.length > 0 ? normalizedPath : [title];
+
+  return {
+    slug: slugifyCategoryLabel(title),
+    title,
+    path,
+  };
+}
+
 export function extractAlibabaCategoryInfo(input: {
   rawPayload?: unknown;
   query?: string;
@@ -552,21 +646,19 @@ export function extractAlibabaCategoryInfo(input: {
   const explicitLeafTitle = explicitPath[explicitPath.length - 1] ?? explicitTitleCandidates[0];
 
   if (explicitLeafTitle) {
-    return {
-      slug: slugifyCategoryLabel(explicitLeafTitle),
+    return canonicalizeAlibabaCategory({
       title: explicitLeafTitle,
       path: explicitPath.length > 0 ? explicitPath : [explicitLeafTitle],
-    };
+    });
   }
 
   const inferredCategory = inferAlibabaCategoryFromContent(input);
 
   if (inferredCategory) {
-    return {
-      slug: inferredCategory.slug,
+    return canonicalizeAlibabaCategory({
       title: inferredCategory.title,
       path: inferredCategory.path,
-    };
+    });
   }
 
   const rawCandidates = dedupeStrings(collectCategoryStrings(input.rawPayload))
@@ -588,11 +680,10 @@ export function extractAlibabaCategoryInfo(input: {
 
   const title = isUsefulCategoryCandidate(leafCategory) ? leafCategory : "Autres produits";
 
-  return {
-    slug: slugifyCategoryLabel(title),
+  return canonicalizeAlibabaCategory({
     title,
     path: bestPath.length > 0 ? bestPath : [title],
-  };
+  });
 }
 
 function collectFreightPriceCandidates(value: unknown, depth = 0, keyHint = ""): number[] {

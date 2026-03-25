@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Camera, Clock3, ScrollText, ShieldCheck, Sparkles, WandSparkles, type LucideIcon } from "lucide-react";
+import type { Metadata } from "next";
 
 import { CategoryMegaMenu, type CategoryMegaMenuCategory } from "@/components/category-mega-menu";
 import { AboutMenu } from "@/components/about-menu";
@@ -12,6 +13,7 @@ import { LanguageSelectorPopover } from "@/components/language-selector-popover"
 import { MobileCategoryStrip } from "@/components/mobile-category-strip";
 import { OrderProtectionMenu } from "@/components/order-protection-menu";
 import { ScrollNavbar } from "@/components/scroll-navbar";
+import { SiteFooter } from "@/components/site-footer";
 import { SupportMenu } from "@/components/support-menu";
 import { UnavailableLink } from "@/components/unavailable-link";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
@@ -21,6 +23,7 @@ import { getMessages } from "@/lib/messages";
 import { type ProductCatalogItem } from "@/lib/products-data";
 import { formatTierAwarePrice } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site-config";
 
 const HOME_HERO_NAV_ITEMS: ReadonlyArray<{ label: string; href: string; active?: boolean }> = [
   { label: "Mode", href: "/mode" },
@@ -35,6 +38,14 @@ const MOBILE_SEARCH_SHORTCUTS: ReadonlyArray<{ label: string; href: string }> = 
   { label: "Tendances", href: "/trends" },
   { label: "Tarifs", href: "/pricing" },
 ];
+
+export const metadata: Metadata = {
+  title: SITE_NAME,
+  description: SITE_DESCRIPTION,
+  alternates: {
+    canonical: SITE_URL,
+  },
+};
 
 type QuickAction = {
   title: string;
@@ -593,40 +604,7 @@ export default async function Home() {
         </section>
       </div>
 
-      <footer className="border-t border-[#ddd] bg-white">
-        <div className="mx-auto grid max-w-[1440px] gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.2fr_repeat(3,1fr)] xl:px-10">
-          <div>
-            <div className="text-[28px] font-bold tracking-[-0.05em] text-[#ff6a00]">AfriPay</div>
-            <p className="mt-4 max-w-[360px] text-[14px] leading-6 text-[#666]">
-              {messages.footer.description}
-            </p>
-          </div>
-          <div>
-            <div className="text-[14px] font-semibold text-[#222]">{messages.footer.buyers}</div>
-            <div className="mt-4 space-y-3 text-[14px] text-[#666]">
-              <Link href="/orders" className="transition hover:text-[#ff6a00]">{messages.footer.history}</Link>
-              <Link href="/trends" className="transition hover:text-[#ff6a00]">{messages.footer.recommendedProducts}</Link>
-              <Link href="/protection-commandes" className="transition hover:text-[#ff6a00]">{messages.nav.orderProtection}</Link>
-            </div>
-          </div>
-          <div>
-            <div className="text-[14px] font-semibold text-[#222]">{messages.footer.services}</div>
-            <div className="mt-4 space-y-3 text-[14px] text-[#666]">
-              <Link href="/support-center" className="transition hover:text-[#ff6a00]">{messages.footer.supportCenter}</Link>
-              <Link href="/application" className="transition hover:text-[#ff6a00]">{messages.footer.application}</Link>
-              <Link href="/seller-support" className="transition hover:text-[#ff6a00]">{messages.footer.sellerSupport}</Link>
-            </div>
-          </div>
-          <div>
-            <div className="text-[14px] font-semibold text-[#222]">{messages.footer.currentContext}</div>
-            <div className="mt-4 space-y-3 text-[14px] text-[#666]">
-              <div>{pricing.flagEmoji} {pricing.countryLabel}</div>
-              <div>{pricing.currency.code}</div>
-              <div>{pricing.shippingWindow}</div>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter pricing={{ ...pricing, shippingWindow: pricing.shippingWindow }} />
       <MobileBottomNav />
     </main>
   );
