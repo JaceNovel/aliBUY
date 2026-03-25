@@ -1,6 +1,7 @@
 import "server-only";
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 export type AccountSettingsRecord = {
@@ -34,9 +35,23 @@ export type AccountSettingsRecord = {
   updatedAt: string;
 };
 
-const CUSTOMER_DIR = process.env.VERCEL
-  ? path.join("/tmp", "afripay", "data", "customer")
-  : path.join(process.cwd(), "data", "customer");
+function resolveCustomerDir() {
+  const isServerlessRuntime = Boolean(
+    process.env.VERCEL
+    || process.env.VERCEL_ENV
+    || process.env.VERCEL_URL
+    || process.env.AWS_EXECUTION_ENV
+    || process.env.AWS_LAMBDA_FUNCTION_NAME,
+  );
+
+  if (process.env.NODE_ENV === "production" || isServerlessRuntime) {
+    return path.join(os.tmpdir(), "afripay", "data", "customer");
+  }
+
+  return path.join(process.cwd(), "data", "customer");
+}
+
+const CUSTOMER_DIR = resolveCustomerDir();
 const SETTINGS_PATH = path.join(CUSTOMER_DIR, "account-settings.json");
 
 function defaultSettings(userId: string): AccountSettingsRecord {
