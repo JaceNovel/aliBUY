@@ -34,7 +34,9 @@ export type AccountSettingsRecord = {
   updatedAt: string;
 };
 
-const CUSTOMER_DIR = path.join(process.cwd(), "data", "customer");
+const CUSTOMER_DIR = process.env.VERCEL
+  ? path.join("/tmp", "afripay", "data", "customer")
+  : path.join(process.cwd(), "data", "customer");
 const SETTINGS_PATH = path.join(CUSTOMER_DIR, "account-settings.json");
 
 function defaultSettings(userId: string): AccountSettingsRecord {
@@ -62,19 +64,29 @@ async function ensureCustomerDir() {
 }
 
 async function readAllSettings() {
-  await ensureCustomerDir();
   try {
+    await ensureCustomerDir();
     const raw = await readFile(SETTINGS_PATH, "utf8");
     return JSON.parse(raw) as AccountSettingsRecord[];
   } catch {
-    await writeFile(SETTINGS_PATH, "[]\n", "utf8");
+    try {
+      await ensureCustomerDir();
+      await writeFile(SETTINGS_PATH, "[]\n", "utf8");
+    } catch {
+      return [] as AccountSettingsRecord[];
+    }
+
     return [] as AccountSettingsRecord[];
   }
 }
 
 async function writeAllSettings(records: AccountSettingsRecord[]) {
-  await ensureCustomerDir();
-  await writeFile(SETTINGS_PATH, `${JSON.stringify(records, null, 2)}\n`, "utf8");
+  try {
+    await ensureCustomerDir();
+    await writeFile(SETTINGS_PATH, `${JSON.stringify(records, null, 2)}\n`, "utf8");
+  } catch {
+    // On serverless platforms this storage can be ephemeral or unavailable.
+  }
 }
 
 export async function getAccountSettings(userId: string) {

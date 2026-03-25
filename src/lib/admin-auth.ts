@@ -23,8 +23,12 @@ export function getAdminPasswordHash() {
   return process.env.ADMIN_PASSWORD_HASH?.trim() || "";
 }
 
+export function getAdminPasswordPlain() {
+  return process.env.ADMIN_PASSWORD?.trim() || "";
+}
+
 export function isAdminAuthConfigured() {
-  return Boolean(getAdminEmail() && getAdminPasswordHash());
+  return Boolean(getAdminEmail() && (getAdminPasswordHash() || getAdminPasswordPlain()));
 }
 
 export function isAdminEmail(email?: string | null) {
@@ -47,22 +51,30 @@ export async function hashAdminPassword(password: string) {
 export async function getAdminCredentialDiagnostics(email: string, password: string) {
   const submittedEmail = email.trim().toLowerCase();
   const submittedPasswordHash = password ? await hashAdminPassword(password) : "";
+  const configuredHash = getAdminPasswordHash();
+  const configuredPlain = getAdminPasswordPlain();
+  const hashMatch = Boolean(submittedPasswordHash) && (
+    submittedPasswordHash === configuredHash
+    || password === configuredHash
+  );
+  const plainMatch = Boolean(password) && password === configuredPlain;
 
   return {
     configured: isAdminAuthConfigured(),
     emailMatch: Boolean(submittedEmail) && submittedEmail === getAdminEmail(),
-    hashMatch: Boolean(submittedPasswordHash) && submittedPasswordHash === getAdminPasswordHash(),
+    hashMatch,
+    plainMatch,
   };
 }
 
 export async function validateAdminCredentials(email: string, password: string) {
   if (!isAdminAuthConfigured()) {
-    throw new Error("Configuration admin incomplète. Définissez ADMIN_EMAIL et ADMIN_PASSWORD_HASH.");
+    throw new Error("Configuration admin incomplète. Définissez ADMIN_EMAIL puis ADMIN_PASSWORD_HASH ou ADMIN_PASSWORD.");
   }
 
   const diagnostics = await getAdminCredentialDiagnostics(email, password);
 
-  return diagnostics.emailMatch && diagnostics.hashMatch;
+  return diagnostics.emailMatch && (diagnostics.hashMatch || diagnostics.plainMatch);
 }
 
 export async function getCurrentAdminAccess() {
