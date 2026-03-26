@@ -29,7 +29,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function getObjectSupplierPayload(order: SourcingOrder) {
+function getObjectSupplierPayload(order: SourcingOrder): Record<string, unknown> {
   if (isRecord(order.supplierOrderPayload)) {
     return { ...order.supplierOrderPayload };
   }
@@ -41,7 +41,8 @@ function getObjectSupplierPayload(order: SourcingOrder) {
 
 function getNotificationState(order: SourcingOrder): NotificationState {
   const payload = getObjectSupplierPayload(order);
-  const notifications = isRecord(payload.notifications) ? payload.notifications : null;
+  const notificationsValue = payload["notifications"];
+  const notifications = isRecord(notificationsValue) ? notificationsValue : null;
 
   return {
     batchReadyModes: Array.isArray(notifications?.batchReadyModes)
@@ -55,7 +56,8 @@ function getNotificationState(order: SourcingOrder): NotificationState {
 
 function withNotificationState(order: SourcingOrder, state: NotificationState) {
   const payload = getObjectSupplierPayload(order);
-  const existingNotifications = isRecord(payload.notifications) ? payload.notifications : {};
+  const existingNotificationsValue = payload["notifications"];
+  const existingNotifications = isRecord(existingNotificationsValue) ? existingNotificationsValue : {};
   const meta = getSourcingOrderMeta(order);
 
   return {
