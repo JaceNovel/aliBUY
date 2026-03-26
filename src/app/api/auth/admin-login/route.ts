@@ -38,11 +38,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Identifiants admin invalides." }, { status: 401 });
   }
 
-  const existingUser = await getStoredUserByEmail(email);
-  const user = existingUser ?? await createStoredUser({
-    email,
-    displayName: deriveAdminDisplayName(email),
-  });
+  const displayName = deriveAdminDisplayName(email);
+  const user = await getStoredUserByEmail(email)
+    .then(async (existingUser) => existingUser ?? await createStoredUser({
+      email,
+      displayName,
+    }))
+    .catch(() => ({
+      id: `admin:${email}`,
+      clerkUserId: null,
+      email,
+      displayName,
+      firstName: displayName.split(" ")[0] || "Admin",
+      passwordHash: null,
+      passwordSalt: null,
+      createdAt: new Date(0).toISOString(),
+    }));
 
   const token = await createAuthenticatedUserSession({
     id: user.id,

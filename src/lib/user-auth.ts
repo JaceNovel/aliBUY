@@ -93,6 +93,24 @@ function buildTransientClerkUser(input: {
   };
 }
 
+function buildTransientSessionUser(input: {
+  id: string;
+  email: string;
+  displayName: string;
+  createdAt?: string;
+}): AuthenticatedUser {
+  const displayName = input.displayName.trim() || deriveDisplayName(input.email);
+  return {
+    id: input.id,
+    clerkUserId: null,
+    email: input.email.trim().toLowerCase(),
+    displayName,
+    firstName: displayName.split(" ")[0] || "Client",
+    createdAt: input.createdAt ?? new Date(0).toISOString(),
+    authProvider: "legacy",
+  };
+}
+
 export function getUserSessionCookieConfig() {
   return {
     name: USER_SESSION_COOKIE,
@@ -218,7 +236,11 @@ export const getCurrentUser = cache(async function getCurrentUser() {
   }
   const user = await getStoredUserById(session.sub);
   if (!user) {
-    return null;
+    return buildTransientSessionUser({
+      id: session.sub,
+      email: session.email,
+      displayName: session.displayName,
+    });
   }
 
   return toAuthenticatedUser(user);
