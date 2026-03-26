@@ -1,15 +1,25 @@
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 
 import { type ProductCatalogItem } from "@/lib/products-data";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { toCatalogProduct } from "@/lib/alibaba-operations";
 
-export const getCatalogProducts = cache(async function getCatalogProducts() {
-  const imported = (await getAlibabaImportedProducts())
-    .filter((item) => item.publishedToSite && item.status === "published")
-    .map(toCatalogProduct);
+const getCachedCatalogProducts = unstable_cache(
+  async () => {
+    return (await getAlibabaImportedProducts())
+      .filter((item) => item.publishedToSite && item.status === "published")
+      .map(toCatalogProduct);
+  },
+  ["catalog-products"],
+  {
+    revalidate: 300,
+    tags: ["alibaba-imported-products"],
+  },
+);
 
-  return imported;
+export const getCatalogProducts = cache(async function getCatalogProducts() {
+  return getCachedCatalogProducts();
 });
 
 export const getCatalogProductBySlug = cache(async function getCatalogProductBySlug(slug: string) {

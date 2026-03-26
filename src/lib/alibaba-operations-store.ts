@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { Prisma } from "@prisma/client";
+import { revalidateTag, unstable_cache } from "next/cache";
 
 import type {
   AlibabaCountryProfile,
@@ -47,6 +48,7 @@ const COUNTRY_PROFILES_PATH = path.join(ROOT_DIR, "alibaba-country-profiles.json
 const RECEPTION_ADDRESSES_PATH = path.join(ROOT_DIR, "alibaba-reception-addresses.json");
 const PURCHASE_ORDERS_PATH = path.join(ROOT_DIR, "alibaba-purchase-orders.json");
 const RECEPTIONS_PATH = path.join(ROOT_DIR, "alibaba-receptions.json");
+const ALIBABA_IMPORTED_PRODUCTS_CACHE_TAG = "alibaba-imported-products";
 type EncryptedField = "appSecret" | "accessToken" | "refreshToken";
 
 type EncryptedPayload = {
@@ -1365,7 +1367,7 @@ export async function saveAlibabaImportJob(job: AlibabaImportJob): Promise<Aliba
   return job;
 }
 
-export async function getAlibabaImportedProducts(): Promise<AlibabaImportedProduct[]> {
+async function readAlibabaImportedProductsSource(): Promise<AlibabaImportedProduct[]> {
   if (canUseDatabase()) {
     try {
       return await readAlibabaImportedProductsDb();
@@ -1381,10 +1383,25 @@ export async function getAlibabaImportedProducts(): Promise<AlibabaImportedProdu
   return readJsonFile<AlibabaImportedProduct[]>(IMPORTED_PRODUCTS_PATH, []);
 }
 
+const getCachedAlibabaImportedProducts = unstable_cache(
+  async () => readAlibabaImportedProductsSource(),
+  ["alibaba-imported-products"],
+  {
+    revalidate: 300,
+    tags: [ALIBABA_IMPORTED_PRODUCTS_CACHE_TAG],
+  },
+);
+
+export async function getAlibabaImportedProducts(): Promise<AlibabaImportedProduct[]> {
+  return getCachedAlibabaImportedProducts();
+}
+
 export async function saveAlibabaImportedProducts(products: AlibabaImportedProduct[]): Promise<AlibabaImportedProduct[]> {
   if (canUseDatabase()) {
     try {
-      return await writeAlibabaImportedProductsDbBulk(products);
+      const next = await writeAlibabaImportedProductsDbBulk(products);
+      revalidateTag(ALIBABA_IMPORTED_PRODUCTS_CACHE_TAG, "max");
+      return next;
     } catch (error) {
       if (!isPrismaDatabaseUnavailable(error)) {
         throw error;
@@ -1394,7 +1411,7 @@ export async function saveAlibabaImportedProducts(products: AlibabaImportedProdu
     }
   }
 
-  const existing = await getAlibabaImportedProducts();
+  const existing = await readAlibabaImportedProductsSource();
   const nextMap = new Map(existing.map((item: AlibabaImportedProduct) => [item.sourceProductId || item.id, item]));
 
   for (const product of products) {
@@ -1403,6 +1420,7 @@ export async function saveAlibabaImportedProducts(products: AlibabaImportedProdu
 
   const next = [...nextMap.values()].sort((left: AlibabaImportedProduct, right: AlibabaImportedProduct) => right.updatedAt.localeCompare(left.updatedAt));
   await writeJsonFile(IMPORTED_PRODUCTS_PATH, next);
+  revalidateTag(ALIBABA_IMPORTED_PRODUCTS_CACHE_TAG, "max");
   return next;
 }
 
@@ -1410,6 +1428,7 @@ export async function deleteAlibabaImportedProduct(importedProductId: string): P
   if (canUseDatabase()) {
     try {
       await prisma.alibabaImportedProductRecord.deleteMany({ where: { id: importedProductId } });
+      revalidateTag(ALIBABA_IMPORTED_PRODUCTS_CACHE_TAG, "max");
       return;
     } catch (error) {
       if (!isPrismaDatabaseUnavailable(error)) {
@@ -1420,9 +1439,10 @@ export async function deleteAlibabaImportedProduct(importedProductId: string): P
     }
   }
 
-  const products = await getAlibabaImportedProducts();
+  const products = await readAlibabaImportedProductsSource();
   const next = products.filter((product: AlibabaImportedProduct) => product.id !== importedProductId);
   await writeJsonFile(IMPORTED_PRODUCTS_PATH, next);
+  revalidateTag(ALIBABA_IMPORTED_PRODUCTS_CACHE_TAG, "max");
 }
 
 export async function getAlibabaSupplierAccounts(): Promise<AlibabaSupplierAccount[]> {

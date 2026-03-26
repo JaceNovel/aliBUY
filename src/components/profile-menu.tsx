@@ -29,11 +29,13 @@ const profileItems = [
 export function ProfileMenu({ className = "", align = "right", user = null }: ProfileMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [resolvedUser, setResolvedUser] = useState(user);
+  const [hasLoadedSession, setHasLoadedSession] = useState(user !== null);
   const closeTimeoutRef = useRef<number | null>(null);
   const router = useRouter();
 
   useEffect(() => {
     setResolvedUser(user);
+    setHasLoadedSession(user !== null);
   }, [user]);
 
   useEffect(() => {
@@ -57,11 +59,12 @@ export function ProfileMenu({ className = "", align = "right", user = null }: Pr
   }, [isOpen, router]);
 
   useEffect(() => {
-    if (user !== null) {
+    if (user !== null || !isOpen || hasLoadedSession) {
       return;
     }
 
     let cancelled = false;
+    setHasLoadedSession(true);
 
     void fetch("/api/account/session", { credentials: "same-origin" })
       .then((response) => response.ok ? response.json() : null)
@@ -87,7 +90,7 @@ export function ProfileMenu({ className = "", align = "right", user = null }: Pr
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [hasLoadedSession, isOpen, user]);
 
   const showMenu = () => {
     if (closeTimeoutRef.current) {

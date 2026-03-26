@@ -1,11 +1,28 @@
 import "server-only";
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { ADMIN_ROLE_PRESETS, type AdminAccessRecord, type AdminRole } from "@/lib/admin-access";
 
-const SITE_DIR = path.join(process.cwd(), "data", "site");
+function resolveSiteDir() {
+  const isServerlessRuntime = Boolean(
+    process.env.VERCEL
+    || process.env.VERCEL_ENV
+    || process.env.VERCEL_URL
+    || process.env.AWS_EXECUTION_ENV
+    || process.env.AWS_LAMBDA_FUNCTION_NAME,
+  );
+
+  if (process.env.NODE_ENV === "production" || isServerlessRuntime) {
+    return path.join(os.tmpdir(), "afripay", "data", "site");
+  }
+
+  return path.join(process.cwd(), "data", "site");
+}
+
+const SITE_DIR = resolveSiteDir();
 const ACCESS_PATH = path.join(SITE_DIR, "admin-access.json");
 
 async function ensureSiteDir() {
@@ -13,19 +30,29 @@ async function ensureSiteDir() {
 }
 
 async function readRecords() {
-  await ensureSiteDir();
   try {
+    await ensureSiteDir();
     const raw = await readFile(ACCESS_PATH, "utf8");
     return JSON.parse(raw) as AdminAccessRecord[];
   } catch {
-    await writeFile(ACCESS_PATH, "[]\n", "utf8");
+    try {
+      await ensureSiteDir();
+      await writeFile(ACCESS_PATH, "[]\n", "utf8");
+    } catch {
+      return [] as AdminAccessRecord[];
+    }
+
     return [] as AdminAccessRecord[];
   }
 }
 
 async function writeRecords(records: AdminAccessRecord[]) {
-  await ensureSiteDir();
-  await writeFile(ACCESS_PATH, `${JSON.stringify(records, null, 2)}\n`, "utf8");
+  try {
+    await ensureSiteDir();
+    await writeFile(ACCESS_PATH, `${JSON.stringify(records, null, 2)}\n`, "utf8");
+  } catch {
+    // On serverless platforms this storage can be ephemeral or unavailable.
+  }
 }
 
 function normalizeEmail(email: string) {
