@@ -79,6 +79,22 @@ async function writeJsonFile<T>(filePath: string, value: T) {
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
+async function syncImportedProductsJsonSnapshot(products: AlibabaImportedProduct[]) {
+  try {
+    const existing = await readJsonFile<AlibabaImportedProduct[]>(IMPORTED_PRODUCTS_PATH, []);
+    const existingLatestUpdatedAt = existing[0]?.updatedAt ?? "";
+    const nextLatestUpdatedAt = products[0]?.updatedAt ?? "";
+
+    if (existing.length === products.length && existingLatestUpdatedAt === nextLatestUpdatedAt) {
+      return;
+    }
+
+    await writeJsonFile(IMPORTED_PRODUCTS_PATH, products);
+  } catch (error) {
+    console.warn("[alibaba-operations-store] unable to sync imported products JSON snapshot", error);
+  }
+}
+
 function getEncryptionKey() {
   const configuredKey = process.env.ALIBABA_ACCOUNT_ENCRYPTION_KEY?.trim();
   if (!configuredKey) {
@@ -838,7 +854,9 @@ async function readAlibabaImportedProductsDb(): Promise<AlibabaImportedProduct[]
     await prisma.alibabaImportedProductRecord.deleteMany({ where: { id: { in: duplicateIds } } });
   }
 
-  return dedupedRecords.map(mapImportedProductRecord);
+  const mappedProducts = dedupedRecords.map(mapImportedProductRecord);
+  await syncImportedProductsJsonSnapshot(mappedProducts);
+  return mappedProducts;
 }
 
 async function writeAlibabaImportedProductDb(product: AlibabaImportedProduct): Promise<AlibabaImportedProduct> {
@@ -977,7 +995,9 @@ async function writeAlibabaImportedProductsDbBulk(products: AlibabaImportedProdu
     await writeAlibabaImportedProductDb(product);
   }
 
-  return readAlibabaImportedProductsDb();
+  const nextProducts = await readAlibabaImportedProductsDb();
+  await syncImportedProductsJsonSnapshot(nextProducts);
+  return nextProducts;
 }
 
 function mapCountryProfileRecord(record: {
