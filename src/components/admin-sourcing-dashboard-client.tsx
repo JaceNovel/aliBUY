@@ -3,9 +3,22 @@
 import Link from "next/link";
 import { ArrowUpRight, Calculator, Percent, Save, Ship, Truck } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 
-import { formatFcfa, getSourcingAlibabaPostPaymentAutomationState, type SourcingOrder, type SourcingSeaContainer, type SourcingSettings } from "@/lib/alibaba-sourcing";
+import {
+  AIR_BATCH_TARGET_KG,
+  SEA_BATCH_TARGET_CBM,
+  formatFcfa,
+  getSourcingAlibabaPayUrls,
+  getSourcingAlibabaPaymentRollup,
+  getSourcingAlibabaPostPaymentAutomationState,
+  getSourcingOrderBatchMode,
+  getSourcingOrderMeta,
+  isSourcingOrderEligibleForSupplierPayment,
+  type SourcingOrder,
+  type SourcingSeaContainer,
+  type SourcingSettings,
+} from "@/lib/alibaba-sourcing";
 
 type CatalogPreviewItem = {
   slug: string;
@@ -30,6 +43,54 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<string | null>(null);
   const [settings, setSettings] = useState(initialDashboard.settings);
+
+  const eligibleOrders = useMemo(() => initialDashboard.orders.filter((order) => isSourcingOrderEligibleForSupplierPayment(order)), [initialDashboard.orders]);
+  const airBatchOrders = useMemo(() => eligibleOrders.filter((order) => getSourcingOrderBatchMode(order) === "air"), [eligibleOrders]);
+  const seaBatchOrders = useMemo(() => eligibleOrders.filter((order) => getSourcingOrderBatchMode(order) === "sea"), [eligibleOrders]);
+  const airBatchWeight = useMemo(() => Number(airBatchOrders.reduce((total, order) => total + order.totalWeightKg, 0).toFixed(3)), [airBatchOrders]);
+  const seaBatchCbm = useMemo(() => Number(seaBatchOrders.reduce((total, order) => total + order.totalVolumeCbm, 0).toFixed(4)), [seaBatchOrders]);
+
+  const launchBatch = async (mode: "air" | "sea") => {
+    setFeedback(null);
+
+    const response = await fetch(`/api/admin/sourcing/batches/${mode}/launch`, {
+      method: "POST",
+    });
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      setFeedback(data?.message || "Impossible de lancer ce lot fournisseur.");
+      return;
+    }
+
+    setFeedback(`Lot ${mode === "air" ? "avion" : "maritime"} lancé. ${String(data?.processedCount ?? 0)} commande(s) traitée(s).`);
+    startTransition(() => {
+      router.refresh();
+    });
+  };
+
+  const launchOrder = async (orderId: string) => {
+    setFeedback(null);
+
+    const response = await fetch(`/api/admin/sourcing/orders/${encodeURIComponent(orderId)}`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ action: "launch-supplier-payment" }),
+    });
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      setFeedback(data?.message || "Impossible de lancer cette commande fournisseur.");
+      return;
+    }
+
+    setFeedback(`Commande fournisseur lancée pour ${String(data?.order?.orderNumber ?? orderId)}.`);
+    startTransition(() => {
+      router.refresh();
+    });
+  };
 
   const persistSettings = async () => {
     setFeedback(null);
@@ -114,6 +175,62 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
             </article>
           );
         })}
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        <article className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Batch avion</div>
+              <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Regroupement fournisseur à 2 kg</div>
+              <div className="mt-2 text-[13px] leading-6 text-[#667085]">Les commandes payées restent en file d&apos;attente jusqu&apos;au lancement admin. Le lot peut aussi être déclenché avant le seuil.</div>
+            </div>
+            <button type="button" onClick={() => launchBatch("air")} disabled={isPending || airBatchOrders.length === 0} className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">
+              {airBatchWeight >= AIR_BATCH_TARGET_KG ? "Lancer le lot" : "Lancer quand même"}
+            </button>
+          </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Poids cumulé</div>
+              <div className="mt-1 text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{airBatchWeight.toFixed(3)} kg</div>
+            </div>
+            <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Seuil</div>
+              <div className="mt-1 text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{AIR_BATCH_TARGET_KG.toFixed(0)} kg</div>
+            </div>
+            <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Commandes</div>
+              <div className="mt-1 text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{airBatchOrders.length}</div>
+            </div>
+          </div>
+        </article>
+
+        <article className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Batch maritime</div>
+              <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Regroupement fournisseur à 1 CBM</div>
+              <div className="mt-2 text-[13px] leading-6 text-[#667085]">Inclut les commandes mer et toutes les commandes de la campagne articles gratuits, forcées en maritime.</div>
+            </div>
+            <button type="button" onClick={() => launchBatch("sea")} disabled={isPending || seaBatchOrders.length === 0} className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">
+              {seaBatchCbm >= SEA_BATCH_TARGET_CBM ? "Lancer le lot" : "Lancer quand même"}
+            </button>
+          </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Volume cumulé</div>
+              <div className="mt-1 text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{seaBatchCbm.toFixed(4)} CBM</div>
+            </div>
+            <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Seuil</div>
+              <div className="mt-1 text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{SEA_BATCH_TARGET_CBM.toFixed(0)} CBM</div>
+            </div>
+            <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Commandes</div>
+              <div className="mt-1 text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{seaBatchOrders.length}</div>
+            </div>
+          </div>
+        </article>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
@@ -251,34 +368,45 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
                 <tr className="text-[12px] uppercase tracking-[0.08em] text-[#98a2b3]">
                   <th className="py-3 pr-4 font-semibold">Commande</th>
                   <th className="py-3 pr-4 font-semibold">Client</th>
+                  <th className="py-3 pr-4 font-semibold">File</th>
                   <th className="py-3 pr-4 font-semibold">Livraison</th>
                   <th className="py-3 pr-4 font-semibold">Freight</th>
                   <th className="py-3 pr-4 font-semibold">Supplier</th>
                   <th className="py-3 pr-4 font-semibold">Paiement Alibaba</th>
+                  <th className="py-3 pr-4 font-semibold">Pay URL</th>
                   <th className="py-3 pr-4 font-semibold">Tracking</th>
                   <th className="py-3 pr-4 font-semibold">Total</th>
+                  <th className="py-3 pr-4 font-semibold">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {initialDashboard.orders.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="border-t border-[#edf1f6] py-4 text-[13px] text-[#667085]">Aucune commande sourcing pour le moment.</td>
+                    <td colSpan={11} className="border-t border-[#edf1f6] py-4 text-[13px] text-[#667085]">Aucune commande sourcing pour le moment.</td>
                   </tr>
                 ) : initialDashboard.orders.map((order) => {
                   const automation = getSourcingAlibabaPostPaymentAutomationState(order);
                   const paidTrades = automation?.trades.filter((trade) => trade.paymentResultStatus === "paid").length ?? 0;
                   const trackingTrades = automation?.trades.filter((trade) => trade.tracking.length > 0).length ?? 0;
+                  const batchMode = getSourcingOrderBatchMode(order);
+                  const paymentRollup = getSourcingAlibabaPaymentRollup(order);
+                  const payUrls = getSourcingAlibabaPayUrls(order);
+                  const canLaunch = isSourcingOrderEligibleForSupplierPayment(order);
+                  const meta = getSourcingOrderMeta(order);
 
                   return (
                     <tr key={order.id} className="border-t border-[#edf1f6] text-[13px] text-[#1f2937]">
-                      <td className="py-3.5 pr-4 font-semibold">{order.orderNumber}</td>
+                      <td className="py-3.5 pr-4 font-semibold"><Link href={`/admin/orders/${encodeURIComponent(order.id)}`} className="transition hover:text-[#ff6a00]">{order.orderNumber}</Link></td>
                       <td className="py-3.5 pr-4">{order.customerName}</td>
+                      <td className="py-3.5 pr-4">{meta.freeDeal ? "Mer gratuit" : batchMode === "air" ? "Lot avion" : batchMode === "sea" ? "Lot mer" : "Hors lot"}</td>
                       <td className="py-3.5 pr-4">{order.shippingMethod === "sea" ? "Bateau" : order.shippingMethod === "freight" ? "Fret" : "Avion"}</td>
                       <td className="py-3.5 pr-4">{order.freightStatus}</td>
                       <td className="py-3.5 pr-4">{order.supplierOrderStatus}</td>
-                      <td className="py-3.5 pr-4">{automation ? `${paidTrades}/${automation.trades.length} payé(s)` : "Pas encore"}</td>
+                      <td className="py-3.5 pr-4">{automation ? `${paidTrades}/${automation.trades.length} payé(s) · ${paymentRollup}` : "Pas encore"}</td>
+                      <td className="py-3.5 pr-4">{payUrls.length > 0 ? <Link href={payUrls[0]} target="_blank" className="font-semibold text-[#ff6a00] transition hover:opacity-80">Ouvrir</Link> : "-"}</td>
                       <td className="py-3.5 pr-4">{automation ? `${trackingTrades}/${automation.trades.length} synchro` : "Pas encore"}</td>
                       <td className="py-3.5 pr-4">{formatFcfa(order.totalPriceFcfa)}</td>
+                      <td className="py-3.5 pr-4">{canLaunch ? <button type="button" onClick={() => launchOrder(order.id)} disabled={isPending} className="inline-flex h-9 items-center justify-center rounded-[12px] bg-[#111827] px-3 text-[12px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">Lancer</button> : payUrls.length > 0 ? <Link href={payUrls[0]} target="_blank" className="font-semibold text-[#ff6a00] transition hover:opacity-80">Pay URL</Link> : "-"}</td>
                     </tr>
                   );
                 })}

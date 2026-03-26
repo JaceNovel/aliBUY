@@ -1,11 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ChevronLeft, ImagePlus, MessageSquareText, Paperclip, Search, SendHorizonal, SmilePlus, Star } from "lucide-react";
+import Image from "next/image";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CheckCheck, ChevronLeft, ImagePlus, MessageSquareText, Paperclip, Search, SendHorizonal, SmilePlus, Star } from "lucide-react";
+
+import { SITE_LOGO_PATH, SITE_NAME } from "@/lib/site-config";
 
 type MessageBubble = {
+  id?: string;
   side: "left" | "right";
   text: string;
+  createdAt?: string;
 };
 
 type MessageStatus = "en ligne" | "en transit" | "dossier clos";
@@ -18,6 +23,7 @@ type MessageEntry = {
   preview: string;
   time: string;
   status: MessageStatus;
+  updatedAt?: string;
   messages: MessageBubble[];
 };
 
@@ -46,24 +52,78 @@ export function MessagesClient({ conversations, initialConversationId }: Message
   const [selectedConversationId, setSelectedConversationId] = useState(defaultConversationId);
   const [mobileView, setMobileView] = useState<"list" | "chat">(initialConversationId ? "chat" : "list");
   const [draftMessage, setDraftMessage] = useState("");
-  const [conversationMessages, setConversationMessages] = useState<Record<string, MessageBubble[]>>(() => {
-    return Object.fromEntries(conversations.map((entry) => [entry.id, entry.messages]));
-  });
+  const [liveConversations, setLiveConversations] = useState<MessageEntry[]>(conversations);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setLiveConversations(conversations);
+  }, [conversations]);
 
   const filteredEntries = useMemo(() => {
     const normalizedQuery = searchTerm.trim().toLowerCase();
 
-    return conversations.filter((entry) => {
+    return liveConversations.filter((entry) => {
       if (!normalizedQuery) {
         return true;
       }
 
       return `${entry.name} ${entry.role} ${entry.preview}`.toLowerCase().includes(normalizedQuery);
     });
-  }, [conversations, searchTerm]);
+  }, [liveConversations, searchTerm]);
 
   const selectedConversation =
-    filteredEntries.find((entry) => entry.id === selectedConversationId) ?? filteredEntries[0] ?? conversations[0];
+    filteredEntries.find((entry) => entry.id === selectedConversationId) ?? filteredEntries[0] ?? liveConversations[0];
+
+  useEffect(() => {
+    if (!messagesEndRef.current) {
+      return;
+    }
+
+    messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [selectedConversationId, selectedConversation?.messages]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncMessages = async (showLoader = false) => {
+      if (showLoader) {
+        setIsSyncing(true);
+      }
+
+      try {
+        const response = await fetch("/api/messages", { cache: "no-store" });
+        const payload = await response.json().catch(() => null) as { conversations?: MessageEntry[] } | null;
+        const conversations = payload?.conversations;
+        if (!response.ok || !conversations || cancelled) {
+          return;
+        }
+
+        setLiveConversations(conversations);
+        setSelectedConversationId((current) => {
+          if (current && conversations.some((entry) => entry.id === current)) {
+            return current;
+          }
+
+          return conversations[0]?.id ?? null;
+        });
+      } finally {
+        if (!cancelled) {
+          setIsSyncing(false);
+        }
+      }
+    };
+
+    void syncMessages(true);
+    const interval = window.setInterval(() => {
+      void syncMessages(false);
+    }, 4000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   if (!selectedConversation) {
     return (
@@ -74,7 +134,7 @@ export function MessagesClient({ conversations, initialConversationId }: Message
     );
   }
 
-  const selectedMessages = conversationMessages[selectedConversation.id] ?? selectedConversation.messages;
+  const selectedMessages = selectedConversation.messages;
   const isClosedConversation = selectedConversation.status === "dossier clos";
 
   const handleSend = async () => {
@@ -84,15 +144,19 @@ export function MessagesClient({ conversations, initialConversationId }: Message
       return;
     }
 
-    const optimisticMessages = [
-      ...selectedMessages,
-      { side: "right" as const, text: nextMessage },
-    ];
+    const optimisticConversation: MessageEntry = {
+      ...selectedConversation,
+      preview: nextMessage,
+      time: "Envoi...",
+      messages: [
+        ...selectedMessages,
+        { id: `temp-${Date.now()}`, side: "right", text: nextMessage, createdAt: new Date().toISOString() },
+      ],
+    };
 
-    setConversationMessages((current) => ({
-      ...current,
-      [selectedConversation.id]: optimisticMessages,
-    }));
+    setLiveConversations((current) => current.map((entry) => (
+      entry.id === selectedConversation.id ? optimisticConversation : entry
+    )));
     setDraftMessage("");
 
     const response = await fetch("/api/messages", {
@@ -104,11 +168,20 @@ export function MessagesClient({ conversations, initialConversationId }: Message
     });
 
     if (!response.ok) {
-      setConversationMessages((current) => ({
-        ...current,
-        [selectedConversation.id]: selectedMessages,
-      }));
+      setLiveConversations((current) => current.map((entry) => (
+        entry.id === selectedConversation.id ? { ...entry, messages: selectedMessages } : entry
+      )));
       setDraftMessage(nextMessage);
+      return;
+    }
+
+    const payload = await response.json().catch(() => null) as { conversation?: MessageEntry } | null;
+    const conversation = payload?.conversation;
+    if (conversation) {
+      setLiveConversations((current) => {
+        const remaining = current.filter((entry) => entry.id !== conversation.id);
+        return [conversation, ...remaining];
+      });
     }
   };
 
@@ -123,7 +196,7 @@ export function MessagesClient({ conversations, initialConversationId }: Message
             mobileView === "list" ? "bg-[#222] text-white" : "bg-white text-[#222] ring-1 ring-black/5",
           ].join(" ")}
         >
-          <MessageSquareText className="h-4 w-4" />
+              <MessageSquareText className="h-4 w-4" />
           Conversations
         </button>
         <button
@@ -209,34 +282,59 @@ export function MessagesClient({ conversations, initialConversationId }: Message
           </button>
         </div>
         <div className="flex items-start justify-between gap-3 border-b border-[#ececec] pb-4 sm:gap-4 sm:pb-5">
-          <div>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="text-[18px] font-bold tracking-[-0.04em] text-[#222] sm:text-[28px]">{selectedConversation.name}</div>
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full bg-[linear-gradient(135deg,#fff2e8,#fff)] ring-1 ring-[#ffd8bf]">
+              <Image src={SITE_LOGO_PATH} alt={`${SITE_NAME} logo`} fill className="object-contain p-2" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="text-[18px] font-bold tracking-[-0.04em] text-[#222] sm:text-[28px]">{selectedConversation.name}</div>
               <span className={["rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] sm:px-3 sm:py-1 sm:text-[12px] sm:tracking-[0.08em]", getStatusStyles(selectedConversation.status)].join(" ")}>
                 {selectedConversation.status}
               </span>
+                {isSyncing ? <span className="text-[11px] font-medium text-[#98a2b3]">sync...</span> : null}
+              </div>
+              <div className="mt-1 text-[12px] text-[#666] sm:mt-2 sm:text-[15px]">{selectedConversation.role}</div>
+              {selectedConversation.email ? <div className="mt-1 text-[11px] text-[#999] sm:text-[13px]">{selectedConversation.email}</div> : null}
             </div>
-            <div className="mt-1 text-[12px] text-[#666] sm:mt-2 sm:text-[15px]">{selectedConversation.role}</div>
-            {selectedConversation.email ? <div className="mt-1 text-[11px] text-[#999] sm:text-[13px]">{selectedConversation.email}</div> : null}
           </div>
           <div className="hidden rounded-full bg-[#f7f7f7] px-4 py-2 text-[14px] font-semibold text-[#333] ring-1 ring-black/5 sm:block">
-            Chat Direct
+            Discussion AfriPay
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto py-4 pr-1 [scrollbar-gutter:stable] sm:py-6 sm:pr-3">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-[linear-gradient(180deg,#fff7f1_0%,#ffffff_28%)] py-4 pr-1 [scrollbar-gutter:stable] sm:py-6 sm:pr-3">
           <div className="space-y-3.5 sm:space-y-5">
           {selectedMessages.map((message, index) => (
             <div
-              key={`${selectedConversation.id}-${index}`}
-              className={[
-                "max-w-[90%] rounded-[18px] px-3 py-2.5 text-[13px] leading-6 sm:max-w-[70%] sm:rounded-[20px] sm:px-5 sm:py-4 sm:text-[16px] sm:leading-7 md:max-w-[65%]",
-                message.side === "right" ? "ml-auto bg-[#fff0e6] text-[#222]" : "bg-[#f5f5f5] text-[#333]",
-              ].join(" ")}
+              key={message.id ?? `${selectedConversation.id}-${index}`}
+              className={["flex gap-3", message.side === "right" ? "justify-end" : "justify-start"].join(" ")}
             >
-              {message.text}
+              {message.side === "left" ? (
+                <div className="relative mt-1 h-9 w-9 shrink-0 overflow-hidden rounded-full bg-[linear-gradient(135deg,#fff2e8,#fff)] ring-1 ring-[#ffd8bf]">
+                  <Image src={SITE_LOGO_PATH} alt={`${SITE_NAME} logo`} fill className="object-contain p-1.5" />
+                </div>
+              ) : null}
+              <div
+                className={[
+                  "max-w-[90%] rounded-[18px] px-3 py-2.5 text-[13px] leading-6 shadow-[0_8px_22px_rgba(24,39,75,0.06)] sm:max-w-[70%] sm:rounded-[20px] sm:px-5 sm:py-4 sm:text-[16px] sm:leading-7 md:max-w-[65%]",
+                  message.side === "right" ? "rounded-br-[6px] bg-[#dcfce7] text-[#16351f]" : "rounded-tl-[6px] bg-white text-[#333]",
+                ].join(" ")}
+              >
+                <div>{message.text}</div>
+                <div className="mt-2 flex items-center justify-end gap-1 text-[11px] text-[#7c8593]">
+                  <span>{message.createdAt ? new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" }).format(new Date(message.createdAt)) : selectedConversation.time}</span>
+                  {message.side === "right" ? <CheckCheck className="h-3.5 w-3.5 text-[#16a34a]" /> : null}
+                </div>
+              </div>
+              {message.side === "right" ? (
+                <div className="relative mt-1 h-9 w-9 shrink-0 overflow-hidden rounded-full bg-[linear-gradient(135deg,#fff2e8,#fff)] ring-1 ring-[#ffd8bf]">
+                  <Image src={SITE_LOGO_PATH} alt={`${SITE_NAME} logo`} fill className="object-contain p-1.5" />
+                </div>
+              ) : null}
             </div>
           ))}
+          <div ref={messagesEndRef} />
           </div>
         </div>
 

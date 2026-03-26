@@ -10,6 +10,7 @@ import {
   withSourcingOrderMeta,
   type SourcingOrder,
 } from "@/lib/alibaba-sourcing";
+import { createAlibabaSupplierOrders, verifyAlibabaSupplierFreight } from "@/lib/alibaba-open-platform-client";
 import {
   getFreeDealConfig,
   getFreeDealFixedPriceFcfa,
@@ -19,7 +20,7 @@ import {
   type FreeDealConfig,
   type FreeDealVisitorIdentity,
 } from "@/lib/free-deal-store";
-import { saveSourcingOrder } from "@/lib/sourcing-store";
+import { createAlibabaIntegrationLog, getAlibabaCatalogMappings, saveSourcingOrder } from "@/lib/sourcing-store";
 
 export type FreeDealCheckoutCustomerInput = {
   customerName: string;
@@ -104,15 +105,15 @@ export async function createFreeDealOrder(input: {
     state: input.customer.state.trim() || input.customer.city.trim(),
     postalCode: input.customer.postalCode?.trim() || undefined,
     countryCode: normalizeCountryCode(input.customer.countryCode),
-    shippingMethod: "freight",
+    shippingMethod: "sea",
     shippingCostFcfa: 0,
     cartProductsTotalFcfa: fixedPriceFcfa,
     totalPriceFcfa: fixedPriceFcfa,
     totalWeightKg: sumNumbers(selectedProducts.map((product) => getProductSourcingMetrics(product).weightKg)),
     totalVolumeCbm: sumNumbers(selectedProducts.map((product) => getProductSourcingMetrics(product).volumeCbm)),
-    status: "checkout_created",
-    freightStatus: "skipped",
-    supplierOrderStatus: "skipped",
+    status: "grouped_sea",
+    freightStatus: "not_requested",
+    supplierOrderStatus: "not_created",
     paymentStatus: "unpaid",
     paymentProvider: "moneroo",
     paymentCurrency: "XOF",
@@ -158,6 +159,52 @@ export async function createFreeDealOrder(input: {
       createdFromSharedCart: false,
     },
   });
+
+  await saveSourcingOrder(order);
+
+  const mappings = await getAlibabaCatalogMappings();
+  try {
+    const freightVerification = await verifyAlibabaSupplierFreight(order, mappings);
+    order = {
+      ...order,
+      freightStatus: freightVerification.freightStatus,
+      freightPayload: freightVerification.freightPayload,
+      updatedAt: nowIso(),
+    };
+    await saveSourcingOrder(order);
+
+    const supplierOrders = await createAlibabaSupplierOrders(order, mappings, freightVerification);
+    const currentMeta = getSourcingOrderMeta(order);
+    order = withSourcingOrderMeta({
+      ...order,
+      supplierOrderStatus: supplierOrders.supplierOrderStatus,
+      alibabaTradeIds: supplierOrders.alibabaTradeIds,
+      supplierOrderPayload: supplierOrders.supplierOrderPayload,
+      updatedAt: nowIso(),
+    }, currentMeta);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "free_deal_supplier_automation_failed";
+    const currentMeta = getSourcingOrderMeta(order);
+    order = withSourcingOrderMeta({
+      ...order,
+      freightStatus: "failed",
+      supplierOrderStatus: "failed",
+      supplierOrderPayload: { error: message },
+      updatedAt: nowIso(),
+    }, currentMeta);
+
+    await createAlibabaIntegrationLog({
+      orderId: order.id,
+      action: "free-deal-supplier-automation",
+      endpoint: "internal",
+      status: "failed",
+      requestBody: {
+        orderNumber: order.orderNumber,
+        shippingMethod: order.shippingMethod,
+      },
+      responseBody: { message },
+    });
+  }
 
   await saveSourcingOrder(order);
   return order;

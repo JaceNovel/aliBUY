@@ -186,35 +186,8 @@ function enableDatabaseFallback(error: unknown) {
   }
 }
 
-let importedProductsCache:
-  | {
-      value: AlibabaImportedProduct[];
-      expiresAt: number;
-    }
-  | null = null;
-
-function getCachedImportedProductsSnapshot() {
-  if (!importedProductsCache) {
-    return null;
-  }
-
-  if (Date.now() >= importedProductsCache.expiresAt) {
-    importedProductsCache = null;
-    return null;
-  }
-
-  return importedProductsCache.value;
-}
-
-function setCachedImportedProductsSnapshot(products: AlibabaImportedProduct[]) {
-  importedProductsCache = {
-    value: products,
-    expiresAt: Date.now() + 5 * 60 * 1000,
-  };
-}
-
 function invalidateImportedProductsSnapshot() {
-  importedProductsCache = null;
+  // Historical no-op: callers still invoke this after writes so admin edits remain explicit.
 }
 
 function toPrismaJson(value: unknown): Prisma.InputJsonValue | undefined {
@@ -1413,14 +1386,7 @@ async function readAlibabaImportedProductsSource(): Promise<AlibabaImportedProdu
 }
 
 export async function getAlibabaImportedProducts(): Promise<AlibabaImportedProduct[]> {
-  const cached = getCachedImportedProductsSnapshot();
-  if (cached) {
-    return cached;
-  }
-
-  const products = await readAlibabaImportedProductsSource();
-  setCachedImportedProductsSnapshot(products);
-  return products;
+  return readAlibabaImportedProductsSource();
 }
 
 export async function saveAlibabaImportedProducts(products: AlibabaImportedProduct[]): Promise<AlibabaImportedProduct[]> {

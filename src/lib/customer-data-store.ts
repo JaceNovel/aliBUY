@@ -588,3 +588,81 @@ export async function appendSupportConversationMessage(input: {
 
   return mapConversation(nextConversation);
 }
+
+export async function appendAdminSupportConversationMessage(input: {
+  conversationId: string;
+  text: string;
+}) {
+  const conversation = await prisma.supportConversation.findUnique({
+    where: { id: input.conversationId },
+  });
+
+  if (!conversation) {
+    throw new Error("Conversation introuvable.");
+  }
+
+  const trimmedText = input.text.trim();
+  if (!trimmedText) {
+    throw new Error("Message vide.");
+  }
+
+  const now = new Date().toISOString();
+  await prisma.supportConversation.update({
+    where: { id: conversation.id },
+    data: {
+      preview: trimmedText,
+      time: toTimeLabel(now),
+      status: "en ligne",
+      messages: {
+        create: {
+          side: "left",
+          text: trimmedText,
+        },
+      },
+    },
+  });
+
+  const nextConversation = await prisma.supportConversation.findUnique({
+    where: { id: conversation.id },
+    include: { user: true, messages: { orderBy: { createdAt: "asc" } } },
+  });
+
+  if (!nextConversation) {
+    throw new Error("Conversation introuvable.");
+  }
+
+  return mapConversation(nextConversation);
+}
+
+export async function appendOrderAutomationNotification(input: {
+  userId?: string;
+  orderId: string;
+  orderLabel: string;
+  text: string;
+}) {
+  if (!input.userId) {
+    return null;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: input.userId },
+    select: { id: true, email: true, displayName: true },
+  });
+
+  if (!user) {
+    return null;
+  }
+
+  const conversation = await ensureOrderSupportConversation({
+    userId: user.id,
+    userEmail: user.email,
+    userDisplayName: user.displayName,
+    orderId: input.orderId,
+    orderLabel: input.orderLabel,
+  });
+
+  return appendAdminSupportConversationMessage({
+    conversationId: conversation.id,
+    text: input.text,
+  });
+}

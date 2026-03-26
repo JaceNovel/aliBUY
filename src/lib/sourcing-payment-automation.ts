@@ -148,6 +148,12 @@ function compareStatusPriority(left: SourcingOrderStatus, right: SourcingOrderSt
     "grouped_sea",
     "ready_to_ship",
     "submitted_to_supplier",
+    "air_batch_pending",
+    "sea_batch_pending",
+    "supplier_payment_requested",
+    "supplier_payment_failed",
+    "supplier_paid_partial",
+    "supplier_paid",
     "shipment_triggered",
     "in_transit_to_agent",
     "delivered_to_agent",
@@ -156,6 +162,31 @@ function compareStatusPriority(left: SourcingOrderStatus, right: SourcingOrderSt
   ] as const;
 
   return order.indexOf(left) - order.indexOf(right);
+}
+
+function deriveStatusFromPayment(currentStatus: SourcingOrderStatus, trades: TradeAutomationSnapshot[]) {
+  const paidCount = trades.filter((trade) => trade.paymentResultStatus === "paid").length;
+  const hasPayUrl = trades.some((trade) => Boolean(trade.payUrl));
+  const hasFailed = trades.some((trade) => trade.paymentRequestStatus === "failed" || trade.paymentResultStatus === "failed");
+  const hasPending = trades.some((trade) => trade.paymentRequestStatus === "requested" || (typeof trade.paymentResultStatus === "string" && trade.paymentResultStatus !== "paid" && trade.paymentResultStatus !== "failed"));
+
+  if (trades.length > 0 && paidCount === trades.length) {
+    return compareStatusPriority(currentStatus, "supplier_paid") < 0 ? "supplier_paid" : currentStatus;
+  }
+
+  if (paidCount > 0) {
+    return compareStatusPriority(currentStatus, "supplier_paid_partial") < 0 ? "supplier_paid_partial" : currentStatus;
+  }
+
+  if (hasPending) {
+    return compareStatusPriority(currentStatus, "supplier_payment_requested") < 0 ? "supplier_payment_requested" : currentStatus;
+  }
+
+  if (hasPayUrl || hasFailed) {
+    return compareStatusPriority(currentStatus, "supplier_payment_failed") < 0 ? "supplier_payment_failed" : currentStatus;
+  }
+
+  return currentStatus;
 }
 
 function deriveStatusFromTracking(currentStatus: SourcingOrderStatus, trades: TradeAutomationSnapshot[]) {
@@ -167,7 +198,7 @@ function deriveStatusFromTracking(currentStatus: SourcingOrderStatus, trades: Tr
   return compareStatusPriority(currentStatus, "shipment_triggered") < 0 ? "shipment_triggered" : currentStatus;
 }
 
-export async function runSourcingPostPaymentAutomation(order: SourcingOrder, trigger: "moneroo-verify" | "moneroo-webhook") {
+export async function runSourcingPostPaymentAutomation(order: SourcingOrder, trigger: "moneroo-verify" | "moneroo-webhook" | "admin-order-manual" | "admin-air-batch" | "admin-sea-batch") {
   if (order.paymentStatus !== "paid" || order.alibabaTradeIds.length === 0) {
     return order;
   }
@@ -275,7 +306,7 @@ export async function runSourcingPostPaymentAutomation(order: SourcingOrder, tri
 
   nextOrder = {
     ...nextOrder,
-    status: deriveStatusFromTracking(nextOrder.status, tradeSnapshots),
+    status: deriveStatusFromTracking(deriveStatusFromPayment(nextOrder.status, tradeSnapshots), tradeSnapshots),
     updatedAt: nowIso(),
   };
 

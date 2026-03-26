@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ArrowUpRight, Bot, MessageCircleHeart, SendHorizonal, Sparkles, UserRound, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
@@ -49,6 +50,8 @@ function buildInitialMessage(firstName?: string) {
 }
 
 export function SiteChatWidget() {
+  const pathname = usePathname();
+  const isFreeDealRoute = pathname.startsWith("/articles-gratuits");
   const [isOpen, setIsOpen] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
@@ -198,6 +201,7 @@ export function SiteChatWidget() {
       <section
         className={[
           "fixed inset-x-4 bottom-[calc(var(--mobile-bottom-nav-height)+var(--mobile-floating-cta-height)+18px)] z-[140] overflow-hidden rounded-[22px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,247,241,0.98),rgba(255,255,255,0.98))] shadow-[0_20px_44px_rgba(43,17,0,0.16)] backdrop-blur-xl transition duration-200 ease-out sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[420px] sm:rounded-[28px] sm:shadow-[0_30px_80px_rgba(43,17,0,0.22)]",
+          isFreeDealRoute ? "hidden sm:block" : "",
           isOpen ? "pointer-events-auto translate-y-0 scale-100 opacity-100" : "pointer-events-none translate-y-5 scale-[0.96] opacity-0",
         ].join(" ")}
       >
@@ -350,9 +354,12 @@ export function SiteChatWidget() {
         type="button"
         onClick={() => setIsOpen((current) => !current)}
         aria-label={isOpen ? "Fermer le chat AfriPay" : "Ouvrir le chat AfriPay"}
-        className="fixed bottom-[calc(var(--mobile-bottom-nav-height)+var(--mobile-floating-cta-height)+18px)] right-2 z-[135] inline-flex items-center gap-3 rounded-full border border-white/70 bg-[linear-gradient(135deg,rgba(250,100,0,0.98),rgba(255,146,49,0.96))] px-2 py-2 text-white shadow-[0_16px_30px_rgba(250,100,0,0.28)] transition duration-200 hover:-translate-y-0.5 hover:scale-[1.02] sm:bottom-6 sm:right-6 sm:px-4 sm:py-3"
+        className={[
+          "fixed bottom-[calc(var(--mobile-bottom-nav-height)+var(--mobile-floating-cta-height)+18px)] right-2 z-[135] inline-flex items-center gap-2 rounded-full border border-white/70 bg-[linear-gradient(135deg,rgba(250,100,0,0.98),rgba(255,146,49,0.96))] px-1.5 py-1.5 text-white shadow-[0_16px_30px_rgba(250,100,0,0.28)] transition duration-200 hover:-translate-y-0.5 hover:scale-[1.02] sm:bottom-6 sm:right-6 sm:gap-3 sm:px-4 sm:py-3",
+          isFreeDealRoute ? "hidden sm:inline-flex" : "",
+        ].join(" ")}
       >
-        <span className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-white/94 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.6)] sm:h-12 sm:w-12">
+        <span className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-white/94 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.6)] sm:h-12 sm:w-12">
           <Image src={SITE_LOGO_PATH} alt={`${SITE_NAME} logo`} width={34} height={34} className="h-6 w-6 object-contain sm:h-9 sm:w-9" />
           <span className="absolute right-0 top-0 h-3.5 w-3.5 rounded-full bg-[#14b85a] ring-2 ring-[#fa6400]" />
         </span>

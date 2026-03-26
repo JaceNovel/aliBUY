@@ -181,8 +181,6 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
     setFeedback(null);
   };
 
-  const canSelectMore = selectedSlugs.length < config.itemLimit;
-
   const statusMessage = hasStandardCartConflict
     ? "Votre panier standard contient deja des articles. Videz-le avant d'utiliser cette offre."
     : canSubmit
@@ -330,7 +328,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
   ];
 
   return (
-    <div className="space-y-6 pb-[calc(9rem+env(safe-area-inset-bottom))] md:pb-0">
+    <div className="space-y-6 pb-[calc(11rem+env(safe-area-inset-bottom))] md:pb-0">
       <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen overflow-hidden bg-[linear-gradient(90deg,#ff0069_0%,#ff3358_38%,#ff6a00_100%)] text-white shadow-[0_24px_60px_rgba(255,45,85,0.18)]">
         <div className="px-4 py-3 sm:px-6 lg:px-10">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
@@ -341,16 +339,16 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
           </div>
           <div className="mt-3 grid gap-2 lg:grid-cols-2">
             {promoCoupons.map((coupon) => (
-              <div key={coupon.id} className="grid grid-cols-[1fr_auto] overflow-hidden rounded-[20px] bg-white text-[#24324a] shadow-[0_10px_24px_rgba(17,24,39,0.1)]">
+              <div key={coupon.id} className="flex flex-col gap-2 overflow-hidden rounded-[20px] bg-white p-3 text-[#24324a] shadow-[0_10px_24px_rgba(17,24,39,0.1)] sm:grid sm:grid-cols-[1fr_auto] sm:gap-0 sm:p-0">
                 <div className="px-4 py-3 sm:px-5 sm:py-4">
                   <div className="text-[16px] font-black tracking-[-0.04em] text-[#ff0f73] sm:text-[20px]">{coupon.value}</div>
                   <div className="mt-1 text-[13px] text-[#ff5b8a]">{coupon.label} <span className="text-[#667085]">| Code: {coupon.code}</span></div>
                 </div>
-                <div className="flex items-center px-3">
+                <div className="flex items-center px-1 sm:px-3">
                   <button
                     type="button"
                     onClick={copyShareLink}
-                    className="inline-flex h-10 items-center justify-center rounded-full bg-[#ff0f73] px-5 text-[13px] font-semibold text-white transition hover:bg-[#e20060]"
+                    className="inline-flex h-10 w-full items-center justify-center rounded-full bg-[#ff0f73] px-5 text-[13px] font-semibold text-white transition hover:bg-[#e20060] sm:w-auto"
                   >
                     Copie
                   </button>
@@ -417,7 +415,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
         <section className="rounded-[30px] bg-white px-6 py-8 text-center shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5">
           <h2 className="text-[30px] font-black tracking-[-0.05em] text-[#111827]">Offre momentanement fermee</h2>
           <p className="mx-auto mt-3 max-w-[720px] text-[15px] leading-7 text-[#667085]">
-            L'administration n'a pas encore active cette page ou aucun produit n'est relie a l'offre.
+            L&apos;administration n&apos;a pas encore active cette page ou aucun produit n&apos;est relie a l&apos;offre.
           </p>
         </section>
       ) : null}
@@ -496,7 +494,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <aside className="rounded-[30px] bg-white px-5 py-5 shadow-[0_10px_32px_rgba(17,24,39,0.08)] ring-1 ring-black/5 sm:px-6 sm:py-6">
+        <aside className="overflow-hidden rounded-[30px] bg-white px-5 py-5 shadow-[0_10px_32px_rgba(17,24,39,0.08)] ring-1 ring-black/5 sm:px-6 sm:py-6">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[#fff3ea] text-[#ff4f2a]">
               <Gift className="h-5 w-5" />
@@ -530,7 +528,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
               <button
                 type="button"
                 onClick={clearStandardCart}
-                className="mt-3 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-black"
+                className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-black sm:w-auto"
               >
                 <Trash2 className="h-4 w-4" />
                 Vider votre panier
@@ -556,11 +554,11 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
             )}
           </div>
 
-          <div className="mt-5 flex flex-wrap gap-3">
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <button
               type="button"
               onClick={clearFreeDealCart}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-[#d0d5dd] px-5 text-[14px] font-semibold text-[#111827] transition hover:border-[#ff4f2a] hover:text-[#ff4f2a]"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-[#d0d5dd] px-5 text-[14px] font-semibold text-[#111827] transition hover:border-[#ff4f2a] hover:text-[#ff4f2a] sm:w-auto"
             >
               <Trash2 className="h-4 w-4" />
               Vider le panier gratuit
@@ -569,7 +567,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
               <button
                 type="button"
                 onClick={copyShareLink}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-[#ffd1bf] bg-[#fff4ed] px-5 text-[14px] font-semibold text-[#ff4f2a] transition hover:bg-[#ffeadd]"
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-[#ffd1bf] bg-[#fff4ed] px-5 text-[14px] font-semibold text-[#ff4f2a] transition hover:bg-[#ffeadd] sm:w-auto"
               >
                 <Copy className="h-4 w-4" />
                 Copier le lien
@@ -578,7 +576,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
           </div>
         </aside>
 
-        <section id="free-deal-checkout" className="rounded-[30px] bg-white px-5 py-5 shadow-[0_10px_32px_rgba(17,24,39,0.08)] ring-1 ring-black/5 sm:px-6 sm:py-6">
+        <section id="free-deal-checkout" className="overflow-hidden rounded-[30px] bg-white px-5 py-5 shadow-[0_10px_32px_rgba(17,24,39,0.08)] ring-1 ring-black/5 sm:px-6 sm:py-6">
           <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff4f2a]">Paiement</div>
           <h2 className="mt-2 text-[28px] font-black tracking-[-0.05em] text-[#111827]">Panier gratuit dedie</h2>
           <p className="mt-2 max-w-[760px] text-[14px] leading-7 text-[#667085]">
@@ -590,12 +588,12 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
 
           <div className="mt-6 rounded-[22px] bg-[#f8fafc] px-4 py-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
+              <div className="min-w-0 flex-1">
                 <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#667085]">Adresse de livraison</div>
                 <div className="mt-2 text-[20px] font-black tracking-[-0.04em] text-[#111827]">
                   {hasAddressDetails ? formState.customerName : "A renseigner"}
                 </div>
-                <div className="mt-1 text-[14px] leading-6 text-[#667085]">
+                <div className="mt-1 break-words text-[14px] leading-6 text-[#667085]">
                   {hasAddressDetails ? `${addressSummary}${formState.customerPhone ? ` · ${formState.customerPhone}` : ""}` : "Ajoutez votre adresse pour finaliser le lot gratuit."}
                 </div>
                 {initialCustomer.hasDefaultAddress && hasAddressDetails ? (
@@ -608,7 +606,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
               <button
                 type="button"
                 onClick={showAddressForm ? closeAddressForm : openAddressForm}
-                className="inline-flex h-11 items-center justify-center rounded-full border border-[#d0d5dd] px-5 text-[14px] font-semibold text-[#111827] transition hover:border-[#ff4f2a] hover:text-[#ff4f2a]"
+                className="inline-flex h-11 w-full shrink-0 items-center justify-center rounded-full border border-[#d0d5dd] px-5 text-[14px] font-semibold text-[#111827] transition hover:border-[#ff4f2a] hover:text-[#ff4f2a] sm:w-auto"
               >
                 {showAddressForm ? "Fermer" : hasAddressDetails ? "Modifier l'adresse" : "Ajouter l'adresse"}
               </button>
@@ -642,7 +640,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
           ) : null}
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-[14px] text-[#667085]">
+            <div className="min-w-0 text-[14px] text-[#667085]">
               {hasStandardCartConflict
                 ? "Videz d'abord votre panier standard."
                 : isSelectionComplete
@@ -660,7 +658,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
                 void submitCheckout();
               }}
               disabled={!canSubmit || isSubmitting || hasStandardCartConflict}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#111827] px-6 text-[15px] font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#111827] px-6 text-[15px] font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
               {isSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Gift className="h-4 w-4" />}
               {isSubmitting ? "Preparation..." : config.ctaLabel}
@@ -670,7 +668,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
       </section>
 
       <div className="fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-[120] border-t border-black/10 bg-white/96 px-4 py-3 backdrop-blur md:hidden">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1">
             <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#98a2b3]">Lot gratuit</div>
             <div className="truncate text-[18px] font-black tracking-[-0.04em] text-[#111827]">{selectedSlugs.length}/{config.itemLimit} · {config.fixedPriceLabel}</div>
@@ -682,7 +680,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
             type="button"
             onClick={handleMobileCta}
             disabled={isSubmitting}
-            className="inline-flex h-[52px] min-w-[152px] items-center justify-center rounded-full bg-[#111827] px-5 text-[15px] font-semibold text-white shadow-[0_14px_28px_rgba(17,24,39,0.18)] transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-[52px] min-w-[132px] items-center justify-center rounded-full bg-[#111827] px-4 text-[14px] font-semibold text-white shadow-[0_14px_28px_rgba(17,24,39,0.18)] transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? "Preparation..." : mobileCtaLabel}
           </button>

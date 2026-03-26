@@ -14,6 +14,12 @@ type AdminOrderDetailClientProps = {
 };
 
 const statusOptions = [
+  { value: "air_batch_pending", label: "En attente lot avion" },
+  { value: "sea_batch_pending", label: "En attente lot maritime" },
+  { value: "supplier_payment_requested", label: "Paiement fournisseur lancé" },
+  { value: "supplier_payment_failed", label: "Paiement fournisseur à reprendre" },
+  { value: "supplier_paid_partial", label: "Paiement fournisseur partiel" },
+  { value: "supplier_paid", label: "Fournisseur payé" },
   { value: "shipment_triggered", label: "Transport lancé" },
   { value: "in_transit_to_agent", label: "En transit vers agent" },
   { value: "delivered_to_agent", label: "Livré à l'agent" },

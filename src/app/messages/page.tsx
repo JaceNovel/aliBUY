@@ -34,7 +34,13 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
           preview: conversation.preview,
           time: conversation.time,
           status: conversation.status,
-          messages: conversation.messages.map((message) => ({ side: message.side, text: message.text })),
+          updatedAt: conversation.updatedAt,
+          messages: conversation.messages.map((message) => ({
+            id: message.id,
+            side: message.side,
+            text: message.text,
+            createdAt: message.createdAt,
+          })),
         }))}
         initialConversationId={resolvedSearchParams.conversationId ?? null}
       />

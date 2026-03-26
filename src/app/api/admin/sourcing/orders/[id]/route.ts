@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getSourcingOrderById, saveSourcingOrder } from "@/lib/sourcing-store";
+import { launchSourcingSupplierPaymentForOrder } from "@/lib/sourcing-batch-service";
 import { getSourcingOrderMeta, resolveSourcingDeliveryPlan, withSourcingOrderMeta, type SourcingDeliveryProofRole, type SourcingOrderStatus } from "@/lib/alibaba-sourcing";
 
 function nowIso() {
@@ -13,6 +14,12 @@ function normalizeStatus(candidate: unknown): SourcingOrderStatus | null {
     case "grouped_sea":
     case "ready_to_ship":
     case "submitted_to_supplier":
+    case "air_batch_pending":
+    case "sea_batch_pending":
+    case "supplier_payment_requested":
+    case "supplier_payment_failed":
+    case "supplier_paid_partial":
+    case "supplier_paid":
     case "shipment_triggered":
     case "in_transit_to_agent":
     case "delivered_to_agent":
@@ -45,6 +52,17 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const action = typeof body?.action === "string" ? body.action : "";
+
+  if (action === "launch-supplier-payment") {
+    try {
+      const launchedOrder = await launchSourcingSupplierPaymentForOrder(id, "admin-order-manual");
+      return NextResponse.json({ order: launchedOrder });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Impossible de lancer le paiement fournisseur.";
+      return NextResponse.json({ message }, { status: 400 });
+    }
+  }
+
   const currentMeta = getSourcingOrderMeta(order);
   const derivedPlan = resolveSourcingDeliveryPlan({
     countryCode: order.countryCode,

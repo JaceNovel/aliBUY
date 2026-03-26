@@ -24,6 +24,7 @@ import { type ProductCatalogItem } from "@/lib/products-data";
 import { formatTierAwarePrice } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site-config";
+import { getCurrentUser } from "@/lib/user-auth";
 
 const HOME_HERO_NAV_ITEMS: ReadonlyArray<{ label: string; href: string; active?: boolean }> = [
   { label: "Mode", href: "/mode" },
@@ -115,10 +116,11 @@ function QuickActionItem({ item }: { item: QuickAction }) {
 }
 
 export default async function Home() {
-  const [pricing, catalogProducts, catalogCategories] = await Promise.all([
+  const [pricing, catalogProducts, catalogCategories, user] = await Promise.all([
     getPricingContext(),
     getCatalogProducts(),
     getCatalogCategories(),
+    getCurrentUser(),
   ]);
   const messages = getMessages(pricing.languageCode);
   const megaMenuCategories: CategoryMegaMenuCategory[] = catalogCategories.slice(0, 9).map((category) => ({
@@ -213,6 +215,7 @@ export default async function Home() {
         flagEmoji={pricing.flagEmoji}
         languageCode={pricing.languageCode}
         languageLabel={pricing.languageLabel}
+        user={user ? { displayName: user.displayName, firstName: user.firstName } : null}
         categories={megaMenuCategories}
       />
       <header className="relative z-30 bg-[linear-gradient(180deg,#efd9cf_0%,#f8e7dc_16%,#f4f4f4_100%)]">
@@ -283,7 +286,11 @@ export default async function Home() {
                 compact
                 align="right"
               />
-              <HeaderActionGroup className="flex items-center gap-3 text-[#222]" iconClassName="h-5 w-5" />
+              <HeaderActionGroup
+                className="flex items-center gap-3 text-[#222]"
+                iconClassName="h-5 w-5"
+                user={user ? { displayName: user.displayName, firstName: user.firstName } : null}
+              />
             </div>
           </div>
 

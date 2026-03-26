@@ -1,6 +1,6 @@
 import { getMonerooPayment, verifyMonerooPayment, verifyMonerooWebhookSignature, type MonerooPaymentRecord } from "@/lib/moneroo";
 import { persistMonerooPaymentToOrder, resolveSourcingOrderForMoneroo } from "@/lib/moneroo-sourcing";
-import { runSourcingPostPaymentAutomation } from "@/lib/sourcing-payment-automation";
+import { syncSourcingOrderForDeferredSupplierPayment } from "@/lib/sourcing-batch-service";
 
 type MonerooWebhookPayload = {
   event?: string;
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
       payment,
       verified: payload.event === "payment.success",
     });
-    await runSourcingPostPaymentAutomation(nextOrder, "moneroo-webhook");
+    await syncSourcingOrderForDeferredSupplierPayment(nextOrder, "moneroo-webhook");
 
     return Response.json({ received: true });
   } catch (error) {

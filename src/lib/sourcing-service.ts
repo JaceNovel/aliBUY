@@ -243,7 +243,7 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
       supplierOrderStatus: supplierOrders.supplierOrderStatus,
       alibabaTradeIds: supplierOrders.alibabaTradeIds,
       supplierOrderPayload: supplierOrders.supplierOrderPayload,
-      status: supplierOrders.supplierOrderStatus === "created" ? "submitted_to_supplier" : order.status,
+      status: order.status,
       updatedAt: nowIso(),
     }, currentMeta);
   } catch (error) {

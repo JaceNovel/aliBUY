@@ -29,13 +29,11 @@ const profileItems = [
 export function ProfileMenu({ className = "", align = "right", user = null }: ProfileMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [resolvedUser, setResolvedUser] = useState(user);
-  const [hasLoadedSession, setHasLoadedSession] = useState(user !== null);
   const closeTimeoutRef = useRef<number | null>(null);
   const router = useRouter();
 
   useEffect(() => {
     setResolvedUser(user);
-    setHasLoadedSession(user !== null);
   }, [user]);
 
   useEffect(() => {
@@ -59,14 +57,13 @@ export function ProfileMenu({ className = "", align = "right", user = null }: Pr
   }, [isOpen, router]);
 
   useEffect(() => {
-    if (user !== null || !isOpen || hasLoadedSession) {
+    if (user !== null || !isOpen) {
       return;
     }
 
     let cancelled = false;
-    setHasLoadedSession(true);
 
-    void fetch("/api/account/session", { credentials: "same-origin" })
+    void fetch("/api/account/session", { credentials: "same-origin", cache: "no-store" })
       .then((response) => response.ok ? response.json() : null)
       .then((payload) => {
         if (cancelled) {
@@ -90,7 +87,7 @@ export function ProfileMenu({ className = "", align = "right", user = null }: Pr
     return () => {
       cancelled = true;
     };
-  }, [hasLoadedSession, isOpen, user]);
+  }, [isOpen, user]);
 
   const showMenu = () => {
     if (closeTimeoutRef.current) {
@@ -195,7 +192,7 @@ export function ProfileMenu({ className = "", align = "right", user = null }: Pr
                 Se connecter
               </Link>
               <Link href="/register" onClick={handleNavigation} className="inline-flex h-12 w-full items-center justify-center rounded-[14px] border border-[#d7dce5] px-5 text-[16px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
-                S'inscrire
+                S&apos;inscrire
               </Link>
             </div>
           </>

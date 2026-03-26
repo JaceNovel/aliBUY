@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Bolt, Clock3, Flame, Sparkles, TicketPercent } from "lucide-react";
+import { Clock3, Flame, Sparkles, TicketPercent } from "lucide-react";
 
+import { DealsFlashHero } from "@/components/deals-flash-hero";
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { getCatalogProducts } from "@/lib/catalog-service";
 import { getPricingContext } from "@/lib/pricing";
@@ -23,7 +24,15 @@ export default async function DealsFlashPage() {
   const heroDeals = products.slice(0, 4);
   const rushDeals = products.slice(4, 8).length > 0 ? products.slice(4, 8) : products.slice(0, 4);
   const lastChanceDeals = products.slice(8, 12).length > 0 ? products.slice(8, 12) : products.slice(0, 4);
-  const spotlight = heroDeals[0] ?? rushDeals[0] ?? lastChanceDeals[0];
+  const spotlightDeals = (heroDeals.length > 0 ? heroDeals : rushDeals.length > 0 ? rushDeals : lastChanceDeals)
+    .slice(0, 4)
+    .map((product) => ({
+      slug: product.slug,
+      title: product.title,
+      image: product.image,
+      price: pricing.formatPrice(product.minUsd),
+      compareAt: pricing.formatPrice((product.maxUsd ?? product.minUsd) * 1.12),
+    }));
 
   return (
     <InternalPageShell pricing={pricing}>
@@ -36,75 +45,7 @@ export default async function DealsFlashPage() {
           <span className="font-semibold text-[#221f1c]">Deals flash</span>
         </div>
 
-        <section className="overflow-hidden rounded-[28px] bg-[linear-gradient(135deg,#180f0d_0%,#6c281b_46%,#ff6a00_100%)] px-4 py-5 text-white shadow-[0_22px_50px_rgba(109,46,16,0.24)] sm:rounded-[34px] sm:px-8 sm:py-8 lg:px-10 lg:py-10">
-          <div className="grid gap-5 lg:grid-cols-[1.08fr_0.92fr] lg:items-end">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white/84 ring-1 ring-white/12 sm:px-4 sm:py-2 sm:text-[12px]">
-                <Bolt className="h-4 w-4" />
-                Centre deals flash
-              </div>
-              <h1 className="mt-3 max-w-[720px] text-[28px] font-black tracking-[-0.06em] sm:mt-4 sm:text-[44px] lg:text-[56px]">
-                Tous les deals flash dans une page pensee pour le mobile.
-              </h1>
-              <p className="mt-3 max-w-[720px] text-[13px] leading-5 text-white/84 sm:text-[16px] sm:leading-8">
-                Rail premium, cartes compactes, promotions lisibles et navigation rapide pour trouver les meilleures offres sans perdre de place sur petit ecran.
-              </p>
-
-              <div className="mt-4 flex flex-col gap-2.5 sm:mt-6 sm:flex-row sm:flex-wrap sm:gap-3">
-                <Link href="#selection-flash" className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#ffd9c2] px-5 text-[13px] font-extrabold text-[#5a240d] shadow-[0_10px_24px_rgba(0,0,0,0.12)] transition hover:bg-[#ffc59f] sm:h-13 sm:px-7 sm:text-[15px]">
-                  Voir les deals
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-                <Link href="/products" className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 text-[13px] font-bold text-white transition hover:bg-white/16 sm:h-13 sm:px-7 sm:text-[15px]">
-                  Retour au catalogue
-                </Link>
-              </div>
-
-              <div className="mt-5 grid grid-cols-3 gap-2.5 sm:mt-7 sm:gap-3">
-                {[
-                  { label: "Deals live", value: `${heroDeals.length + rushDeals.length}` },
-                  { label: "Remise max", value: "-25%" },
-                  { label: "Rail mobile", value: "Snap" },
-                ].map((item) => (
-                  <div key={item.label} className="rounded-[18px] bg-white/10 px-3 py-3 ring-1 ring-white/12 backdrop-blur-sm sm:rounded-[22px] sm:px-4 sm:py-4">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/68 sm:text-[11px]">{item.label}</div>
-                    <div className="mt-1 text-[16px] font-black tracking-[-0.04em] text-white sm:text-[22px]">{item.value}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <Link href={spotlight ? `/products/${spotlight.slug}` : "/products"} className="group relative overflow-hidden rounded-[24px] bg-white/10 p-3 ring-1 ring-white/14 backdrop-blur-sm transition hover:-translate-y-1 hover:bg-white/14 sm:rounded-[30px] sm:p-4">
-              <div className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-[#ffb36b] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#59250d] sm:right-4 sm:top-4">
-                <Flame className="h-3.5 w-3.5" />
-                Hot drop
-              </div>
-              <div className="relative aspect-[1.05] overflow-hidden rounded-[18px] bg-white/80 sm:rounded-[22px]">
-                {spotlight ? (
-                  <Image src={spotlight.image} alt={spotlight.title} fill sizes="(min-width: 1024px) 34vw, 92vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.04]" />
-                ) : null}
-              </div>
-              {spotlight ? (
-                <div className="pt-3 sm:pt-4">
-                  <div className="inline-flex rounded-full bg-white/16 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/88">
-                    Offre spotlight
-                  </div>
-                  <div className="mt-2 line-clamp-2 text-[18px] font-black leading-6 tracking-[-0.05em] text-white sm:text-[28px] sm:leading-8">
-                    {spotlight.title}
-                  </div>
-                  <div className="mt-2 flex items-end gap-2">
-                    <span className="text-[20px] font-black text-white sm:text-[28px]">{pricing.formatPrice(spotlight.minUsd)}</span>
-                    <span className="text-[12px] text-white/66 line-through sm:text-[15px]">{pricing.formatPrice((spotlight.maxUsd ?? spotlight.minUsd) * 1.12)}</span>
-                  </div>
-                  <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#ff9f1a] px-3 py-1.5 text-[11px] font-bold text-white shadow-[0_12px_24px_rgba(255,159,26,0.28)] sm:text-[12px]">
-                    <Clock3 className="h-4 w-4" />
-                    Fin dans quelques heures
-                  </div>
-                </div>
-              ) : null}
-            </Link>
-          </div>
-        </section>
+        <DealsFlashHero deals={spotlightDeals} />
 
         {products.length > 0 ? (
         <>

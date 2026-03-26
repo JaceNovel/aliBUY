@@ -4,11 +4,13 @@ import { CURRENCY_CONFIG, type CurrencyCode } from "@/lib/pricing-options";
 
 export type MarginMode = "percent" | "fixed";
 export type ShippingMethodKey = "air" | "sea" | "freight";
-export type SourcingOrderStatus = "checkout_created" | "grouped_sea" | "ready_to_ship" | "submitted_to_supplier" | "shipment_triggered" | "in_transit_to_agent" | "delivered_to_agent" | "relay_ready" | "completed";
+export type SourcingOrderStatus = "checkout_created" | "grouped_sea" | "ready_to_ship" | "submitted_to_supplier" | "air_batch_pending" | "sea_batch_pending" | "supplier_payment_requested" | "supplier_payment_failed" | "supplier_paid_partial" | "supplier_paid" | "shipment_triggered" | "in_transit_to_agent" | "delivered_to_agent" | "relay_ready" | "completed";
 export type FreightStatus = "not_requested" | "skipped" | "verified" | "failed";
 export type SupplierOrderStatus = "not_created" | "skipped" | "created" | "failed";
 export type PaymentStatus = "unpaid" | "initialized" | "pending" | "paid" | "failed" | "cancelled";
 export type SeaContainerStatus = "pending" | "ready_to_ship" | "shipped";
+export type SourcingBatchMode = "air" | "sea";
+export type SourcingAlibabaPaymentRollup = "not_started" | "pending" | "pay_url_available" | "partial" | "paid" | "failed";
 export type VariantSelection = Record<string, string>;
 export type SourcingDeliveryMode = "direct" | "forwarder";
 export type SourcingForwarderHub = "china" | "lome";
@@ -303,6 +305,8 @@ export type AlibabaCatalogMapping = {
 const FCFA_LOCALE = "fr-FR";
 const SOURCING_META_KEY = "__afripaySourcingMeta";
 export const USD_TO_FCFA = 610;
+export const AIR_BATCH_TARGET_KG = 2;
+export const SEA_BATCH_TARGET_CBM = 1;
 export const SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES = ["TG", "BJ", "GH", "CI", "BF"] as const;
 export const SUPPORTED_FORWARDER_COUNTRY_CODES = ["CN"] as const;
 
@@ -662,6 +666,78 @@ export function getSourcingAlibabaPostPaymentAutomationState(order: Pick<Sourcin
     lastTrigger: typeof postPayment.lastTrigger === "string" ? postPayment.lastTrigger : "",
     trades: postPayment.trades.map(normalizeAlibabaTradeAutomationState).filter((entry): entry is SourcingAlibabaTradeAutomationState => Boolean(entry)),
   };
+}
+
+export function getSourcingOrderBatchMode(order: Pick<SourcingOrder, "shippingMethod" | "supplierOrderPayload">): SourcingBatchMode | null {
+  const meta = getSourcingOrderMeta(order);
+  if (meta.freeDeal) {
+    return "sea";
+  }
+
+  if (order.shippingMethod === "air") {
+    return "air";
+  }
+
+  if (order.shippingMethod === "sea") {
+    return "sea";
+  }
+
+  return null;
+}
+
+export function getSourcingAlibabaPayUrls(order: Pick<SourcingOrder, "supplierOrderPayload">): string[] {
+  const automation = getSourcingAlibabaPostPaymentAutomationState(order);
+  if (!automation) {
+    return [];
+  }
+
+  return Array.from(new Set(automation.trades.map((trade) => trade.payUrl).filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)));
+}
+
+export function getSourcingAlibabaPaymentRollup(order: Pick<SourcingOrder, "supplierOrderPayload">): SourcingAlibabaPaymentRollup {
+  const automation = getSourcingAlibabaPostPaymentAutomationState(order);
+  if (!automation || automation.trades.length === 0) {
+    return "not_started";
+  }
+
+  const paidCount = automation.trades.filter((trade) => trade.paymentResultStatus === "paid").length;
+  const hasPayUrl = automation.trades.some((trade) => Boolean(trade.payUrl));
+  const hasFailed = automation.trades.some((trade) => trade.paymentRequestStatus === "failed" || trade.paymentResultStatus === "failed");
+  const hasPending = automation.trades.some((trade) => trade.paymentRequestStatus === "requested" || (typeof trade.paymentResultStatus === "string" && trade.paymentResultStatus !== "paid" && trade.paymentResultStatus !== "failed"));
+
+  if (paidCount === automation.trades.length) {
+    return "paid";
+  }
+
+  if (paidCount > 0) {
+    return "partial";
+  }
+
+  if (hasPayUrl) {
+    return "pay_url_available";
+  }
+
+  if (hasFailed) {
+    return "failed";
+  }
+
+  if (hasPending) {
+    return "pending";
+  }
+
+  return "not_started";
+}
+
+export function isSourcingOrderEligibleForSupplierPayment(order: Pick<SourcingOrder, "paymentStatus" | "supplierOrderStatus" | "alibabaTradeIds" | "supplierOrderPayload">) {
+  if (order.paymentStatus !== "paid") {
+    return false;
+  }
+
+  if (order.supplierOrderStatus !== "created" || order.alibabaTradeIds.length === 0) {
+    return false;
+  }
+
+  return getSourcingAlibabaPaymentRollup(order) !== "paid";
 }
 
 export function withSourcingOrderMeta(order: SourcingOrder, metaUpdate: SourcingOrderMeta) {
