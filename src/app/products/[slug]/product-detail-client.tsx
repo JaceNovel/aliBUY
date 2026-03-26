@@ -85,7 +85,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const router = useRouter();
   const { addItem } = useCart();
   const [activeImage, setActiveImage] = useState(0);
-  const [activeMedia, setActiveMedia] = useState<"photo" | "video">(product.videoUrl ? "video" : "photo");
+  const [activeMedia, setActiveMedia] = useState<"photo" | "video">("photo");
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<"overview" | "details" | "related">("overview");
   const [isFavorite, setIsFavorite] = useState(initialIsFavorite ?? false);
@@ -977,16 +977,13 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     controls
                     poster={product.videoPoster}
                     className="h-full w-full bg-black object-contain"
-                    preload="auto"
+                    preload="metadata"
                     playsInline
-                    autoPlay
-                    muted
-                    loop
                   >
                     <source src={product.videoUrl} type="video/mp4" />
                   </video>
                 ) : (
-                  <Image src={product.gallery[activeImage] ?? product.gallery[0]} alt={product.title} fill sizes="(min-width: 1280px) 34vw, 88vw" className="object-cover" />
+                  <Image src={product.gallery[activeImage] ?? product.gallery[0]} alt={product.title} fill priority sizes="(min-width: 1280px) 34vw, 88vw" className="object-cover" />
                 )}
               </div>
             </div>

@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import type {
   AlibabaCatalogMapping,
   AlibabaIntegrationLog,
@@ -42,6 +43,55 @@ async function readJsonFile<T>(filePath: string, fallback: T): Promise<T> {
 async function writeJsonFile<T>(filePath: string, value: T) {
   await ensureSourcingDir();
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeMappingDispatchLocation(candidate: unknown) {
+  if (typeof candidate !== "string") {
+    return "CN";
+  }
+
+  const normalized = candidate.trim().toUpperCase();
+  if (!normalized) {
+    return "CN";
+  }
+
+  return /^[A-Z]{2,3}$/.test(normalized) ? normalized : "CN";
+}
+
+function buildImplicitCatalogMappingFromImportedProduct(product: Awaited<ReturnType<typeof getAlibabaImportedProducts>>[number]): AlibabaCatalogMapping | null {
+  if (!product.slug || !product.sourceProductId) {
+    return null;
+  }
+
+  const rawPayload = isObjectRecord(product.rawPayload) ? product.rawPayload : null;
+  const detail = isObjectRecord(rawPayload?.detail) ? rawPayload.detail : null;
+  const firstSku = Array.isArray(detail?.skus) && detail.skus.length > 0 && isObjectRecord(detail.skus[0]) ? detail.skus[0] : null;
+  const supplierCompanyId = product.supplierCompanyId
+    ?? (typeof detail?.eCompanyId === "string" ? detail.eCompanyId : undefined)
+    ?? (typeof rawPayload?.eCompanyId === "string" ? rawPayload.eCompanyId : undefined);
+
+  if (!supplierCompanyId) {
+    return null;
+  }
+
+  const skuId = typeof firstSku?.sku_id === "number"
+    ? String(firstSku.sku_id)
+    : typeof firstSku?.sku_id === "string"
+      ? firstSku.sku_id
+      : undefined;
+
+  return {
+    slug: product.slug,
+    alibabaProductId: product.sourceProductId,
+    supplierCompanyId,
+    skuId,
+    dispatchLocation: normalizeMappingDispatchLocation(detail?.shipping_from),
+    shippingFromCountryCode: "CN",
+  };
 }
 
 function toNumber(value: unknown) {
@@ -509,7 +559,24 @@ export async function createAlibabaIntegrationLog(input: Omit<AlibabaIntegration
 }
 
 export async function getAlibabaCatalogMappings() {
-  return readJsonFile<AlibabaCatalogMapping[]>(CATALOG_MAPPING_PATH, []);
+  const [explicitMappings, importedProducts] = await Promise.all([
+    readJsonFile<AlibabaCatalogMapping[]>(CATALOG_MAPPING_PATH, []),
+    getAlibabaImportedProducts(),
+  ]);
+  const mergedMappings = new Map<string, AlibabaCatalogMapping>();
+
+  for (const product of importedProducts) {
+    const implicitMapping = buildImplicitCatalogMappingFromImportedProduct(product);
+    if (implicitMapping) {
+      mergedMappings.set(implicitMapping.slug, implicitMapping);
+    }
+  }
+
+  for (const mapping of explicitMappings) {
+    mergedMappings.set(mapping.slug, mapping);
+  }
+
+  return [...mergedMappings.values()];
 }
 
 export function createSourcingIds() {

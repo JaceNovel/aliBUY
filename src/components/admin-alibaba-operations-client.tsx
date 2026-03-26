@@ -261,19 +261,44 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
     refresh();
   };
 
-  const payOrder = async (orderId: string, action: "pay" | "refresh") => {
-    const response = await fetch(`/api/admin/alibaba/purchase-orders/${orderId}/pay`, {
+  const payOrder = async (order: AlibabaPurchaseOrder, action: "pay" | "refresh") => {
+    if (action === "pay" && order.payUrl) {
+      const payWindow = window.open(order.payUrl, "_blank", "noopener,noreferrer");
+      setFeedback(payWindow ? "pay_url Alibaba ouvert dans un nouvel onglet." : "Le pay_url Alibaba est pret, mais le navigateur a bloque l'ouverture automatique.");
+      return;
+    }
+
+    const pendingWindow = action === "pay" ? window.open("", "_blank", "noopener,noreferrer") : null;
+    const response = await fetch(`/api/admin/alibaba/purchase-orders/${order.id}/pay`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action }),
     });
 
+    const payload = await response.json().catch(() => null);
+
     if (!response.ok) {
+      pendingWindow?.close();
       setFeedback(action === "pay" ? "Paiement Alibaba impossible." : "Actualisation paiement impossible.");
       return;
     }
 
-    setFeedback(action === "pay" ? "Paiement Alibaba lance." : "Statut paiement actualise.");
+    const payUrl = typeof payload?.order?.payUrl === "string" ? payload.order.payUrl : undefined;
+    if (action === "pay") {
+      if (payUrl) {
+        if (pendingWindow) {
+          pendingWindow.location.href = payUrl;
+        } else {
+          window.open(payUrl, "_blank", "noopener,noreferrer");
+        }
+        setFeedback("pay_url Alibaba ouvert. Termine le paiement dans l'onglet ouvert.");
+      } else {
+        pendingWindow?.close();
+        setFeedback("Paiement Alibaba lancé, mais aucun pay_url n'a été renvoyé. Utilise Actualiser pour relire le statut.");
+      }
+    } else {
+      setFeedback("Statut paiement actualise.");
+    }
     refresh();
   };
 
@@ -840,8 +865,8 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="rounded-[12px] bg-[#fff7ed] px-3 py-2 text-[13px] font-semibold text-[#c2410c]">${order.amountUsd.toFixed(2)}</div>
                     {order.payUrl ? <a href={order.payUrl} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center rounded-[12px] border border-[#dbe2ea] px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">pay_url</a> : null}
-                    <button type="button" onClick={() => payOrder(order.id, "pay")} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]"><Wallet className="h-4 w-4" />Payer</button>
-                    <button type="button" onClick={() => payOrder(order.id, "refresh")} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#dbe2ea] px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]"><RefreshCcw className="h-4 w-4" />Actualiser</button>
+                    <button type="button" onClick={() => payOrder(order, "pay")} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]"><Wallet className="h-4 w-4" />Payer</button>
+                    <button type="button" onClick={() => payOrder(order, "refresh")} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#dbe2ea] px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]"><RefreshCcw className="h-4 w-4" />Actualiser</button>
                   </div>
                 </div>
               </div>

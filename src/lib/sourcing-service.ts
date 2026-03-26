@@ -36,6 +36,15 @@ function createSeaContainerCode(existingCount: number) {
   return `SEA-${stamp}-${String(existingCount + 1).padStart(3, "0")}`;
 }
 
+function isMeaningfulCartSlug(value: unknown): value is string {
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return Boolean(normalized) && normalized !== "undefined" && normalized !== "null";
+}
+
 export async function getSourcingDashboardData() {
   const [settings, orders, containers] = await Promise.all([
     getSourcingSettings(),
@@ -99,6 +108,11 @@ async function assignOrderToSeaContainer(order: SourcingOrder, settings: Sourcin
 }
 
 export async function createCheckoutOrder(input: SourcingCheckoutInput) {
+  const sanitizedItems = input.items.filter((item) => isMeaningfulCartSlug(item.slug) && item.quantity > 0);
+  if (sanitizedItems.length === 0) {
+    throw new Error("Aucun article sourcing valide n'a ete transmis pour cette commande.");
+  }
+
   const persistedUserId = normalizePersistedUserId(input.userId);
   const settings = await getSourcingSettings();
   const deliveryPlan = resolveSourcingDeliveryPlan({
@@ -111,9 +125,12 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
     throw new Error(deliveryPlan.unsupportedMessage ?? "Cette destination n'est pas prise en charge en livraison directe.");
   }
 
-  const quote = await createAlibabaSourcingQuote(input.items, settings, {
+  const quote = await createAlibabaSourcingQuote(sanitizedItems, settings, {
     disableFreeAir: !deliveryPlan.workflow.freeDeliveryEligible,
   });
+  if (quote.items.length === 0) {
+    throw new Error("Les articles selectionnes ne correspondent plus a des produits Alibaba publiés. Rechargez le panier puis reessayez.");
+  }
   const shippingOption = quote.shippingOptions.find((option) => option.key === input.shippingMethod);
 
   if (!shippingOption) {

@@ -15,6 +15,7 @@ import {
   type SourcingOrderStatus,
   withSourcingOrderMeta,
 } from "@/lib/alibaba-sourcing";
+import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { appendOrderAutomationNotification } from "@/lib/customer-data-store";
 import { runSourcingPostPaymentAutomation } from "@/lib/sourcing-payment-automation";
 import { createAlibabaIntegrationLog, getAlibabaCatalogMappings, getSourcingOrderById, getSourcingOrders, saveSourcingOrder } from "@/lib/sourcing-store";
@@ -30,6 +31,61 @@ type NotificationState = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasBrokenItemSlug(slug: string) {
+  const normalized = slug.trim().toLowerCase();
+  return !normalized || normalized === "undefined" || normalized === "null" || normalized === "unknown-product";
+}
+
+async function recoverBrokenOrderItemSlugs(order: SourcingOrder) {
+  const hasBrokenItems = order.items.some((item) => hasBrokenItemSlug(item.slug));
+  if (!hasBrokenItems) {
+    return order;
+  }
+
+  const importedProducts = await getAlibabaImportedProducts();
+  let didChange = false;
+  const nextItems = order.items.map((item) => {
+    if (!hasBrokenItemSlug(item.slug)) {
+      return item;
+    }
+
+    const matchedProduct = importedProducts.find((product) => product.image === item.image)
+      ?? importedProducts.find((product) => product.gallery.includes(item.image))
+      ?? importedProducts.find((product) => product.shortTitle === item.title || product.title === item.title);
+
+    if (!matchedProduct) {
+      return item;
+    }
+
+    didChange = true;
+    return {
+      ...item,
+      slug: matchedProduct.slug,
+      title: item.title && item.title !== "undefined" ? item.title : matchedProduct.shortTitle,
+    };
+  });
+
+  if (!didChange) {
+    return order;
+  }
+
+  const nextOrder: SourcingOrder = {
+    ...order,
+    items: nextItems,
+    updatedAt: nowIso(),
+  };
+  await saveSourcingOrder(nextOrder);
+  await createAlibabaIntegrationLog({
+    orderId: order.id,
+    action: "supplier-order-item-slug-recovery",
+    endpoint: "internal",
+    status: "success",
+    requestBody: { orderNumber: order.orderNumber },
+    responseBody: { recoveredSlugs: nextItems.map((item) => item.slug) },
+  });
+  return nextOrder;
 }
 
 function getObjectSupplierPayload(order: SourcingOrder): Record<string, unknown> {
@@ -247,13 +303,14 @@ export async function repairBlockedSourcingOrderForSupplierPayment(orderId: stri
     throw new Error("Cette commande n'est pas encore marquée comme payée côté client.");
   }
 
+  const recoveredOrder = await recoverBrokenOrderItemSlugs(order);
   const mappings = await getAlibabaCatalogMappings();
-  const currentMeta = getSourcingOrderMeta(order);
+  const currentMeta = getSourcingOrderMeta(recoveredOrder);
 
   try {
-    const freightVerification = await verifyAlibabaSupplierFreight(order, mappings);
+    const freightVerification = await verifyAlibabaSupplierFreight(recoveredOrder, mappings);
     let nextOrder = withSourcingOrderMeta({
-      ...order,
+      ...recoveredOrder,
       freightStatus: freightVerification.freightStatus,
       freightPayload: freightVerification.freightPayload,
       updatedAt: nowIso(),
@@ -276,7 +333,7 @@ export async function repairBlockedSourcingOrderForSupplierPayment(orderId: stri
       action: "supplier-preparation-repair",
       endpoint: "internal",
       status: "success",
-      requestBody: { orderNumber: order.orderNumber },
+      requestBody: { orderNumber: recoveredOrder.orderNumber },
       responseBody: {
         freightStatus: nextOrder.freightStatus,
         supplierOrderStatus: nextOrder.supplierOrderStatus,
@@ -288,7 +345,7 @@ export async function repairBlockedSourcingOrderForSupplierPayment(orderId: stri
   } catch (error) {
     const message = error instanceof Error ? error.message : "supplier_preparation_repair_failed";
     const failedOrder = withSourcingOrderMeta({
-      ...order,
+      ...recoveredOrder,
       freightStatus: "failed",
       supplierOrderStatus: "failed",
       supplierOrderPayload: { failed: true, reason: message },
@@ -300,7 +357,7 @@ export async function repairBlockedSourcingOrderForSupplierPayment(orderId: stri
       action: "supplier-preparation-repair",
       endpoint: "internal",
       status: "failed",
-      requestBody: { orderNumber: order.orderNumber },
+      requestBody: { orderNumber: recoveredOrder.orderNumber },
       responseBody: { message },
     });
     throw error;
