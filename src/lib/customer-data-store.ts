@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { CustomerAddressRecord } from "@/lib/customer-addresses";
+import { canonicalizeCountryCode } from "@/lib/country-utils";
 import { prisma } from "@/lib/prisma";
 
 export type FavoriteRecord = {
@@ -170,7 +171,7 @@ function mapCustomerAddress(record: {
     city: record.city,
     state: record.state,
     postalCode: record.postalCode ?? undefined,
-    countryCode: record.countryCode,
+    countryCode: canonicalizeCountryCode(record.countryCode, "TG"),
     isDefault: record.isDefault,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
@@ -188,7 +189,7 @@ function normalizeCustomerAddressInput(input: CustomerAddressInput) {
     city: input.city.trim(),
     state: input.state.trim(),
     postalCode: input.postalCode?.trim() || null,
-    countryCode: input.countryCode.trim().toUpperCase(),
+    countryCode: canonicalizeCountryCode(input.countryCode, "TG"),
   };
 }
 

@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomBytes } from "node:crypto";
 
+import { canonicalizeCountryCode } from "@/lib/country-utils";
 import type { AuthenticatedUser } from "@/lib/user-auth";
 import type { ProductCatalogItem } from "@/lib/products-data";
 import {
@@ -48,8 +49,7 @@ function sumNumbers(values: number[]) {
 }
 
 function normalizeCountryCode(value: string) {
-  const normalized = value.trim().toUpperCase();
-  return normalized || "FR";
+  return canonicalizeCountryCode(value, "FR");
 }
 
 function normalizeSelectedProducts(config: FreeDealConfig, selectedSlugs: string[], products: ProductCatalogItem[]) {

@@ -15,6 +15,7 @@ import {
   type ShippingMethodKey,
 } from "@/lib/alibaba-sourcing";
 import { buildAddressQuickInput } from "@/lib/address-autofill";
+import { canonicalizeCountryCode, getCountryDisplayLabel } from "@/lib/country-utils";
 import type { CustomerAddressRecord } from "@/lib/customer-addresses";
 import { extractCoordinatesFromGoogleMapsUrl, isGoogleMapsShortUrl } from "@/lib/google-maps";
 import { COUNTRY_CONFIG, type CountryCode } from "@/lib/pricing-options";
@@ -56,6 +57,8 @@ type ReverseGeocodeResponse = {
 };
 
 function buildFormFromAddress(address: CustomerAddressRecord, initialUser: SourcingCheckoutClientProps["initialUser"]) {
+  const countryCode = canonicalizeCountryCode(address.countryCode, "TG");
+
   return {
     ...defaultForm,
     customerAddressId: address.id,
@@ -67,12 +70,18 @@ function buildFormFromAddress(address: CustomerAddressRecord, initialUser: Sourc
     city: address.city,
     state: address.state,
     postalCode: address.postalCode ?? "",
-    countryCode: address.countryCode,
+    countryCode,
   };
 }
 
 function formatSavedAddress(address: CustomerAddressRecord) {
-  return [address.addressLine1, address.addressLine2, `${address.city}, ${address.state}`, address.postalCode, address.countryCode]
+  return [
+    address.addressLine1,
+    address.addressLine2,
+    `${address.city}, ${address.state}`,
+    address.postalCode,
+    getCountryDisplayLabel(address.countryCode),
+  ]
     .filter(Boolean)
     .join(" · ");
 }
@@ -84,7 +93,8 @@ const SUPPORTED_DELIVERY_COUNTRIES = SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES.map
 }));
 
 function isSupportedDirectCountry(code: string) {
-  return SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES.includes(code as (typeof SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES)[number]);
+  const normalizedCode = canonicalizeCountryCode(code);
+  return SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES.includes(normalizedCode as (typeof SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES)[number]);
 }
 
 export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCode, locale }: SourcingCheckoutClientProps) {
@@ -196,14 +206,14 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
   const applySavedAddress = (address: CustomerAddressRecord) => {
     const nextAddress = buildFormFromAddress(address, initialUser);
     setForm((current) => ({ ...current, ...nextAddress, notes: current.notes }));
-    const shouldUseForwarder = !isSupportedDirectCountry(address.countryCode);
+    const shouldUseForwarder = !isSupportedDirectCountry(nextAddress.countryCode);
     setUseExternalCountryFlow(shouldUseForwarder);
     setDeliveryMode(shouldUseForwarder ? "forwarder" : "direct");
     setLocationFeedback(null);
   };
 
   const selectSupportedCountry = (value: string) => {
-    const normalized = value.toUpperCase() as CountryCode;
+    const normalized = canonicalizeCountryCode(value, "TG") as CountryCode;
     updateFormField("countryCode", normalized);
     setUseExternalCountryFlow(false);
     if (deliveryMode !== "forwarder") {
@@ -232,6 +242,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
     }
 
     const geocoded = payload as ReverseGeocodeResponse;
+    const normalizedCountryCode = canonicalizeCountryCode(geocoded.countryCode, form.countryCode || "TG");
     setForm((current) => ({
       ...current,
       googleMapsUrl: mapsUrl,
@@ -240,7 +251,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
       city: geocoded.city || current.city,
       state: geocoded.state || geocoded.city || current.state,
       postalCode: geocoded.postalCode || current.postalCode,
-      countryCode: geocoded.countryCode || current.countryCode,
+      countryCode: normalizedCountryCode,
       customerAddressId: "",
     }));
     setLocationFeedback(`Adresse détectée: ${geocoded.displayName || [geocoded.city, geocoded.countryLabel].filter(Boolean).join(", ")}`);
@@ -579,7 +590,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
               {useExternalCountryFlow ? (
                 <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">
                   Votre pays / code pays
-                  <input value={form.countryCode} onChange={(event) => updateFormField("countryCode", event.target.value.toUpperCase())} autoComplete="country" placeholder="Ex: NG, SN, ML" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] uppercase text-[#111827] outline-none focus:border-[#ff6a00]" />
+                  <input value={form.countryCode} onChange={(event) => updateFormField("countryCode", canonicalizeCountryCode(event.target.value, form.countryCode || "TG"))} autoComplete="country" placeholder="Ex: NG, SN, ML ou Togo" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] uppercase text-[#111827] outline-none focus:border-[#ff6a00]" />
                 </label>
               ) : null}
               <label className="sm:col-span-2 text-[13px] font-semibold text-[#344054]">

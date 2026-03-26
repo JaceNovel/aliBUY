@@ -5,6 +5,7 @@ import { Check, LocateFixed, MapPinned, Pencil, Plus, Sparkles, Trash2 } from "l
 
 import type { CustomerAddressRecord } from "@/lib/customer-addresses";
 import { buildAddressQuickInput, parseAddressQuickInput } from "@/lib/address-autofill";
+import { canonicalizeCountryCode, getCountryDisplayLabel } from "@/lib/country-utils";
 import { extractCoordinatesFromGoogleMapsUrl, isGoogleMapsShortUrl } from "@/lib/google-maps";
 
 type AddressFormState = {
@@ -56,7 +57,13 @@ function toFormState(address?: CustomerAddressRecord): AddressFormState {
 }
 
 function formatAddress(address: CustomerAddressRecord) {
-  return [address.addressLine1, address.addressLine2, `${address.city}, ${address.state}`, address.postalCode, address.countryCode]
+  return [
+    address.addressLine1,
+    address.addressLine2,
+    `${address.city}, ${address.state}`,
+    address.postalCode,
+    getCountryDisplayLabel(address.countryCode),
+  ]
     .filter(Boolean)
     .join(" · ");
 }
@@ -104,7 +111,7 @@ export function AccountAddressBookClient({ initialAddresses }: { initialAddresse
       city: payload.city || form.city,
       state: payload.state || payload.city || form.state,
       postalCode: payload.postalCode || form.postalCode,
-      countryCode: payload.countryCode || form.countryCode,
+      countryCode: canonicalizeCountryCode(payload.countryCode, form.countryCode || "TG"),
     };
 
     setForm(nextForm);
@@ -477,7 +484,7 @@ export function AccountAddressBookClient({ initialAddresses }: { initialAddresse
                 </label>
                 <label className="text-[13px] font-semibold text-[#4a3b31]">
                   Pays
-                  <input value={form.countryCode} onChange={(event) => setForm((current) => ({ ...current, countryCode: event.target.value.toUpperCase() }))} autoComplete="country" className="mt-2 h-11 w-full rounded-[14px] border border-[#e6d8cb] bg-white px-4 text-[14px] uppercase text-[#221f1c] outline-none focus:border-[#ff6a00]" />
+                  <input value={form.countryCode} onChange={(event) => setForm((current) => ({ ...current, countryCode: canonicalizeCountryCode(event.target.value, current.countryCode || "TG") }))} autoComplete="country" className="mt-2 h-11 w-full rounded-[14px] border border-[#e6d8cb] bg-white px-4 text-[14px] uppercase text-[#221f1c] outline-none focus:border-[#ff6a00]" />
                 </label>
               </div>
             ) : null}

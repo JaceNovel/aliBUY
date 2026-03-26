@@ -1,3 +1,4 @@
+import { canonicalizeCountryCode } from "@/lib/country-utils";
 import { type ProductCatalogItem } from "@/lib/products-data";
 import { resolveProductUnitPriceUsd } from "@/lib/product-variant-pricing";
 import { CURRENCY_CONFIG, type CurrencyCode } from "@/lib/pricing-options";
@@ -775,7 +776,7 @@ export function resolveSourcingDeliveryPlan(input: {
   deliveryProfile: SourcingDeliveryProfile;
   workflow: SourcingOrderWorkflow;
 } {
-  const countryCode = input.countryCode?.trim().toUpperCase() || "TG";
+  const countryCode = canonicalizeCountryCode(input.countryCode, "TG");
   const requestedProfile = input.deliveryProfile;
   const requestedMode = requestedProfile?.mode === "forwarder" ? "forwarder" : "direct";
   const isChinaAddress = countryCode === "CN";

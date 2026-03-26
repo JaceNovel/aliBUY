@@ -1,3 +1,5 @@
+import { canonicalizeCountryCode } from "@/lib/country-utils";
+
 type AddressAutofillInput = {
   addressLine1?: string;
   addressLine2?: string;
@@ -16,64 +18,13 @@ type AddressAutofillOutput = {
   countryCode: string;
 };
 
-const countryAliases: Record<string, string> = {
-  ci: "CI",
-  "cote d'ivoire": "CI",
-  "cote d ivoire": "CI",
-  "cote-divoire": "CI",
-  "cote divoire": "CI",
-  "côte d'ivoire": "CI",
-  "côte d ivoire": "CI",
-  ivorycoast: "CI",
-  "ivory coast": "CI",
-  sn: "SN",
-  senegal: "SN",
-  bj: "BJ",
-  benin: "BJ",
-  tg: "TG",
-  togo: "TG",
-  gh: "GH",
-  ghana: "GH",
-  ng: "NG",
-  nigeria: "NG",
-  fr: "FR",
-  france: "FR",
-};
-
 function normalizeCountryCode(value: string | undefined, fallbackCountryCode: string) {
-  const normalizedValue = value?.trim();
-  if (!normalizedValue) {
-    return fallbackCountryCode;
-  }
-
-  const alias = countryAliases[normalizedValue.toLowerCase()];
-  if (alias) {
-    return alias;
-  }
-
-  if (/^[a-z]{2}$/i.test(normalizedValue)) {
-    return normalizedValue.toUpperCase();
-  }
-
-  return fallbackCountryCode;
+  return canonicalizeCountryCode(value, fallbackCountryCode);
 }
 
 function getExplicitCountryCode(value: string | undefined) {
-  const normalizedValue = value?.trim();
-  if (!normalizedValue) {
-    return null;
-  }
-
-  const alias = countryAliases[normalizedValue.toLowerCase()];
-  if (alias) {
-    return alias;
-  }
-
-  if (/^[a-z]{2}$/i.test(normalizedValue)) {
-    return normalizedValue.toUpperCase();
-  }
-
-  return null;
+  const normalizedValue = canonicalizeCountryCode(value);
+  return normalizedValue || null;
 }
 
 export function parseAddressQuickInput(rawAddress: string, fallbackCountryCode = "CI"): AddressAutofillOutput {
