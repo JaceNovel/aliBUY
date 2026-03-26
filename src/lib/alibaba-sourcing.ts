@@ -729,8 +729,39 @@ export function getSourcingAlibabaPaymentRollup(order: Pick<SourcingOrder, "supp
   return "not_started";
 }
 
-export function isSourcingOrderEligibleForSupplierPayment(order: Pick<SourcingOrder, "paymentStatus" | "supplierOrderStatus" | "alibabaTradeIds" | "supplierOrderPayload">) {
-  if (order.paymentStatus !== "paid") {
+export function isSourcingOrderClientPaid(order: Pick<SourcingOrder, "paymentStatus" | "monerooPaymentStatus" | "monerooPaymentPayload" | "paidAt">) {
+  if (order.paymentStatus === "paid") {
+    return true;
+  }
+
+  const monerooStatus = (order.monerooPaymentStatus || "").trim().toLowerCase();
+  if (["success", "successful", "succeeded", "completed", "complete", "paid", "processed"].includes(monerooStatus)) {
+    return true;
+  }
+
+  if (typeof order.paidAt === "string" && order.paidAt.trim().length > 0) {
+    return true;
+  }
+
+  if (isObjectRecord(order.monerooPaymentPayload)) {
+    if (order.monerooPaymentPayload.is_processed === true) {
+      return true;
+    }
+
+    const payloadStatus = typeof order.monerooPaymentPayload.status === "string"
+      ? order.monerooPaymentPayload.status.trim().toLowerCase()
+      : "";
+
+    if (["success", "successful", "succeeded", "completed", "complete", "paid", "processed"].includes(payloadStatus)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export function isSourcingOrderEligibleForSupplierPayment(order: Pick<SourcingOrder, "paymentStatus" | "monerooPaymentStatus" | "monerooPaymentPayload" | "paidAt" | "supplierOrderStatus" | "alibabaTradeIds" | "supplierOrderPayload">) {
+  if (!isSourcingOrderClientPaid(order)) {
     return false;
   }
 

@@ -5,7 +5,15 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { CheckCheck, ExternalLink, PackageCheck, Save, ShieldCheck, Truck } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-import { formatSourcingAmount, getSourcingAlibabaPostPaymentAutomationState, getSourcingOrderMeta, type SourcingOrder, type SourcingOrderStatus } from "@/lib/alibaba-sourcing";
+import {
+  formatSourcingAmount,
+  getSourcingAlibabaPayUrls,
+  getSourcingAlibabaPostPaymentAutomationState,
+  getSourcingOrderMeta,
+  isSourcingOrderEligibleForSupplierPayment,
+  type SourcingOrder,
+  type SourcingOrderStatus,
+} from "@/lib/alibaba-sourcing";
 
 type AdminOrderDetailClientProps = {
   order: SourcingOrder;
@@ -42,6 +50,8 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
 
   const meta = useMemo(() => getSourcingOrderMeta(order), [order]);
   const alibabaAutomation = useMemo(() => getSourcingAlibabaPostPaymentAutomationState(order), [order]);
+  const payUrls = useMemo(() => getSourcingAlibabaPayUrls(order), [order]);
+  const canLaunchSupplierPayment = useMemo(() => isSourcingOrderEligibleForSupplierPayment(order), [order]);
   const workflow = meta.workflow;
   const deliveryProfile = meta.deliveryProfile;
 
@@ -251,11 +261,33 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
             <div className="text-[18px] font-bold text-[#1f2937]">Automatisation Alibaba</div>
             <div className="mt-1 text-[13px] text-[#667085]">Paiement dropshipping, résultat de paiement et suivi logistique par trade.</div>
           </div>
+          {canLaunchSupplierPayment ? (
+            <button
+              type="button"
+              onClick={() => void submitPatch({ action: "launch-supplier-payment" })}
+              disabled={isPending}
+              className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              Lancer le paiement fournisseur
+            </button>
+          ) : null}
+          {!canLaunchSupplierPayment && payUrls.length > 0 ? (
+            <Link href={payUrls[0]} target="_blank" className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] border border-[#ffd6bf] bg-[#fff6f0] px-5 text-[14px] font-semibold text-[#d85300] transition hover:opacity-80">
+              Ouvrir le pay_url
+              <ExternalLink className="h-4 w-4" />
+            </Link>
+          ) : null}
           {alibabaAutomation?.lastProcessedAt ? <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Dernier passage {new Date(alibabaAutomation.lastProcessedAt).toLocaleString("fr-FR")}</div> : null}
         </div>
 
         {!alibabaAutomation || alibabaAutomation.trades.length === 0 ? (
-          <div className="mt-4 rounded-[16px] bg-[#fafbfd] px-4 py-4 text-[13px] text-[#667085] ring-1 ring-[#edf1f6]">Aucun état automatique Alibaba enregistré pour cette commande.</div>
+          <div className="mt-4 rounded-[16px] bg-[#fafbfd] px-4 py-4 text-[13px] text-[#667085] ring-1 ring-[#edf1f6]">
+            {canLaunchSupplierPayment
+              ? "Aucune automatisation Alibaba n'a encore été lancée pour cette commande. Utilisez le bouton ci-dessus pour créer la demande fournisseur et démarrer le suivi automatique."
+              : payUrls.length > 0
+                ? "La demande fournisseur a déjà produit un pay_url manuel. Ouvrez-le ci-dessus pour reprendre le paiement Alibaba."
+                : "Aucun état automatique Alibaba enregistré pour cette commande pour le moment."}
+          </div>
         ) : (
           <div className="mt-4 space-y-3">
             {alibabaAutomation.trades.map((trade) => (

@@ -136,14 +136,28 @@ export function getMonerooCurrencyCode(payment: MonerooPaymentRecord) {
 export function normalizeMonerooPaymentStatus(status: string | null | undefined): PaymentStatus {
   switch ((status || "").toLowerCase()) {
     case "initiated":
+    case "initialized":
       return "initialized";
     case "pending":
+    case "processing":
+    case "in_progress":
+    case "in progress":
       return "pending";
     case "success":
+    case "successful":
+    case "succeeded":
+    case "completed":
+    case "complete":
+    case "paid":
+    case "processed":
       return "paid";
     case "failed":
+    case "error":
+    case "expired":
+    case "declined":
       return "failed";
     case "cancelled":
+    case "canceled":
       return "cancelled";
     default:
       return "unpaid";
