@@ -430,6 +430,12 @@ function inferAlibabaCategoryFromContent(input: {
 
   const rules: Array<{ slug: string; title: string; path: string[]; patterns: RegExp[] }> = [
     {
+      slug: "telephones-accessoires",
+      title: "Telephones & accessoires",
+      path: ["Electronique", "Telephones & accessoires"],
+      patterns: [/\b(phone|phones|telephone|telephones|smartphone|smartphones|iphone|android|ipad|tablet|tablets|mobile|mobiles|case|cases|cover|covers|pouch|pouches|flip\s+cover|screen\s+protector|tempered\s+glass|power\s*bank|charger|charging\s*cable|usb\s*cable|sd\s*card|memory\s*card|tf\s*card|phone\s*battery)\b/i],
+    },
+    {
       slug: "lighting-led",
       title: "Eclairage LED",
       path: ["Maison & eclairage", "Eclairage LED"],
@@ -448,10 +454,16 @@ function inferAlibabaCategoryFromContent(input: {
       patterns: [/\b(mouse|mice|souris|keyboard|keyboards|clavier|claviers|keypad|mouse pad|tapis de souris)\b/i],
     },
     {
+      slug: "chaussures-sacs",
+      title: "Chaussures & sacs",
+      path: ["Mode", "Chaussures & sacs"],
+      patterns: [/\b(shoe|shoes|sneaker|sneakers|boot|boots|sandals|sandales|slipper|slippers|soccer shoes|football shoes|chaussure|chaussures|handbag|handbags|backpack|backpacks|wallet|wallets|purse|purses)\b/i],
+    },
+    {
       slug: "furniture",
       title: "Meubles",
       path: ["Maison & bureau", "Meubles"],
-      patterns: [/\b(furniture|meuble|meubles|desk|bureau|table|chair|fauteuil|sofa|cabinet|shelf|bean bag|office desk|gaming desk|gaming chair)\b/i],
+      patterns: [/\b(furniture|meuble|meubles|desk|bureau|tables?|chair|fauteuil|sofa|cabinet|shelf|bean\s+bag|office\s+desk|gaming\s+desk|gaming\s+chair|wardrobe|dresser|nightstand|bookshelf)\b/i],
     },
     {
       slug: "fashion-accessories",
@@ -560,6 +572,15 @@ function matchCanonicalCategoryRule(input: { title: string; path: string[] }): C
     return null;
   }
 
+  if (/(phone|phones|telephone|telephones|smartphone|smartphones|iphone|android|mobile|mobiles|tablet|tablets|ipad)/.test(haystack)
+    || /(case|cases|cover|covers|pouch|pouches|screen protector|tempered glass|power bank|charger|charging cable|usb cable|memory card|sd card|tf card|phone battery)/.test(haystack)) {
+    return {
+      slug: "telephones-accessoires",
+      title: "Telephones & accessoires",
+      path: ["Electronique", "Telephones & accessoires"],
+    };
+  }
+
   if (/(clothing|clothes|apparel|garment|fashion|vetement|vetements|mode)/.test(haystack)
     && /(shoe|shoes|footwear|sneaker|sneakers|boot|boots|sandals|sandales|chaussure|chaussures)/.test(haystack)) {
     return {
@@ -569,7 +590,16 @@ function matchCanonicalCategoryRule(input: { title: string; path: string[] }): C
     };
   }
 
-  if (/(furniture|furnitures|home furniture|meuble|meubles|sofa|canape|table|desk|cabinet|wardrobe|chaise|chair)/.test(haystack)) {
+  if (/(shoe|shoes|footwear|sneaker|sneakers|boot|boots|sandals|sandales|slipper|slippers|chaussure|chaussures|soccer shoes|football shoes|backpack|backpacks|handbag|handbags|wallet|wallets|purse|purses)/.test(haystack)) {
+    return {
+      slug: "chaussures-sacs",
+      title: "Chaussures & sacs",
+      path: ["Mode", "Chaussures & sacs"],
+    };
+  }
+
+  if (/(^|\s)(furniture|furnitures|home furniture|meuble|meubles|sofa|canape|tables?|desk|cabinet|wardrobe|chaise|chair|fauteuil|bookshelf|nightstand|dresser)(\s|$)/.test(haystack)
+    && !/(phone|phones|telephone|smartphone|mobile|tablet|tablets|ipad|case|pouch|cover|screen protector|tempered glass|power bank|memory card|sd card|tf card)/.test(haystack)) {
     return {
       slug: "meubles",
       title: "Meubles",

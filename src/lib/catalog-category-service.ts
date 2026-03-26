@@ -29,6 +29,22 @@ type CategoryAccumulator = {
   products: ProductCatalogItem[];
 };
 
+const CATEGORY_SORT_PRIORITY: Record<string, number> = {
+  electronique: 1,
+  "telephones-accessoires": 2,
+  "keyboard-mouse": 3,
+  "claviers-souris": 3,
+  meubles: 4,
+  "maison-jardin": 5,
+  "fashion-accessories": 6,
+  "bijoux-accessoires": 7,
+  "jewelry-accessories": 7,
+  "chaussures-sacs": 8,
+  "vetements-chaussures": 8,
+  "sports-leisure": 9,
+  "vr-gaming": 10,
+};
+
 function dedupeProducts(products: ProductCatalogItem[]) {
   const map = new Map<string, ProductCatalogItem>();
 
@@ -49,6 +65,10 @@ function buildCategoryDescription(title: string, sourcePath: string[], count: nu
 
 function buildCategoryHref(slug: string) {
   return `/categories/${encodeURIComponent(slug)}`;
+}
+
+function getCategorySortRank(slug: string) {
+  return CATEGORY_SORT_PRIORITY[slug] ?? 999;
 }
 
 export const getCatalogCategories = cache(async function getCatalogCategories() {
@@ -115,11 +135,16 @@ export const getCatalogCategories = cache(async function getCatalogCategories() 
       } satisfies CatalogCategoryRecord;
     })
     .sort((left, right) => {
-      if (left.productCount === right.productCount) {
-        return left.title.localeCompare(right.title, "fr");
+      const rankDelta = getCategorySortRank(left.slug) - getCategorySortRank(right.slug);
+      if (rankDelta !== 0) {
+        return rankDelta;
       }
 
-      return right.productCount - left.productCount;
+      if (left.productCount !== right.productCount) {
+        return right.productCount - left.productCount;
+      }
+
+      return left.title.localeCompare(right.title, "fr");
     });
 });
 
