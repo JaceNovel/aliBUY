@@ -12,7 +12,7 @@ import {
 import { getInternalSupplierFulfillment } from "@/lib/internal-fulfillment";
 import { resolveAlibabaMoq } from "@/lib/product-moq";
 import { resolveProductPriceSummaryUsd } from "@/lib/product-variant-pricing";
-import { sanitizeItemWeightGrams } from "@/lib/product-weight";
+import { resolveCoherentItemWeightGrams, sanitizeItemWeightGrams } from "@/lib/product-weight";
 import { getSourcingOrderMeta, type SourcingOrder, type AlibabaCatalogMapping } from "@/lib/alibaba-sourcing";
 import type { ProductCatalogItem } from "@/lib/products-data";
 import { getAlibabaSupplierAccounts, saveAlibabaSupplierAccount } from "@/lib/alibaba-operations-store";
@@ -917,7 +917,9 @@ function parseWeightToGrams(value: unknown, keyHint?: string) {
     return sanitizeItemWeightGrams(Math.round(Number(ounceMatch[1].replace(',', '.')) * 28.349523125));
   }
 
-  const gramMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*(g|gram)/i);
+  const gramMatch = isWeightKeyHint(keyHint)
+    ? normalized.match(/(\d+(?:[.,]\d+)?)\s*(g|gram)s?\b/i)
+    : normalized.match(/(?:weight|poids|gross|net|shipping|package|item|product)[^\d]{0,12}(\d+(?:[.,]\d+)?)\s*(g|gram)s?\b/i);
   if (gramMatch && !/2\.4g|5g|4g/i.test(normalized)) {
     return sanitizeItemWeightGrams(Math.round(Number(gramMatch[1].replace(',', '.'))));
   }
@@ -1537,7 +1539,14 @@ function enrichAlibabaSearchProduct(product: AlibabaSearchProduct, detailRecord:
   });
   const moq = moqInfo.value ?? product.moq;
   const weightFromLogistics = getNumberValue(logisticsInfo.weight);
-  const weightGrams = extractWeightGrams(detailRecord) ?? sanitizeItemWeightGrams(weightFromLogistics ? Math.round(weightFromLogistics * (weightFromLogistics < 10 ? 1000 : 1)) : undefined);
+  const extractedWeightGrams = extractWeightGrams(detailRecord) ?? sanitizeItemWeightGrams(weightFromLogistics ? Math.round(weightFromLogistics * (weightFromLogistics < 10 ? 1000 : 1)) : undefined);
+  const weightGrams = resolveCoherentItemWeightGrams(extractedWeightGrams, {
+    title: product.title,
+    shortTitle: product.shortTitle,
+    keywords: product.keywords,
+    lotCbm: product.lotCbm,
+    moq,
+  });
   const images = extractImagesFromAlibabaRecord(detailRecord);
   const variantGroups = extractAlibabaVariantGroups(detailRecord);
   const mergedPayload = product.rawPayload && typeof product.rawPayload === "object" && !Array.isArray(product.rawPayload)
@@ -1784,7 +1793,14 @@ function mapAlibabaSearchResultToProduct(raw: Record<string, unknown>, query: st
   const supplierCompanyId = getStringValue(raw.supplier_company_id)
     ?? getStringValue(raw.company_id)
     ?? getStringValue(raw.seller_member_id);
-  const weightGrams = extractWeightGrams(raw);
+  const extractedWeightGrams = extractWeightGrams(raw);
+  const resolvedWeightGrams = resolveCoherentItemWeightGrams(extractedWeightGrams, {
+    title,
+    query,
+    keywords,
+    lotCbm: getStringValue(raw.cbm) ?? "0.01",
+    moq,
+  });
   const variantGroups = extractAlibabaVariantGroups(raw);
 
   return {
@@ -1798,7 +1814,7 @@ function mapAlibabaSearchResultToProduct(raw: Record<string, unknown>, query: st
     videoUrl: getStringValue(raw.video_url) ?? getStringValue(raw.videoUrl),
     videoPoster: images[0],
     packaging: getStringValue(raw.packaging) ?? "Carton export standard",
-    itemWeightGrams: weightGrams ?? 0,
+    itemWeightGrams: resolvedWeightGrams ?? 0,
     lotCbm: getStringValue(raw.cbm) ?? "0.01",
     minUsd,
     maxUsd,
@@ -1819,7 +1835,7 @@ function mapAlibabaSearchResultToProduct(raw: Record<string, unknown>, query: st
     tiers: priceData.tiers.map((tier) => ({ quantityLabel: tier.quantityLabel, priceUsd: tier.priceUsd, note: tier.note })),
     specs,
     moqVerified: moqInfo.verified,
-    weightVerified: typeof weightGrams === "number" && weightGrams > 0,
+    weightVerified: typeof resolvedWeightGrams === "number" && resolvedWeightGrams > 0,
     priceVerified: priceData.verified,
     rawPayload: raw,
   };
@@ -1882,8 +1898,18 @@ function mapAlibabaIcbuProductToProduct(raw: Record<string, unknown>, query: str
     getStringValue(basicInfo.model_number) ? `Modele: ${getStringValue(basicInfo.model_number)}` : "",
     `Import Alibaba ICBU pour ${title}.`,
   ]).slice(0, 4);
-  const weightGrams = extractWeightGrams(raw);
-  const verifiedWeightGrams = weightGrams ?? sanitizeItemWeightGrams(weight ? Math.round(weight * (weight < 10 ? 1000 : 1)) : undefined);
+  const extractedWeightGrams = extractWeightGrams(raw);
+  const verifiedWeightGrams = resolveCoherentItemWeightGrams(
+    extractedWeightGrams ?? sanitizeItemWeightGrams(weight ? Math.round(weight * (weight < 10 ? 1000 : 1)) : undefined),
+    {
+      title,
+      query,
+      keywords,
+      categoryTitle: getStringValue(categoryInfo.category_name),
+      lotCbm: getStringValue(logisticsInfo.desi) ?? "0.01",
+      moq,
+    },
+  );
   const variantGroups = extractAlibabaVariantGroups(raw, tradeInfo);
 
   return {

@@ -485,11 +485,37 @@ export function extractAlibabaVariantPricing(rawPayload: unknown): ProductVarian
 
   visit(rawPayload);
 
-  return [...deduped.values()].sort((left, right) => {
+  const rawRules = [...deduped.values()].sort((left, right) => {
     const leftSelection = serializeSelection(left.selections);
     const rightSelection = serializeSelection(right.selections);
     return leftSelection.localeCompare(rightSelection) || getRuleMinimumQuantity(left) - getRuleMinimumQuantity(right);
   });
+
+  const varyingLabels = new Set<string>();
+  const labelValues = new Map<string, Set<string>>();
+
+  rawRules.forEach((rule) => {
+    Object.entries(normalizeSelection(rule.selections)).forEach(([label, value]) => {
+      const values = labelValues.get(label) ?? new Set<string>();
+      values.add(value);
+      labelValues.set(label, values);
+    });
+  });
+
+  labelValues.forEach((values, label) => {
+    if (values.size > 1) {
+      varyingLabels.add(label);
+    }
+  });
+
+  return rawRules.map((rule) => ({
+    ...rule,
+    selections: varyingLabels.size === 0
+      ? normalizeSelection(rule.selections)
+      : Object.fromEntries(
+          Object.entries(normalizeSelection(rule.selections)).filter(([label]) => varyingLabels.has(label)),
+        ),
+  }));
 }
 
 export function extractAlibabaVariantSkus(rawPayload: unknown): ProductVariantSku[] {
@@ -556,7 +582,32 @@ export function extractAlibabaVariantSkus(rawPayload: unknown): ProductVariantSk
 
   visit(rawPayload);
 
-  return [...deduped.values()].sort((left, right) => serializeSelection(left.selections).localeCompare(serializeSelection(right.selections)));
+  const rawSkus = [...deduped.values()].sort((left, right) => serializeSelection(left.selections).localeCompare(serializeSelection(right.selections)));
+  const varyingLabels = new Set<string>();
+  const labelValues = new Map<string, Set<string>>();
+
+  rawSkus.forEach((variantSku) => {
+    Object.entries(normalizeSelection(variantSku.selections)).forEach(([label, value]) => {
+      const values = labelValues.get(label) ?? new Set<string>();
+      values.add(value);
+      labelValues.set(label, values);
+    });
+  });
+
+  labelValues.forEach((values, label) => {
+    if (values.size > 1) {
+      varyingLabels.add(label);
+    }
+  });
+
+  return rawSkus.map((variantSku) => ({
+    ...variantSku,
+    selections: varyingLabels.size === 0
+      ? normalizeSelection(variantSku.selections)
+      : Object.fromEntries(
+          Object.entries(normalizeSelection(variantSku.selections)).filter(([label]) => varyingLabels.has(label)),
+        ),
+  }));
 }
 
 export function deriveVariantGroupsFromPricing(rules: ProductVariantPrice[]) {

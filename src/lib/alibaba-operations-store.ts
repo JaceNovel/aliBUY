@@ -15,7 +15,7 @@ import type {
 } from "@/lib/alibaba-operations";
 import { prisma } from "@/lib/prisma";
 import { resolveProductPriceSummaryUsd } from "@/lib/product-variant-pricing";
-import { sanitizeItemWeightGrams } from "@/lib/product-weight";
+import { resolveCoherentItemWeightGrams, sanitizeItemWeightGrams } from "@/lib/product-weight";
 
 const DEFAULT_COUNTRY_PROFILES: AlibabaCountryProfile[] = [
   {
@@ -327,7 +327,9 @@ function parseWeightCandidate(value: unknown, keyHint?: string): number | undefi
     return sanitizeItemWeightGrams(Math.round(Number(kilogramMatch[1].replace(',', '.')) * 1000));
   }
 
-  const gramMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*(g|gram)/i);
+  const gramMatch = /weight|gross_weight|net_weight|package_weight|shipping_weight|item_weight|product_weight|poids/i.test(keyHint ?? "")
+    ? normalized.match(/(\d+(?:[.,]\d+)?)\s*(g|gram)s?\b/i)
+    : normalized.match(/(?:weight|poids|gross|net|shipping|package|item|product)[^\d]{0,12}(\d+(?:[.,]\d+)?)\s*(g|gram)s?\b/i);
   if (gramMatch && !/2\.4g|5g|4g/i.test(normalized)) {
     return sanitizeItemWeightGrams(Math.round(Number(gramMatch[1].replace(',', '.'))));
   }
@@ -741,6 +743,17 @@ function mapImportedProductRecord(record: {
   const rawWeightGrams = extractRawWeightGrams(record.rawPayload);
   const storedWeightGrams = sanitizeItemWeightGrams(record.itemWeightGrams > 0 ? record.itemWeightGrams : undefined);
   const storedTiers = toUnknownArray<{ quantityLabel: string; priceUsd: number; note?: string }>(record.tiers);
+  const normalizedWeightGrams = resolveCoherentItemWeightGrams(storedWeightGrams ?? rawWeightGrams, {
+    title: record.title,
+    shortTitle: record.shortTitle,
+    query: record.query,
+    keywords: toStringArray(record.keywords),
+    categorySlug: record.categorySlug ?? undefined,
+    categoryTitle: record.categoryTitle ?? undefined,
+    categoryPath: toStringArray(record.categoryPath ?? undefined),
+    lotCbm: record.lotCbm,
+    moq: record.moq,
+  });
   const normalizedPriceSummary = resolveProductPriceSummaryUsd({
     tiers: storedTiers,
     minUsd: rawPriceBounds.minUsd ?? record.minUsd,
@@ -767,7 +780,7 @@ function mapImportedProductRecord(record: {
     videoUrl: normalizeAlibabaMediaUrl(record.videoUrl ?? undefined) ?? undefined,
     videoPoster: normalizeAlibabaMediaUrl(record.videoPoster ?? undefined) ?? undefined,
     packaging: record.packaging,
-    itemWeightGrams: storedWeightGrams ?? rawWeightGrams ?? 0,
+    itemWeightGrams: normalizedWeightGrams ?? 0,
     lotCbm: record.lotCbm,
     minUsd: normalizedPriceSummary.minUsd,
     maxUsd: normalizedPriceSummary.maxUsd,
