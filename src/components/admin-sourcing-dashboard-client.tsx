@@ -416,8 +416,10 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
             {initialDashboard.containers.length === 0 ? (
               <div className="rounded-[16px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Aucun conteneur n&apos;est encore alimenté.</div>
             ) : initialDashboard.containers.map((container) => {
-              const containerOrders = initialDashboard.orders.filter((order) => order.containerId === container.id);
+              const containerOrderIdSet = new Set(container.orderIds);
+              const containerOrders = initialDashboard.orders.filter((order) => order.containerId === container.id || containerOrderIdSet.has(order.id));
               const shipmentTriggeredCount = containerOrders.filter((order) => order.status === "shipment_triggered").length;
+              const missingOrderCount = Math.max(container.orderCount - containerOrders.length, 0);
 
               return (
                 <div key={container.id} className="rounded-[16px] border border-[#edf1f6] px-4 py-4">
@@ -456,12 +458,18 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
                       <div className="mt-1 text-[12px] text-[#667085]">commande(s) non propagée(s)</div>
                     </div>
                   </div>
+                  {missingOrderCount > 0 ? (
+                    <div className="mt-3 rounded-[14px] bg-[#fff7ed] px-3 py-3 text-[12px] font-semibold text-[#b54708] ring-1 ring-[#fed7aa]">
+                      {missingOrderCount} commande(s) référencée(s) par ce conteneur ne sont pas remontées dans la liste chargée. Le conteneur contient des liaisons anciennes ou incohérentes.
+                    </div>
+                  ) : null}
                   <div className="mt-3 flex flex-wrap gap-2">
                     {containerOrders.map((order) => (
                       <Link key={`${container.id}-${order.id}`} href={`/admin/orders/${encodeURIComponent(order.id)}`} className="inline-flex items-center rounded-full border border-[#e4e7ec] bg-[#fafbfd] px-3 py-1 text-[12px] font-semibold text-[#475467] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
                         {order.orderNumber} · {order.status}
                       </Link>
                     ))}
+                    {containerOrders.length === 0 ? <div className="text-[12px] text-[#98a2b3]">Aucune commande liée visible dans ce chargement.</div> : null}
                   </div>
                 </div>
               );
