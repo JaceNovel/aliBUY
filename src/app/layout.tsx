@@ -31,29 +31,11 @@ export const metadata: Metadata = {
     title: SITE_NAME,
     description: SITE_DESCRIPTION,
     url: SITE_URL,
-    images: [
-      {
-        url: SITE_LOGO_PATH,
-        width: 500,
-        height: 500,
-        alt: `${SITE_NAME} logo`,
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: SITE_NAME,
     description: SITE_DESCRIPTION,
-    images: [SITE_LOGO_PATH],
-  },
-  icons: {
-    icon: [
-      { url: SITE_LOGO_PATH, type: "image/png", sizes: "500x500" },
-    ],
-    shortcut: [SITE_LOGO_PATH],
-    apple: [
-      { url: SITE_LOGO_PATH, sizes: "500x500", type: "image/png" },
-    ],
   },
   manifest: "/manifest.webmanifest",
   robots: {

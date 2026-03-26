@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-import { SITE_DESCRIPTION, SITE_LOGO_PATH, SITE_NAME } from "@/lib/site-config";
+import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site-config";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -9,12 +9,17 @@ export default function manifest(): MetadataRoute.Manifest {
     description: SITE_DESCRIPTION,
     start_url: "/",
     display: "standalone",
-    background_color: "#f4f4f4",
-    theme_color: "#fa6400",
+    background_color: "#000000",
+    theme_color: "#000000",
     icons: [
       {
-        src: SITE_LOGO_PATH,
-        sizes: "500x500",
+        src: "/icon",
+        sizes: "512x512",
+        type: "image/png",
+      },
+      {
+        src: "/apple-icon",
+        sizes: "512x512",
         type: "image/png",
       },
     ],

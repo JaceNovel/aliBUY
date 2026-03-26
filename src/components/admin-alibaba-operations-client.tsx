@@ -94,6 +94,10 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
   const defaultAddressId = initialDashboard.addresses.find((address) => address.isDefault)?.id;
   const recentImports = useMemo(() => initialDashboard.importedProducts.slice(0, 8), [initialDashboard.importedProducts]);
   const recentOrders = useMemo(() => initialDashboard.purchaseOrders.slice(0, 8), [initialDashboard.purchaseOrders]);
+  const pendingPaymentOrders = useMemo(
+    () => initialDashboard.purchaseOrders.filter((order) => order.paymentStatus === "pending" || order.paymentStatus === "pay_url_generated"),
+    [initialDashboard.purchaseOrders],
+  );
   const activeSupplierAccount = useMemo(() => initialDashboard.supplierAccounts.find((account) => account.isActive && account.status === "connected") ?? initialDashboard.supplierAccounts.find((account) => account.status === "connected") ?? null, [initialDashboard.supplierAccounts]);
   const editingSupplierAccount = useMemo(
     () => accountForm.id ? initialDashboard.supplierAccounts.find((account) => account.id === accountForm.id) ?? null : null,
@@ -441,23 +445,39 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "Articles importes", value: String(initialDashboard.stats.importedCount), icon: Package2, accent: "bg-[#fff1e8] text-[#ff6a00]" },
-          { label: "Publies sur le site", value: String(initialDashboard.stats.publishedCount), icon: CheckCircle2, accent: "bg-[#eafaf0] text-[#16a34a]" },
-          { label: "Paiements en attente", value: String(initialDashboard.stats.pendingPayments), icon: Wallet, accent: "bg-[#eef4ff] text-[#2f67f6]" },
-          { label: "Ordres payes", value: String(initialDashboard.stats.paidOrders), icon: Building2, accent: "bg-[#f5efff] text-[#7c3aed]" },
+          { label: "Articles importes", value: String(initialDashboard.stats.importedCount), icon: Package2, accent: "bg-[#fff1e8] text-[#ff6a00]", href: "/admin/alibaba-sourcing/import-catalog", hint: "Voir les articles importes" },
+          { label: "Publies sur le site", value: String(initialDashboard.stats.publishedCount), icon: CheckCircle2, accent: "bg-[#eafaf0] text-[#16a34a]", href: "/admin/alibaba-sourcing/import-catalog", hint: "Voir les produits publies" },
+          { label: "Paiements en attente", value: String(initialDashboard.stats.pendingPayments), icon: Wallet, accent: "bg-[#eef4ff] text-[#2f67f6]", href: "/admin/alibaba-sourcing/lots", hint: initialDashboard.stats.pendingPayments > 0 ? "Ouvrir les pay_url Alibaba" : "Aucun pay_url en attente" },
+          { label: "Ordres payes", value: String(initialDashboard.stats.paidOrders), icon: Building2, accent: "bg-[#f5efff] text-[#7c3aed]", href: "/admin/alibaba-sourcing/lots", hint: "Voir les lots d'achat" },
         ].map((card) => {
           const Icon = card.icon;
           return (
-            <article key={card.label} className="rounded-[18px] border border-[#e6eaf0] bg-white px-5 py-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
+            <Link key={card.label} href={card.href} className="rounded-[18px] border border-[#e6eaf0] bg-white px-5 py-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)] transition hover:-translate-y-0.5 hover:border-[#ffddb8] hover:shadow-[0_16px_36px_rgba(17,24,39,0.08)]">
               <div className={`inline-flex h-11 w-11 items-center justify-center rounded-[14px] ${card.accent}`}>
                 <Icon className="h-5 w-5" />
               </div>
               <div className="mt-4 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#98a2b3]">{card.label}</div>
               <div className="mt-1 text-[24px] font-black tracking-[-0.05em] text-[#1f2937]">{card.value}</div>
-            </article>
+              <div className="mt-2 text-[12px] font-semibold text-[#667085]">{card.hint}</div>
+            </Link>
           );
         })}
       </section>
+
+      {panel === "dashboard" && pendingPaymentOrders.length > 0 ? (
+        <section className="rounded-[20px] border border-[#d8e4ff] bg-[#f5f9ff] px-5 py-4 shadow-[0_8px_22px_rgba(17,24,39,0.03)]">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#2f67f6]">Paiement Alibaba</div>
+              <div className="mt-1 text-[18px] font-black tracking-[-0.04em] text-[#1f2937]">{pendingPaymentOrders.length} pay_url Alibaba a ouvrir et payer</div>
+              <div className="mt-1 text-[13px] text-[#50637d]">Ouvre le panneau Lots d'achat pour voir chaque URL, cliquer sur pay_url, puis utiliser le bouton Payer ou Actualiser.</div>
+            </div>
+            <Link href="/admin/alibaba-sourcing/lots" className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#2f67f6] px-5 text-[14px] font-semibold text-white transition hover:bg-[#2557d6]">
+              Ouvrir les lots d'achat
+            </Link>
+          </div>
+        </section>
+      ) : null}
 
       <section className="overflow-x-auto rounded-[20px] border border-[#e6eaf0] bg-white p-3 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
         <div className="flex min-w-max gap-2">
