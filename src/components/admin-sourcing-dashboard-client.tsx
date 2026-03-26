@@ -14,6 +14,7 @@ import {
   getSourcingAlibabaPostPaymentAutomationState,
   getSourcingOrderBatchMode,
   getSourcingOrderMeta,
+  isSourcingOrderClientPaid,
   isSourcingOrderEligibleForSupplierPayment,
   type SourcingOrder,
   type SourcingSeaContainer,
@@ -44,11 +45,43 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
   const [feedback, setFeedback] = useState<string | null>(null);
   const [settings, setSettings] = useState(initialDashboard.settings);
 
+  const paidOrders = useMemo(() => initialDashboard.orders.filter((order) => isSourcingOrderClientPaid(order)), [initialDashboard.orders]);
+  const paidAirOrders = useMemo(() => paidOrders.filter((order) => getSourcingOrderBatchMode(order) === "air"), [paidOrders]);
+  const paidSeaOrders = useMemo(() => paidOrders.filter((order) => getSourcingOrderBatchMode(order) === "sea"), [paidOrders]);
   const eligibleOrders = useMemo(() => initialDashboard.orders.filter((order) => isSourcingOrderEligibleForSupplierPayment(order)), [initialDashboard.orders]);
   const airBatchOrders = useMemo(() => eligibleOrders.filter((order) => getSourcingOrderBatchMode(order) === "air"), [eligibleOrders]);
   const seaBatchOrders = useMemo(() => eligibleOrders.filter((order) => getSourcingOrderBatchMode(order) === "sea"), [eligibleOrders]);
+  const blockedPaidOrders = useMemo(() => paidOrders.filter((order) => !isSourcingOrderEligibleForSupplierPayment(order) && getSourcingOrderBatchMode(order) !== null), [paidOrders]);
+  const blockedAirOrders = useMemo(() => blockedPaidOrders.filter((order) => getSourcingOrderBatchMode(order) === "air"), [blockedPaidOrders]);
+  const blockedSeaOrders = useMemo(() => blockedPaidOrders.filter((order) => getSourcingOrderBatchMode(order) === "sea"), [blockedPaidOrders]);
+  const paidAirWeight = useMemo(() => Number(paidAirOrders.reduce((total, order) => total + order.totalWeightKg, 0).toFixed(3)), [paidAirOrders]);
+  const paidSeaCbm = useMemo(() => Number(paidSeaOrders.reduce((total, order) => total + order.totalVolumeCbm, 0).toFixed(4)), [paidSeaOrders]);
   const airBatchWeight = useMemo(() => Number(airBatchOrders.reduce((total, order) => total + order.totalWeightKg, 0).toFixed(3)), [airBatchOrders]);
   const seaBatchCbm = useMemo(() => Number(seaBatchOrders.reduce((total, order) => total + order.totalVolumeCbm, 0).toFixed(4)), [seaBatchOrders]);
+
+  const getBlockedReason = (order: SourcingOrder) => {
+    if (order.supplierOrderStatus === "failed") {
+      return "Création fournisseur échouée";
+    }
+
+    if (order.supplierOrderStatus === "not_created") {
+      return "Commande fournisseur non créée";
+    }
+
+    if (order.supplierOrderStatus === "skipped") {
+      return "Flux fournisseur ignoré après vérification fret";
+    }
+
+    if (order.alibabaTradeIds.length === 0) {
+      return "Aucun trade Alibaba disponible";
+    }
+
+    if (getSourcingAlibabaPaymentRollup(order) === "paid") {
+      return "Déjà payé côté fournisseur";
+    }
+
+    return "Bloquée avant lancement fournisseur";
+  };
 
   const launchBatch = async (mode: "air" | "sea") => {
     setFeedback(null);
@@ -184,6 +217,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
               <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Batch avion</div>
               <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Regroupement fournisseur à 2 kg</div>
               <div className="mt-2 text-[13px] leading-6 text-[#667085]">Les commandes payées restent en file d&apos;attente jusqu&apos;au lancement admin. Le lot peut aussi être déclenché avant le seuil.</div>
+              {blockedAirOrders.length > 0 ? <div className="mt-2 text-[12px] font-semibold text-[#b54708]">{blockedAirOrders.length} commande(s) payée(s) avion sont bloquées avant le lot.</div> : null}
             </div>
             <button type="button" onClick={() => launchBatch("air")} disabled={isPending || airBatchOrders.length === 0} className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">
               {airBatchWeight >= AIR_BATCH_TARGET_KG ? "Lancer le lot" : "Lancer quand même"}
@@ -192,7 +226,8 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
               <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Poids cumulé</div>
-              <div className="mt-1 text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{airBatchWeight.toFixed(3)} kg</div>
+              <div className="mt-1 text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{paidAirWeight.toFixed(3)} kg</div>
+              <div className="mt-1 text-[12px] text-[#667085]">{airBatchWeight.toFixed(3)} kg lançables</div>
             </div>
             <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
               <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Seuil</div>
@@ -200,7 +235,8 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
             </div>
             <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
               <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Commandes</div>
-              <div className="mt-1 text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{airBatchOrders.length}</div>
+              <div className="mt-1 text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{paidAirOrders.length}</div>
+              <div className="mt-1 text-[12px] text-[#667085]">{airBatchOrders.length} lançables</div>
             </div>
           </div>
         </article>
@@ -211,6 +247,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
               <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Batch maritime</div>
               <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Regroupement fournisseur à 1 CBM</div>
               <div className="mt-2 text-[13px] leading-6 text-[#667085]">Inclut les commandes mer et toutes les commandes de la campagne articles gratuits, forcées en maritime.</div>
+              {blockedSeaOrders.length > 0 ? <div className="mt-2 text-[12px] font-semibold text-[#b54708]">{blockedSeaOrders.length} commande(s) payée(s) mer sont bloquées avant le lot.</div> : null}
             </div>
             <button type="button" onClick={() => launchBatch("sea")} disabled={isPending || seaBatchOrders.length === 0} className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">
               {seaBatchCbm >= SEA_BATCH_TARGET_CBM ? "Lancer le lot" : "Lancer quand même"}
@@ -219,7 +256,8 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
               <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Volume cumulé</div>
-              <div className="mt-1 text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{seaBatchCbm.toFixed(4)} CBM</div>
+              <div className="mt-1 text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{paidSeaCbm.toFixed(4)} CBM</div>
+              <div className="mt-1 text-[12px] text-[#667085]">{seaBatchCbm.toFixed(4)} CBM lançables</div>
             </div>
             <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
               <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Seuil</div>
@@ -227,11 +265,50 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
             </div>
             <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
               <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Commandes</div>
-              <div className="mt-1 text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{seaBatchOrders.length}</div>
+              <div className="mt-1 text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{paidSeaOrders.length}</div>
+              <div className="mt-1 text-[12px] text-[#667085]">{seaBatchOrders.length} lançables</div>
             </div>
           </div>
         </article>
       </section>
+
+      {blockedPaidOrders.length > 0 ? (
+        <section className="rounded-[20px] border border-[#f3d7c2] bg-[#fffaf6] p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
+          <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85300]">Blocages avant lot</div>
+          <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Commandes payées non lançables</div>
+          <div className="mt-2 text-[13px] leading-6 text-[#667085]">Ces commandes sont déjà payées par le client, mais elles ne peuvent pas encore entrer dans le lancement fournisseur Alibaba.</div>
+          <div className="mt-5 overflow-x-auto">
+            <table className="min-w-full text-left">
+              <thead>
+                <tr className="text-[12px] uppercase tracking-[0.08em] text-[#98a2b3]">
+                  <th className="py-3 pr-4 font-semibold">Commande</th>
+                  <th className="py-3 pr-4 font-semibold">Client</th>
+                  <th className="py-3 pr-4 font-semibold">File</th>
+                  <th className="py-3 pr-4 font-semibold">Poids / CBM</th>
+                  <th className="py-3 pr-4 font-semibold">Blocage</th>
+                  <th className="py-3 pr-4 font-semibold">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {blockedPaidOrders.map((order) => {
+                  const batchMode = getSourcingOrderBatchMode(order);
+
+                  return (
+                    <tr key={`blocked-${order.id}`} className="border-t border-[#f2e8df] text-[13px] text-[#1f2937]">
+                      <td className="py-3.5 pr-4 font-semibold"><Link href={`/admin/orders/${encodeURIComponent(order.id)}`} className="transition hover:text-[#ff6a00]">{order.orderNumber}</Link></td>
+                      <td className="py-3.5 pr-4">{order.customerName}</td>
+                      <td className="py-3.5 pr-4">{batchMode === "air" ? "Lot avion" : "Lot mer"}</td>
+                      <td className="py-3.5 pr-4">{order.totalWeightKg.toFixed(3)} kg · {order.totalVolumeCbm.toFixed(4)} CBM</td>
+                      <td className="py-3.5 pr-4 text-[#b54708]">{getBlockedReason(order)}</td>
+                      <td className="py-3.5 pr-4"><Link href={`/admin/orders/${encodeURIComponent(order.id)}`} className="font-semibold text-[#ff6a00] transition hover:opacity-80">Ouvrir</Link></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
         <article className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
