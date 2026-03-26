@@ -154,12 +154,14 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
       method: "POST",
     });
 
+    const payload = await response.json().catch(() => null);
+
     if (!response.ok) {
-      setFeedback("Impossible de déclencher ce conteneur.");
+      setFeedback(payload?.message || "Impossible de déclencher ce conteneur.");
       return;
     }
 
-    setFeedback("Conteneur maritime déclenché.");
+    setFeedback("Conteneur maritime déclenché. Les commandes de ce conteneur passent en statut Transport lance.");
     startTransition(() => {
       router.refresh();
     });
@@ -413,26 +415,57 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
           <div className="mt-4 space-y-3">
             {initialDashboard.containers.length === 0 ? (
               <div className="rounded-[16px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Aucun conteneur n&apos;est encore alimenté.</div>
-            ) : initialDashboard.containers.map((container) => (
-              <div key={container.id} className="rounded-[16px] border border-[#edf1f6] px-4 py-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-[15px] font-semibold text-[#1f2937]">{container.code}</div>
-                    <div className="mt-1 text-[13px] text-[#667085]">{container.orderCount} commandes · statut {container.status}</div>
+            ) : initialDashboard.containers.map((container) => {
+              const containerOrders = initialDashboard.orders.filter((order) => order.containerId === container.id);
+              const shipmentTriggeredCount = containerOrders.filter((order) => order.status === "shipment_triggered").length;
+
+              return (
+                <div key={container.id} className="rounded-[16px] border border-[#edf1f6] px-4 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[15px] font-semibold text-[#1f2937]">{container.code}</div>
+                      <div className="mt-1 text-[13px] text-[#667085]">{container.orderCount} commandes · statut {container.status}</div>
+                      <div className="mt-1 text-[12px] text-[#98a2b3]">
+                        {container.status === "shipped"
+                          ? "Deja declenche. Les commandes du conteneur doivent maintenant apparaitre en statut Transport lance."
+                          : container.status === "ready_to_ship"
+                            ? "Pret au declenchement maritime."
+                            : "En cours de remplissage avant declenchement."}
+                      </div>
+                    </div>
+                    <button type="button" onClick={() => triggerContainer(container.id)} disabled={isPending || container.status === "shipped"} className="inline-flex h-10 items-center justify-center rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">
+                      {container.status === "shipped" ? "Deja declenche" : "Declencher"}
+                    </button>
                   </div>
-                  <button type="button" onClick={() => triggerContainer(container.id)} disabled={isPending || container.status === "shipped"} className="inline-flex h-10 items-center justify-center rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">
-                    Déclencher
-                  </button>
+                  <div className="mt-4 h-3 overflow-hidden rounded-full bg-[#edf1f6]">
+                    <div className="h-full rounded-full bg-[linear-gradient(90deg,#2f67f6_0%,#61a7ff_100%)]" style={{ width: `${container.fillPercent}%` }} />
+                  </div>
+                  <div className="mt-3 flex items-center justify-between text-[13px] text-[#667085]">
+                    <span>{container.currentCbm.toFixed(4)} / {container.targetCbm.toFixed(4)} CBM</span>
+                    <span>{container.fillPercent}% rempli</span>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-[14px] bg-[#fafbfd] px-3 py-3 ring-1 ring-[#edf1f6]">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Propagation statut</div>
+                      <div className="mt-1 text-[18px] font-black tracking-[-0.04em] text-[#1f2937]">{shipmentTriggeredCount}/{containerOrders.length}</div>
+                      <div className="mt-1 text-[12px] text-[#667085]">commandes en shipment_triggered</div>
+                    </div>
+                    <div className="rounded-[14px] bg-[#fafbfd] px-3 py-3 ring-1 ring-[#edf1f6]">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Reste à vérifier</div>
+                      <div className="mt-1 text-[18px] font-black tracking-[-0.04em] text-[#1f2937]">{Math.max(containerOrders.length - shipmentTriggeredCount, 0)}</div>
+                      <div className="mt-1 text-[12px] text-[#667085]">commande(s) non propagée(s)</div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {containerOrders.map((order) => (
+                      <Link key={`${container.id}-${order.id}`} href={`/admin/orders/${encodeURIComponent(order.id)}`} className="inline-flex items-center rounded-full border border-[#e4e7ec] bg-[#fafbfd] px-3 py-1 text-[12px] font-semibold text-[#475467] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
+                        {order.orderNumber} · {order.status}
+                      </Link>
+                    ))}
+                  </div>
                 </div>
-                <div className="mt-4 h-3 overflow-hidden rounded-full bg-[#edf1f6]">
-                  <div className="h-full rounded-full bg-[linear-gradient(90deg,#2f67f6_0%,#61a7ff_100%)]" style={{ width: `${container.fillPercent}%` }} />
-                </div>
-                <div className="mt-3 flex items-center justify-between text-[13px] text-[#667085]">
-                  <span>{container.currentCbm.toFixed(4)} / {container.targetCbm.toFixed(4)} CBM</span>
-                  <span>{container.fillPercent}% rempli</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </article>
 

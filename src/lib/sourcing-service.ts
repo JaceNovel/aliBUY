@@ -299,6 +299,10 @@ export async function triggerSeaContainerShipment(containerId: string) {
     throw new Error("Conteneur introuvable.");
   }
 
+  if (container.status === "shipped") {
+    throw new Error("Ce conteneur maritime a deja ete declenche.");
+  }
+
   const nextContainer: SourcingSeaContainer = {
     ...container,
     status: "shipped",

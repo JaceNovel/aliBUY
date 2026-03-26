@@ -92,6 +92,8 @@ function normalizeSettings(record: Record<string, unknown>): SourcingSettings {
 }
 
 function normalizeOrder(record: Record<string, unknown>): SourcingOrder {
+  const orderItems = Array.isArray(record.items) ? record.items : [];
+
   return {
     id: String(record.id),
     orderNumber: String(record.orderNumber),
@@ -132,20 +134,31 @@ function normalizeOrder(record: Record<string, unknown>): SourcingOrder {
     notes: record.notes ? String(record.notes) : undefined,
     createdAt: toIsoString(record.createdAt),
     updatedAt: toIsoString(record.updatedAt),
-    items: Array.isArray(record.items) ? record.items.map((item) => ({
-      slug: String((item as Record<string, unknown>).slug),
-      title: String((item as Record<string, unknown>).title),
-      quantity: toNumber((item as Record<string, unknown>).quantity),
-      weightKg: toNumber((item as Record<string, unknown>).weightKg),
-      volumeCbm: toNumber((item as Record<string, unknown>).volumeCbm),
-      supplierPriceFcfa: toNumber((item as Record<string, unknown>).supplierPriceFcfa),
-      marginMode: (item as Record<string, unknown>).marginMode === "fixed" ? "fixed" : "percent",
-      marginValue: toNumber((item as Record<string, unknown>).marginValue),
-      marginAmountFcfa: toNumber((item as Record<string, unknown>).marginAmountFcfa),
-      finalUnitPriceFcfa: toNumber((item as Record<string, unknown>).finalUnitPriceFcfa),
-      finalLinePriceFcfa: toNumber((item as Record<string, unknown>).finalLinePriceFcfa),
-      image: String((item as Record<string, unknown>).image),
-    })) : [],
+    items: orderItems.map((item) => {
+      const recordItem = item as Record<string, unknown>;
+      const rawTitle = typeof recordItem.title === "string" && recordItem.title.trim().length > 0
+        ? recordItem.title
+        : typeof recordItem.productName === "string" && recordItem.productName.trim().length > 0
+          ? recordItem.productName
+          : typeof recordItem.name === "string" && recordItem.name.trim().length > 0
+            ? recordItem.name
+            : "Produit sourcing";
+
+      return {
+        slug: String(recordItem.slug ?? recordItem.productSlug ?? "unknown-product"),
+        title: rawTitle,
+        quantity: toNumber(recordItem.quantity),
+        weightKg: toNumber(recordItem.weightKg),
+        volumeCbm: toNumber(recordItem.volumeCbm),
+        supplierPriceFcfa: toNumber(recordItem.supplierPriceFcfa),
+        marginMode: recordItem.marginMode === "fixed" ? "fixed" : "percent",
+        marginValue: toNumber(recordItem.marginValue),
+        marginAmountFcfa: toNumber(recordItem.marginAmountFcfa),
+        finalUnitPriceFcfa: toNumber(recordItem.finalUnitPriceFcfa),
+        finalLinePriceFcfa: toNumber(recordItem.finalLinePriceFcfa),
+        image: String(recordItem.image ?? ""),
+      };
+    }),
   };
 }
 

@@ -4,8 +4,13 @@ export async function POST(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await context.params;
-  const container = await triggerSeaContainerShipment(id);
+  try {
+    const { id } = await context.params;
+    const container = await triggerSeaContainerShipment(id);
 
-  return Response.json({ container });
+    return Response.json({ container });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Impossible de declencher ce conteneur.";
+    return Response.json({ message }, { status: 400 });
+  }
 }
