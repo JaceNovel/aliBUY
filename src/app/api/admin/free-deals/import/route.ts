@@ -14,6 +14,7 @@ export async function POST(request: Request) {
   const payload = await request.json().catch(() => null);
   const query = typeof payload?.query === "string" ? payload.query.trim() : "";
   const limit = typeof payload?.limit === "number" ? payload.limit : Number(payload?.limit ?? 12);
+  const maxUsd = typeof payload?.maxUsd === "number" ? payload.maxUsd : Number(payload?.maxUsd ?? 5);
 
   if (!query) {
     return NextResponse.json({ message: "La recherche Alibaba est requise." }, { status: 400 });
@@ -27,10 +28,15 @@ export async function POST(request: Request) {
       autoPublish: true,
     });
 
+    const cheapProducts = result.products
+      .filter((product) => Number.isFinite(product.minUsd) && product.minUsd <= (Number.isFinite(maxUsd) ? maxUsd : 5))
+      .sort((left, right) => left.minUsd - right.minUsd)
+      .slice(0, Number.isFinite(limit) ? limit : 12);
+
     const currentConfig = await getFreeDealConfig();
     const mergedSlugs = Array.from(new Set([
       ...currentConfig.productSlugs,
-      ...result.products.map((product) => product.slug),
+      ...cheapProducts.map((product) => product.slug),
     ]));
     const config = await saveFreeDealConfig({
       productSlugs: mergedSlugs,
@@ -38,11 +44,14 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       config,
-      products: result.products,
-      importedCount: result.products.length,
+      products: cheapProducts,
+      importedCount: cheapProducts.length,
       targetImportCount: result.targetImportCount,
-      warningMessage: result.warningMessage,
+      warningMessage: cheapProducts.length === 0
+        ? `Aucun produit importe n'est passe sous ${Number.isFinite(maxUsd) ? maxUsd : 5} USD.`
+        : result.warningMessage,
       skippedExistingCount: result.skippedExistingCount,
+      maxUsd: Number.isFinite(maxUsd) ? maxUsd : 5,
     });
   } catch (error) {
     return NextResponse.json({

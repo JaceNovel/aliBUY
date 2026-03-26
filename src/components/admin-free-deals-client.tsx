@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { LoaderCircle, Save, Search, Sparkles, WandSparkles } from "lucide-react";
+import { LoaderCircle, Save, Search, Sparkles, Trash2, WandSparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -85,7 +85,7 @@ export function AdminFreeDealsClient({
   const router = useRouter();
   const [config, setConfig] = useState(initialConfig);
   const [productSlugsText, setProductSlugsText] = useState(formatSlugList(initialConfig.productSlugs));
-  const [importForm, setImportForm] = useState({ query: "", limit: 18 });
+  const [importForm, setImportForm] = useState({ query: "", limit: 18, maxUsd: 5 });
   const [isSaving, setIsSaving] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -93,7 +93,9 @@ export function AdminFreeDealsClient({
   const selectedSlugs = useMemo(() => parseSlugList(productSlugsText), [productSlugsText]);
   const selectedSlugSet = useMemo(() => new Set(selectedSlugs), [selectedSlugs]);
   const selectedProducts = useMemo(
-    () => productOptions.filter((product) => selectedSlugSet.has(product.slug)),
+    () => productOptions
+      .filter((product) => selectedSlugSet.has(product.slug))
+      .sort((left, right) => left.minUsd - right.minUsd),
     [productOptions, selectedSlugSet],
   );
   const importCandidates = useMemo(
@@ -249,7 +251,7 @@ export function AdminFreeDealsClient({
               <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Import dédié</div>
               <h2 className="mt-2 text-[24px] font-black tracking-[-0.05em] text-[#101828]">Importer directement pour l’offre gratuite</h2>
               <p className="mt-2 text-[14px] leading-7 text-[#667085]">
-                Cette recherche publie automatiquement les produits sur le site et les rattache à la page produits gratuits.
+                Cette recherche publie automatiquement les produits sur le site et ne rattache a la campagne que les articles les moins chers, cibles sous 5 USD.
               </p>
             </div>
             <button type="button" onClick={fillWithCheapProducts} className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] border border-[#d0d5dd] px-4 text-[14px] font-semibold text-[#101828] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
@@ -258,7 +260,7 @@ export function AdminFreeDealsClient({
             </button>
           </div>
 
-          <div className="mt-5 grid gap-4 md:grid-cols-[1fr_120px_auto]">
+          <div className="mt-5 grid gap-4 md:grid-cols-[1fr_120px_140px_auto]">
             <label className="space-y-2 text-[13px] font-semibold text-[#344054]">
               <span>Recherche Alibaba</span>
               <input
@@ -276,6 +278,17 @@ export function AdminFreeDealsClient({
                 max={60}
                 value={importForm.limit}
                 onChange={(event) => setImportForm((current) => ({ ...current, limit: Number(event.target.value) || 12 }))}
+                className="h-12 w-full rounded-[14px] border border-[#dfe3ea] px-4 text-[14px] outline-none focus:border-[#ff6a00]"
+              />
+            </label>
+            <label className="space-y-2 text-[13px] font-semibold text-[#344054]">
+              <span>Prix max USD</span>
+              <input
+                type="number"
+                min={0.2}
+                step={0.1}
+                value={importForm.maxUsd}
+                onChange={(event) => setImportForm((current) => ({ ...current, maxUsd: Number(event.target.value) || 5 }))}
                 className="h-12 w-full rounded-[14px] border border-[#dfe3ea] px-4 text-[14px] outline-none focus:border-[#ff6a00]"
               />
             </label>
@@ -359,9 +372,45 @@ export function AdminFreeDealsClient({
           </button>
         </div>
 
+        <div className="mt-5">
+          <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#98a2b3]">Articles actuellement affichés sur la page</div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {selectedProducts.length > 0 ? selectedProducts.map((product) => (
+              <article key={product.slug} className="overflow-hidden rounded-[20px] border border-[#eef2f6] bg-[#fcfdfd]">
+                <div className="relative aspect-[1.02] bg-[#f3f6fa]">
+                  <Image src={product.image} alt={product.title} fill className="object-cover" />
+                  <div className="absolute left-3 top-3 rounded-full bg-[#111827] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white">
+                    Sur la page
+                  </div>
+                </div>
+                <div className="space-y-3 px-4 py-4">
+                  <div className="line-clamp-2 min-h-[40px] text-[15px] font-black leading-5 tracking-[-0.03em] text-[#101828]">{product.title}</div>
+                  <div className="text-[12px] text-[#667085]">{product.supplierName}</div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[13px] font-semibold text-[#ff6a00]">{formatUsd(product.minUsd)}</div>
+                    <button
+                      type="button"
+                      onClick={() => toggleSelectedProduct(product.slug)}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[#111827] px-4 text-[12px] font-semibold text-white transition hover:bg-black"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Retirer
+                    </button>
+                  </div>
+                </div>
+              </article>
+            )) : (
+              <div className="rounded-[18px] border border-dashed border-[#d0d5dd] px-4 py-4 text-[14px] text-[#667085] sm:col-span-2 xl:col-span-4">
+                Aucun article n&apos;est encore selectionne pour la page gratuite.
+              </div>
+            )}
+          </div>
+        </div>
+
         <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {importCandidates.map((product) => {
             const isSelected = selectedSlugSet.has(product.slug);
+            const isCheapEnough = product.minUsd <= importForm.maxUsd;
 
             return (
               <article key={product.id} className="overflow-hidden rounded-[22px] border border-[#eef2f6] bg-white shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
@@ -384,18 +433,18 @@ export function AdminFreeDealsClient({
                     <div className="text-[13px] font-semibold text-[#ff6a00]">{formatUsd(product.minUsd)}</div>
                     <button
                       type="button"
-                      disabled={!product.publishedToSite}
+                      disabled={!product.publishedToSite || !isCheapEnough}
                       onClick={() => toggleSelectedProduct(product.slug)}
                       className={[
                         "inline-flex h-10 items-center justify-center rounded-full px-4 text-[12px] font-semibold transition",
-                        !product.publishedToSite
+                        !product.publishedToSite || !isCheapEnough
                           ? "cursor-not-allowed bg-[#eef2f6] text-[#98a2b3]"
                           : isSelected
                             ? "bg-[#111827] text-white hover:bg-black"
                             : "bg-[#fff1e8] text-[#ff6a00] hover:bg-[#ffe3d2]",
                       ].join(" ")}
                     >
-                      {!product.publishedToSite ? "Publier d'abord" : isSelected ? "Retirer" : "Ajouter"}
+                      {!product.publishedToSite ? "Publier d'abord" : !isCheapEnough ? "Trop cher" : isSelected ? "Retirer" : "Ajouter"}
                     </button>
                   </div>
                 </div>

@@ -427,7 +427,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
           <h2 className="text-[34px] font-black tracking-[-0.06em] text-[#111827] sm:text-[48px]">Offres du jour</h2>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
         {products.map((product) => {
           const isSelected = selectedSlugs.includes(product.slug);
           const isDisabled = !isSelectable || (selectedSlugs.length >= config.itemLimit && !isSelected);
@@ -436,20 +436,20 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
             <article
               key={product.slug}
               className={[
-                "overflow-hidden rounded-[24px] bg-white shadow-[0_10px_32px_rgba(17,24,39,0.08)] ring-1 transition",
+                "overflow-hidden rounded-[18px] bg-white shadow-[0_8px_22px_rgba(17,24,39,0.08)] ring-1 transition sm:rounded-[20px]",
                 isSelected ? "ring-[#ff4f2a]" : "ring-black/5",
                 isDisabled ? "opacity-80" : "hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(17,24,39,0.12)]",
               ].join(" ")}
             >
-              <div className="relative aspect-[0.95] bg-[#f6f7fb]">
+              <div className="relative aspect-square bg-[#f6f7fb]">
                 <Image
                   src={product.image}
                   alt={product.title}
                   fill
-                  sizes="(min-width: 1280px) 23vw, (min-width: 640px) 45vw, 96vw"
+                  sizes="(min-width: 1280px) 15vw, (min-width: 1024px) 22vw, (min-width: 640px) 30vw, 48vw"
                   className="object-cover"
                 />
-                <div className="absolute left-0 right-0 top-0 flex items-center justify-between bg-[#1fc76a] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-white">
+                <div className="absolute left-0 right-0 top-0 flex items-center justify-between bg-[#1fc76a] px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-[0.12em] text-white sm:px-3 sm:py-2 sm:text-[11px] sm:tracking-[0.14em]">
                   <span>ALL</span>
                   <span>{product.badgeText}</span>
                 </div>
@@ -458,33 +458,33 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
                   onClick={() => toggleSelection(product.slug)}
                   disabled={isDisabled}
                   className={[
-                    "absolute bottom-3 right-3 inline-flex h-12 w-12 items-center justify-center rounded-full border text-white shadow-[0_14px_28px_rgba(17,24,39,0.18)] transition",
+                    "absolute bottom-2 right-2 inline-flex h-10 w-10 items-center justify-center rounded-full border text-white shadow-[0_14px_28px_rgba(17,24,39,0.18)] transition sm:bottom-3 sm:right-3 sm:h-12 sm:w-12",
                     isSelected ? "border-[#111827] bg-[#111827]" : "border-white bg-[#ff4f2a]",
                     isDisabled ? "cursor-not-allowed opacity-70" : "hover:scale-105",
                   ].join(" ")}
                   aria-label={isSelected ? "Retirer cet article" : "Selectionner cet article"}
                 >
-                  {isSelected ? <Check className="h-5 w-5" /> : <Gift className="h-5 w-5" />}
+                  {isSelected ? <Check className="h-4 w-4 sm:h-5 sm:w-5" /> : <Gift className="h-4 w-4 sm:h-5 sm:w-5" />}
                 </button>
               </div>
-              <div className="space-y-3 px-4 py-4">
+              <div className="space-y-2 px-3 py-3 sm:space-y-3 sm:px-4 sm:py-4">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#15b86c]">Campagne acquisition</div>
-                  <div className="rounded-full bg-[#fff1f5] px-2 py-1 text-[10px] font-bold text-[#ff275f]">{product.tagText}</div>
+                  <div className="text-[9px] font-semibold uppercase tracking-[0.1em] text-[#15b86c] sm:text-[11px] sm:tracking-[0.14em]">Campagne acquisition</div>
+                  <div className="rounded-full bg-[#fff1f5] px-2 py-1 text-[9px] font-bold text-[#ff275f] sm:text-[10px]">{product.tagText}</div>
                 </div>
-                <h2 className="line-clamp-2 min-h-[48px] text-[17px] font-black leading-6 tracking-[-0.03em] text-[#111827]">
+                <h2 className="line-clamp-2 min-h-[38px] text-[13px] font-black leading-5 tracking-[-0.03em] text-[#111827] sm:min-h-[48px] sm:text-[17px] sm:leading-6">
                   {product.title}
                 </h2>
-                <div className="text-[13px] text-[#667085]">{product.supplierName}</div>
+                <div className="line-clamp-1 text-[11px] text-[#667085] sm:text-[13px]">{product.supplierName}</div>
                 <div className="flex items-end gap-2">
-                  <div className="text-[26px] font-black tracking-[-0.05em] text-[#ff4f2a]">{product.freeLabel}</div>
-                  <div className="pb-1 text-[15px] font-semibold text-[#98a2b3] line-through">{product.compareAtLabel}</div>
+                  <div className="text-[19px] font-black tracking-[-0.05em] text-[#ff4f2a] sm:text-[26px]">{product.freeLabel}</div>
+                  <div className="pb-0.5 text-[11px] font-semibold text-[#98a2b3] line-through sm:pb-1 sm:text-[15px]">{product.compareAtLabel}</div>
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <Link href={product.href} prefetch={false} className="text-[13px] font-semibold text-[#111827] transition hover:text-[#ff4f2a]">
+                  <Link href={product.href} prefetch={false} className="text-[11px] font-semibold text-[#111827] transition hover:text-[#ff4f2a] sm:text-[13px]">
                     Voir le produit
                   </Link>
-                  <div className="text-[12px] font-semibold text-[#ff4f2a]">
+                  <div className="text-[10px] font-semibold text-[#ff4f2a] sm:text-[12px]">
                     {isSelected ? "Selectionne" : "Choisir"}
                   </div>
                 </div>
