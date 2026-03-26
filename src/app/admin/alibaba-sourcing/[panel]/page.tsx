@@ -18,7 +18,7 @@ export default async function AdminAlibabaSourcingPanelPage({
     notFound();
   }
 
-  if (normalizedPanel === "lots") {
+  if (normalizedPanel === "sourcing-lots") {
     const dashboard = await getSourcingDashboardData();
     return <AdminSourcingDashboardClient initialDashboard={dashboard} />;
   }

@@ -78,6 +78,7 @@ export const adminNavSubItems: Partial<Record<AdminSectionSlug, AdminNavSubItem[
     { label: "Mappings produit-source", href: "/admin/alibaba-sourcing/mappings" },
     { label: "Demandes", href: "/admin/alibaba-sourcing/requests" },
     { label: "Lots d'achat", href: "/admin/alibaba-sourcing/lots" },
+    { label: "Lots sourcing", href: "/admin/alibaba-sourcing/sourcing-lots" },
     { label: "Receptions", href: "/admin/alibaba-sourcing/receptions" },
   ],
 };

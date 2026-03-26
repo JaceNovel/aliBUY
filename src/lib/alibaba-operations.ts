@@ -13,6 +13,7 @@ export const ALIBABA_PANEL_SLUGS = [
   "mappings",
   "requests",
   "lots",
+  "sourcing-lots",
   "receptions",
 ] as const;
 

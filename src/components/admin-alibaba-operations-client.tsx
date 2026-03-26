@@ -50,6 +50,7 @@ const panelLinks: Array<{ key: AlibabaPanelSlug; label: string; href: string }> 
   { key: "mappings", label: "Mappings produit-source", href: "/admin/alibaba-sourcing/mappings" },
   { key: "requests", label: "Demandes", href: "/admin/alibaba-sourcing/requests" },
   { key: "lots", label: "Lots d'achat", href: "/admin/alibaba-sourcing/lots" },
+  { key: "sourcing-lots", label: "Lots sourcing", href: "/admin/alibaba-sourcing/sourcing-lots" },
   { key: "receptions", label: "Receptions", href: "/admin/alibaba-sourcing/receptions" },
 ];
 
