@@ -3,7 +3,6 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { Prisma } from "@prisma/client";
-import { revalidateTag, unstable_cache } from "next/cache";
 
 import type {
   AlibabaCountryProfile,
@@ -48,7 +47,6 @@ const COUNTRY_PROFILES_PATH = path.join(ROOT_DIR, "alibaba-country-profiles.json
 const RECEPTION_ADDRESSES_PATH = path.join(ROOT_DIR, "alibaba-reception-addresses.json");
 const PURCHASE_ORDERS_PATH = path.join(ROOT_DIR, "alibaba-purchase-orders.json");
 const RECEPTIONS_PATH = path.join(ROOT_DIR, "alibaba-receptions.json");
-const ALIBABA_IMPORTED_PRODUCTS_CACHE_TAG = "alibaba-imported-products";
 type EncryptedField = "appSecret" | "accessToken" | "refreshToken";
 
 type EncryptedPayload = {
@@ -186,6 +184,37 @@ function enableDatabaseFallback(error: unknown) {
     databaseFallbackForced = true;
     console.warn("[alibaba-operations-store] database unavailable, falling back to JSON storage", error);
   }
+}
+
+let importedProductsCache:
+  | {
+      value: AlibabaImportedProduct[];
+      expiresAt: number;
+    }
+  | null = null;
+
+function getCachedImportedProductsSnapshot() {
+  if (!importedProductsCache) {
+    return null;
+  }
+
+  if (Date.now() >= importedProductsCache.expiresAt) {
+    importedProductsCache = null;
+    return null;
+  }
+
+  return importedProductsCache.value;
+}
+
+function setCachedImportedProductsSnapshot(products: AlibabaImportedProduct[]) {
+  importedProductsCache = {
+    value: products,
+    expiresAt: Date.now() + 5 * 60 * 1000,
+  };
+}
+
+function invalidateImportedProductsSnapshot() {
+  importedProductsCache = null;
 }
 
 function toPrismaJson(value: unknown): Prisma.InputJsonValue | undefined {
@@ -1383,24 +1412,22 @@ async function readAlibabaImportedProductsSource(): Promise<AlibabaImportedProdu
   return readJsonFile<AlibabaImportedProduct[]>(IMPORTED_PRODUCTS_PATH, []);
 }
 
-const getCachedAlibabaImportedProducts = unstable_cache(
-  async () => readAlibabaImportedProductsSource(),
-  ["alibaba-imported-products"],
-  {
-    revalidate: 300,
-    tags: [ALIBABA_IMPORTED_PRODUCTS_CACHE_TAG],
-  },
-);
-
 export async function getAlibabaImportedProducts(): Promise<AlibabaImportedProduct[]> {
-  return getCachedAlibabaImportedProducts();
+  const cached = getCachedImportedProductsSnapshot();
+  if (cached) {
+    return cached;
+  }
+
+  const products = await readAlibabaImportedProductsSource();
+  setCachedImportedProductsSnapshot(products);
+  return products;
 }
 
 export async function saveAlibabaImportedProducts(products: AlibabaImportedProduct[]): Promise<AlibabaImportedProduct[]> {
   if (canUseDatabase()) {
     try {
       const next = await writeAlibabaImportedProductsDbBulk(products);
-      revalidateTag(ALIBABA_IMPORTED_PRODUCTS_CACHE_TAG, "max");
+      invalidateImportedProductsSnapshot();
       return next;
     } catch (error) {
       if (!isPrismaDatabaseUnavailable(error)) {
@@ -1420,7 +1447,7 @@ export async function saveAlibabaImportedProducts(products: AlibabaImportedProdu
 
   const next = [...nextMap.values()].sort((left: AlibabaImportedProduct, right: AlibabaImportedProduct) => right.updatedAt.localeCompare(left.updatedAt));
   await writeJsonFile(IMPORTED_PRODUCTS_PATH, next);
-  revalidateTag(ALIBABA_IMPORTED_PRODUCTS_CACHE_TAG, "max");
+  invalidateImportedProductsSnapshot();
   return next;
 }
 
@@ -1428,7 +1455,7 @@ export async function deleteAlibabaImportedProduct(importedProductId: string): P
   if (canUseDatabase()) {
     try {
       await prisma.alibabaImportedProductRecord.deleteMany({ where: { id: importedProductId } });
-      revalidateTag(ALIBABA_IMPORTED_PRODUCTS_CACHE_TAG, "max");
+      invalidateImportedProductsSnapshot();
       return;
     } catch (error) {
       if (!isPrismaDatabaseUnavailable(error)) {
@@ -1442,7 +1469,7 @@ export async function deleteAlibabaImportedProduct(importedProductId: string): P
   const products = await readAlibabaImportedProductsSource();
   const next = products.filter((product: AlibabaImportedProduct) => product.id !== importedProductId);
   await writeJsonFile(IMPORTED_PRODUCTS_PATH, next);
-  revalidateTag(ALIBABA_IMPORTED_PRODUCTS_CACHE_TAG, "max");
+  invalidateImportedProductsSnapshot();
 }
 
 export async function getAlibabaSupplierAccounts(): Promise<AlibabaSupplierAccount[]> {

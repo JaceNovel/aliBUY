@@ -1,7 +1,6 @@
 import "server-only";
 
 import { cache } from "react";
-import { unstable_cache } from "next/cache";
 
 import { canonicalizeAlibabaCategory, extractAlibabaCategoryInfo, toCatalogProduct } from "@/lib/alibaba-operations";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
@@ -52,87 +51,76 @@ function buildCategoryHref(slug: string) {
   return `/categories/${encodeURIComponent(slug)}`;
 }
 
-const getCachedCatalogCategories = unstable_cache(
-  async () => {
-    const importedProducts = (await getAlibabaImportedProducts())
-      .filter((item) => item.publishedToSite && item.status === "published");
+export const getCatalogCategories = cache(async function getCatalogCategories() {
+  const importedProducts = (await getAlibabaImportedProducts())
+    .filter((item) => item.publishedToSite && item.status === "published");
 
-    const groups = new Map<string, CategoryAccumulator>();
+  const groups = new Map<string, CategoryAccumulator>();
 
-    for (const importedProduct of importedProducts) {
-      const extractedCategory = extractAlibabaCategoryInfo({
-        ...importedProduct,
-        rawPayload: importedProduct.rawPayload,
-        categorySlug: importedProduct.categorySlug,
-        categoryTitle: importedProduct.categoryTitle,
-        categoryPath: importedProduct.categoryPath,
-      });
-      const canonicalCategory = canonicalizeAlibabaCategory({
-        title: extractedCategory.title,
-        path: extractedCategory.path,
-      });
-      const category = {
-        slug: canonicalCategory.slug,
-        title: canonicalCategory.title,
-        description: buildCategoryDescription(canonicalCategory.title, canonicalCategory.path, 1),
-        path: canonicalCategory.path,
-      };
-      const catalogProduct = toCatalogProduct(importedProduct);
-      const existing = groups.get(category.slug);
+  for (const importedProduct of importedProducts) {
+    const extractedCategory = extractAlibabaCategoryInfo({
+      ...importedProduct,
+      rawPayload: importedProduct.rawPayload,
+      categorySlug: importedProduct.categorySlug,
+      categoryTitle: importedProduct.categoryTitle,
+      categoryPath: importedProduct.categoryPath,
+    });
+    const canonicalCategory = canonicalizeAlibabaCategory({
+      title: extractedCategory.title,
+      path: extractedCategory.path,
+    });
+    const category = {
+      slug: canonicalCategory.slug,
+      title: canonicalCategory.title,
+      description: buildCategoryDescription(canonicalCategory.title, canonicalCategory.path, 1),
+      path: canonicalCategory.path,
+    };
+    const catalogProduct = toCatalogProduct(importedProduct);
+    const existing = groups.get(category.slug);
 
-      if (existing) {
-        existing.products.push(catalogProduct);
-        if (importedProduct.query?.trim()) {
-          existing.queries.add(importedProduct.query.trim());
-        }
-        continue;
+    if (existing) {
+      existing.products.push(catalogProduct);
+      if (importedProduct.query?.trim()) {
+        existing.queries.add(importedProduct.query.trim());
       }
-
-      groups.set(category.slug, {
-        slug: category.slug,
-        title: category.title,
-        description: category.description,
-        sourcePath: category.path,
-        queries: new Set(importedProduct.query?.trim() ? [importedProduct.query.trim()] : []),
-        products: [catalogProduct],
-      });
+      continue;
     }
 
-    return [...groups.values()]
-      .map((group) => {
-        const products = dedupeProducts(group.products);
+    groups.set(category.slug, {
+      slug: category.slug,
+      title: category.title,
+      description: category.description,
+      sourcePath: category.path,
+      queries: new Set(importedProduct.query?.trim() ? [importedProduct.query.trim()] : []),
+      products: [catalogProduct],
+    });
+  }
 
-        return {
-          slug: group.slug,
-          title: group.title,
-          description: group.description || buildCategoryDescription(group.title, group.sourcePath, products.length),
-          href: buildCategoryHref(group.slug),
-          image: products[0]?.image,
-          productCount: products.length,
-          productSlugs: products.map((product) => product.slug),
-          sourcePath: group.sourcePath,
-          sourcePathLabel: group.sourcePath.join(" / "),
-          queries: [...group.queries].filter(Boolean),
-          products,
-        } satisfies CatalogCategoryRecord;
-      })
-      .sort((left, right) => {
-        if (left.productCount === right.productCount) {
-          return left.title.localeCompare(right.title, "fr");
-        }
+  return [...groups.values()]
+    .map((group) => {
+      const products = dedupeProducts(group.products);
 
-        return right.productCount - left.productCount;
-      });
-  },
-  ["catalog-categories"],
-  {
-    revalidate: 300,
-    tags: ["alibaba-imported-products"],
-  },
-);
+      return {
+        slug: group.slug,
+        title: group.title,
+        description: group.description || buildCategoryDescription(group.title, group.sourcePath, products.length),
+        href: buildCategoryHref(group.slug),
+        image: products[0]?.image,
+        productCount: products.length,
+        productSlugs: products.map((product) => product.slug),
+        sourcePath: group.sourcePath,
+        sourcePathLabel: group.sourcePath.join(" / "),
+        queries: [...group.queries].filter(Boolean),
+        products,
+      } satisfies CatalogCategoryRecord;
+    })
+    .sort((left, right) => {
+      if (left.productCount === right.productCount) {
+        return left.title.localeCompare(right.title, "fr");
+      }
 
-export const getCatalogCategories = cache(async function getCatalogCategories() {
-  return getCachedCatalogCategories();
+      return right.productCount - left.productCount;
+    });
 });
 
 export const getCatalogCategoryBySlug = cache(async function getCatalogCategoryBySlug(slug: string) {

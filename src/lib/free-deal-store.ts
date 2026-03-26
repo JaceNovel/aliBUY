@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomBytes, createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import { Prisma } from "@prisma/client";
@@ -98,7 +99,23 @@ export type FreeDealAccessState = {
   sharePath: string | null;
 };
 
-const SITE_DIR = path.join(process.cwd(), "data", "site");
+function resolveSiteDir() {
+  const isServerlessRuntime = Boolean(
+    process.env.VERCEL
+    || process.env.VERCEL_ENV
+    || process.env.VERCEL_URL
+    || process.env.AWS_EXECUTION_ENV
+    || process.env.AWS_LAMBDA_FUNCTION_NAME,
+  );
+
+  if (process.env.NODE_ENV === "production" || isServerlessRuntime) {
+    return path.join(os.tmpdir(), "afripay", "data", "site");
+  }
+
+  return path.join(process.cwd(), "data", "site");
+}
+
+const SITE_DIR = resolveSiteDir();
 const CONFIG_PATH = path.join(SITE_DIR, "free-deal-config.json");
 const CLAIMS_PATH = path.join(SITE_DIR, "free-deal-claims.json");
 const VISITS_PATH = path.join(SITE_DIR, "free-deal-referral-visits.json");
@@ -131,25 +148,58 @@ function hasDatabase() {
   return Boolean(process.env.DATABASE_URL);
 }
 
+let databaseFallbackForced = false;
+
+function canUseDatabase() {
+  return hasDatabase() && !databaseFallbackForced;
+}
+
+function isPrismaDatabaseUnavailable(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as { code?: unknown; message?: unknown };
+  const message = typeof candidate.message === "string" ? candidate.message : "";
+  return candidate.code === "P1001"
+    || message.includes("Can't reach database server")
+    || message.includes("db.prisma.io:5432");
+}
+
+function enableDatabaseFallback(error: unknown) {
+  if (!databaseFallbackForced) {
+    databaseFallbackForced = true;
+    console.warn("[free-deal-store] database unavailable, falling back to JSON storage", error);
+  }
+}
+
 async function ensureSiteDir() {
   await mkdir(SITE_DIR, { recursive: true });
 }
 
 async function readJsonFile<T>(filePath: string, fallback: T): Promise<T> {
-  await ensureSiteDir();
-
   try {
+    await ensureSiteDir();
     const raw = await readFile(filePath, "utf8");
     return JSON.parse(raw) as T;
   } catch {
-    await writeJsonFile(filePath, fallback);
+    try {
+      await writeJsonFile(filePath, fallback);
+    } catch {
+      return fallback;
+    }
+
     return fallback;
   }
 }
 
 async function writeJsonFile<T>(filePath: string, value: T) {
   await ensureSiteDir();
-  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  try {
+    await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  } catch {
+    // On serverless platforms this storage can be ephemeral or unavailable.
+  }
 }
 
 function toPrismaJson(value: unknown): Prisma.InputJsonValue {
@@ -299,9 +349,17 @@ export function buildFreeDealShareUrl(origin: string, referralCode: string) {
 }
 
 async function getClaims() {
-  if (hasDatabase()) {
-    const records = await prisma.freeDealClaimRecord.findMany({ orderBy: { createdAt: "desc" } });
-    return records.map((record) => normalizeClaimRecord(record as unknown as Record<string, unknown>));
+  if (canUseDatabase()) {
+    try {
+      const records = await prisma.freeDealClaimRecord.findMany({ orderBy: { createdAt: "desc" } });
+      return records.map((record) => normalizeClaimRecord(record as unknown as Record<string, unknown>));
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const records = await readJsonFile<Record<string, unknown>[]>(CLAIMS_PATH, []);
@@ -313,9 +371,17 @@ async function saveClaims(claims: FreeDealClaim[]) {
 }
 
 async function getReferralVisits() {
-  if (hasDatabase()) {
-    const records = await prisma.freeDealReferralVisitRecord.findMany({ orderBy: { createdAt: "desc" } });
-    return records.map((record) => normalizeReferralVisitRecord(record as unknown as Record<string, unknown>));
+  if (canUseDatabase()) {
+    try {
+      const records = await prisma.freeDealReferralVisitRecord.findMany({ orderBy: { createdAt: "desc" } });
+      return records.map((record) => normalizeReferralVisitRecord(record as unknown as Record<string, unknown>));
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const records = await readJsonFile<Record<string, unknown>[]>(VISITS_PATH, []);
@@ -327,9 +393,17 @@ async function saveReferralVisits(visits: FreeDealReferralVisit[]) {
 }
 
 async function referralCodeExists(referralCode: string) {
-  if (hasDatabase()) {
-    const existing = await prisma.freeDealClaimRecord.findUnique({ where: { referralCode } });
-    return Boolean(existing);
+  if (canUseDatabase()) {
+    try {
+      const existing = await prisma.freeDealClaimRecord.findUnique({ where: { referralCode } });
+      return Boolean(existing);
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const claims = await getClaims();
@@ -348,30 +422,38 @@ async function generateUniqueReferralCode() {
 }
 
 async function updateClaimRecord(claim: FreeDealClaim) {
-  if (hasDatabase()) {
-    await prisma.freeDealClaimRecord.update({
-      where: { id: claim.id },
-      data: {
-        status: claim.status,
-        userId: claim.userId,
-        customerEmail: claim.customerEmail,
-        customerName: claim.customerName,
-        orderId: claim.orderId,
-        deviceIdHash: claim.deviceIdHash,
-        ipHash: claim.ipHash,
-        userAgentHash: claim.userAgentHash,
-        referralGoal: claim.referralGoal,
-        referralVisitCount: claim.referralVisitCount,
-        itemLimit: claim.itemLimit,
-        fixedPriceEur: claim.fixedPriceEur,
-        fixedPriceFcfa: claim.fixedPriceFcfa,
-        selectedProductSlugs: toPrismaJson(claim.selectedProductSlugs),
-        paidAt: claim.paidAt ? new Date(claim.paidAt) : null,
-        unlockedAt: claim.unlockedAt ? new Date(claim.unlockedAt) : null,
-      },
-    });
+  if (canUseDatabase()) {
+    try {
+      await prisma.freeDealClaimRecord.update({
+        where: { id: claim.id },
+        data: {
+          status: claim.status,
+          userId: claim.userId,
+          customerEmail: claim.customerEmail,
+          customerName: claim.customerName,
+          orderId: claim.orderId,
+          deviceIdHash: claim.deviceIdHash,
+          ipHash: claim.ipHash,
+          userAgentHash: claim.userAgentHash,
+          referralGoal: claim.referralGoal,
+          referralVisitCount: claim.referralVisitCount,
+          itemLimit: claim.itemLimit,
+          fixedPriceEur: claim.fixedPriceEur,
+          fixedPriceFcfa: claim.fixedPriceFcfa,
+          selectedProductSlugs: toPrismaJson(claim.selectedProductSlugs),
+          paidAt: claim.paidAt ? new Date(claim.paidAt) : null,
+          unlockedAt: claim.unlockedAt ? new Date(claim.unlockedAt) : null,
+        },
+      });
 
-    return claim;
+      return claim;
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const claims = await getClaims();
@@ -380,33 +462,41 @@ async function updateClaimRecord(claim: FreeDealClaim) {
 }
 
 async function createClaimRecord(claim: FreeDealClaim) {
-  if (hasDatabase()) {
-    await prisma.freeDealClaimRecord.create({
-      data: {
-        id: claim.id,
-        status: claim.status,
-        userId: claim.userId,
-        customerEmail: claim.customerEmail,
-        customerName: claim.customerName,
-        orderId: claim.orderId,
-        referralCode: claim.referralCode,
-        deviceIdHash: claim.deviceIdHash,
-        ipHash: claim.ipHash,
-        userAgentHash: claim.userAgentHash,
-        referralGoal: claim.referralGoal,
-        referralVisitCount: claim.referralVisitCount,
-        itemLimit: claim.itemLimit,
-        fixedPriceEur: claim.fixedPriceEur,
-        fixedPriceFcfa: claim.fixedPriceFcfa,
-        selectedProductSlugs: toPrismaJson(claim.selectedProductSlugs),
-        paidAt: claim.paidAt ? new Date(claim.paidAt) : null,
-        unlockedAt: claim.unlockedAt ? new Date(claim.unlockedAt) : null,
-        createdAt: new Date(claim.createdAt),
-        updatedAt: new Date(claim.updatedAt),
-      },
-    });
+  if (canUseDatabase()) {
+    try {
+      await prisma.freeDealClaimRecord.create({
+        data: {
+          id: claim.id,
+          status: claim.status,
+          userId: claim.userId,
+          customerEmail: claim.customerEmail,
+          customerName: claim.customerName,
+          orderId: claim.orderId,
+          referralCode: claim.referralCode,
+          deviceIdHash: claim.deviceIdHash,
+          ipHash: claim.ipHash,
+          userAgentHash: claim.userAgentHash,
+          referralGoal: claim.referralGoal,
+          referralVisitCount: claim.referralVisitCount,
+          itemLimit: claim.itemLimit,
+          fixedPriceEur: claim.fixedPriceEur,
+          fixedPriceFcfa: claim.fixedPriceFcfa,
+          selectedProductSlugs: toPrismaJson(claim.selectedProductSlugs),
+          paidAt: claim.paidAt ? new Date(claim.paidAt) : null,
+          unlockedAt: claim.unlockedAt ? new Date(claim.unlockedAt) : null,
+          createdAt: new Date(claim.createdAt),
+          updatedAt: new Date(claim.updatedAt),
+        },
+      });
 
-    return claim;
+      return claim;
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const claims = await getClaims();
@@ -415,13 +505,21 @@ async function createClaimRecord(claim: FreeDealClaim) {
 }
 
 async function getClaimReferralVisitCount(claimId: string) {
-  if (hasDatabase()) {
-    return prisma.freeDealReferralVisitRecord.count({
-      where: {
-        claimId,
-        counted: true,
-      },
-    });
+  if (canUseDatabase()) {
+    try {
+      return prisma.freeDealReferralVisitRecord.count({
+        where: {
+          claimId,
+          counted: true,
+        },
+      });
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const visits = await getReferralVisits();
@@ -429,26 +527,34 @@ async function getClaimReferralVisitCount(claimId: string) {
 }
 
 async function getLatestMatchingClaim(identity: ResolvedFreeDealIdentity) {
-  if (hasDatabase()) {
-    const orConditions: Array<Record<string, string>> = [{ deviceIdHash: identity.deviceIdHash }];
-    if (identity.ipHash) {
-      orConditions.push({ ipHash: identity.ipHash });
-    }
-    if (identity.userId) {
-      orConditions.push({ userId: identity.userId });
-    }
-    if (identity.customerEmail) {
-      orConditions.push({ customerEmail: identity.customerEmail });
-    }
+  if (canUseDatabase()) {
+    try {
+      const orConditions: Array<Record<string, string>> = [{ deviceIdHash: identity.deviceIdHash }];
+      if (identity.ipHash) {
+        orConditions.push({ ipHash: identity.ipHash });
+      }
+      if (identity.userId) {
+        orConditions.push({ userId: identity.userId });
+      }
+      if (identity.customerEmail) {
+        orConditions.push({ customerEmail: identity.customerEmail });
+      }
 
-    const record = await prisma.freeDealClaimRecord.findFirst({
-      where: {
-        OR: orConditions,
-      },
-      orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
-    });
+      const record = await prisma.freeDealClaimRecord.findFirst({
+        where: {
+          OR: orConditions,
+        },
+        orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
+      });
 
-    return record ? normalizeClaimRecord(record as unknown as Record<string, unknown>) : null;
+      return record ? normalizeClaimRecord(record as unknown as Record<string, unknown>) : null;
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const claims = await getClaims();
@@ -461,10 +567,18 @@ async function getLatestMatchingClaim(identity: ResolvedFreeDealIdentity) {
 }
 
 export async function getFreeDealConfig() {
-  if (hasDatabase()) {
-    const record = await prisma.freeDealConfigRecord.findFirst({ orderBy: { updatedAt: "desc" } });
-    if (record) {
-      return normalizeConfigRecord(record as unknown as Record<string, unknown>);
+  if (canUseDatabase()) {
+    try {
+      const record = await prisma.freeDealConfigRecord.findFirst({ orderBy: { updatedAt: "desc" } });
+      if (record) {
+        return normalizeConfigRecord(record as unknown as Record<string, unknown>);
+      }
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
     }
   }
 
@@ -482,59 +596,67 @@ export async function saveFreeDealConfig(input: Partial<FreeDealConfig>) {
     createdAt: current.createdAt,
   });
 
-  if (hasDatabase()) {
-    const existing = await prisma.freeDealConfigRecord.findUnique({ where: { id: DEFAULT_CONFIG_ID } });
-    if (existing) {
-      await prisma.freeDealConfigRecord.update({
-        where: { id: DEFAULT_CONFIG_ID },
-        data: {
-          enabled: nextConfig.enabled,
-          pageTitle: nextConfig.pageTitle,
-          heroBadge: nextConfig.heroBadge,
-          heroTitle: nextConfig.heroTitle,
-          heroSubtitle: nextConfig.heroSubtitle,
-          bannerText: nextConfig.bannerText,
-          ctaLabel: nextConfig.ctaLabel,
-          shareTitle: nextConfig.shareTitle,
-          shareDescription: nextConfig.shareDescription,
-          itemLimit: nextConfig.itemLimit,
-          fixedPriceEur: nextConfig.fixedPriceEur,
-          referralGoal: nextConfig.referralGoal,
-          dealTagText: nextConfig.dealTagText,
-          productBadgeText: nextConfig.productBadgeText,
-          compareAtMultiplier: nextConfig.compareAtMultiplier,
-          compareAtExtraEur: nextConfig.compareAtExtraEur,
-          productSlugs: toPrismaJson(nextConfig.productSlugs),
-        },
-      });
-    } else {
-      await prisma.freeDealConfigRecord.create({
-        data: {
-          id: DEFAULT_CONFIG_ID,
-          enabled: nextConfig.enabled,
-          pageTitle: nextConfig.pageTitle,
-          heroBadge: nextConfig.heroBadge,
-          heroTitle: nextConfig.heroTitle,
-          heroSubtitle: nextConfig.heroSubtitle,
-          bannerText: nextConfig.bannerText,
-          ctaLabel: nextConfig.ctaLabel,
-          shareTitle: nextConfig.shareTitle,
-          shareDescription: nextConfig.shareDescription,
-          itemLimit: nextConfig.itemLimit,
-          fixedPriceEur: nextConfig.fixedPriceEur,
-          referralGoal: nextConfig.referralGoal,
-          dealTagText: nextConfig.dealTagText,
-          productBadgeText: nextConfig.productBadgeText,
-          compareAtMultiplier: nextConfig.compareAtMultiplier,
-          compareAtExtraEur: nextConfig.compareAtExtraEur,
-          productSlugs: toPrismaJson(nextConfig.productSlugs),
-          createdAt: new Date(nextConfig.createdAt),
-          updatedAt: new Date(nextConfig.updatedAt),
-        },
-      });
-    }
+  if (canUseDatabase()) {
+    try {
+      const existing = await prisma.freeDealConfigRecord.findUnique({ where: { id: DEFAULT_CONFIG_ID } });
+      if (existing) {
+        await prisma.freeDealConfigRecord.update({
+          where: { id: DEFAULT_CONFIG_ID },
+          data: {
+            enabled: nextConfig.enabled,
+            pageTitle: nextConfig.pageTitle,
+            heroBadge: nextConfig.heroBadge,
+            heroTitle: nextConfig.heroTitle,
+            heroSubtitle: nextConfig.heroSubtitle,
+            bannerText: nextConfig.bannerText,
+            ctaLabel: nextConfig.ctaLabel,
+            shareTitle: nextConfig.shareTitle,
+            shareDescription: nextConfig.shareDescription,
+            itemLimit: nextConfig.itemLimit,
+            fixedPriceEur: nextConfig.fixedPriceEur,
+            referralGoal: nextConfig.referralGoal,
+            dealTagText: nextConfig.dealTagText,
+            productBadgeText: nextConfig.productBadgeText,
+            compareAtMultiplier: nextConfig.compareAtMultiplier,
+            compareAtExtraEur: nextConfig.compareAtExtraEur,
+            productSlugs: toPrismaJson(nextConfig.productSlugs),
+          },
+        });
+      } else {
+        await prisma.freeDealConfigRecord.create({
+          data: {
+            id: DEFAULT_CONFIG_ID,
+            enabled: nextConfig.enabled,
+            pageTitle: nextConfig.pageTitle,
+            heroBadge: nextConfig.heroBadge,
+            heroTitle: nextConfig.heroTitle,
+            heroSubtitle: nextConfig.heroSubtitle,
+            bannerText: nextConfig.bannerText,
+            ctaLabel: nextConfig.ctaLabel,
+            shareTitle: nextConfig.shareTitle,
+            shareDescription: nextConfig.shareDescription,
+            itemLimit: nextConfig.itemLimit,
+            fixedPriceEur: nextConfig.fixedPriceEur,
+            referralGoal: nextConfig.referralGoal,
+            dealTagText: nextConfig.dealTagText,
+            productBadgeText: nextConfig.productBadgeText,
+            compareAtMultiplier: nextConfig.compareAtMultiplier,
+            compareAtExtraEur: nextConfig.compareAtExtraEur,
+            productSlugs: toPrismaJson(nextConfig.productSlugs),
+            createdAt: new Date(nextConfig.createdAt),
+            updatedAt: new Date(nextConfig.updatedAt),
+          },
+        });
+      }
 
-    return nextConfig;
+      return nextConfig;
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   await writeJsonFile(CONFIG_PATH, nextConfig);
@@ -551,9 +673,17 @@ export async function getFreeDealClaimByOrderId(orderId: string) {
     return null;
   }
 
-  if (hasDatabase()) {
-    const record = await prisma.freeDealClaimRecord.findFirst({ where: { orderId } });
-    return record ? normalizeClaimRecord(record as unknown as Record<string, unknown>) : null;
+  if (canUseDatabase()) {
+    try {
+      const record = await prisma.freeDealClaimRecord.findFirst({ where: { orderId } });
+      return record ? normalizeClaimRecord(record as unknown as Record<string, unknown>) : null;
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const claims = await getClaims();
@@ -680,11 +810,21 @@ export async function recordFreeDealReferralVisit(input: {
   }
 
   const identity = resolveFreeDealIdentity(input.visitor);
-  const claim = hasDatabase()
-    ? await prisma.freeDealClaimRecord.findUnique({ where: { referralCode } }).then((record) => (record ? normalizeClaimRecord(record as unknown as Record<string, unknown>) : null))
-    : (await getClaims()).find((entry) => entry.referralCode === referralCode) ?? null;
+  const claim = canUseDatabase()
+    ? await prisma.freeDealClaimRecord.findUnique({ where: { referralCode } })
+      .then((record) => (record ? normalizeClaimRecord(record as unknown as Record<string, unknown>) : null))
+      .catch((error) => {
+        if (!isPrismaDatabaseUnavailable(error)) {
+          throw error;
+        }
 
-  if (!claim) {
+        enableDatabaseFallback(error);
+        return null;
+      })
+    : null;
+  const resolvedClaim = claim ?? (await getClaims()).find((entry) => entry.referralCode === referralCode) ?? null;
+
+  if (!resolvedClaim) {
     return null;
   }
 
@@ -694,31 +834,31 @@ export async function recordFreeDealReferralVisit(input: {
     identity.userAgentHash ?? "",
   ].join("|")).digest("hex");
 
-  const isOwnerVisit = claim.deviceIdHash === identity.deviceIdHash
-    || (claim.ipHash && identity.ipHash && claim.ipHash === identity.ipHash && claim.userAgentHash && identity.userAgentHash && claim.userAgentHash === identity.userAgentHash);
+  const isOwnerVisit = resolvedClaim.deviceIdHash === identity.deviceIdHash
+    || (resolvedClaim.ipHash && identity.ipHash && resolvedClaim.ipHash === identity.ipHash && resolvedClaim.userAgentHash && identity.userAgentHash && resolvedClaim.userAgentHash === identity.userAgentHash);
 
   if (isOwnerVisit) {
-    return claim;
+    return resolvedClaim;
   }
 
-  if (hasDatabase()) {
+  if (canUseDatabase()) {
     const existingVisit = await prisma.freeDealReferralVisitRecord.findUnique({
       where: {
         claimId_visitorKeyHash: {
-          claimId: claim.id,
+          claimId: resolvedClaim.id,
           visitorKeyHash,
         },
       },
     });
 
     if (existingVisit) {
-      return claim;
+      return resolvedClaim;
     }
 
     try {
       await prisma.freeDealReferralVisitRecord.create({
         data: {
-          claimId: claim.id,
+          claimId: resolvedClaim.id,
           referralCode,
           visitorKeyHash,
           visitorDeviceHash: identity.deviceIdHash,
@@ -727,21 +867,39 @@ export async function recordFreeDealReferralVisit(input: {
           counted: true,
         },
       });
-    } catch {
-      return claim;
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        return resolvedClaim;
+      }
+
+      enableDatabaseFallback(error);
     }
-  } else {
+
+    if (canUseDatabase()) {
+      const visitCount = await getClaimReferralVisitCount(resolvedClaim.id);
+      const nextStatus: FreeDealClaimStatus = visitCount >= resolvedClaim.referralGoal ? "referral_unlocked" : resolvedClaim.status;
+      return updateClaimRecord({
+        ...resolvedClaim,
+        status: nextStatus,
+        referralVisitCount: visitCount,
+        unlockedAt: nextStatus === "referral_unlocked" ? (resolvedClaim.unlockedAt ?? new Date().toISOString()) : resolvedClaim.unlockedAt,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  {
     const visits = await getReferralVisits();
-    const alreadyCounted = visits.some((visit) => visit.claimId === claim.id && visit.visitorKeyHash === visitorKeyHash);
+    const alreadyCounted = visits.some((visit) => visit.claimId === resolvedClaim.id && visit.visitorKeyHash === visitorKeyHash);
 
     if (alreadyCounted) {
-      return claim;
+      return resolvedClaim;
     }
 
     await saveReferralVisits([
       {
         id: `fdv_${randomBytes(10).toString("hex")}`,
-        claimId: claim.id,
+        claimId: resolvedClaim.id,
         referralCode,
         visitorKeyHash,
         visitorDeviceHash: identity.deviceIdHash,
@@ -754,13 +912,13 @@ export async function recordFreeDealReferralVisit(input: {
     ]);
   }
 
-  const visitCount = await getClaimReferralVisitCount(claim.id);
-  const nextStatus: FreeDealClaimStatus = visitCount >= claim.referralGoal ? "referral_unlocked" : claim.status;
+  const visitCount = await getClaimReferralVisitCount(resolvedClaim.id);
+  const nextStatus: FreeDealClaimStatus = visitCount >= resolvedClaim.referralGoal ? "referral_unlocked" : resolvedClaim.status;
   const nextClaim = await updateClaimRecord({
-    ...claim,
+    ...resolvedClaim,
     status: nextStatus,
     referralVisitCount: visitCount,
-    unlockedAt: nextStatus === "referral_unlocked" ? (claim.unlockedAt ?? new Date().toISOString()) : claim.unlockedAt,
+    unlockedAt: nextStatus === "referral_unlocked" ? (resolvedClaim.unlockedAt ?? new Date().toISOString()) : resolvedClaim.unlockedAt,
     updatedAt: new Date().toISOString(),
   });
 
