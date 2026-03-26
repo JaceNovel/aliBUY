@@ -88,23 +88,3 @@ input::placeholder {
   background: color-mix(in srgb, var(--brand) 22%, white);
   color: var(--foreground);
 }
-
-@media (max-width: 767px) {
-  iframe[src*="assistloop.ai"],
-  [id*="assistloop"],
-  [class*="assistloop"] {
-    bottom: calc(var(--mobile-bottom-nav-height) + var(--mobile-floating-cta-height) + 18px) !important;
-    right: 8px !important;
-  }
-
-  iframe[src*="assistloop.ai"] {
-    transform: scale(0.78) !important;
-    transform-origin: bottom right !important;
-  }
-}
-
-[id*="assistloop"] button,
-[class*="assistloop"] button,
-iframe[src*="assistloop.ai"] + button {
-  display: none !important;
-}

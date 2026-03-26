@@ -6,6 +6,7 @@ export type AdminSectionSlug =
   | "promotions"
   | "promo-codes"
   | "offers"
+  | "free-deals"
   | "email"
   | "support"
   | "imports"
@@ -35,6 +36,7 @@ export const adminNavItems: AdminNavItem[] = [
   { slug: "promotions", label: "Promotions", icon: "badge-percent", description: "Promos hero, badges et campagnes mode.", href: "/admin/promotions", publicHref: "/mode" },
   { slug: "promo-codes", label: "Codes Promo", icon: "ticket-percent", description: "Codes de reduction et activations marketing.", href: "/admin/promo-codes", publicHref: "/mode" },
   { slug: "offers", label: "Offres", icon: "gift", description: "Offres chaudes visibles en home et mode.", href: "/admin/offers", publicHref: "/trends" },
+  { slug: "free-deals", label: "Produits gratuits", icon: "sparkles", description: "Campagne dediee a la page articles gratuits, imports Alibaba et regles de l'offre.", href: "/admin/free-deals", publicHref: "/articles-gratuits" },
   { slug: "email", label: "Email", icon: "mail", description: "Campagnes de relance et communication B2B.", href: "/admin/email", publicHref: "/messages" },
   { slug: "support", label: "Support Client", icon: "headset", description: "Tickets prioritaires et conversations agents.", href: "/admin/support", publicHref: "/messages" },
   { slug: "imports", label: "Demandes d'Importation", icon: "ship-wheel", description: "Dossiers d'import et suivi logistique.", href: "/admin/imports", publicHref: "/orders" },

@@ -1,5 +1,6 @@
 import { verifyMonerooPayment } from "@/lib/moneroo";
 import { persistMonerooPaymentToOrder } from "@/lib/moneroo-sourcing";
+import { runSourcingPostPaymentAutomation } from "@/lib/sourcing-payment-automation";
 import { getSourcingOrderById } from "@/lib/sourcing-store";
 
 export async function POST(request: Request) {
@@ -24,9 +25,10 @@ export async function POST(request: Request) {
       payment,
       verified: true,
     });
+    const automatedOrder = await runSourcingPostPaymentAutomation(nextOrder, "moneroo-verify");
 
     return Response.json({
-      order: nextOrder,
+      order: automatedOrder,
       payment,
     });
   } catch (error) {

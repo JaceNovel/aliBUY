@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Geist } from "next/font/google";
 import { CartProvider } from "@/components/cart-provider";
-import { AssistLoopWidget } from "@/components/assistloop-widget";
 import { RouteWarmup } from "@/components/route-warmup";
+import { SiteChatWidget } from "@/components/site-chat-widget";
 import { clerkAppearance } from "@/lib/clerk-theme";
 import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_LOGO_PATH, SITE_NAME, SITE_URL } from "@/lib/site-config";
 import "./globals.css";
@@ -83,7 +83,7 @@ export default async function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
         />
         <ClerkProvider appearance={clerkAppearance}>
-          <CartProvider><RouteWarmup />{children}<AssistLoopWidget /></CartProvider>
+          <CartProvider><RouteWarmup />{children}<SiteChatWidget /></CartProvider>
         </ClerkProvider>
       </body>
     </html>

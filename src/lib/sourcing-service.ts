@@ -1,5 +1,6 @@
 import {
   formatFcfa,
+  getSourcingOrderMeta,
   resolveSourcingDeliveryPlan,
   type SourcingCheckoutInput,
   type SourcingOrder,
@@ -236,23 +237,25 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
     await saveSourcingOrder(order);
 
     const supplierOrders = await createAlibabaSupplierOrders(order, mappings, freightVerification);
-    order = {
+    const currentMeta = getSourcingOrderMeta(order);
+    order = withSourcingOrderMeta({
       ...order,
       supplierOrderStatus: supplierOrders.supplierOrderStatus,
       alibabaTradeIds: supplierOrders.alibabaTradeIds,
       supplierOrderPayload: supplierOrders.supplierOrderPayload,
       status: supplierOrders.supplierOrderStatus === "created" ? "submitted_to_supplier" : order.status,
       updatedAt: nowIso(),
-    };
+    }, currentMeta);
   } catch (error) {
     const message = error instanceof Error ? error.message : "supplier_automation_failed";
-    order = {
+    const currentMeta = getSourcingOrderMeta(order);
+    order = withSourcingOrderMeta({
       ...order,
       freightStatus: "failed",
       supplierOrderStatus: "failed",
       supplierOrderPayload: { error: message },
       updatedAt: nowIso(),
-    };
+    }, currentMeta);
 
     await createAlibabaIntegrationLog({
       orderId: order.id,

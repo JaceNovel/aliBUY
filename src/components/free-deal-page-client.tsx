@@ -2,8 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Check, Copy, Gift, Lock, LoaderCircle, Share2, ShieldCheck, Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Check, Copy, Gift, LoaderCircle, MapPin, ShoppingCart, Sparkles, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+
+import { useCart } from "@/components/cart-provider";
 
 type FreeDealCard = {
   slug: string;
@@ -39,6 +41,9 @@ type FreeDealPageClientProps = {
     shareUrl?: string;
     referralCode?: string;
   };
+  initialCustomer: CustomerFormState & {
+    hasDefaultAddress: boolean;
+  };
   products: FreeDealCard[];
 };
 
@@ -66,17 +71,23 @@ const INITIAL_FORM_STATE: CustomerFormState = {
   countryCode: "FR",
 };
 
-export function FreeDealPageClient({ config, access, products }: FreeDealPageClientProps) {
+const FREE_DEAL_CART_STORAGE_KEY = "afripay_free_deal_cart_v1";
+
+export function FreeDealPageClient({ config, access, initialCustomer, products }: FreeDealPageClientProps) {
+  const { items: standardCartItems, clearCart } = useCart();
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
-  const [formState, setFormState] = useState<CustomerFormState>(INITIAL_FORM_STATE);
+  const [formState, setFormState] = useState<CustomerFormState>({
+    ...INITIAL_FORM_STATE,
+    ...initialCustomer,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+  const [showAddressForm, setShowAddressForm] = useState(false);
 
   const isSelectable = access.status === "eligible" || access.status === "unlocked";
   const isSelectionComplete = selectedSlugs.length === config.itemLimit;
   const remainingSelectionCount = Math.max(config.itemLimit - selectedSlugs.length, 0);
-  const referralProgressPercent = Math.min(100, Math.round((access.referralVisitCount / Math.max(access.referralGoal, 1)) * 100));
   const canSubmit = Boolean(isSelectable
     && isSelectionComplete
     && formState.customerName.trim()
@@ -85,13 +96,100 @@ export function FreeDealPageClient({ config, access, products }: FreeDealPageCli
     && formState.addressLine1.trim()
     && formState.city.trim()
     && formState.countryCode.trim());
-  const mobileCtaLabel = !isSelectable
-    ? "Voir le partage"
+  const hasStandardCartConflict = standardCartItems.length > 0;
+  const mobileCtaLabel = hasStandardCartConflict
+    ? "Vider panier"
+    : !isSelectable
+      ? "Offre indisponible"
+      : canSubmit
+        ? config.ctaLabel
+        : isSelectionComplete
+          ? "Adresse"
+          : `Choisir ${remainingSelectionCount}`;
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const stored = window.localStorage.getItem(FREE_DEAL_CART_STORAGE_KEY);
+    if (!stored) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(stored) as string[];
+      if (!Array.isArray(parsed)) {
+        return;
+      }
+
+      const allowedSlugs = new Set(products.map((product) => product.slug));
+      const nextSelection = parsed
+        .filter((slug): slug is string => typeof slug === "string" && allowedSlugs.has(slug))
+        .slice(0, config.itemLimit);
+      setSelectedSlugs(nextSelection);
+    } catch {
+      window.localStorage.removeItem(FREE_DEAL_CART_STORAGE_KEY);
+    }
+  }, [config.itemLimit, products]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(FREE_DEAL_CART_STORAGE_KEY, JSON.stringify(selectedSlugs));
+  }, [selectedSlugs]);
+
+  const totalCartSlots = config.itemLimit;
+  const addressSummary = [formState.addressLine1, formState.addressLine2, `${formState.city}${formState.state ? `, ${formState.state}` : ""}`, formState.postalCode, formState.countryCode]
+    .filter(Boolean)
+    .join(" · ");
+
+  const hasAddressDetails = Boolean(
+    formState.customerName.trim()
+    && formState.customerEmail.trim()
+    && formState.customerPhone.trim()
+    && formState.addressLine1.trim()
+    && formState.city.trim()
+    && formState.countryCode.trim(),
+  );
+
+  const openAddressForm = () => {
+    setShowAddressForm(true);
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    document.getElementById("free-deal-address")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
+  const closeAddressForm = () => {
+    setShowAddressForm(false);
+  };
+
+  const clearFreeDealCart = () => {
+    setSelectedSlugs([]);
+    setFeedback(null);
+  };
+
+  const clearStandardCart = () => {
+    clearCart();
+    setFeedback(null);
+  };
+
+  const canSelectMore = selectedSlugs.length < config.itemLimit;
+
+  const statusMessage = hasStandardCartConflict
+    ? "Votre panier standard contient deja des articles. Videz-le avant d'utiliser cette offre."
     : canSubmit
       ? config.ctaLabel
       : isSelectionComplete
-        ? "Renseigner mes infos"
-        : `Choisir ${remainingSelectionCount}`;
+        ? "Ajoutez votre adresse puis reglez les 10 EUR."
+        : `Ajoutez encore ${remainingSelectionCount} article(s) dans le panier gratuit.`;
 
   const selectedProducts = useMemo(
     () => products.filter((product) => selectedSlugs.includes(product.slug)),
@@ -99,7 +197,7 @@ export function FreeDealPageClient({ config, access, products }: FreeDealPageCli
   );
 
   const toggleSelection = (slug: string) => {
-    if (!isSelectable || isSubmitting) {
+    if (!isSelectable || isSubmitting || hasStandardCartConflict) {
       return;
     }
 
@@ -148,15 +246,22 @@ export function FreeDealPageClient({ config, access, products }: FreeDealPageCli
   };
 
   const handleMobileCta = () => {
+    if (hasStandardCartConflict) {
+      clearStandardCart();
+      return;
+    }
+
     if (canSubmit) {
       void submitCheckout();
       return;
     }
 
     if (!isSelectable) {
-      if (typeof window !== "undefined") {
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }
+      return;
+    }
+
+    if (isSelectionComplete) {
+      openAddressForm();
       return;
     }
 
@@ -226,26 +331,26 @@ export function FreeDealPageClient({ config, access, products }: FreeDealPageCli
 
   return (
     <div className="space-y-6 pb-[calc(9rem+env(safe-area-inset-bottom))] md:pb-0">
-      <section className="overflow-hidden rounded-[34px] bg-[linear-gradient(135deg,#ff0069_0%,#ff2d55_30%,#ff6a00_100%)] text-white shadow-[0_24px_60px_rgba(255,45,85,0.22)]">
-        <div className="border-b border-white/15 px-5 py-4 lg:px-8">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="text-[32px] font-black tracking-[-0.06em] sm:text-[42px]">Deal du Jour</div>
-            <div className="text-[13px] font-semibold uppercase tracking-[0.16em] text-white/85 sm:text-[14px]">
-              {config.bannerText} · Promo anniversaire · Jusqu&apos;a {config.dealTagText}
+      <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen overflow-hidden bg-[linear-gradient(90deg,#ff0069_0%,#ff3358_38%,#ff6a00_100%)] text-white shadow-[0_24px_60px_rgba(255,45,85,0.18)]">
+        <div className="px-4 py-3 sm:px-6 lg:px-10">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div className="text-[24px] font-black tracking-[-0.06em] sm:text-[34px]">Deal du Jour</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/85 sm:text-[13px]">
+              Article gratuit des 10 euro · promo anniversaire · jusqu&apos;a {config.dealTagText}
             </div>
           </div>
-          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          <div className="mt-3 grid gap-2 lg:grid-cols-2">
             {promoCoupons.map((coupon) => (
-              <div key={coupon.id} className="grid grid-cols-[1fr_auto] overflow-hidden rounded-[24px] bg-white text-[#24324a] shadow-[0_16px_30px_rgba(17,24,39,0.12)]">
-                <div className="px-5 py-5">
-                  <div className="text-[18px] font-black tracking-[-0.04em] text-[#ff0f73] sm:text-[22px]">{coupon.value}</div>
-                  <div className="mt-2 text-[15px] text-[#ff5b8a]">{coupon.label} <span className="text-[#667085]">| Code: {coupon.code}</span></div>
+              <div key={coupon.id} className="grid grid-cols-[1fr_auto] overflow-hidden rounded-[20px] bg-white text-[#24324a] shadow-[0_10px_24px_rgba(17,24,39,0.1)]">
+                <div className="px-4 py-3 sm:px-5 sm:py-4">
+                  <div className="text-[16px] font-black tracking-[-0.04em] text-[#ff0f73] sm:text-[20px]">{coupon.value}</div>
+                  <div className="mt-1 text-[13px] text-[#ff5b8a]">{coupon.label} <span className="text-[#667085]">| Code: {coupon.code}</span></div>
                 </div>
-                <div className="flex items-center px-4">
+                <div className="flex items-center px-3">
                   <button
                     type="button"
                     onClick={copyShareLink}
-                    className="inline-flex h-12 items-center justify-center rounded-full bg-[#ff0f73] px-6 text-[14px] font-semibold text-white transition hover:bg-[#e20060]"
+                    className="inline-flex h-10 items-center justify-center rounded-full bg-[#ff0f73] px-5 text-[13px] font-semibold text-white transition hover:bg-[#e20060]"
                   >
                     Copie
                   </button>
@@ -255,88 +360,55 @@ export function FreeDealPageClient({ config, access, products }: FreeDealPageCli
           </div>
         </div>
 
-        <div className="grid gap-6 px-5 py-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:py-8">
+        <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:px-10 lg:py-5">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/14 px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-white/95">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/14 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/95 sm:px-4 sm:py-2 sm:text-[12px]">
               <Sparkles className="h-4 w-4" />
               {config.heroBadge}
             </div>
-            <h1 className="mt-4 max-w-[760px] text-[30px] font-black leading-[1.05] tracking-[-0.06em] sm:text-[42px]">
+            <h1 className="mt-3 max-w-[760px] text-[26px] font-black leading-[1.02] tracking-[-0.06em] sm:text-[38px] lg:text-[44px]">
               {config.heroTitle}
             </h1>
-            <p className="mt-4 max-w-[760px] text-[15px] leading-7 text-white/90 sm:text-[16px]">
+            <p className="mt-3 max-w-[760px] text-[14px] leading-6 text-white/90 sm:text-[15px]">
               {config.heroSubtitle}
             </p>
 
-            <div className="mt-6 flex flex-wrap gap-3">
-              <div className="rounded-[22px] bg-white px-5 py-4 text-[#1f2937] shadow-[0_14px_32px_rgba(15,23,42,0.12)]">
+            <div className="mt-4 flex flex-wrap gap-2.5">
+              <div className="rounded-[20px] bg-white px-4 py-3 text-[#1f2937] shadow-[0_14px_32px_rgba(15,23,42,0.12)]">
                 <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff4f2a]">Lot fixe</div>
-                <div className="mt-2 text-[28px] font-black tracking-[-0.05em]">{config.fixedPriceLabel}</div>
+                <div className="mt-1 text-[22px] font-black tracking-[-0.05em] sm:text-[26px]">{config.fixedPriceLabel}</div>
                 <div className="mt-1 text-[13px] text-[#667085]">{config.itemLimit} article(s) au choix</div>
               </div>
-              <div className="rounded-[22px] bg-white/14 px-5 py-4 backdrop-blur">
+              <div className="rounded-[20px] bg-white/14 px-4 py-3 backdrop-blur">
                 <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-white/85">Partage</div>
-                <div className="mt-2 text-[28px] font-black tracking-[-0.05em]">{config.referralGoal}</div>
+                <div className="mt-1 text-[22px] font-black tracking-[-0.05em] sm:text-[26px]">{config.referralGoal}</div>
                 <div className="mt-1 text-[13px] text-white/85">visites uniques pour debloquer a nouveau</div>
               </div>
             </div>
           </div>
 
-          <div className="rounded-[30px] bg-white/12 p-5 backdrop-blur">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-white text-[#ff3566]">
-                {access.status === "blocked" ? <Lock className="h-5 w-5" /> : access.status === "unlocked" ? <ShieldCheck className="h-5 w-5" /> : <Gift className="h-5 w-5" />}
-              </div>
-              <div>
-                <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white/80">Etat de l'acces</div>
-                <div className="mt-1 text-[20px] font-black tracking-[-0.04em]">
-                  {access.status === "blocked" ? "Bloque sur cet appareil" : access.status === "unlocked" ? "Debloque par partage" : access.status === "disabled" ? "Indisponible" : "Accessible maintenant"}
+          <div className="rounded-[26px] bg-white/12 p-4 backdrop-blur sm:p-5">
+            <div className="rounded-[20px] bg-white px-4 py-4 text-[#1f2937]">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#fff3ea] text-[#ff4f2a]">
+                  <ShoppingCart className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="text-[16px] font-black tracking-[-0.03em]">Ajoutez {config.itemLimit} article(s) dans le panier gratuit</div>
+                  <p className="mt-1 text-[14px] leading-6 text-[#475467]">
+                    Les articles de cette offre restent dans un panier separe. Ils ne se melangent pas avec votre panier normal.
+                  </p>
                 </div>
               </div>
             </div>
 
-            {access.status === "blocked" || access.status === "unlocked" ? (
-              <div className="mt-5 rounded-[24px] bg-white px-4 py-4 text-[#1f2937]">
-                <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff4f2a]">{config.shareTitle}</div>
-                <p className="mt-2 text-[14px] leading-6 text-[#475467]">{config.shareDescription}</p>
-                <div className="mt-4 h-3 overflow-hidden rounded-full bg-[#eef2f6]">
-                  <div className="h-full rounded-full bg-[linear-gradient(90deg,#ff0f73_0%,#ff8a00_100%)]" style={{ width: `${referralProgressPercent}%` }} />
-                </div>
-                <div className="mt-2 text-[13px] font-semibold text-[#111827]">
-                  {access.referralVisitCount}/{access.referralGoal} visites comptabilisees
-                </div>
-                {access.shareUrl ? (
-                  <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                    <div className="min-w-0 flex-1 rounded-[16px] border border-[#e4e7ec] bg-[#f8fafc] px-4 py-3 text-[13px] font-medium text-[#344054]">
-                      <div className="truncate">{access.shareUrl}</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={copyShareLink}
-                      className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-black"
-                    >
-                      <Copy className="h-4 w-4" />
-                      Copier
-                    </button>
-                  </div>
-                ) : null}
-                {shareFeedback ? <div className="mt-3 text-[13px] font-medium text-[#ff4f2a]">{shareFeedback}</div> : null}
+            <div className="mt-3 rounded-[20px] bg-white/10 px-4 py-4 text-white">
+              <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white/78">Statut rapide</div>
+              <div className="mt-2 text-[18px] font-black tracking-[-0.04em]">
+                {statusMessage}
               </div>
-            ) : (
-              <div className="mt-5 rounded-[24px] bg-white px-4 py-4 text-[#1f2937]">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#fff3ea] text-[#ff4f2a]">
-                    <Gift className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="text-[16px] font-black tracking-[-0.03em]">Choisissez exactement {config.itemLimit} article(s)</div>
-                    <p className="mt-1 text-[14px] leading-6 text-[#475467]">
-                      Les prix sur les cartes sont volontairement habilles pour la campagne. Le paiement reste un forfait unique de {config.fixedPriceLabel}.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+              {shareFeedback ? <div className="mt-2 text-[12px] font-semibold text-white/80">{shareFeedback}</div> : null}
+            </div>
           </div>
         </div>
       </section>
@@ -432,7 +504,7 @@ export function FreeDealPageClient({ config, access, products }: FreeDealPageCli
             <div>
               <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff4f2a]">Votre lot</div>
               <div className="mt-1 text-[22px] font-black tracking-[-0.04em] text-[#111827]">
-                {selectedSlugs.length}/{config.itemLimit} article(s)
+                {selectedSlugs.length}/{totalCartSlots} article(s)
               </div>
             </div>
           </div>
@@ -445,9 +517,26 @@ export function FreeDealPageClient({ config, access, products }: FreeDealPageCli
                 ? isSelectionComplete
                   ? "Votre lot est complet. Vous pouvez lancer le paiement."
                   : `Ajoutez encore ${remainingSelectionCount} article(s) pour continuer.`
-                : "Le paiement est verrouille tant que cet acces n'est pas reautorise."}
+                : "Cette offre n'est pas disponible pour le moment."}
             </div>
           </div>
+
+          {hasStandardCartConflict ? (
+            <div className="mt-4 rounded-[20px] border border-[#ffd7c2] bg-[#fff7f1] px-4 py-4">
+              <div className="text-[15px] font-black tracking-[-0.03em] text-[#111827]">Videz votre panier standard</div>
+              <p className="mt-1 text-[13px] leading-6 text-[#7a4b28]">
+                Cette offre utilise un panier dedie. Les articles gratuits ne peuvent pas se melanger avec des articles ordinaires.
+              </p>
+              <button
+                type="button"
+                onClick={clearStandardCart}
+                className="mt-3 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-black"
+              >
+                <Trash2 className="h-4 w-4" />
+                Vider votre panier
+              </button>
+            </div>
+          ) : null}
 
           <div className="mt-4 space-y-3">
             {selectedProducts.length > 0 ? selectedProducts.map((product, index) => (
@@ -467,59 +556,110 @@ export function FreeDealPageClient({ config, access, products }: FreeDealPageCli
             )}
           </div>
 
-          <div className="mt-5 rounded-[22px] bg-[#111827] px-4 py-4 text-white">
-            <div className="flex items-start gap-3">
-              <Share2 className="mt-0.5 h-5 w-5 shrink-0" />
-              <div className="text-[13px] leading-6 text-white/85">
-                Une fois l'offre achetee sur cet appareil, l'acces sera bloque. Le retour se fait par lien partage et visites uniques.
-              </div>
-            </div>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={clearFreeDealCart}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-[#d0d5dd] px-5 text-[14px] font-semibold text-[#111827] transition hover:border-[#ff4f2a] hover:text-[#ff4f2a]"
+            >
+              <Trash2 className="h-4 w-4" />
+              Vider le panier gratuit
+            </button>
+            {access.shareUrl ? (
+              <button
+                type="button"
+                onClick={copyShareLink}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-[#ffd1bf] bg-[#fff4ed] px-5 text-[14px] font-semibold text-[#ff4f2a] transition hover:bg-[#ffeadd]"
+              >
+                <Copy className="h-4 w-4" />
+                Copier le lien
+              </button>
+            ) : null}
           </div>
         </aside>
 
         <section id="free-deal-checkout" className="rounded-[30px] bg-white px-5 py-5 shadow-[0_10px_32px_rgba(17,24,39,0.08)] ring-1 ring-black/5 sm:px-6 sm:py-6">
-          <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff4f2a]">Livraison</div>
-          <h2 className="mt-2 text-[28px] font-black tracking-[-0.05em] text-[#111827]">Renseignez vos infos puis lancez le paiement</h2>
+          <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff4f2a]">Paiement</div>
+          <h2 className="mt-2 text-[28px] font-black tracking-[-0.05em] text-[#111827]">Panier gratuit dedie</h2>
           <p className="mt-2 max-w-[760px] text-[14px] leading-7 text-[#667085]">
-            Le panier est volontairement ultra simple: un lot fixe, un montant fixe, puis paiement Moneroo.
+            Quand les {config.itemLimit} articles sont dans le panier gratuit, vous validez l&apos;adresse puis vous reglez directement {config.fixedPriceLabel}.
           </p>
 
           {feedback ? <div className="mt-5 rounded-[18px] border border-[#fed7d7] bg-[#fff1f2] px-4 py-4 text-[14px] font-medium text-[#b42318]">{feedback}</div> : null}
-          {access.status === "unlocked" ? <div className="mt-5 rounded-[18px] border border-[#cfe9d9] bg-[#effbf2] px-4 py-4 text-[14px] font-medium text-[#1f7a39]">Votre acces a deja ete debloque par le partage. Vous pouvez reutiliser la page.</div> : null}
-          {access.status === "blocked" ? <div className="mt-5 rounded-[18px] border border-[#f4d8c2] bg-[#fff7f1] px-4 py-4 text-[14px] font-medium text-[#8a4b16]">Le formulaire reste visible, mais le paiement ne peut plus repartir sur cet appareil tant que le partage n'a pas debloque la page.</div> : null}
+          {access.status === "blocked" ? <div className="mt-5 rounded-[18px] border border-[#f4d8c2] bg-[#fff7f1] px-4 py-4 text-[14px] font-medium text-[#8a4b16]">Cette offre n&apos;est plus disponible sur cet appareil.</div> : null}
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            {[
-              { key: "customerName", label: "Nom complet", placeholder: "Ex: Awa Traore" },
-              { key: "customerEmail", label: "Email", placeholder: "client@email.com" },
-              { key: "customerPhone", label: "Telephone", placeholder: "+228 ..." },
-              { key: "countryCode", label: "Pays code", placeholder: "FR, TG, BJ..." },
-              { key: "city", label: "Ville", placeholder: "Lome" },
-              { key: "state", label: "Region / Etat", placeholder: "Maritime" },
-              { key: "addressLine1", label: "Adresse", placeholder: "Rue, quartier, repere" },
-              { key: "addressLine2", label: "Complement", placeholder: "Batiment, etage..." },
-              { key: "postalCode", label: "Code postal", placeholder: "75001" },
-            ].map((field) => (
-              <label key={field.key} className={field.key === "addressLine1" ? "space-y-2 text-[13px] font-semibold text-[#344054] md:col-span-2" : "space-y-2 text-[13px] font-semibold text-[#344054]"}>
-                <span>{field.label}</span>
-                <input
-                  value={formState[field.key as keyof CustomerFormState]}
-                  onChange={(event) => handleFieldChange(field.key as keyof CustomerFormState, event.target.value)}
-                  placeholder={field.placeholder}
-                  className="h-12 w-full rounded-[16px] border border-[#d0d5dd] bg-white px-4 text-[14px] text-[#111827] outline-none transition focus:border-[#ff4f2a]"
-                />
-              </label>
-            ))}
+          <div className="mt-6 rounded-[22px] bg-[#f8fafc] px-4 py-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#667085]">Adresse de livraison</div>
+                <div className="mt-2 text-[20px] font-black tracking-[-0.04em] text-[#111827]">
+                  {hasAddressDetails ? formState.customerName : "A renseigner"}
+                </div>
+                <div className="mt-1 text-[14px] leading-6 text-[#667085]">
+                  {hasAddressDetails ? `${addressSummary}${formState.customerPhone ? ` · ${formState.customerPhone}` : ""}` : "Ajoutez votre adresse pour finaliser le lot gratuit."}
+                </div>
+                {initialCustomer.hasDefaultAddress && hasAddressDetails ? (
+                  <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-[#ecfdf3] px-3 py-1 text-[12px] font-semibold text-[#117a37]">
+                    <MapPin className="h-3.5 w-3.5" />
+                    Adresse par defaut detectee
+                  </div>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={showAddressForm ? closeAddressForm : openAddressForm}
+                className="inline-flex h-11 items-center justify-center rounded-full border border-[#d0d5dd] px-5 text-[14px] font-semibold text-[#111827] transition hover:border-[#ff4f2a] hover:text-[#ff4f2a]"
+              >
+                {showAddressForm ? "Fermer" : hasAddressDetails ? "Modifier l'adresse" : "Ajouter l'adresse"}
+              </button>
+            </div>
           </div>
+
+          {showAddressForm ? (
+            <div id="free-deal-address" className="mt-6 grid gap-4 md:grid-cols-2">
+              {[
+                { key: "customerName", label: "Nom complet", placeholder: "Ex: Awa Traore" },
+                { key: "customerEmail", label: "Email", placeholder: "client@email.com" },
+                { key: "customerPhone", label: "Telephone", placeholder: "+228 ..." },
+                { key: "countryCode", label: "Pays code", placeholder: "FR, TG, BJ..." },
+                { key: "city", label: "Ville", placeholder: "Lome" },
+                { key: "state", label: "Region / Etat", placeholder: "Maritime" },
+                { key: "addressLine1", label: "Adresse", placeholder: "Rue, quartier, repere" },
+                { key: "addressLine2", label: "Complement", placeholder: "Batiment, etage..." },
+                { key: "postalCode", label: "Code postal", placeholder: "75001" },
+              ].map((field) => (
+                <label key={field.key} className={field.key === "addressLine1" ? "space-y-2 text-[13px] font-semibold text-[#344054] md:col-span-2" : "space-y-2 text-[13px] font-semibold text-[#344054]"}>
+                  <span>{field.label}</span>
+                  <input
+                    value={formState[field.key as keyof CustomerFormState]}
+                    onChange={(event) => handleFieldChange(field.key as keyof CustomerFormState, event.target.value)}
+                    placeholder={field.placeholder}
+                    className="h-12 w-full rounded-[16px] border border-[#d0d5dd] bg-white px-4 text-[14px] text-[#111827] outline-none transition focus:border-[#ff4f2a]"
+                  />
+                </label>
+              ))}
+            </div>
+          ) : null}
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-[14px] text-[#667085]">
-              {isSelectionComplete ? `Lot complet: ${config.fixedPriceLabel}` : `Selection incomplete: ${selectedSlugs.length}/${config.itemLimit}`}
+              {hasStandardCartConflict
+                ? "Videz d'abord votre panier standard."
+                : isSelectionComplete
+                  ? `Lot complet: ${config.fixedPriceLabel}`
+                  : `Selection incomplete: ${selectedSlugs.length}/${config.itemLimit}`}
             </div>
             <button
               type="button"
-              onClick={submitCheckout}
-              disabled={!canSubmit || isSubmitting}
+              onClick={() => {
+                if (!showAddressForm && !hasAddressDetails && isSelectionComplete) {
+                  openAddressForm();
+                  return;
+                }
+
+                void submitCheckout();
+              }}
+              disabled={!canSubmit || isSubmitting || hasStandardCartConflict}
               className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#111827] px-6 text-[15px] font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Gift className="h-4 w-4" />}
@@ -535,7 +675,7 @@ export function FreeDealPageClient({ config, access, products }: FreeDealPageCli
             <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#98a2b3]">Lot gratuit</div>
             <div className="truncate text-[18px] font-black tracking-[-0.04em] text-[#111827]">{selectedSlugs.length}/{config.itemLimit} · {config.fixedPriceLabel}</div>
             <div className="truncate text-[12px] text-[#667085]">
-              {!isSelectable ? "Acces via partage requis" : isSelectionComplete ? "Passez au formulaire" : `Encore ${remainingSelectionCount} article(s)`}
+              {hasStandardCartConflict ? "Vider votre panier standard" : !isSelectable ? "Offre indisponible" : isSelectionComplete ? "Adresse puis paiement" : `Encore ${remainingSelectionCount} article(s)`}
             </div>
           </div>
           <button

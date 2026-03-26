@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 
 import { FreeDealPageClient } from "@/components/free-deal-page-client";
 import { InternalPageShell } from "@/components/internal-page-shell";
+import { getUserDefaultAddress } from "@/lib/customer-data-store";
 import { calculateFreeDealCompareAtUsd, formatFreeDealEuro } from "@/lib/free-deal";
 import { FREE_DEAL_DEVICE_COOKIE } from "@/lib/free-deal-constants";
 import { resolveRequestIp, resolveRequestOrigin } from "@/lib/free-deal-service";
@@ -31,6 +32,7 @@ export default async function FreeDealPage() {
     headers(),
     getCurrentUser(),
   ]);
+  const defaultAddress = user?.id ? await getUserDefaultAddress(user.id).catch(() => undefined) : undefined;
   const products = await getFreeDealProducts(config);
 
   const deviceId = cookieStore.get(FREE_DEAL_DEVICE_COOKIE)?.value ?? null;
@@ -69,6 +71,18 @@ export default async function FreeDealPage() {
           referralGoal: access.referralGoal,
           referralCode: access.claim?.referralCode,
           shareUrl: access.claim ? buildFreeDealShareUrl(origin, access.claim.referralCode) : undefined,
+        }}
+        initialCustomer={{
+          customerName: user?.displayName || defaultAddress?.recipientName || "",
+          customerEmail: user?.email || defaultAddress?.email || "",
+          customerPhone: defaultAddress?.phone || "",
+          addressLine1: defaultAddress?.addressLine1 || "",
+          addressLine2: defaultAddress?.addressLine2 || "",
+          city: defaultAddress?.city || "",
+          state: defaultAddress?.state || "",
+          postalCode: defaultAddress?.postalCode || "",
+          countryCode: defaultAddress?.countryCode || "FR",
+          hasDefaultAddress: Boolean(defaultAddress),
         }}
         products={products.map((product) => ({
           slug: product.slug,
