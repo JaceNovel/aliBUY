@@ -61,6 +61,7 @@ export default async function FreeDealPage() {
           itemLimit: config.itemLimit,
           fixedPriceLabel: formatFreeDealEuro(config.fixedPriceEur, pricing.locale),
           referralGoal: config.referralGoal,
+          dealTagText: config.dealTagText,
         }}
         access={{
           status: accessStatus,

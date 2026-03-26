@@ -24,5 +24,5 @@ export function normalizeFreeDealText(value: string) {
 
 export function isFreeDealSearchQuery(value: string) {
   const normalized = normalizeFreeDealText(value);
-  return FREE_DEAL_QUERY_KEYWORDS.some((keyword) => normalized === keyword);
+  return FREE_DEAL_QUERY_KEYWORDS.some((keyword) => normalized === keyword || normalized.includes(keyword));
 }

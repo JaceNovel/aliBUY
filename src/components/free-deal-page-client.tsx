@@ -30,6 +30,7 @@ type FreeDealPageClientProps = {
     itemLimit: number;
     fixedPriceLabel: string;
     referralGoal: number;
+    dealTagText: string;
   };
   access: {
     status: "eligible" | "blocked" | "unlocked" | "disabled";
@@ -208,12 +209,52 @@ export function FreeDealPageClient({ config, access, products }: FreeDealPageCli
     }
   };
 
+  const promoCoupons = [
+    {
+      id: "bundle",
+      value: `${config.fixedPriceLabel}`,
+      label: `${config.itemLimit} articles au choix`,
+      code: "FREE10",
+    },
+    {
+      id: "share",
+      value: config.dealTagText,
+      label: `Retour via ${config.referralGoal} visites`,
+      code: "SHARE20",
+    },
+  ];
+
   return (
     <div className="space-y-6 pb-[calc(9rem+env(safe-area-inset-bottom))] md:pb-0">
-      <section className="overflow-hidden rounded-[34px] bg-[linear-gradient(135deg,#ff0f73_0%,#ff5a36_60%,#ffb200_100%)] text-white shadow-[0_24px_60px_rgba(255,91,64,0.22)]">
-        <div className="border-b border-white/15 px-5 py-3 text-center text-[12px] font-semibold uppercase tracking-[0.16em] sm:text-[13px]">
-          {config.bannerText}
+      <section className="overflow-hidden rounded-[34px] bg-[linear-gradient(135deg,#ff0069_0%,#ff2d55_30%,#ff6a00_100%)] text-white shadow-[0_24px_60px_rgba(255,45,85,0.22)]">
+        <div className="border-b border-white/15 px-5 py-4 lg:px-8">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="text-[32px] font-black tracking-[-0.06em] sm:text-[42px]">Deal du Jour</div>
+            <div className="text-[13px] font-semibold uppercase tracking-[0.16em] text-white/85 sm:text-[14px]">
+              {config.bannerText} · Promo anniversaire · Jusqu&apos;a {config.dealTagText}
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            {promoCoupons.map((coupon) => (
+              <div key={coupon.id} className="grid grid-cols-[1fr_auto] overflow-hidden rounded-[24px] bg-white text-[#24324a] shadow-[0_16px_30px_rgba(17,24,39,0.12)]">
+                <div className="px-5 py-5">
+                  <div className="text-[18px] font-black tracking-[-0.04em] text-[#ff0f73] sm:text-[22px]">{coupon.value}</div>
+                  <div className="mt-2 text-[15px] text-[#ff5b8a]">{coupon.label} <span className="text-[#667085]">| Code: {coupon.code}</span></div>
+                </div>
+                <div className="flex items-center px-4">
+                  <button
+                    type="button"
+                    onClick={copyShareLink}
+                    className="inline-flex h-12 items-center justify-center rounded-full bg-[#ff0f73] px-6 text-[14px] font-semibold text-white transition hover:bg-[#e20060]"
+                  >
+                    Copie
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
+
         <div className="grid gap-6 px-5 py-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:py-8">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full bg-white/14 px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-white/95">
@@ -309,7 +350,12 @@ export function FreeDealPageClient({ config, access, products }: FreeDealPageCli
         </section>
       ) : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section>
+        <div className="mb-4 text-center">
+          <h2 className="text-[34px] font-black tracking-[-0.06em] text-[#111827] sm:text-[48px]">Offres du jour</h2>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {products.map((product) => {
           const isSelected = selectedSlugs.includes(product.slug);
           const isDisabled = !isSelectable || (selectedSlugs.length >= config.itemLimit && !isSelected);
@@ -331,13 +377,9 @@ export function FreeDealPageClient({ config, access, products }: FreeDealPageCli
                   sizes="(min-width: 1280px) 23vw, (min-width: 640px) 45vw, 96vw"
                   className="object-cover"
                 />
-                <div className="absolute left-3 top-3 flex items-center gap-2">
-                  <span className="rounded-full bg-[#15b86c] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white">
-                    {product.badgeText}
-                  </span>
-                  <span className="rounded-full bg-[#ff275f] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white">
-                    {product.tagText}
-                  </span>
+                <div className="absolute left-0 right-0 top-0 flex items-center justify-between bg-[#1fc76a] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-white">
+                  <span>ALL</span>
+                  <span>{product.badgeText}</span>
                 </div>
                 <button
                   type="button"
@@ -354,7 +396,10 @@ export function FreeDealPageClient({ config, access, products }: FreeDealPageCli
                 </button>
               </div>
               <div className="space-y-3 px-4 py-4">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#15b86c]">Campagne acquisition</div>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#15b86c]">Campagne acquisition</div>
+                  <div className="rounded-full bg-[#fff1f5] px-2 py-1 text-[10px] font-bold text-[#ff275f]">{product.tagText}</div>
+                </div>
                 <h2 className="line-clamp-2 min-h-[48px] text-[17px] font-black leading-6 tracking-[-0.03em] text-[#111827]">
                   {product.title}
                 </h2>
@@ -375,6 +420,7 @@ export function FreeDealPageClient({ config, access, products }: FreeDealPageCli
             </article>
           );
         })}
+        </div>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">

@@ -102,3 +102,9 @@ input::placeholder {
     transform-origin: bottom right !important;
   }
 }
+
+[id*="assistloop"] button,
+[class*="assistloop"] button,
+iframe[src*="assistloop.ai"] + button {
+  display: none !important;
+}

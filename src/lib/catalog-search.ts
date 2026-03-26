@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getCatalogProducts } from "@/lib/catalog-service";
+import { FREE_DEAL_SEARCH_KEYWORDS } from "@/lib/free-deal-constants";
 
 const defaultSearchSuggestions = [
   "souris sans fil",
@@ -9,6 +10,7 @@ const defaultSearchSuggestions = [
   "bean bag gaming",
   "piercing titane",
   "accessoires mobile",
+  ...FREE_DEAL_SEARCH_KEYWORDS,
 ];
 
 export async function getCatalogSearchSuggestions(query: string, limit = 8) {

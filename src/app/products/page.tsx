@@ -1,12 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Search, Sparkles } from "lucide-react";
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { SearchSuggestionInput } from "@/components/search-suggestion-input";
 import { getCatalogCategoryBySlug } from "@/lib/catalog-category-service";
 import { getCatalogProducts, searchCatalogProducts } from "@/lib/catalog-service";
+import { FREE_DEAL_ROUTE, isFreeDealSearchQuery } from "@/lib/free-deal-constants";
 import { formatTierAwarePrice } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
 import { SITE_NAME, SITE_URL } from "@/lib/site-config";
@@ -26,6 +28,10 @@ export default async function ProductsPage({
 }) {
   const [pricing, { q = "", category: categorySlug = "" }] = await Promise.all([getPricingContext(), searchParams]);
   const query = q.trim();
+  if (isFreeDealSearchQuery(query)) {
+    redirect(FREE_DEAL_ROUTE);
+  }
+
   const normalizedCategorySlug = categorySlug.trim();
   const [activeCategory, searchedProducts, catalogProducts] = await Promise.all([
     normalizedCategorySlug ? getCatalogCategoryBySlug(normalizedCategorySlug) : Promise.resolve(null),
