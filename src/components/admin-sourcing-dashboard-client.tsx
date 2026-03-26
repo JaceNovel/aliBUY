@@ -5,7 +5,7 @@ import { ArrowUpRight, Calculator, Percent, Save, Ship, Truck } from "lucide-rea
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { formatFcfa, type SourcingOrder, type SourcingSeaContainer, type SourcingSettings } from "@/lib/alibaba-sourcing";
+import { formatFcfa, getSourcingAlibabaPostPaymentAutomationState, type SourcingOrder, type SourcingSeaContainer, type SourcingSettings } from "@/lib/alibaba-sourcing";
 
 type CatalogPreviewItem = {
   slug: string;
@@ -254,24 +254,34 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
                   <th className="py-3 pr-4 font-semibold">Livraison</th>
                   <th className="py-3 pr-4 font-semibold">Freight</th>
                   <th className="py-3 pr-4 font-semibold">Supplier</th>
+                  <th className="py-3 pr-4 font-semibold">Paiement Alibaba</th>
+                  <th className="py-3 pr-4 font-semibold">Tracking</th>
                   <th className="py-3 pr-4 font-semibold">Total</th>
                 </tr>
               </thead>
               <tbody>
                 {initialDashboard.orders.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="border-t border-[#edf1f6] py-4 text-[13px] text-[#667085]">Aucune commande sourcing pour le moment.</td>
+                    <td colSpan={8} className="border-t border-[#edf1f6] py-4 text-[13px] text-[#667085]">Aucune commande sourcing pour le moment.</td>
                   </tr>
-                ) : initialDashboard.orders.map((order) => (
-                  <tr key={order.id} className="border-t border-[#edf1f6] text-[13px] text-[#1f2937]">
-                    <td className="py-3.5 pr-4 font-semibold">{order.orderNumber}</td>
-                    <td className="py-3.5 pr-4">{order.customerName}</td>
-                    <td className="py-3.5 pr-4">{order.shippingMethod === "sea" ? "Bateau" : order.shippingMethod === "freight" ? "Fret" : "Avion"}</td>
-                    <td className="py-3.5 pr-4">{order.freightStatus}</td>
-                    <td className="py-3.5 pr-4">{order.supplierOrderStatus}</td>
-                    <td className="py-3.5 pr-4">{formatFcfa(order.totalPriceFcfa)}</td>
-                  </tr>
-                ))}
+                ) : initialDashboard.orders.map((order) => {
+                  const automation = getSourcingAlibabaPostPaymentAutomationState(order);
+                  const paidTrades = automation?.trades.filter((trade) => trade.paymentResultStatus === "paid").length ?? 0;
+                  const trackingTrades = automation?.trades.filter((trade) => trade.tracking.length > 0).length ?? 0;
+
+                  return (
+                    <tr key={order.id} className="border-t border-[#edf1f6] text-[13px] text-[#1f2937]">
+                      <td className="py-3.5 pr-4 font-semibold">{order.orderNumber}</td>
+                      <td className="py-3.5 pr-4">{order.customerName}</td>
+                      <td className="py-3.5 pr-4">{order.shippingMethod === "sea" ? "Bateau" : order.shippingMethod === "freight" ? "Fret" : "Avion"}</td>
+                      <td className="py-3.5 pr-4">{order.freightStatus}</td>
+                      <td className="py-3.5 pr-4">{order.supplierOrderStatus}</td>
+                      <td className="py-3.5 pr-4">{automation ? `${paidTrades}/${automation.trades.length} payé(s)` : "Pas encore"}</td>
+                      <td className="py-3.5 pr-4">{automation ? `${trackingTrades}/${automation.trades.length} synchro` : "Pas encore"}</td>
+                      <td className="py-3.5 pr-4">{formatFcfa(order.totalPriceFcfa)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -177,6 +177,38 @@ export type SourcingFreeDealMeta = {
   userAgentHash?: string;
 };
 
+export type SourcingAlibabaTrackingSnapshot = {
+  carrier?: string;
+  trackingNumber?: string;
+  trackingUrl?: string;
+  currentEventCode?: string;
+  eventCount: number;
+};
+
+export type SourcingAlibabaTradeAutomationState = {
+  tradeId: string;
+  paymentRequestedAt?: string;
+  paymentRequestStatus: "requested" | "skipped" | "failed";
+  paymentRequestCode?: string;
+  paymentRequestMessage?: string;
+  payUrl?: string;
+  paymentResultCheckedAt?: string;
+  paymentResultStatus?: string;
+  paymentResultCode?: string;
+  paymentResultMessage?: string;
+  trackingCheckedAt?: string;
+  trackingStatus?: "success" | "failed";
+  trackingCode?: string;
+  trackingMessage?: string;
+  tracking: SourcingAlibabaTrackingSnapshot[];
+};
+
+export type SourcingAlibabaPostPaymentAutomationState = {
+  lastProcessedAt: string;
+  lastTrigger: string;
+  trades: SourcingAlibabaTradeAutomationState[];
+};
+
 export type SourcingOrderMeta = {
   deliveryProfile?: SourcingDeliveryProfile;
   workflow?: SourcingOrderWorkflow;
@@ -276,6 +308,46 @@ export const SUPPORTED_FORWARDER_COUNTRY_CODES = ["CN"] as const;
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeAlibabaTrackingSnapshot(value: unknown): SourcingAlibabaTrackingSnapshot | null {
+  if (!isObjectRecord(value)) {
+    return null;
+  }
+
+  return {
+    carrier: typeof value.carrier === "string" ? value.carrier : undefined,
+    trackingNumber: typeof value.trackingNumber === "string" ? value.trackingNumber : undefined,
+    trackingUrl: typeof value.trackingUrl === "string" ? value.trackingUrl : undefined,
+    currentEventCode: typeof value.currentEventCode === "string" ? value.currentEventCode : undefined,
+    eventCount: Array.isArray(value.eventList) ? value.eventList.length : 0,
+  };
+}
+
+function normalizeAlibabaTradeAutomationState(value: unknown): SourcingAlibabaTradeAutomationState | null {
+  if (!isObjectRecord(value) || typeof value.tradeId !== "string") {
+    return null;
+  }
+
+  return {
+    tradeId: value.tradeId,
+    paymentRequestedAt: typeof value.paymentRequestedAt === "string" ? value.paymentRequestedAt : undefined,
+    paymentRequestStatus: value.paymentRequestStatus === "requested" || value.paymentRequestStatus === "failed" ? value.paymentRequestStatus : "skipped",
+    paymentRequestCode: typeof value.paymentRequestCode === "string" ? value.paymentRequestCode : undefined,
+    paymentRequestMessage: typeof value.paymentRequestMessage === "string" ? value.paymentRequestMessage : undefined,
+    payUrl: typeof value.payUrl === "string" ? value.payUrl : undefined,
+    paymentResultCheckedAt: typeof value.paymentResultCheckedAt === "string" ? value.paymentResultCheckedAt : undefined,
+    paymentResultStatus: typeof value.paymentResultStatus === "string" ? value.paymentResultStatus : undefined,
+    paymentResultCode: typeof value.paymentResultCode === "string" ? value.paymentResultCode : undefined,
+    paymentResultMessage: typeof value.paymentResultMessage === "string" ? value.paymentResultMessage : undefined,
+    trackingCheckedAt: typeof value.trackingCheckedAt === "string" ? value.trackingCheckedAt : undefined,
+    trackingStatus: value.trackingStatus === "success" || value.trackingStatus === "failed" ? value.trackingStatus : undefined,
+    trackingCode: typeof value.trackingCode === "string" ? value.trackingCode : undefined,
+    trackingMessage: typeof value.trackingMessage === "string" ? value.trackingMessage : undefined,
+    tracking: Array.isArray(value.trackingList)
+      ? value.trackingList.map(normalizeAlibabaTrackingSnapshot).filter((entry): entry is SourcingAlibabaTrackingSnapshot => Boolean(entry))
+      : [],
+  };
 }
 
 function getKnownCurrency(candidate?: string) {
@@ -567,6 +639,28 @@ export function getSourcingOrderMeta(order: Pick<SourcingOrder, "supplierOrderPa
     sharedCart: normalizeSharedCartContext(meta.sharedCart),
     paymentContext: normalizePaymentContext(meta.paymentContext),
     freeDeal: normalizeFreeDealMeta(meta.freeDeal),
+  };
+}
+
+export function getSourcingAlibabaPostPaymentAutomationState(order: Pick<SourcingOrder, "supplierOrderPayload">): SourcingAlibabaPostPaymentAutomationState | null {
+  if (!isObjectRecord(order.supplierOrderPayload)) {
+    return null;
+  }
+
+  const automation = order.supplierOrderPayload.automation;
+  if (!isObjectRecord(automation)) {
+    return null;
+  }
+
+  const postPayment = automation.alibabaPostPayment;
+  if (!isObjectRecord(postPayment) || !Array.isArray(postPayment.trades)) {
+    return null;
+  }
+
+  return {
+    lastProcessedAt: typeof postPayment.lastProcessedAt === "string" ? postPayment.lastProcessedAt : "",
+    lastTrigger: typeof postPayment.lastTrigger === "string" ? postPayment.lastTrigger : "",
+    trades: postPayment.trades.map(normalizeAlibabaTradeAutomationState).filter((entry): entry is SourcingAlibabaTradeAutomationState => Boolean(entry)),
   };
 }
 

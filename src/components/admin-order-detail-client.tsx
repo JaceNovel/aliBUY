@@ -1,10 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useRef, useState, useTransition } from "react";
-import { CheckCheck, PackageCheck, Save, ShieldCheck, Truck } from "lucide-react";
+import { CheckCheck, ExternalLink, PackageCheck, Save, ShieldCheck, Truck } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-import { formatSourcingAmount, getSourcingOrderMeta, type SourcingOrder, type SourcingOrderStatus } from "@/lib/alibaba-sourcing";
+import { formatSourcingAmount, getSourcingAlibabaPostPaymentAutomationState, getSourcingOrderMeta, type SourcingOrder, type SourcingOrderStatus } from "@/lib/alibaba-sourcing";
 
 type AdminOrderDetailClientProps = {
   order: SourcingOrder;
@@ -34,6 +35,7 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
   const proofInputRef = useRef<HTMLInputElement | null>(null);
 
   const meta = useMemo(() => getSourcingOrderMeta(order), [order]);
+  const alibabaAutomation = useMemo(() => getSourcingAlibabaPostPaymentAutomationState(order), [order]);
   const workflow = meta.workflow;
   const deliveryProfile = meta.deliveryProfile;
 
@@ -145,7 +147,7 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
         <article className="rounded-[20px] border border-[#e6eaf0] bg-white px-5 py-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
           <div className="flex items-center gap-3 text-[18px] font-bold text-[#1f2937]">
             <ShieldCheck className="h-5 w-5 text-[#ff6a5b]" />
-            Preuves de livraison vers l'agent
+            Preuves de livraison vers l&apos;agent
           </div>
           <div className="mt-4 space-y-3">
             {workflow?.proofs.length ? workflow.proofs.map((proof) => (
@@ -206,7 +208,7 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
           <div className="mt-4 grid gap-3">
             <label className="text-[13px] font-semibold text-[#344054]">
               Adresse point relais
-              <textarea value={relayPointAddress} onChange={(event) => setRelayPointAddress(event.target.value)} placeholder={workflow?.relayPointAddress || "Entrez l'adresse à afficher au client"} className="mt-2 min-h-[120px] w-full rounded-[18px] border border-[#d7dce5] px-4 py-3 text-[14px] outline-none focus:border-[#ff6a5b]" />
+              <textarea value={relayPointAddress} onChange={(event) => setRelayPointAddress(event.target.value)} placeholder={workflow?.relayPointAddress || "Entrez l&apos;adresse à afficher au client"} className="mt-2 min-h-[120px] w-full rounded-[18px] border border-[#d7dce5] px-4 py-3 text-[14px] outline-none focus:border-[#ff6a5b]" />
             </label>
             <label className="text-[13px] font-semibold text-[#344054]">
               Libellé optionnel
@@ -232,9 +234,76 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
             <button type="button" onClick={() => void submitPatch({ action: "update-status", status: selectedStatus })} disabled={isPending} className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-70 sm:mt-[26px]">Mettre à jour</button>
           </div>
           <div className="mt-4 rounded-[16px] bg-[#fafbfd] px-4 py-4 text-[13px] leading-6 text-[#667085] ring-1 ring-[#edf1f6]">
-            Pour les commandes vers transitaire, utilisez `Livré à l'agent` dès remise à l'agent. Pour vos propres flux AfriPay, utilisez `Point relais disponible` quand l'acheminement est terminé et que le client doit venir retirer son colis.
+            Pour les commandes vers transitaire, utilisez `Livré à l&apos;agent` dès remise à l&apos;agent. Pour vos propres flux AfriPay, utilisez `Point relais disponible` quand l&apos;acheminement est terminé et que le client doit venir retirer son colis.
           </div>
         </article>
+      </section>
+
+      <section className="rounded-[20px] border border-[#e6eaf0] bg-white px-5 py-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-[18px] font-bold text-[#1f2937]">Automatisation Alibaba</div>
+            <div className="mt-1 text-[13px] text-[#667085]">Paiement dropshipping, résultat de paiement et suivi logistique par trade.</div>
+          </div>
+          {alibabaAutomation?.lastProcessedAt ? <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Dernier passage {new Date(alibabaAutomation.lastProcessedAt).toLocaleString("fr-FR")}</div> : null}
+        </div>
+
+        {!alibabaAutomation || alibabaAutomation.trades.length === 0 ? (
+          <div className="mt-4 rounded-[16px] bg-[#fafbfd] px-4 py-4 text-[13px] text-[#667085] ring-1 ring-[#edf1f6]">Aucun état automatique Alibaba enregistré pour cette commande.</div>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {alibabaAutomation.trades.map((trade) => (
+              <article key={trade.tradeId} className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-[15px] font-semibold text-[#1f2937]">Trade {trade.tradeId}</div>
+                    <div className="mt-1 text-[13px] text-[#667085]">Paiement requis: {trade.paymentRequestStatus} · résultat: {trade.paymentResultStatus || "en attente"} · tracking: {trade.trackingStatus || "non lu"}</div>
+                  </div>
+                  {trade.payUrl ? (
+                    <Link href={trade.payUrl} target="_blank" className="inline-flex items-center gap-1 text-[13px] font-semibold text-[#ff6a5b] transition hover:opacity-80">
+                      Ouvrir pay_url
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </Link>
+                  ) : null}
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <div className="rounded-[14px] bg-white px-3 py-3 ring-1 ring-[#edf1f6]">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Paiement Alibaba</div>
+                    <div className="mt-1 text-[14px] font-semibold text-[#1f2937]">{trade.paymentResultStatus || trade.paymentRequestStatus}</div>
+                    {trade.paymentRequestMessage ? <div className="mt-1 text-[12px] leading-5 text-[#667085]">{trade.paymentRequestMessage}</div> : null}
+                    {trade.paymentResultMessage ? <div className="mt-1 text-[12px] leading-5 text-[#667085]">{trade.paymentResultMessage}</div> : null}
+                  </div>
+                  <div className="rounded-[14px] bg-white px-3 py-3 ring-1 ring-[#edf1f6]">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Dernière vérification</div>
+                    <div className="mt-1 text-[14px] font-semibold text-[#1f2937]">{trade.paymentResultCheckedAt ? new Date(trade.paymentResultCheckedAt).toLocaleString("fr-FR") : "Pas encore"}</div>
+                    <div className="mt-1 text-[12px] leading-5 text-[#667085]">Trigger: {alibabaAutomation.lastTrigger || "n/a"}</div>
+                  </div>
+                  <div className="rounded-[14px] bg-white px-3 py-3 ring-1 ring-[#edf1f6]">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Tracking</div>
+                    <div className="mt-1 text-[14px] font-semibold text-[#1f2937]">{trade.tracking[0]?.trackingNumber || "Aucun numéro"}</div>
+                    <div className="mt-1 text-[12px] leading-5 text-[#667085]">{trade.tracking[0]?.carrier || trade.trackingMessage || "Aucun retour transporteur"}</div>
+                  </div>
+                </div>
+
+                {trade.tracking.length > 0 ? (
+                  <div className="mt-4 space-y-2">
+                    {trade.tracking.map((entry, index) => (
+                      <div key={`${trade.tradeId}-${entry.trackingNumber || index}`} className="rounded-[14px] bg-white px-3 py-3 ring-1 ring-[#edf1f6]">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="text-[13px] font-semibold text-[#1f2937]">{entry.carrier || "Transporteur Alibaba"}</div>
+                          <div className="text-[12px] text-[#667085]">{entry.eventCount} événement(s)</div>
+                        </div>
+                        <div className="mt-1 text-[12px] leading-5 text-[#667085]">Numéro: {entry.trackingNumber || "n/a"}{entry.currentEventCode ? ` · état ${entry.currentEventCode}` : ""}</div>
+                        {entry.trackingUrl ? <Link href={entry.trackingUrl} target="_blank" className="mt-2 inline-flex items-center gap-1 text-[12px] font-semibold text-[#ff6a5b] transition hover:opacity-80">Suivre le colis <ExternalLink className="h-3.5 w-3.5" /></Link> : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="rounded-[20px] border border-[#e6eaf0] bg-white px-5 py-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">

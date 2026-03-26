@@ -197,7 +197,7 @@ export function SiteChatWidget() {
     <>
       <section
         className={[
-          "fixed inset-x-3 bottom-[calc(var(--mobile-bottom-nav-height)+18px)] z-[140] overflow-hidden rounded-[28px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,247,241,0.98),rgba(255,255,255,0.98))] shadow-[0_30px_80px_rgba(43,17,0,0.22)] backdrop-blur-xl transition duration-200 ease-out sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[420px]",
+          "fixed inset-x-3 bottom-[calc(var(--mobile-bottom-nav-height)+var(--mobile-floating-cta-height)+18px)] z-[140] overflow-hidden rounded-[28px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,247,241,0.98),rgba(255,255,255,0.98))] shadow-[0_30px_80px_rgba(43,17,0,0.22)] backdrop-blur-xl transition duration-200 ease-out sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[420px]",
           isOpen ? "pointer-events-auto translate-y-0 scale-100 opacity-100" : "pointer-events-none translate-y-5 scale-[0.96] opacity-0",
         ].join(" ")}
       >
@@ -350,7 +350,7 @@ export function SiteChatWidget() {
         type="button"
         onClick={() => setIsOpen((current) => !current)}
         aria-label={isOpen ? "Fermer le chat AfriPay" : "Ouvrir le chat AfriPay"}
-        className="fixed bottom-[calc(var(--mobile-bottom-nav-height)+18px)] right-3 z-[135] inline-flex items-center gap-3 rounded-full border border-white/70 bg-[linear-gradient(135deg,rgba(250,100,0,0.98),rgba(255,146,49,0.96))] px-3 py-3 text-white shadow-[0_20px_40px_rgba(250,100,0,0.32)] transition duration-200 hover:-translate-y-0.5 hover:scale-[1.02] sm:bottom-6 sm:right-6 sm:px-4"
+        className="fixed bottom-[calc(var(--mobile-bottom-nav-height)+var(--mobile-floating-cta-height)+18px)] right-2 z-[135] inline-flex items-center gap-3 rounded-full border border-white/70 bg-[linear-gradient(135deg,rgba(250,100,0,0.98),rgba(255,146,49,0.96))] px-3 py-3 text-white shadow-[0_20px_40px_rgba(250,100,0,0.32)] transition duration-200 hover:-translate-y-0.5 hover:scale-[1.02] sm:bottom-6 sm:right-6 sm:px-4"
       >
         <span className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-white/94 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.6)]">
           <Image src={SITE_LOGO_PATH} alt={`${SITE_NAME} logo`} width={34} height={34} className="h-8 w-8 object-contain sm:h-9 sm:w-9" />
