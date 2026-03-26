@@ -11,7 +11,8 @@ const isProtectedRoute = createRouteMatcher([
   "/messages(.*)",
   "/quotes(.*)",
   "/favorites(.*)",
-  "/admin(.*)",
+  "/admin",
+  "/admin/(.*)",
   "/api/admin(.*)",
 ]);
 

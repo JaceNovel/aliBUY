@@ -3,15 +3,13 @@ import type { Metadata } from "next";
 
 import { ProductDetailClient } from "@/app/products/[slug]/product-detail-client";
 import { InternalPageShell } from "@/components/internal-page-shell";
-import { getCatalogProductBySlug, getCatalogProducts, getCatalogRelatedProducts } from "@/lib/catalog-service";
+import { getCatalogProductBySlug, getCatalogRelatedProducts } from "@/lib/catalog-service";
 import { formatTierAwarePrice } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
 import { SITE_URL } from "@/lib/site-config";
 
-export async function generateStaticParams() {
-  const products = await getCatalogProducts();
-  return products.map((product) => ({ slug: product.slug }));
-}
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function generateMetadata({
   params,

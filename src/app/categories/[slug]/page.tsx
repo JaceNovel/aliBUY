@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
-import { getCatalogCategories, getCatalogCategoryBySlug } from "@/lib/catalog-category-service";
+import { getCatalogCategoryBySlug } from "@/lib/catalog-category-service";
 import { getPricingContext } from "@/lib/pricing";
 import { SITE_URL } from "@/lib/site-config";
 
@@ -21,10 +21,8 @@ function formatPriceRange(
   return formatPrice(minUsd);
 }
 
-export async function generateStaticParams() {
-  const categories = await getCatalogCategories();
-  return categories.map((category) => ({ slug: category.slug }));
-}
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function generateMetadata({
   params,
