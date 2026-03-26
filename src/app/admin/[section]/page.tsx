@@ -1,12 +1,11 @@
 import { notFound } from "next/navigation";
 
 import { AdminSectionContent } from "@/components/admin-section-content";
-import { adminNavItems, getAdminSectionMeta } from "@/lib/admin-config";
+import { getAdminSectionMeta } from "@/lib/admin-config";
 import { getPricingContext } from "@/lib/pricing";
 
-export function generateStaticParams() {
-  return adminNavItems.map((item) => ({ section: item.slug }));
-}
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function AdminSectionPage({ params }: { params: Promise<{ section: string }> }) {
   const pricing = await getPricingContext();
