@@ -76,6 +76,23 @@ function getClerkDisplayName(clerkUser: {
   return clerkUser.fullName?.trim() || clerkUser.firstName?.trim() || deriveDisplayName(primaryEmail ?? "");
 }
 
+function buildTransientClerkUser(input: {
+  clerkUserId: string;
+  email: string;
+  displayName: string;
+}): AuthenticatedUser {
+  const displayName = input.displayName.trim() || deriveDisplayName(input.email);
+  return {
+    id: `clerk:${input.clerkUserId}`,
+    clerkUserId: input.clerkUserId,
+    email: input.email,
+    displayName,
+    firstName: displayName.split(" ")[0] || "Client",
+    createdAt: new Date(0).toISOString(),
+    authProvider: "clerk",
+  };
+}
+
 export function getUserSessionCookieConfig() {
   return {
     name: USER_SESSION_COOKIE,
@@ -174,13 +191,22 @@ export const getCurrentUser = cache(async function getCurrentUser() {
     if (clerkUser) {
       const email = getPrimaryEmailAddress(clerkUser);
       if (email) {
+        const displayName = getClerkDisplayName(clerkUser);
         const syncedUser = await upsertStoredUserFromClerk({
           clerkUserId: clerkUser.id,
           email,
-          displayName: getClerkDisplayName(clerkUser),
-        });
+          displayName,
+        }).catch(() => null);
 
-        return toAuthenticatedUser(syncedUser);
+        if (syncedUser) {
+          return toAuthenticatedUser(syncedUser);
+        }
+
+        return buildTransientClerkUser({
+          clerkUserId: clerkUser.id,
+          email,
+          displayName,
+        });
       }
     }
   }

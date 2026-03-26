@@ -18,6 +18,18 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
+function isPrismaDatabaseUnavailable(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as { code?: unknown; message?: unknown };
+  const message = typeof candidate.message === "string" ? candidate.message : "";
+  return candidate.code === "P1001"
+    || message.includes("Can't reach database server")
+    || message.includes("db.prisma.io:5432");
+}
+
 function toStoredUser(user: {
   id: string;
   clerkUserId?: string | null;
@@ -41,23 +53,47 @@ function toStoredUser(user: {
 }
 
 export async function getStoredUsers() {
-  const users = await prisma.user.findMany({ orderBy: { createdAt: "desc" } });
+  const users = await prisma.user.findMany({ orderBy: { createdAt: "desc" } }).catch((error) => {
+    if (isPrismaDatabaseUnavailable(error)) {
+      return [];
+    }
+
+    throw error;
+  });
   return users.map(toStoredUser);
 }
 
 export async function getStoredUserByEmail(email: string) {
   const normalizedEmail = normalizeEmail(email);
-  const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  const user = await prisma.user.findUnique({ where: { email: normalizedEmail } }).catch((error) => {
+    if (isPrismaDatabaseUnavailable(error)) {
+      return null;
+    }
+
+    throw error;
+  });
   return user ? toStoredUser(user) : null;
 }
 
 export async function getStoredUserByClerkUserId(clerkUserId: string) {
-  const user = await prisma.user.findFirst({ where: { clerkUserId } as never });
+  const user = await prisma.user.findFirst({ where: { clerkUserId } as never }).catch((error) => {
+    if (isPrismaDatabaseUnavailable(error)) {
+      return null;
+    }
+
+    throw error;
+  });
   return user ? toStoredUser(user) : null;
 }
 
 export async function getStoredUserById(id: string) {
-  const user = await prisma.user.findUnique({ where: { id } });
+  const user = await prisma.user.findUnique({ where: { id } }).catch((error) => {
+    if (isPrismaDatabaseUnavailable(error)) {
+      return null;
+    }
+
+    throw error;
+  });
   return user ? toStoredUser(user) : null;
 }
 
