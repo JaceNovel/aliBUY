@@ -100,7 +100,7 @@ export default async function ModePage() {
       <div className="space-y-5 sm:space-y-8">
         <ModePromoHero slides={heroSlides} />
 
-        <section className="grid gap-px overflow-hidden rounded-[20px] border border-[#efe5df] bg-[#efe5df] md:grid-cols-3 sm:rounded-[24px]">
+        <section className="relative left-1/2 right-1/2 -mx-[50vw] grid w-screen gap-px overflow-hidden bg-[#efe5df] md:grid-cols-3">
           {[
             { icon: PackageCheck, title: "Livraison gratuite", description: "Sur tous les articles Choice" },
             { icon: ShieldCheck, title: "Livraison rapide", description: "Remboursement en cas de problème de livraison" },
@@ -109,7 +109,7 @@ export default async function ModePage() {
             const Icon = feature.icon;
 
             return (
-              <div key={feature.title} className="flex items-center gap-3 bg-white px-4 py-3 text-[#5b2b14] sm:px-6 sm:py-4">
+              <div key={feature.title} className="flex items-center gap-3 bg-white px-4 py-3 text-[#5b2b14] sm:px-6 sm:py-4 lg:px-10">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#fff1e6] text-[#9f4d18] sm:h-9 sm:w-9">
                   <Icon className="h-5 w-5" />
                 </div>
