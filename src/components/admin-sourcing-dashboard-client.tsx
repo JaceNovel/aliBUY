@@ -86,6 +86,14 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
   const launchBatch = async (mode: "air" | "sea") => {
     setFeedback(null);
 
+    const hasEligibleOrders = mode === "air" ? airBatchOrders.length > 0 : seaBatchOrders.length > 0;
+    const hasBlockedOrders = mode === "air" ? blockedAirOrders.length > 0 : blockedSeaOrders.length > 0;
+
+    if (!hasEligibleOrders && hasBlockedOrders) {
+      setFeedback(`Aucune commande ${mode === "air" ? "avion" : "mer"} n'est lançable pour le moment. Reprenez d'abord une commande bloquée dans la section "Commandes payées non lançables".`);
+      return;
+    }
+
     const response = await fetch(`/api/admin/sourcing/batches/${mode}/launch`, {
       method: "POST",
     });
@@ -97,6 +105,29 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
     }
 
     setFeedback(`Lot ${mode === "air" ? "avion" : "maritime"} lancé. ${String(data?.processedCount ?? 0)} commande(s) traitée(s).`);
+    startTransition(() => {
+      router.refresh();
+    });
+  };
+
+  const repairOrder = async (orderId: string) => {
+    setFeedback(null);
+
+    const response = await fetch(`/api/admin/sourcing/orders/${encodeURIComponent(orderId)}`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ action: "repair-supplier-order" }),
+    });
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      setFeedback(data?.message || "Impossible de reprendre cette commande bloquée.");
+      return;
+    }
+
+    setFeedback(`Commande ${String(data?.order?.orderNumber ?? orderId)} resynchronisée. Si le fournisseur a été recréé, elle entre maintenant dans le lot.`);
     startTransition(() => {
       router.refresh();
     });
@@ -221,7 +252,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
               <div className="mt-2 text-[13px] leading-6 text-[#667085]">Les commandes payées restent en file d&apos;attente jusqu&apos;au lancement admin. Le lot peut aussi être déclenché avant le seuil.</div>
               {blockedAirOrders.length > 0 ? <div className="mt-2 text-[12px] font-semibold text-[#b54708]">{blockedAirOrders.length} commande(s) payée(s) avion sont bloquées avant le lot.</div> : null}
             </div>
-            <button type="button" onClick={() => launchBatch("air")} disabled={isPending || airBatchOrders.length === 0} className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">
+            <button type="button" onClick={() => launchBatch("air")} disabled={isPending || paidAirOrders.length === 0} className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">
               {airBatchWeight >= AIR_BATCH_TARGET_KG ? "Lancer le lot" : "Lancer quand même"}
             </button>
           </div>
@@ -251,7 +282,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
               <div className="mt-2 text-[13px] leading-6 text-[#667085]">Inclut les commandes mer et toutes les commandes de la campagne articles gratuits, forcées en maritime.</div>
               {blockedSeaOrders.length > 0 ? <div className="mt-2 text-[12px] font-semibold text-[#b54708]">{blockedSeaOrders.length} commande(s) payée(s) mer sont bloquées avant le lot.</div> : null}
             </div>
-            <button type="button" onClick={() => launchBatch("sea")} disabled={isPending || seaBatchOrders.length === 0} className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">
+            <button type="button" onClick={() => launchBatch("sea")} disabled={isPending || paidSeaOrders.length === 0} className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">
               {seaBatchCbm >= SEA_BATCH_TARGET_CBM ? "Lancer le lot" : "Lancer quand même"}
             </button>
           </div>
@@ -302,7 +333,12 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
                       <td className="py-3.5 pr-4">{batchMode === "air" ? "Lot avion" : "Lot mer"}</td>
                       <td className="py-3.5 pr-4">{order.totalWeightKg.toFixed(3)} kg · {order.totalVolumeCbm.toFixed(4)} CBM</td>
                       <td className="py-3.5 pr-4 text-[#b54708]">{getBlockedReason(order)}</td>
-                      <td className="py-3.5 pr-4"><Link href={`/admin/orders/${encodeURIComponent(order.id)}`} className="font-semibold text-[#ff6a00] transition hover:opacity-80">Ouvrir</Link></td>
+                      <td className="py-3.5 pr-4">
+                        <div className="flex flex-wrap gap-3">
+                          <button type="button" onClick={() => repairOrder(order.id)} disabled={isPending} className="inline-flex h-9 items-center justify-center rounded-[12px] bg-[#111827] px-3 text-[12px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">Reprendre</button>
+                          <Link href={`/admin/orders/${encodeURIComponent(order.id)}`} className="font-semibold text-[#ff6a00] transition hover:opacity-80">Ouvrir</Link>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}

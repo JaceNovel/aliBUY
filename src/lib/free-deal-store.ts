@@ -9,6 +9,7 @@ import { Prisma } from "@prisma/client";
 
 import type { SourcingOrder } from "@/lib/alibaba-sourcing";
 import { getSourcingOrderMeta } from "@/lib/alibaba-sourcing";
+import { invalidateCatalogRuntimeCache } from "@/lib/catalog-runtime-cache";
 import { getCatalogProductsBySlugs } from "@/lib/catalog-service";
 import { convertEurToFcfa } from "@/lib/free-deal";
 import { FREE_DEAL_ROUTE, FREE_DEAL_SHARE_ROUTE_PREFIX } from "@/lib/free-deal-constants";
@@ -263,7 +264,7 @@ function normalizeConfigRecord(record: Record<string, unknown>): FreeDealConfig 
     ctaLabel: toNonEmptyString(record.ctaLabel, DEFAULT_FREE_DEAL_CONFIG.ctaLabel),
     shareTitle: toNonEmptyString(record.shareTitle, DEFAULT_FREE_DEAL_CONFIG.shareTitle),
     shareDescription: toNonEmptyString(record.shareDescription, DEFAULT_FREE_DEAL_CONFIG.shareDescription),
-    itemLimit: Math.max(1, Math.min(25, Math.round(toNumber(record.itemLimit, DEFAULT_FREE_DEAL_CONFIG.itemLimit)))),
+    itemLimit: Math.max(7, Math.min(25, Math.round(toNumber(record.itemLimit, DEFAULT_FREE_DEAL_CONFIG.itemLimit)))),
     fixedPriceEur: Number(Math.max(0.5, toNumber(record.fixedPriceEur, DEFAULT_FREE_DEAL_CONFIG.fixedPriceEur)).toFixed(2)),
     referralGoal: Math.max(1, Math.min(500, Math.round(toNumber(record.referralGoal, DEFAULT_FREE_DEAL_CONFIG.referralGoal)))),
     dealTagText: toNonEmptyString(record.dealTagText, DEFAULT_FREE_DEAL_CONFIG.dealTagText),
@@ -571,7 +572,12 @@ export async function getFreeDealConfig() {
     try {
       const record = await prisma.freeDealConfigRecord.findFirst({ orderBy: { updatedAt: "desc" } });
       if (record) {
-        return normalizeConfigRecord(record as unknown as Record<string, unknown>);
+        const normalized = normalizeConfigRecord(record as unknown as Record<string, unknown>);
+        if (normalized.itemLimit !== record.itemLimit) {
+          return saveFreeDealConfig({ itemLimit: normalized.itemLimit });
+        }
+
+        return normalized;
       }
     } catch (error) {
       if (!isPrismaDatabaseUnavailable(error)) {
@@ -583,7 +589,12 @@ export async function getFreeDealConfig() {
   }
 
   const record = await readJsonFile<Record<string, unknown>>(CONFIG_PATH, DEFAULT_FREE_DEAL_CONFIG as unknown as Record<string, unknown>);
-  return normalizeConfigRecord(record);
+  const normalized = normalizeConfigRecord(record);
+  if (normalized.itemLimit !== toNumber(record.itemLimit, DEFAULT_FREE_DEAL_CONFIG.itemLimit)) {
+    await writeJsonFile(CONFIG_PATH, normalized);
+  }
+
+  return normalized;
 }
 
 export async function saveFreeDealConfig(input: Partial<FreeDealConfig>) {
@@ -649,6 +660,7 @@ export async function saveFreeDealConfig(input: Partial<FreeDealConfig>) {
         });
       }
 
+      invalidateCatalogRuntimeCache();
       return nextConfig;
     } catch (error) {
       if (!isPrismaDatabaseUnavailable(error)) {
@@ -660,6 +672,7 @@ export async function saveFreeDealConfig(input: Partial<FreeDealConfig>) {
   }
 
   await writeJsonFile(CONFIG_PATH, nextConfig);
+  invalidateCatalogRuntimeCache();
   return nextConfig;
 }
 

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createAlibabaSupplierOrders, verifyAlibabaSupplierFreight } from "@/lib/alibaba-open-platform-client";
 import {
   AIR_BATCH_TARGET_KG,
   SEA_BATCH_TARGET_CBM,
@@ -7,14 +8,16 @@ import {
   getSourcingAlibabaPaymentRollup,
   getSourcingOrderBatchMode,
   getSourcingOrderMeta,
+  isSourcingOrderClientPaid,
   isSourcingOrderEligibleForSupplierPayment,
   type SourcingBatchMode,
   type SourcingOrder,
   type SourcingOrderStatus,
+  withSourcingOrderMeta,
 } from "@/lib/alibaba-sourcing";
 import { appendOrderAutomationNotification } from "@/lib/customer-data-store";
 import { runSourcingPostPaymentAutomation } from "@/lib/sourcing-payment-automation";
-import { createAlibabaIntegrationLog, getSourcingOrderById, getSourcingOrders, saveSourcingOrder } from "@/lib/sourcing-store";
+import { createAlibabaIntegrationLog, getAlibabaCatalogMappings, getSourcingOrderById, getSourcingOrders, saveSourcingOrder } from "@/lib/sourcing-store";
 
 function nowIso() {
   return new Date().toISOString();
@@ -190,7 +193,7 @@ function getDeferredSupplierPaymentStatus(order: SourcingOrder): SourcingOrderSt
   return order.status;
 }
 
-export async function syncSourcingOrderForDeferredSupplierPayment(order: SourcingOrder, trigger: "moneroo-verify" | "moneroo-webhook") {
+export async function syncSourcingOrderForDeferredSupplierPayment(order: SourcingOrder, trigger: "moneroo-verify" | "moneroo-webhook" | "admin-repair") {
   if (!isSourcingOrderEligibleForSupplierPayment(order)) {
     return order;
   }
@@ -232,6 +235,76 @@ export async function syncSourcingOrderForDeferredSupplierPayment(order: Sourcin
   }
 
   return nextOrder;
+}
+
+export async function repairBlockedSourcingOrderForSupplierPayment(orderId: string) {
+  const order = await getSourcingOrderById(orderId);
+  if (!order) {
+    throw new Error("Commande sourcing introuvable.");
+  }
+
+  if (!isSourcingOrderClientPaid(order)) {
+    throw new Error("Cette commande n'est pas encore marquée comme payée côté client.");
+  }
+
+  const mappings = await getAlibabaCatalogMappings();
+  const currentMeta = getSourcingOrderMeta(order);
+
+  try {
+    const freightVerification = await verifyAlibabaSupplierFreight(order, mappings);
+    let nextOrder = withSourcingOrderMeta({
+      ...order,
+      freightStatus: freightVerification.freightStatus,
+      freightPayload: freightVerification.freightPayload,
+      updatedAt: nowIso(),
+    }, currentMeta);
+
+    await saveSourcingOrder(nextOrder);
+
+    const supplierOrders = await createAlibabaSupplierOrders(nextOrder, mappings, freightVerification);
+    nextOrder = withSourcingOrderMeta({
+      ...nextOrder,
+      supplierOrderStatus: supplierOrders.supplierOrderStatus,
+      alibabaTradeIds: supplierOrders.alibabaTradeIds,
+      supplierOrderPayload: supplierOrders.supplierOrderPayload,
+      updatedAt: nowIso(),
+    }, getSourcingOrderMeta(nextOrder));
+
+    await saveSourcingOrder(nextOrder);
+    await createAlibabaIntegrationLog({
+      orderId: order.id,
+      action: "supplier-preparation-repair",
+      endpoint: "internal",
+      status: "success",
+      requestBody: { orderNumber: order.orderNumber },
+      responseBody: {
+        freightStatus: nextOrder.freightStatus,
+        supplierOrderStatus: nextOrder.supplierOrderStatus,
+        alibabaTradeIds: nextOrder.alibabaTradeIds,
+      },
+    });
+
+    return syncSourcingOrderForDeferredSupplierPayment(nextOrder, "admin-repair");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "supplier_preparation_repair_failed";
+    const failedOrder = withSourcingOrderMeta({
+      ...order,
+      freightStatus: "failed",
+      supplierOrderStatus: "failed",
+      supplierOrderPayload: { failed: true, reason: message },
+      updatedAt: nowIso(),
+    }, currentMeta);
+    await saveSourcingOrder(failedOrder);
+    await createAlibabaIntegrationLog({
+      orderId: order.id,
+      action: "supplier-preparation-repair",
+      endpoint: "internal",
+      status: "failed",
+      requestBody: { orderNumber: order.orderNumber },
+      responseBody: { message },
+    });
+    throw error;
+  }
 }
 
 export async function launchSourcingSupplierPaymentForOrder(orderId: string, trigger: "admin-order-manual") {

@@ -11,6 +11,9 @@ import { buildFreeDealShareUrl, getFreeDealAccessState, getFreeDealConfig, getFr
 import { getPricingContext } from "@/lib/pricing";
 import { getCurrentUser } from "@/lib/user-auth";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function generateMetadata(): Promise<Metadata> {
   const config = await getFreeDealConfig();
 

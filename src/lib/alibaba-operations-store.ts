@@ -14,6 +14,7 @@ import type {
   AlibabaSupplierAccount,
 } from "@/lib/alibaba-operations";
 import { prisma } from "@/lib/prisma";
+import { resolveProductPriceSummaryUsd } from "@/lib/product-variant-pricing";
 import { sanitizeItemWeightGrams } from "@/lib/product-weight";
 
 const DEFAULT_COUNTRY_PROFILES: AlibabaCountryProfile[] = [
@@ -739,6 +740,15 @@ function mapImportedProductRecord(record: {
   const rawPriceBounds = extractRawPriceBounds(record.rawPayload ?? null);
   const rawWeightGrams = extractRawWeightGrams(record.rawPayload);
   const storedWeightGrams = sanitizeItemWeightGrams(record.itemWeightGrams > 0 ? record.itemWeightGrams : undefined);
+  const storedTiers = toUnknownArray<{ quantityLabel: string; priceUsd: number; note?: string }>(record.tiers);
+  const normalizedPriceSummary = resolveProductPriceSummaryUsd({
+    tiers: storedTiers,
+    minUsd: rawPriceBounds.minUsd ?? record.minUsd,
+    maxUsd: rawPriceBounds.maxUsd ?? record.maxUsd ?? undefined,
+    moq: record.moq,
+  }, {
+    quantity: Math.max(1, record.moq),
+  });
 
   return {
     id: record.id,
@@ -759,8 +769,8 @@ function mapImportedProductRecord(record: {
     packaging: record.packaging,
     itemWeightGrams: storedWeightGrams ?? rawWeightGrams ?? 0,
     lotCbm: record.lotCbm,
-    minUsd: rawPriceBounds.minUsd ?? record.minUsd,
-    maxUsd: rawPriceBounds.maxUsd ?? record.maxUsd ?? undefined,
+    minUsd: normalizedPriceSummary.minUsd,
+    maxUsd: normalizedPriceSummary.maxUsd,
     moq: record.moq,
     unit: record.unit,
     badge: record.badge ?? undefined,
@@ -775,7 +785,7 @@ function mapImportedProductRecord(record: {
     shippingLabel: record.shippingLabel,
     overview: toStringArray(record.overview),
     variantGroups: toUnknownArray<{ label: string; values: string[] }>(record.variantGroups),
-    tiers: toUnknownArray<{ quantityLabel: string; priceUsd: number; note?: string }>(record.tiers),
+    tiers: storedTiers,
     specs: toUnknownArray<{ label: string; value: string }>(record.specs),
     inventory: record.inventory,
     status: record.status as AlibabaImportedProduct["status"],

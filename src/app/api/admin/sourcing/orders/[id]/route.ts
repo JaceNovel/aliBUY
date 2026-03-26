@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getSourcingOrderById, saveSourcingOrder } from "@/lib/sourcing-store";
-import { launchSourcingSupplierPaymentForOrder } from "@/lib/sourcing-batch-service";
+import { launchSourcingSupplierPaymentForOrder, repairBlockedSourcingOrderForSupplierPayment } from "@/lib/sourcing-batch-service";
 import { getSourcingOrderMeta, resolveSourcingDeliveryPlan, withSourcingOrderMeta, type SourcingDeliveryProofRole, type SourcingOrderStatus } from "@/lib/alibaba-sourcing";
 
 function nowIso() {
@@ -59,6 +59,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       return NextResponse.json({ order: launchedOrder });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Impossible de lancer le paiement fournisseur.";
+      return NextResponse.json({ message }, { status: 400 });
+    }
+  }
+
+  if (action === "repair-supplier-order") {
+    try {
+      const repairedOrder = await repairBlockedSourcingOrderForSupplierPayment(id);
+      return NextResponse.json({ order: repairedOrder });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Impossible de reprendre cette commande fournisseur.";
       return NextResponse.json({ message }, { status: 400 });
     }
   }

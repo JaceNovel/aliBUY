@@ -11,6 +11,7 @@ import {
 } from "@/lib/alibaba-operations";
 import { getInternalSupplierFulfillment } from "@/lib/internal-fulfillment";
 import { resolveAlibabaMoq } from "@/lib/product-moq";
+import { resolveProductPriceSummaryUsd } from "@/lib/product-variant-pricing";
 import { sanitizeItemWeightGrams } from "@/lib/product-weight";
 import { getSourcingOrderMeta, type SourcingOrder, type AlibabaCatalogMapping } from "@/lib/alibaba-sourcing";
 import type { ProductCatalogItem } from "@/lib/products-data";
@@ -831,13 +832,17 @@ function summarizeAlibabaPriceData(input: {
 }) {
   const tiers = normalizeExtractedPriceTiers(input.values.flatMap((value) => collectPriceTiers(value, 0, undefined, input.unit ?? "piece")));
   const boundsFromTiers = tiers.length > 0
-    ? {
-        min: Math.min(...tiers.map((tier) => tier.priceUsd)),
-        max: tiers.length > 1 ? Math.max(...tiers.map((tier) => tier.priceUsd)) : undefined,
-      }
-    : { min: undefined, max: undefined };
+    ? resolveProductPriceSummaryUsd({
+        tiers,
+        moq: Math.max(1, input.moq ?? 1),
+      }, {
+        quantity: Math.max(1, input.moq ?? 1),
+      })
+    : { minUsd: undefined, maxUsd: undefined, exact: true };
   const boundsFromRaw = getPriceBounds(...input.values);
-  const bounds = hasCoherentPrice(boundsFromTiers) ? boundsFromTiers : boundsFromRaw;
+  const bounds = hasCoherentPrice({ min: boundsFromTiers.minUsd, max: boundsFromTiers.maxUsd })
+    ? { min: boundsFromTiers.minUsd, max: boundsFromTiers.maxUsd }
+    : boundsFromRaw;
   const fallbackTiers = hasCoherentPrice(bounds)
     ? [{
         minimumQuantity: Math.max(1, input.moq ?? 1),

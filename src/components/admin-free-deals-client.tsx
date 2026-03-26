@@ -528,7 +528,7 @@ export function AdminFreeDealsClient({
             <div className="mt-4 grid gap-4">
               <label className="space-y-2 text-[13px] font-semibold text-[#344054]">
                 <span>Nombre exact d'articles</span>
-                <input type="number" min={1} max={25} value={config.itemLimit} onChange={(event) => updateField("itemLimit", Number(event.target.value) || 1)} className="h-11 w-full rounded-[12px] border border-[#dfe3ea] px-4 text-[14px] outline-none focus:border-[#ff5b4d]" />
+                <input type="number" min={7} max={25} value={config.itemLimit} onChange={(event) => updateField("itemLimit", Math.max(7, Number(event.target.value) || 7))} className="h-11 w-full rounded-[12px] border border-[#dfe3ea] px-4 text-[14px] outline-none focus:border-[#ff5b4d]" />
               </label>
 
               <label className="space-y-2 text-[13px] font-semibold text-[#344054]">
