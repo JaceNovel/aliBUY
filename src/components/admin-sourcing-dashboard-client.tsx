@@ -63,11 +63,11 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
     const meta = getSourcingOrderMeta(order);
     if (meta.workflow?.routeType === "customer-forwarder") {
       return meta.deliveryProfile?.forwarder?.hub === "china"
-        ? "hub client Chine (CN)"
-        : "hub client Lome (TG)";
+        ? "votre hub transitaire Chine (CN)"
+        : "votre hub transitaire Lome (TG)";
     }
 
-    return "hub operateur interne Chine (CN)";
+    return "votre hub Chine AfriPay (CN)";
   };
 
   const hasCarrierUnavailableSignal = (message: string | null) => Boolean(
@@ -250,15 +250,15 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
     const data = await response.json().catch(() => null);
 
     if (!response.ok) {
-      setFeedback(data?.message || "Impossible de changer la route logistique de cette commande.");
+      setFeedback(data?.message || "Impossible de changer la route fournisseur de cette commande.");
       return;
     }
 
     const targetLabel = mode === "direct"
-      ? "mode direct AfriPay"
+      ? "votre hub Chine"
       : hub === "china"
-        ? "hub client Chine"
-        : "hub client Lome";
+        ? "votre hub transitaire Chine"
+        : "votre hub transitaire Lome";
     const relaunchMessage = typeof data?.relaunchMessage === "string" && data.relaunchMessage.trim().length > 0
       ? ` ${data.relaunchMessage}`
       : "";
@@ -431,9 +431,9 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
         <section className="rounded-[20px] border border-[#f3d7c2] bg-[#fffaf6] p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
           <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85300]">Blocages avant lot</div>
           <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Commandes payées non lançables</div>
-          <div className="mt-2 text-[13px] leading-6 text-[#667085]">Ces commandes sont déjà payées par le client, mais elles ne peuvent pas encore entrer dans le lancement fournisseur Alibaba.</div>
+          <div className="mt-2 text-[13px] leading-6 text-[#667085]">Ces commandes sont deja payees par le client, mais elles ne peuvent pas encore entrer dans le lancement fournisseur Alibaba.</div>
           <div className="mt-3 rounded-[16px] border border-[#f2d6c2] bg-white/80 px-4 py-3 text-[12px] leading-6 text-[#8a5a33]">
-            En mode direct, le fournisseur expedie vers le hub operateur interne Chine (CN). Si Alibaba ne propose aucun transporteur sur cette adresse, vous pouvez forcer un hub client Chine ou Lome puis relancer la creation fournisseur.
+            Dans ce flux admin, le fournisseur n'expedie pas directement vers le pays final du client. Par defaut, il expedie vers votre hub Chine AfriPay (CN). Si besoin, vous pouvez basculer vers votre hub transitaire Chine ou Lome puis relancer la creation fournisseur.
           </div>
           <div className="mt-5 overflow-x-auto">
             <table className="min-w-full text-left">
@@ -465,9 +465,9 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
                       <td className="py-3.5 pr-4">
                         <div className="flex flex-wrap gap-2">
                           <button type="button" onClick={() => repairOrder(order.id)} disabled={isPending} className="inline-flex h-9 items-center justify-center rounded-[12px] bg-[#111827] px-3 text-[12px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">Reprendre</button>
-                          <button type="button" onClick={() => overrideDeliveryRoute(order.id, "direct")} disabled={isPending || isRouteSelected(order, "direct")} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">Mode direct</button>
-                          <button type="button" onClick={() => overrideDeliveryRoute(order.id, "forwarder", "china")} disabled={isPending || isRouteSelected(order, "forwarder", "china")} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">Hub Chine</button>
-                          <button type="button" onClick={() => overrideDeliveryRoute(order.id, "forwarder", "lome")} disabled={isPending || isRouteSelected(order, "forwarder", "lome")} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">Hub Lome</button>
+                          <button type="button" onClick={() => overrideDeliveryRoute(order.id, "direct")} disabled={isPending || isRouteSelected(order, "direct")} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">Livrer vers mon hub Chine</button>
+                          <button type="button" onClick={() => overrideDeliveryRoute(order.id, "forwarder", "china")} disabled={isPending || isRouteSelected(order, "forwarder", "china")} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">Mon transitaire Chine</button>
+                          <button type="button" onClick={() => overrideDeliveryRoute(order.id, "forwarder", "lome")} disabled={isPending || isRouteSelected(order, "forwarder", "lome")} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">Mon transitaire Lome</button>
                           <Link href={`/admin/orders/${encodeURIComponent(order.id)}`} className="font-semibold text-[#ff6a00] transition hover:opacity-80">Ouvrir</Link>
                         </div>
                       </td>

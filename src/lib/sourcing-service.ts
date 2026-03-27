@@ -8,7 +8,7 @@ import {
   type SourcingSettings,
   withSourcingOrderMeta,
 } from "@/lib/alibaba-sourcing";
-import { createAlibabaSourcingQuote, getAlibabaSourcingCatalog } from "@/lib/alibaba-sourcing-server";
+import { createAlibabaSourcingQuote, getAlibabaSourcingCatalogPreview } from "@/lib/alibaba-sourcing-server";
 import { getSharedCartByToken, markSharedCartOrdered } from "@/lib/cart-share-store";
 import { createAlibabaSupplierOrders, verifyAlibabaSupplierFreight } from "@/lib/alibaba-open-platform-client";
 import { consumePromoCode, validatePromoCodeForAmount } from "@/lib/promo-codes-store";
@@ -56,7 +56,7 @@ export async function getSourcingDashboardData() {
     settings,
     orders,
     containers,
-    catalog: (await getAlibabaSourcingCatalog(settings)).slice(0, 8),
+    catalog: await getAlibabaSourcingCatalogPreview(settings, 8),
   };
 }
 

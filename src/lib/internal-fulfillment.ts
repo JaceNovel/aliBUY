@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { ShippingMethodKey } from "@/lib/alibaba-sourcing";
+import { type ShippingMethodKey, type SourcingOrder } from "@/lib/alibaba-sourcing";
 import type { AlibabaReceptionAddress } from "@/lib/alibaba-operations";
 import { getAlibabaReceptionAddresses } from "@/lib/alibaba-operations-store";
 
@@ -58,9 +58,9 @@ function selectInternalAddress(addresses: AlibabaReceptionAddress[], method: Shi
   return addresses.find((address) => address.countryCode === "CN" && address.isDefault) ?? addresses.find((address) => address.countryCode === "CN") ?? null;
 }
 
-export async function getInternalSupplierFulfillment(method: ShippingMethodKey) {
+export async function getInternalSupplierFulfillment(order: Pick<SourcingOrder, "shippingMethod" | "countryCode" | "customerName" | "customerPhone" | "customerEmail" | "addressLine1" | "addressLine2" | "city" | "state" | "postalCode" | "createdAt" | "updatedAt">) {
   const addresses = await getAlibabaReceptionAddresses();
-  const selectedAddress = selectInternalAddress(addresses, method) ?? buildFallbackAddress(method);
+  const selectedAddress = selectInternalAddress(addresses, order.shippingMethod) ?? buildFallbackAddress(order.shippingMethod);
 
   return {
     operatorName: OPERATOR_NAME,

@@ -14,6 +14,7 @@ import type {
   AlibabaSupplierAccount,
 } from "@/lib/alibaba-operations";
 import { prisma } from "@/lib/prisma";
+import { getOrSetCatalogRuntimeCache, invalidateCatalogRuntimeCache } from "@/lib/catalog-runtime-cache";
 import { resolveProductPriceSummaryUsd } from "@/lib/product-variant-pricing";
 import { resolveCoherentItemWeightGrams, sanitizeItemWeightGrams } from "@/lib/product-weight";
 
@@ -1429,13 +1430,14 @@ async function readAlibabaImportedProductsSource(): Promise<AlibabaImportedProdu
 }
 
 export async function getAlibabaImportedProducts(): Promise<AlibabaImportedProduct[]> {
-  return readAlibabaImportedProductsSource();
+  return getOrSetCatalogRuntimeCache("alibaba-imported-products", 30_000, readAlibabaImportedProductsSource);
 }
 
 export async function saveAlibabaImportedProducts(products: AlibabaImportedProduct[]): Promise<AlibabaImportedProduct[]> {
   if (canUseDatabase()) {
     try {
       const next = await writeAlibabaImportedProductsDbBulk(products);
+      invalidateCatalogRuntimeCache();
       invalidateImportedProductsSnapshot();
       return next;
     } catch (error) {
@@ -1456,6 +1458,7 @@ export async function saveAlibabaImportedProducts(products: AlibabaImportedProdu
 
   const next = [...nextMap.values()].sort((left: AlibabaImportedProduct, right: AlibabaImportedProduct) => right.updatedAt.localeCompare(left.updatedAt));
   await writeJsonFile(IMPORTED_PRODUCTS_PATH, next);
+  invalidateCatalogRuntimeCache();
   invalidateImportedProductsSnapshot();
   return next;
 }
@@ -1464,6 +1467,7 @@ export async function deleteAlibabaImportedProduct(importedProductId: string): P
   if (canUseDatabase()) {
     try {
       await prisma.alibabaImportedProductRecord.deleteMany({ where: { id: importedProductId } });
+      invalidateCatalogRuntimeCache();
       invalidateImportedProductsSnapshot();
       return;
     } catch (error) {
@@ -1478,6 +1482,7 @@ export async function deleteAlibabaImportedProduct(importedProductId: string): P
   const products = await readAlibabaImportedProductsSource();
   const next = products.filter((product: AlibabaImportedProduct) => product.id !== importedProductId);
   await writeJsonFile(IMPORTED_PRODUCTS_PATH, next);
+  invalidateCatalogRuntimeCache();
   invalidateImportedProductsSnapshot();
 }
 
@@ -1552,25 +1557,29 @@ export async function saveAlibabaCountryProfiles(profiles: AlibabaCountryProfile
 }
 
 export async function getAlibabaReceptionAddresses(): Promise<AlibabaReceptionAddress[]> {
-  if (canUseDatabase()) {
-    try {
-      return await readAlibabaReceptionAddressesDb();
-    } catch (error) {
-      if (!isPrismaDatabaseUnavailable(error)) {
-        throw error;
+  return getOrSetCatalogRuntimeCache("alibaba-reception-addresses", 30_000, async () => {
+    if (canUseDatabase()) {
+      try {
+        return await readAlibabaReceptionAddressesDb();
+      } catch (error) {
+        if (!isPrismaDatabaseUnavailable(error)) {
+          throw error;
+        }
+
+        enableDatabaseFallback(error);
       }
-
-      enableDatabaseFallback(error);
     }
-  }
 
-  return readJsonFile<AlibabaReceptionAddress[]>(RECEPTION_ADDRESSES_PATH, []);
+    return readJsonFile<AlibabaReceptionAddress[]>(RECEPTION_ADDRESSES_PATH, []);
+  });
 }
 
 export async function saveAlibabaReceptionAddress(address: AlibabaReceptionAddress): Promise<AlibabaReceptionAddress> {
   if (canUseDatabase()) {
     try {
-      return await writeAlibabaReceptionAddressDb(address);
+      const saved = await writeAlibabaReceptionAddressDb(address);
+      invalidateCatalogRuntimeCache();
+      return saved;
     } catch (error) {
       if (!isPrismaDatabaseUnavailable(error)) {
         throw error;
@@ -1588,6 +1597,7 @@ export async function saveAlibabaReceptionAddress(address: AlibabaReceptionAddre
     ? normalizedAddresses.map((entry: AlibabaReceptionAddress) => entry.id === address.id ? address : entry)
     : [address, ...normalizedAddresses];
   await writeJsonFile(RECEPTION_ADDRESSES_PATH, next);
+  invalidateCatalogRuntimeCache();
   return address;
 }
 

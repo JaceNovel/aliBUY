@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
+import { getOrSetCatalogRuntimeCache, invalidateCatalogRuntimeCache } from "@/lib/catalog-runtime-cache";
 import type {
   AlibabaCatalogMapping,
   AlibabaIntegrationLog,
@@ -243,28 +244,30 @@ function normalizeLog(record: Record<string, unknown>): AlibabaIntegrationLog {
 }
 
 export async function getSourcingSettings() {
-  if (hasDatabase()) {
-    const record = await prisma.sourcingSettings.findFirst({ orderBy: { updatedAt: "desc" } });
-    if (record) {
-      return normalizeSettings(record as unknown as Record<string, unknown>);
+  return getOrSetCatalogRuntimeCache("sourcing-settings", 20_000, async () => {
+    if (hasDatabase()) {
+      const record = await prisma.sourcingSettings.findFirst({ orderBy: { updatedAt: "desc" } });
+      if (record) {
+        return normalizeSettings(record as unknown as Record<string, unknown>);
+      }
     }
-  }
 
-  return normalizeSettings(await readJsonFile<Record<string, unknown>>(SETTINGS_PATH, {
-    currencyCode: "XOF",
-    airRatePerKgFcfa: 10000,
-    airEstimatedDays: "5-10 jours",
-    seaRealCostPerCbmFcfa: 180000,
-    seaSellRatePerCbmFcfa: 210000,
-    seaEstimatedDays: "20-40 jours",
-    freeAirThresholdFcfa: 15000,
-    freeAirEnabled: true,
-    airWeightThresholdKg: 1,
-    containerTargetCbm: 1,
-    defaultMarginMode: "percent",
-    defaultMarginValue: 10,
-    updatedAt: new Date().toISOString(),
-  }));
+    return normalizeSettings(await readJsonFile<Record<string, unknown>>(SETTINGS_PATH, {
+      currencyCode: "XOF",
+      airRatePerKgFcfa: 10000,
+      airEstimatedDays: "5-10 jours",
+      seaRealCostPerCbmFcfa: 180000,
+      seaSellRatePerCbmFcfa: 210000,
+      seaEstimatedDays: "20-40 jours",
+      freeAirThresholdFcfa: 15000,
+      freeAirEnabled: true,
+      airWeightThresholdKg: 1,
+      containerTargetCbm: 1,
+      defaultMarginMode: "percent",
+      defaultMarginValue: 10,
+      updatedAt: new Date().toISOString(),
+    }));
+  });
 }
 
 export async function saveSourcingSettings(settings: SourcingSettings) {
@@ -294,21 +297,25 @@ export async function saveSourcingSettings(settings: SourcingSettings) {
       await prisma.sourcingSettings.create({ data: normalized });
     }
 
+    invalidateCatalogRuntimeCache();
     return normalized;
   }
 
   await writeJsonFile(SETTINGS_PATH, normalized);
+  invalidateCatalogRuntimeCache();
   return normalized;
 }
 
 export async function getSourcingOrders() {
-  if (hasDatabase()) {
-    const records = await prisma.sourcingOrder.findMany({ include: { items: true }, orderBy: { createdAt: "desc" } });
-    return records.map((record) => normalizeOrder(record as unknown as Record<string, unknown>));
-  }
+  return getOrSetCatalogRuntimeCache("sourcing-orders", 20_000, async () => {
+    if (hasDatabase()) {
+      const records = await prisma.sourcingOrder.findMany({ include: { items: true }, orderBy: { createdAt: "desc" } });
+      return records.map((record) => normalizeOrder(record as unknown as Record<string, unknown>));
+    }
 
-  const records = await readJsonFile<Record<string, unknown>[]>(ORDERS_PATH, []);
-  return records.map(normalizeOrder).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    const records = await readJsonFile<Record<string, unknown>[]>(ORDERS_PATH, []);
+    return records.map(normalizeOrder).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  });
 }
 
 export async function getSourcingOrderById(orderId: string) {
@@ -456,6 +463,7 @@ export async function saveSourcingOrder(order: SourcingOrder) {
       },
     });
 
+    invalidateCatalogRuntimeCache();
     return order;
   }
 
@@ -464,6 +472,7 @@ export async function saveSourcingOrder(order: SourcingOrder) {
     ? orders.map((entry) => entry.id === order.id ? order : entry)
     : [order, ...orders];
   await writeJsonFile(ORDERS_PATH, nextOrders);
+  invalidateCatalogRuntimeCache();
   return order;
 }
 
@@ -475,13 +484,15 @@ export async function getUserSourcingOrders(input: { userId: string; email: stri
 }
 
 export async function getSourcingSeaContainers() {
-  if (hasDatabase()) {
-    const records = await prisma.sourcingSeaContainer.findMany({ orderBy: { createdAt: "desc" } });
-    return records.map((record) => normalizeContainer(record as unknown as Record<string, unknown>));
-  }
+  return getOrSetCatalogRuntimeCache("sourcing-sea-containers", 20_000, async () => {
+    if (hasDatabase()) {
+      const records = await prisma.sourcingSeaContainer.findMany({ orderBy: { createdAt: "desc" } });
+      return records.map((record) => normalizeContainer(record as unknown as Record<string, unknown>));
+    }
 
-  const records = await readJsonFile<Record<string, unknown>[]>(CONTAINERS_PATH, []);
-  return records.map(normalizeContainer).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    const records = await readJsonFile<Record<string, unknown>[]>(CONTAINERS_PATH, []);
+    return records.map(normalizeContainer).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  });
 }
 
 export async function saveSourcingSeaContainer(container: SourcingSeaContainer) {
@@ -513,6 +524,7 @@ export async function saveSourcingSeaContainer(container: SourcingSeaContainer) 
       },
     });
 
+    invalidateCatalogRuntimeCache();
     return container;
   }
 
@@ -521,6 +533,7 @@ export async function saveSourcingSeaContainer(container: SourcingSeaContainer) 
     ? containers.map((entry) => entry.id === container.id ? container : entry)
     : [container, ...containers];
   await writeJsonFile(CONTAINERS_PATH, nextContainers);
+  invalidateCatalogRuntimeCache();
   return container;
 }
 

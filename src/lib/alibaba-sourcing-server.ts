@@ -59,6 +59,27 @@ export async function getAlibabaSourcingCatalog(settings: SourcingSettings) {
   });
 }
 
+export async function getAlibabaSourcingCatalogPreview(settings: SourcingSettings, limit = 8) {
+  const products = await getCatalogProducts();
+
+  return products.slice(0, limit).map((product) => {
+    const metrics = getProductSourcingMetrics(product);
+    const marginAmountFcfa = computeMarginAmount(metrics.supplierPriceFcfa, settings);
+
+    return {
+      slug: product.slug,
+      title: product.shortTitle,
+      supplier: product.supplierName,
+      image: product.image,
+      ...metrics,
+      marginMode: settings.defaultMarginMode,
+      marginValue: settings.defaultMarginValue,
+      marginAmountFcfa,
+      suggestedFinalPriceFcfa: metrics.supplierPriceFcfa + marginAmountFcfa,
+    };
+  });
+}
+
 export async function createAlibabaSourcingQuote(
   inputItems: CartInputItem[],
   settings: SourcingSettings,

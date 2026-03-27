@@ -3163,7 +3163,7 @@ async function resolveSupplierFulfillment(order: SourcingOrder) {
     return buildCustomerForwarderFulfillment(order);
   }
 
-  return getInternalSupplierFulfillment(order.shippingMethod);
+  return getInternalSupplierFulfillment(order);
 }
 
 async function prepareSupplierAutomationContext(order: SourcingOrder, mappings: AlibabaCatalogMapping[]) {
