@@ -74,13 +74,16 @@ Backend runs on `http://localhost:4000`.
 
 ## Deployment
 
-- Deploy `frontend/` as the visual storefront.
-- Deploy `backend/` as the application/backend service.
+- Deploy the storefront on Vercel from the repository root.
+- Deploy the backend on Render with Docker.
+- `frontend/` remains the visual storefront source folder.
+- `backend/` remains the application/backend service source folder.
 - Do not deploy local build artifacts like `.next/`, `.clerk/`, or `tmp/`.
-- Render Docker deployment is prepared with:
-  - `Dockerfile.frontend`
+- Render backend deployment is prepared with:
   - `Dockerfile.backend`
   - `render.yaml`
+- Vercel storefront deployment is prepared with:
+  - `vercel.json`
 
 Useful commands:
 
@@ -132,7 +135,7 @@ Main files:
 
 ## Admin and Checkout
 
-- Admin sourcing dashboard: `/admin/alibaba-sourcing`
+- Admin sourcing dashboard: `/admin/aliexpress-sourcing`
 - Cart: `/cart`
 - Checkout sourcing: `/checkout`
 - Moneroo payment page: `/orders/payment?orderId=<sourcing-order-id>`
@@ -160,7 +163,7 @@ Notes:
 - Configure the webhook URL in Moneroo dashboard to point to `/api/payments/moneroo/webhook`.
 - Payment status is persisted on sourcing orders using the Moneroo payment id and latest verification payload.
 
-## Alibaba Integration
+## AliExpress Integration
 
 The server integration is ready for:
 
@@ -169,36 +172,33 @@ The server integration is ready for:
 
 Required environment variables:
 
-- `ALIBABA_OPEN_PLATFORM_APP_KEY`
-- `ALIBABA_OPEN_PLATFORM_APP_SECRET`
-- `ALIBABA_OPEN_PLATFORM_ACCESS_TOKEN`
+- `ALIEXPRESS_OPEN_PLATFORM_APP_KEY`
+- `ALIEXPRESS_OPEN_PLATFORM_APP_SECRET`
+- `ALIEXPRESS_OPEN_PLATFORM_ACCESS_TOKEN`
+- `ALIEXPRESS_OPEN_PLATFORM_REFRESH_TOKEN`
+- `ALIEXPRESS_DS_WEBHOOK_APP_KEY`
+- `ALIEXPRESS_DS_WEBHOOK_SECRET`
+- `ALIEXPRESS_DS_WEBHOOK_URL`
+- `ALIEXPRESS_SELLER_CALLBACK_URL`
 
 Important:
 
 - Real upstream calls also require valid catalog mapping data in `data/sourcing/catalog-mapping.json`
-- If credentials or mappings are missing, the system creates the internal order and logs the Alibaba step as skipped instead of failing the checkout.
+- If credentials or mappings are missing, the system creates the internal order and logs the AliExpress step as skipped instead of failing the checkout.
 
 ## Vercel Deployment
 
 Required environment variables on Vercel:
 
-- `DATABASE_URL`
-- `USER_SESSION_SECRET`
-- `ADMIN_EMAIL`
-- `ADMIN_PASSWORD_HASH`
-- `ADMIN_SESSION_SECRET`
-- `MONEROO_SECRET_KEY`
-- `MONEROO_WEBHOOK_SECRET`
-- `ALIBABA_OPEN_PLATFORM_APP_KEY`
-- `ALIBABA_OPEN_PLATFORM_APP_SECRET`
-- `ALIBABA_OPEN_PLATFORM_ACCESS_TOKEN`
+- `NEXT_PUBLIC_API_BASE_URL`
+- `NEXT_PUBLIC_ALIEXPRESS_PROVIDER`
+- `NEXT_PUBLIC_DEFAULT_DELIVERY_COUNTRY`
 
 Deployment notes:
 
-- `postinstall` now runs `prisma generate`, which is required on Vercel builds.
-- `npm run build` only builds the Next.js app. Apply schema changes separately with `npm run deploy:db` or your CI/CD pipeline before switching traffic.
-- Run `npm run prisma:push` once against the production database before the first deployment if you are bootstrapping from the current schema instead of replaying migrations.
-- The storefront no longer reads user accounts, favorites, quotes, or support threads from local JSON files.
+- Connect the repository root to Vercel. The root Next.js app uses the storefront files through the compatibility links already present in the repo.
+- `npm run build` builds the storefront app only.
+- Point `NEXT_PUBLIC_API_BASE_URL` to the public Render backend URL.
 
 ## Notes
 
