@@ -6,7 +6,7 @@ import { cache } from "react";
 import { getCatalogCategoryBySlug, getCatalogCategories } from "@/lib/catalog-category-service";
 import { getCatalogProducts, searchCatalogProducts } from "@/lib/catalog-service";
 import { prisma } from "@/lib/prisma";
-import { withRedisJsonCache } from "@/lib/redis-cache";
+import { getRedisJsonCache, setRedisJsonCache } from "@/lib/redis-cache";
 
 export const PRODUCTS_FEED_PAGE_SIZE = 20;
 const PRODUCTS_FEED_MAX_PAGE_SIZE = 40;
@@ -266,6 +266,22 @@ function buildFallbackPage(options: {
   } satisfies ProductFeedPage;
 }
 
+function hasFeedItems(payload: ProductFeedPage) {
+  return payload.items.length > 0;
+}
+
+async function getFeaturedProductsFallbackPage(pageSize: number, mode: ProductFeaturedMode) {
+  const products = await getCatalogProducts();
+
+  return buildFallbackPage({
+    items: products.slice(0, pageSize),
+    page: 1,
+    pageSize,
+    source: "featured",
+    mode,
+  });
+}
+
 function buildFeaturedOrderBy(mode: ProductFeaturedMode): Prisma.AlibabaImportedProductRecordOrderByWithRelationInput[] {
   switch (mode) {
     case "top":
@@ -483,7 +499,12 @@ export async function getFeaturedProductsFeed(input?: {
           select: PRODUCT_FEED_SELECT,
         });
 
-        return buildPagePayload(rows, 1, pageSize, "featured", { mode });
+        const payload = buildPagePayload(rows, 1, pageSize, "featured", { mode });
+        if (hasFeedItems(payload)) {
+          return payload;
+        }
+
+        return getFeaturedProductsFallbackPage(pageSize, mode);
       } catch (error) {
         if (isPrismaFallbackError(error)) {
           logProductsFeedFallback("featured", error);
@@ -496,22 +517,31 @@ export async function getFeaturedProductsFeed(input?: {
             select: PRODUCT_FEED_SELECT,
           });
 
-          return buildPagePayload(rows, 1, pageSize, "featured", { mode: "recommended" });
+          const payload = buildPagePayload(rows, 1, pageSize, "featured", { mode: "recommended" });
+          if (hasFeedItems(payload)) {
+            return payload;
+          }
+
+          return getFeaturedProductsFallbackPage(pageSize, "recommended");
         }
       }
     }
 
-    const products = await getCatalogProducts();
-    return buildFallbackPage({
-      items: products.slice(0, pageSize),
-      page: 1,
-      pageSize,
-      source: "featured",
-      mode,
-    });
+    return getFeaturedProductsFallbackPage(pageSize, mode);
   };
 
-  return withRedisJsonCache(`products:featured:${mode}:${pageSize}`, FEATURED_PRODUCTS_REDIS_TTL_SECONDS, buildPayload);
+  const cacheKey = `products:featured:${mode}:${pageSize}`;
+  const cached = await getRedisJsonCache<ProductFeedPage>(cacheKey);
+  if (cached && hasFeedItems(cached)) {
+    return cached;
+  }
+
+  const freshPayload = await buildPayload();
+  if (hasFeedItems(freshPayload)) {
+    await setRedisJsonCache(cacheKey, freshPayload, FEATURED_PRODUCTS_REDIS_TTL_SECONDS);
+  }
+
+  return freshPayload;
 }
 
 export async function incrementProductViewCount(slug: string) {

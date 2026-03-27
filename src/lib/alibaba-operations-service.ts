@@ -631,7 +631,6 @@ export async function createAlibabaPurchaseOrder(input: {
   importedProductId: string;
   quantity: number;
   shippingAddressId?: string;
-  autoPay: boolean;
 }) {
   const [products, addresses] = await Promise.all([
     getAlibabaImportedProducts(),
@@ -730,10 +729,6 @@ export async function createAlibabaPurchaseOrder(input: {
     createdAt: nowIso(),
     updatedAt: nowIso(),
   });
-
-  if (input.autoPay && purchaseOrder.tradeId) {
-    return payAlibabaPurchaseOrder(purchaseOrder.id);
-  }
 
   return purchaseOrder;
 }

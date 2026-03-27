@@ -12,7 +12,6 @@ export async function POST(request: Request) {
     importedProductId: String(body?.importedProductId ?? ""),
     quantity: Number(body?.quantity ?? 1),
     shippingAddressId: body?.shippingAddressId ? String(body.shippingAddressId) : undefined,
-    autoPay: Boolean(body?.autoPay),
   });
 
   return Response.json({ order });

@@ -185,17 +185,22 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
         importedProductId,
         quantity: quantityByProduct[importedProductId] ?? 1,
         shippingAddressId: defaultAddressId,
-        autoPay: true,
       }),
     });
 
+    const payload = await response.json().catch(() => null);
+
     if (!response.ok) {
-      const payload = await response.json().catch(() => null);
       setFeedback(payload?.message ?? "Creation du lot d'achat impossible.");
       return;
     }
 
-    setFeedback("Lot d'achat cree. Paiement/URL Alibaba prepare.");
+    const payUrl = typeof payload?.order?.payUrl === "string" ? payload.order.payUrl : undefined;
+    setFeedback(
+      payUrl
+        ? "Ordre Alibaba cree. Ouvre maintenant le pay_url pour payer manuellement sur Alibaba."
+        : "Ordre Alibaba cree. Aucun pay_url n'a ete retourne pour l'instant, utilise Actualiser pour relire le statut.",
+    );
     refresh();
   };
 
@@ -647,7 +652,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
                             {formatTierAwarePriceMeta(product) ? <div className="mt-1 text-[11px] text-[#667085]">{formatTierAwarePriceMeta(product)}</div> : null}
                           </div>
                           <input value={quantityByProduct[product.id] ?? product.moq} onChange={(event) => setQuantityByProduct((current) => ({ ...current, [product.id]: Number(event.target.value) }))} type="number" min={1} className="h-10 w-28 rounded-[12px] border border-[#d7dce5] px-3 text-[13px] text-[#111827] outline-none focus:border-[#ff6a00]" />
-                          <button type="button" onClick={() => createPurchaseOrder(product.id)} className="inline-flex h-10 items-center justify-center rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]">Auto achat</button>
+                          <button type="button" onClick={() => createPurchaseOrder(product.id)} className="inline-flex h-10 items-center justify-center rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]">Creer ordre Alibaba</button>
                           <button type="button" onClick={() => reenrichImportedItem(product.id)} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#dbe2ea] bg-white px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
                             <RefreshCcw className="h-4 w-4" />
                             Réenrichir
@@ -851,7 +856,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
       {panel === "lots" ? (
         <section className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
           <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Lots d&apos;achat</div>
-          <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">BuyNow orders, pay_url et suivi paiement</div>
+          <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">BuyNow orders, pay_url et suivi manuel du paiement</div>
           <div className="mt-5 space-y-3">
             {initialDashboard.purchaseOrders.length === 0 ? <div className="rounded-[16px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Aucun lot d&apos;achat Alibaba.</div> : initialDashboard.purchaseOrders.map((order) => (
               <div key={order.id} className="rounded-[16px] border border-[#edf1f6] p-4">
@@ -865,7 +870,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="rounded-[12px] bg-[#fff7ed] px-3 py-2 text-[13px] font-semibold text-[#c2410c]">${order.amountUsd.toFixed(2)}</div>
                     {order.payUrl ? <a href={order.payUrl} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center rounded-[12px] border border-[#dbe2ea] px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">pay_url</a> : null}
-                    <button type="button" onClick={() => payOrder(order, "pay")} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]"><Wallet className="h-4 w-4" />Payer</button>
+                    <button type="button" onClick={() => payOrder(order, "pay")} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]"><Wallet className="h-4 w-4" />Ouvrir pay_url</button>
                     <button type="button" onClick={() => payOrder(order, "refresh")} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#dbe2ea] px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]"><RefreshCcw className="h-4 w-4" />Actualiser</button>
                   </div>
                 </div>
