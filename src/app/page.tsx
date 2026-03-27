@@ -481,9 +481,6 @@ export default async function Home() {
               </div>
               <h2 className="mt-2 text-[24px] font-bold tracking-[-0.05em] text-[#222] sm:text-[30px]">{messages.recommendations.title}</h2>
             </div>
-            <div className="rounded-full bg-white px-4 py-2 text-[13px] font-medium text-[#444] ring-1 ring-black/5">
-              {messages.recommendations.algorithm}
-            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-[1.1fr_repeat(4,1fr)]">

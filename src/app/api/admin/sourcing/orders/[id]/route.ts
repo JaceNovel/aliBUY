@@ -2,7 +2,17 @@ import { NextResponse } from "next/server";
 
 import { getSourcingOrderById, saveSourcingOrder } from "@/lib/sourcing-store";
 import { launchSourcingSupplierPaymentForOrder, repairBlockedSourcingOrderForSupplierPayment } from "@/lib/sourcing-batch-service";
-import { getSourcingOrderMeta, resolveSourcingDeliveryPlan, withSourcingOrderMeta, type SourcingDeliveryProofRole, type SourcingOrderStatus } from "@/lib/alibaba-sourcing";
+import {
+  getSourcingOrderMeta,
+  resolveSourcingDeliveryPlan,
+  withSourcingOrderMeta,
+  type SourcingDeliveryMode,
+  type SourcingDeliveryProofRole,
+  type SourcingForwarderHub,
+  type SourcingOrder,
+  type SourcingOrderStatus,
+  type SourcingOrderWorkflow,
+} from "@/lib/alibaba-sourcing";
 
 function nowIso() {
   return new Date().toISOString();
@@ -42,6 +52,24 @@ function normalizeProofRole(candidate: unknown): SourcingDeliveryProofRole {
   }
 }
 
+function normalizeDeliveryMode(candidate: unknown): SourcingDeliveryMode {
+  return candidate === "forwarder" ? "forwarder" : "direct";
+}
+
+function normalizeForwarderHub(candidate: unknown): SourcingForwarderHub {
+  return candidate === "china" ? "china" : "lome";
+}
+
+function mergeWorkflowRoute(currentWorkflow: SourcingOrderWorkflow, nextWorkflow: SourcingOrderWorkflow): SourcingOrderWorkflow {
+  return {
+    ...currentWorkflow,
+    routeType: nextWorkflow.routeType,
+    freeDeliveryEligible: nextWorkflow.freeDeliveryEligible,
+    supplierDeliveryAddressRole: nextWorkflow.supplierDeliveryAddressRole,
+    proofs: currentWorkflow.proofs,
+  };
+}
+
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   const order = await getSourcingOrderById(id);
@@ -52,6 +80,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const action = typeof body?.action === "string" ? body.action : "";
+  const currentMeta = getSourcingOrderMeta(order);
+  const derivedPlan = resolveSourcingDeliveryPlan({
+    countryCode: order.countryCode,
+    city: order.city,
+    deliveryProfile: currentMeta.deliveryProfile,
+  });
 
   if (action === "launch-supplier-payment") {
     try {
@@ -73,12 +107,65 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
   }
 
-  const currentMeta = getSourcingOrderMeta(order);
-  const derivedPlan = resolveSourcingDeliveryPlan({
-    countryCode: order.countryCode,
-    city: order.city,
-    deliveryProfile: currentMeta.deliveryProfile,
-  });
+  if (action === "override-delivery-route") {
+    const mode = normalizeDeliveryMode(body?.mode);
+    const currentProfile = currentMeta.deliveryProfile ?? derivedPlan.deliveryProfile;
+    const requestedProfile = mode === "forwarder"
+      ? {
+          ...currentProfile,
+          mode: "forwarder" as const,
+          forwarder: {
+            hub: normalizeForwarderHub(body?.hub),
+            addressBlock: typeof body?.addressBlock === "string"
+              ? body.addressBlock.trim()
+              : currentProfile.forwarder?.addressBlock ?? "",
+            parcelMarking: typeof body?.parcelMarking === "string" && body.parcelMarking.trim().length > 0
+              ? body.parcelMarking.trim()
+              : currentProfile.forwarder?.parcelMarking,
+          },
+        }
+      : {
+          ...currentProfile,
+          mode: "direct" as const,
+          forwarder: undefined,
+        };
+
+    const nextPlan = resolveSourcingDeliveryPlan({
+      countryCode: order.countryCode,
+      city: order.city,
+      deliveryProfile: requestedProfile,
+    });
+
+    let nextOrder: SourcingOrder = withSourcingOrderMeta({ ...order, updatedAt: nowIso() }, {
+      deliveryProfile: nextPlan.deliveryProfile,
+      workflow: mergeWorkflowRoute(currentMeta.workflow ?? derivedPlan.workflow, nextPlan.workflow),
+    });
+    await saveSourcingOrder(nextOrder);
+
+    const shouldRelaunch = body?.relaunch !== false;
+    let relaunchMessage: string | undefined;
+
+    if (shouldRelaunch) {
+      try {
+        nextOrder = await repairBlockedSourcingOrderForSupplierPayment(id);
+      } catch (error) {
+        relaunchMessage = error instanceof Error ? error.message : "Route mise a jour, mais la relance fournisseur a echoue.";
+      }
+    }
+
+    return NextResponse.json({
+      order: nextOrder,
+      relaunchMessage,
+      route: {
+        mode: nextPlan.deliveryProfile.mode,
+        hub: nextPlan.deliveryProfile.forwarder?.hub,
+        destinationCountryCode: nextPlan.workflow.routeType === "customer-forwarder"
+          ? nextPlan.deliveryProfile.forwarder?.hub === "china" ? "CN" : "TG"
+          : "CN",
+      },
+    });
+  }
+
   const workflow = currentMeta.workflow ?? derivedPlan.workflow;
   const timestamp = nowIso();
   let nextOrder = { ...order, updatedAt: timestamp };

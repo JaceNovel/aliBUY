@@ -3315,11 +3315,39 @@ export async function createAlibabaSupplierOrders(order: SourcingOrder, mappings
   let supplierOrderStatus: "created" | "failed" = "created";
 
   for (const group of freightVerification.preparedGroups) {
+    if (!group.carrierCode) {
+      supplierResponses.push({
+        supplierCompanyId: group.supplierCompanyId,
+        carrierCode: undefined,
+        requestOk: false,
+        responseBody: {
+          code: "missing_carrier_code",
+          message: "Aucun transporteur valide n'a ete retourne par la verification fret Alibaba pour ce fournisseur.",
+        },
+      });
+      await createAlibabaIntegrationLog({
+        orderId: order.id,
+        action: "supplier-order-create",
+        endpoint: "/buynow/order/create",
+        status: "failed",
+        requestBody: {
+          supplierCompanyId: group.supplierCompanyId,
+          reason: "missing_carrier_code",
+        },
+        responseBody: {
+          code: "missing_carrier_code",
+          message: "Aucun transporteur valide n'a ete retourne par la verification fret Alibaba pour ce fournisseur.",
+        },
+      });
+      supplierOrderStatus = "failed";
+      continue;
+    }
+
     const supplierPayload = {
       channel_refer_id: order.orderNumber,
       logistics_detail: {
         dispatch_location: group.dispatchLocation,
-        ...(group.carrierCode ? { carrier_code: group.carrierCode } : {}),
+        carrier_code: group.carrierCode,
         shipment_address: buildAlibabaShipmentAddress(freightVerification.internalFulfillment.address),
       },
       product_list: group.entries.map((entry) => ({
@@ -3337,22 +3365,23 @@ export async function createAlibabaSupplierOrders(order: SourcingOrder, mappings
     };
 
     const supplierResult = await createAlibabaBuyNowOrder(supplierPayload);
+    const supplierResultOk = supplierResult.ok && isAlibabaOperationSuccessful(supplierResult.responseBody);
     supplierResponses.push({
       supplierCompanyId: group.supplierCompanyId,
       carrierCode: group.carrierCode,
       responseBody: supplierResult.responseBody,
-      requestOk: supplierResult.ok,
+      requestOk: supplierResultOk,
     });
     await createAlibabaIntegrationLog({
       orderId: order.id,
       action: "supplier-order-create",
       endpoint: supplierResult.endpoint,
-      status: supplierResult.ok ? "success" : "failed",
+      status: supplierResultOk ? "success" : "failed",
       requestBody: supplierPayload,
       responseBody: supplierResult.responseBody,
     });
 
-    if (!supplierResult.ok) {
+    if (!supplierResultOk) {
       supplierOrderStatus = "failed";
       continue;
     }
@@ -3361,7 +3390,23 @@ export async function createAlibabaSupplierOrders(order: SourcingOrder, mappings
     const tradeId = resultObject?.trade_id ?? resultObject?.data?.trade_id;
     if (tradeId) {
       tradeIds.push(String(tradeId));
+      continue;
     }
+
+    supplierOrderStatus = "failed";
+    supplierResponses.push({
+      supplierCompanyId: group.supplierCompanyId,
+      carrierCode: group.carrierCode,
+      requestOk: false,
+      responseBody: {
+        code: "missing_trade_id",
+        message: "Alibaba n'a retourne aucun trade_id apres la creation de la commande fournisseur.",
+      },
+    });
+  }
+
+  if (tradeIds.length === 0) {
+    supplierOrderStatus = "failed";
   }
 
   return {

@@ -59,28 +59,109 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
   const airBatchWeight = useMemo(() => Number(airBatchOrders.reduce((total, order) => total + order.totalWeightKg, 0).toFixed(3)), [airBatchOrders]);
   const seaBatchCbm = useMemo(() => Number(seaBatchOrders.reduce((total, order) => total + order.totalVolumeCbm, 0).toFixed(4)), [seaBatchOrders]);
 
+  const getSupplierDestinationLabel = (order: SourcingOrder) => {
+    const meta = getSourcingOrderMeta(order);
+    if (meta.workflow?.routeType === "customer-forwarder") {
+      return meta.deliveryProfile?.forwarder?.hub === "china"
+        ? "hub client Chine (CN)"
+        : "hub client Lome (TG)";
+    }
+
+    return "hub operateur interne Chine (CN)";
+  };
+
+  const hasCarrierUnavailableSignal = (message: string | null) => Boolean(
+    message
+      && /(carrier_code|available carrier|carrier|ship to th(?:is|at) country|send to th(?:is|at) country|deliver to th(?:is|at) country|seller.*country|transporteur)/i.test(message),
+  );
+
+  const extractBlockedSupplierMessage = (order: SourcingOrder) => {
+    const freightPayload = Array.isArray(order.freightPayload) ? order.freightPayload : [];
+    for (const entry of freightPayload) {
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+
+      const responseBody = "responseBody" in entry && entry.responseBody && typeof entry.responseBody === "object"
+        ? entry.responseBody as Record<string, unknown>
+        : null;
+      const message = responseBody && typeof responseBody.message === "string" ? responseBody.message.trim() : "";
+      if (message) {
+        return message;
+      }
+    }
+
+    const payload = order.supplierOrderPayload && typeof order.supplierOrderPayload === "object"
+      ? order.supplierOrderPayload as Record<string, unknown>
+      : null;
+    const rawPayload = Array.isArray(payload?.rawPayload) ? payload.rawPayload : [];
+    for (const entry of rawPayload) {
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+
+      const responseBody = "responseBody" in entry && entry.responseBody && typeof entry.responseBody === "object"
+        ? entry.responseBody as Record<string, unknown>
+        : null;
+      const message = responseBody && typeof responseBody.message === "string" ? responseBody.message.trim() : "";
+      if (message) {
+        return message;
+      }
+    }
+
+    return null;
+  };
+
   const getBlockedReason = (order: SourcingOrder) => {
+    const providerMessage = extractBlockedSupplierMessage(order);
+    const destination = getSupplierDestinationLabel(order);
+
+    if ((order.supplierOrderStatus === "failed" || order.alibabaTradeIds.length === 0) && hasCarrierUnavailableSignal(providerMessage)) {
+      return {
+        label: "Aucun transporteur Alibaba disponible pour ce fournisseur vers cette adresse",
+        detail: `Destination actuelle: ${destination}.${providerMessage ? ` Detail Alibaba: ${providerMessage}` : ""}`,
+      };
+    }
+
     if (order.supplierOrderStatus === "failed") {
-      return "Création fournisseur échouée";
+      return {
+        label: providerMessage || "Creation fournisseur echouee",
+        detail: `Destination actuelle: ${destination}`,
+      };
     }
 
     if (order.supplierOrderStatus === "not_created") {
-      return "Commande fournisseur non créée";
+      return {
+        label: "Commande fournisseur non creee",
+        detail: `Destination actuelle: ${destination}`,
+      };
     }
 
     if (order.supplierOrderStatus === "skipped") {
-      return "Flux fournisseur ignoré après vérification fret";
+      return {
+        label: "Flux fournisseur ignore apres verification fret",
+        detail: `Destination actuelle: ${destination}`,
+      };
     }
 
     if (order.alibabaTradeIds.length === 0) {
-      return "Aucun trade Alibaba disponible";
+      return {
+        label: providerMessage || "Aucun trade Alibaba disponible",
+        detail: `Destination actuelle: ${destination}`,
+      };
     }
 
     if (getSourcingAlibabaPaymentRollup(order) === "paid") {
-      return "Déjà payé côté fournisseur";
+      return {
+        label: "Deja paye cote fournisseur",
+        detail: `Destination actuelle: ${destination}`,
+      };
     }
 
-    return "Bloquée avant lancement fournisseur";
+    return {
+      label: "Bloquee avant lancement fournisseur",
+      detail: `Destination actuelle: ${destination}`,
+    };
   };
 
   const launchBatch = async (mode: "air" | "sea") => {
@@ -154,6 +235,47 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
     startTransition(() => {
       router.refresh();
     });
+  };
+
+  const overrideDeliveryRoute = async (orderId: string, mode: "direct" | "forwarder", hub?: "china" | "lome") => {
+    setFeedback(null);
+
+    const response = await fetch(`/api/admin/sourcing/orders/${encodeURIComponent(orderId)}`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ action: "override-delivery-route", mode, hub, relaunch: true }),
+    });
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      setFeedback(data?.message || "Impossible de changer la route logistique de cette commande.");
+      return;
+    }
+
+    const targetLabel = mode === "direct"
+      ? "mode direct AfriPay"
+      : hub === "china"
+        ? "hub client Chine"
+        : "hub client Lome";
+    const relaunchMessage = typeof data?.relaunchMessage === "string" && data.relaunchMessage.trim().length > 0
+      ? ` ${data.relaunchMessage}`
+      : "";
+
+    setFeedback(`Route fournisseur basculee vers ${targetLabel}.${relaunchMessage}`);
+    startTransition(() => {
+      router.refresh();
+    });
+  };
+
+  const isRouteSelected = (order: SourcingOrder, mode: "direct" | "forwarder", hub?: "china" | "lome") => {
+    const meta = getSourcingOrderMeta(order);
+    if (mode === "direct") {
+      return meta.workflow?.routeType !== "customer-forwarder";
+    }
+
+    return meta.workflow?.routeType === "customer-forwarder" && meta.deliveryProfile?.forwarder?.hub === hub;
   };
 
   const persistSettings = async () => {
@@ -310,6 +432,9 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
           <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85300]">Blocages avant lot</div>
           <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Commandes payées non lançables</div>
           <div className="mt-2 text-[13px] leading-6 text-[#667085]">Ces commandes sont déjà payées par le client, mais elles ne peuvent pas encore entrer dans le lancement fournisseur Alibaba.</div>
+          <div className="mt-3 rounded-[16px] border border-[#f2d6c2] bg-white/80 px-4 py-3 text-[12px] leading-6 text-[#8a5a33]">
+            En mode direct, le fournisseur expedie vers le hub operateur interne Chine (CN). Si Alibaba ne propose aucun transporteur sur cette adresse, vous pouvez forcer un hub client Chine ou Lome puis relancer la creation fournisseur.
+          </div>
           <div className="mt-5 overflow-x-auto">
             <table className="min-w-full text-left">
               <thead>
@@ -325,6 +450,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
               <tbody>
                 {blockedPaidOrders.map((order) => {
                   const batchMode = getSourcingOrderBatchMode(order);
+                  const blockedReason = getBlockedReason(order);
 
                   return (
                     <tr key={`blocked-${order.id}`} className="border-t border-[#f2e8df] text-[13px] text-[#1f2937]">
@@ -332,10 +458,16 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
                       <td className="py-3.5 pr-4">{order.customerName}</td>
                       <td className="py-3.5 pr-4">{batchMode === "air" ? "Lot avion" : "Lot mer"}</td>
                       <td className="py-3.5 pr-4">{order.totalWeightKg.toFixed(3)} kg · {order.totalVolumeCbm.toFixed(4)} CBM</td>
-                      <td className="py-3.5 pr-4 text-[#b54708]">{getBlockedReason(order)}</td>
+                      <td className="py-3.5 pr-4 text-[#b54708]">
+                        <div className="font-semibold">{blockedReason.label}</div>
+                        <div className="mt-1 text-[11px] leading-5 text-[#8a5a33]">{blockedReason.detail}</div>
+                      </td>
                       <td className="py-3.5 pr-4">
-                        <div className="flex flex-wrap gap-3">
+                        <div className="flex flex-wrap gap-2">
                           <button type="button" onClick={() => repairOrder(order.id)} disabled={isPending} className="inline-flex h-9 items-center justify-center rounded-[12px] bg-[#111827] px-3 text-[12px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">Reprendre</button>
+                          <button type="button" onClick={() => overrideDeliveryRoute(order.id, "direct")} disabled={isPending || isRouteSelected(order, "direct")} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">Mode direct</button>
+                          <button type="button" onClick={() => overrideDeliveryRoute(order.id, "forwarder", "china")} disabled={isPending || isRouteSelected(order, "forwarder", "china")} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">Hub Chine</button>
+                          <button type="button" onClick={() => overrideDeliveryRoute(order.id, "forwarder", "lome")} disabled={isPending || isRouteSelected(order, "forwarder", "lome")} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">Hub Lome</button>
                           <Link href={`/admin/orders/${encodeURIComponent(order.id)}`} className="font-semibold text-[#ff6a00] transition hover:opacity-80">Ouvrir</Link>
                         </div>
                       </td>
