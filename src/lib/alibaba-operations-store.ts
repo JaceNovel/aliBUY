@@ -41,7 +41,9 @@ const DEFAULT_COUNTRY_PROFILES: AlibabaCountryProfile[] = [
   },
 ];
 
-const ROOT_DIR = path.join(process.cwd(), "data", "sourcing");
+const ROOT_DIR = process.env.VERCEL
+  ? path.join("/tmp", "alibuy", "data", "sourcing")
+  : path.join(process.cwd(), "data", "sourcing");
 const IMPORT_JOBS_PATH = path.join(ROOT_DIR, "alibaba-import-jobs.json");
 const IMPORTED_PRODUCTS_PATH = path.join(ROOT_DIR, "alibaba-imported-products.json");
 const SUPPLIER_ACCOUNTS_PATH = path.join(ROOT_DIR, "alibaba-supplier-accounts.json");
