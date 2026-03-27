@@ -18,10 +18,9 @@ import { SupportMenu } from "@/components/support-menu";
 import { UnavailableLink } from "@/components/unavailable-link";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 import { getCatalogCategories } from "@/lib/catalog-category-service";
-import { getCatalogProducts } from "@/lib/catalog-service";
 import { getMessages } from "@/lib/messages";
-import { type ProductCatalogItem } from "@/lib/products-data";
-import { formatTierAwarePrice } from "@/lib/product-price-display";
+import { getProductImageUrl } from "@/lib/product-image";
+import { getFeaturedProductsFeed, type ProductFeedItem } from "@/lib/products-feed";
 import { getPricingContext } from "@/lib/pricing";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site-config";
 import { getCurrentUser } from "@/lib/user-auth";
@@ -61,7 +60,7 @@ function ProductCardItem({
   moqLabel,
   href,
 }: {
-  item: ProductCatalogItem;
+  item: ProductFeedItem;
   formatPrice: (amountUsd: number) => string;
   guaranteedLabel: string;
   moqLabel: string;
@@ -77,7 +76,7 @@ function ProductCardItem({
         ) : null}
         <div className="relative aspect-square w-full">
           <Image
-            src={item.image}
+            src={getProductImageUrl(item.image, { width: 520, quality: 76 })}
             alt={item.title}
             fill
             sizes="(min-width: 1440px) 15vw, (min-width: 1280px) 18vw, (min-width: 640px) 30vw, 48vw"
@@ -93,7 +92,9 @@ function ProductCardItem({
       </div>
       <div className="mt-2.5 flex items-end gap-2 sm:mt-3">
         <div className="whitespace-nowrap text-[13px] font-bold leading-none tracking-[-0.03em] text-[#222] sm:text-[15px] xl:text-[16px]">
-          {formatTierAwarePrice(formatPrice, item)}
+          {typeof item.maxUsd === "number" && item.maxUsd > item.minUsd
+            ? `${formatPrice(item.minUsd)} - ${formatPrice(item.maxUsd)}`
+            : formatPrice(item.minUsd)}
         </div>
       </div>
       <div className="mt-1 text-[10px] text-[#666] sm:mt-2 sm:text-[12px]">{moqLabel}: {item.moq} {item.unit}</div>
@@ -116,9 +117,11 @@ function QuickActionItem({ item }: { item: QuickAction }) {
 }
 
 export default async function Home() {
-  const [pricing, catalogProducts, catalogCategories, user] = await Promise.all([
+  const [pricing, topFeed, recommendationFeed, trendingFeed, catalogCategories, user] = await Promise.all([
     getPricingContext(),
-    getCatalogProducts(),
+    getFeaturedProductsFeed({ limit: 5, mode: "top" }),
+    getFeaturedProductsFeed({ limit: 4, mode: "recommended" }),
+    getFeaturedProductsFeed({ limit: 9, mode: "trending" }),
     getCatalogCategories(),
     getCurrentUser(),
   ]);
@@ -130,14 +133,17 @@ export default async function Home() {
     products: category.products.slice(0, 5).map((product) => ({
       slug: product.slug,
       shortTitle: product.shortTitle,
-      image: product.image,
+        image: getProductImageUrl(product.image, { width: 180, quality: 72 }),
     })),
   }));
-  const historyItems = catalogProducts.slice(0, 5);
-  const recommendationProducts = catalogProducts.slice(5, 9).length > 0 ? catalogProducts.slice(5, 9) : catalogProducts.slice(0, 4);
-  const discoveryHistoryItems = catalogProducts.slice(0, 4);
-  const showcaseProducts = catalogProducts.slice(0, 9);
-  const hasPublishedProducts = catalogProducts.length > 0;
+  const historyItems = topFeed.items;
+  const recommendationProducts = recommendationFeed.items;
+  const discoveryHistoryItems = trendingFeed.items.slice(0, 4);
+  const topProducts = topFeed.items.slice(0, 3);
+  const trendingProducts = trendingFeed.items.slice(0, 3);
+  const recommendedProducts = recommendationProducts.slice(0, 3);
+  const showcaseProducts = [...topFeed.items, ...trendingFeed.items, ...recommendationProducts];
+  const hasPublishedProducts = showcaseProducts.length > 0 || historyItems.length > 0;
   const quickActions: QuickAction[] = [
     {
       title: messages.quickActions.quote,
@@ -157,35 +163,41 @@ export default async function Home() {
   ];
   const discoveryExploreCards = [
     {
-      id: "latest-imports",
-      title: "Nouveaux imports",
-      subtitle: "Produits publies apres import Alibaba.",
-      items: showcaseProducts.slice(0, 3).map((product) => ({
+      id: "top-sales",
+      title: "Top ventes",
+      subtitle: "Les produits qui convertissent le mieux maintenant.",
+      items: topProducts.map((product) => ({
         title: product.title,
-        image: product.image,
-        price: formatTierAwarePrice(pricing.formatPrice, product),
+        image: getProductImageUrl(product.image, { width: 420, quality: 74 }),
+        price: typeof product.maxUsd === "number" && product.maxUsd > product.minUsd
+          ? `${pricing.formatPrice(product.minUsd)} - ${pricing.formatPrice(product.maxUsd)}`
+          : pricing.formatPrice(product.minUsd),
         href: `/products/${product.slug}`,
       })),
     },
     {
-      id: "catalog-ready",
-      title: "Prets pour la vente",
-      subtitle: "References visibles sur le site public.",
-      items: showcaseProducts.slice(3, 6).map((product) => ({
+      id: "trending-now",
+      title: "Tendances",
+      subtitle: "Les fiches les plus vues et les plus chaudes du moment.",
+      items: trendingProducts.map((product) => ({
         title: product.title,
-        image: product.image,
-        price: formatTierAwarePrice(pricing.formatPrice, product),
+        image: getProductImageUrl(product.image, { width: 420, quality: 74 }),
+        price: typeof product.maxUsd === "number" && product.maxUsd > product.minUsd
+          ? `${pricing.formatPrice(product.minUsd)} - ${pricing.formatPrice(product.maxUsd)}`
+          : pricing.formatPrice(product.minUsd),
         href: `/products/${product.slug}`,
       })),
     },
     {
-      id: "recent-publications",
-      title: "Dernieres publications",
-      subtitle: "Articles importes avec medias et prix actifs.",
-      items: showcaseProducts.slice(6, 9).map((product) => ({
+      id: "smart-recommendations",
+      title: "Recommandations",
+      subtitle: "Une selection guidee par la popularite du catalogue.",
+      items: recommendedProducts.map((product) => ({
         title: product.title,
-        image: product.image,
-        price: formatTierAwarePrice(pricing.formatPrice, product),
+        image: getProductImageUrl(product.image, { width: 420, quality: 74 }),
+        price: typeof product.maxUsd === "number" && product.maxUsd > product.minUsd
+          ? `${pricing.formatPrice(product.minUsd)} - ${pricing.formatPrice(product.maxUsd)}`
+          : pricing.formatPrice(product.minUsd),
         href: `/products/${product.slug}`,
       })),
     },
@@ -395,14 +407,18 @@ export default async function Home() {
           <HomeDiscoveryShowcase
             historyCard={discoveryHistoryItems[0] ? {
               title: discoveryHistoryItems[0].title,
-              image: discoveryHistoryItems[0].image,
-              price: formatTierAwarePrice(pricing.formatPrice, discoveryHistoryItems[0]),
+              image: getProductImageUrl(discoveryHistoryItems[0].image, { width: 520, quality: 76 }),
+              price: typeof discoveryHistoryItems[0].maxUsd === "number" && discoveryHistoryItems[0].maxUsd > discoveryHistoryItems[0].minUsd
+                ? `${pricing.formatPrice(discoveryHistoryItems[0].minUsd)} - ${pricing.formatPrice(discoveryHistoryItems[0].maxUsd)}`
+                : pricing.formatPrice(discoveryHistoryItems[0].minUsd),
               href: `/products/${discoveryHistoryItems[0].slug}`,
             } : undefined}
             historyCards={discoveryHistoryItems.map((item) => ({
               title: item.title,
-              image: item.image,
-              price: formatTierAwarePrice(pricing.formatPrice, item),
+              image: getProductImageUrl(item.image, { width: 420, quality: 74 }),
+              price: typeof item.maxUsd === "number" && item.maxUsd > item.minUsd
+                ? `${pricing.formatPrice(item.minUsd)} - ${pricing.formatPrice(item.maxUsd)}`
+                : pricing.formatPrice(item.minUsd),
               href: `/products/${item.slug}`,
             }))}
             exploreCards={discoveryExploreCards}
@@ -522,7 +538,7 @@ export default async function Home() {
               >
                 <div className="relative aspect-[1/1.02] overflow-hidden bg-[#f3f3f3]">
                   <Image
-                    src={product.image}
+                    src={getProductImageUrl(product.image, { width: 520, quality: 76 })}
                     alt={product.title}
                     fill
                     sizes="(min-width: 1280px) 17vw, (min-width: 1024px) 22vw, (min-width: 640px) 35vw, 92vw"
@@ -539,7 +555,9 @@ export default async function Home() {
                     {product.title}
                   </div>
                   <div className="mt-3 whitespace-nowrap text-[13px] font-bold tracking-[-0.04em] text-[#d64000] sm:mt-4 sm:text-[15px] xl:text-[16px]">
-                    {formatTierAwarePrice(pricing.formatPrice, product)}
+                    {typeof product.maxUsd === "number" && product.maxUsd > product.minUsd
+                      ? `${pricing.formatPrice(product.minUsd)} - ${pricing.formatPrice(product.maxUsd)}`
+                      : pricing.formatPrice(product.minUsd)}
                   </div>
                   <div className="mt-3 inline-flex items-center gap-2 text-[12px] font-semibold text-[#222] sm:mt-5 sm:text-[14px]">
                     {messages.common.viewOffer}

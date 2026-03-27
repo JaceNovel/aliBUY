@@ -1,5 +1,6 @@
 import type { SourcingOrder } from "@/lib/alibaba-sourcing";
 import { getMonerooCurrencyCode, normalizeMonerooPaymentStatus, type MonerooPaymentRecord } from "@/lib/moneroo";
+import { incrementProductSalesCounts } from "@/lib/products-feed";
 import { getSourcingOrderById, getSourcingOrderByMonerooPaymentId, saveSourcingOrder } from "@/lib/sourcing-store";
 
 type PersistMonerooPaymentOptions = {
@@ -30,8 +31,17 @@ export function applyMonerooPaymentToOrder({ order, payment, verified = false, k
 }
 
 export async function persistMonerooPaymentToOrder(options: PersistMonerooPaymentOptions) {
+  const wasAlreadyPaid = options.order.paymentStatus === "paid";
   const nextOrder = applyMonerooPaymentToOrder(options);
   await saveSourcingOrder(nextOrder);
+
+  if (!wasAlreadyPaid && nextOrder.paymentStatus === "paid") {
+    await incrementProductSalesCounts(nextOrder.items.map((item) => ({
+      slug: item.slug,
+      quantity: item.quantity,
+    })));
+  }
+
   return nextOrder;
 }
 

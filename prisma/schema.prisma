@@ -222,6 +222,8 @@ model AlibabaImportedProductRecord {
   tiers             Json
   specs             Json
   inventory         Int
+  viewsCount        Int      @default(0)
+  salesCount        Int      @default(0)
   status            String
   publishedToSite   Boolean  @default(false)
   publishedAt       DateTime?
@@ -231,6 +233,14 @@ model AlibabaImportedProductRecord {
 
   @@index([status])
   @@index([publishedToSite])
+  @@index([title])
+  @@index([categorySlug])
+  @@index([createdAt])
+  @@index([viewsCount])
+  @@index([salesCount])
+  @@index([publishedToSite, status, updatedAt])
+  @@index([publishedToSite, status, categorySlug, updatedAt])
+  @@index([publishedToSite, status, salesCount, viewsCount, publishedAt])
   @@index([updatedAt])
 }
 

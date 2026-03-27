@@ -110,6 +110,7 @@ export const getPricingContext = cache(async function getPricingContext(
     currency: {
       code: selectedCurrency.code,
       label: selectedCurrency.label,
+      rateFromUsd: selectedCurrency.rateFromUsd,
     },
     shippingWindow: config.shippingWindow,
     flagEmoji: config.flagEmoji,

@@ -3,7 +3,9 @@ import type { Metadata } from "next";
 
 import { ProductDetailClient } from "@/app/products/[slug]/product-detail-client";
 import { InternalPageShell } from "@/components/internal-page-shell";
+import { ProductViewTracker } from "@/components/products/product-view-tracker";
 import { getCatalogProductBySlug, getCatalogRelatedProducts } from "@/lib/catalog-service";
+import { getProductImageUrl } from "@/lib/product-image";
 import { formatTierAwarePrice } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
 import { SITE_URL } from "@/lib/site-config";
@@ -56,13 +58,14 @@ export default async function ProductPage({
   const relatedProducts = relatedCatalogProducts.map((relatedProduct) => ({
     slug: relatedProduct.slug,
     title: relatedProduct.shortTitle,
-    image: relatedProduct.image,
+    image: getProductImageUrl(relatedProduct.image, { width: 480, quality: 76 }),
     formattedPrice: formatTierAwarePrice(pricing.formatPrice, relatedProduct),
     moqLabel: relatedProduct.moqVerified ? `MOQ: ${relatedProduct.moq} ${relatedProduct.unit}` : "MOQ fournisseur a confirmer",
   }));
 
   return (
     <InternalPageShell pricing={pricing}>
+      <ProductViewTracker slug={product.slug} />
       <ProductDetailClient
         product={{
           slug: product.slug,
@@ -83,9 +86,9 @@ export default async function ProductPage({
           soldLabel: product.soldLabel,
           customizationLabel: product.customizationLabel,
           shippingLabel: product.shippingLabel,
-          gallery: product.gallery,
+          gallery: product.gallery.map((image) => getProductImageUrl(image, { width: 960, quality: 78, fit: "contain" })),
           videoUrl: product.videoUrl,
-          videoPoster: product.videoPoster,
+          videoPoster: product.videoPoster ? getProductImageUrl(product.videoPoster, { width: 960, quality: 78, fit: "contain" }) : undefined,
           overview: product.overview,
           tiers: product.tiers.map((tier) => ({
             quantityLabel: tier.quantityLabel,
