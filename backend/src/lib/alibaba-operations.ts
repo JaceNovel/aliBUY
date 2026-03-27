@@ -1,4 +1,4 @@
-import type { ProductCatalogItem } from "@/lib/products-data";
+import type { ProductCatalogItem, ProductVariantPrice, ProductVariantSku } from "@/lib/products-data";
 import { deriveVariantGroupsFromPricing, extractAlibabaVariantPricing, extractAlibabaVariantSkus } from "@/lib/product-variant-pricing";
 import { resolveAlibabaMoq } from "@/lib/product-moq";
 import { sanitizeItemWeightGrams } from "@/lib/product-weight";
@@ -78,8 +78,12 @@ export type AlibabaImportedProduct = {
   soldLabel: string;
   customizationLabel: string;
   shippingLabel: string;
+  chinaLocalFreightFcfa?: number;
+  chinaLocalFreightLabel?: string;
   overview: string[];
   variantGroups: Array<{ label: string; values: string[] }>;
+  variantPricing?: ProductVariantPrice[];
+  variantSkus?: ProductVariantSku[];
   tiers: Array<{ quantityLabel: string; priceUsd: number; note?: string }>;
   specs: Array<{ label: string; value: string }>;
   weightVerified?: boolean;

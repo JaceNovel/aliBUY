@@ -3,7 +3,7 @@ import { cache } from "react";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { type ProductCatalogItem } from "@/lib/products-data";
 
-export const getCatalogProducts = cache(async function getCatalogProducts() {
+export const getCatalogProducts = cache(async function getCatalogProducts(): Promise<ProductCatalogItem[]> {
   const importedProducts = await getAlibabaImportedProducts();
 
   return importedProducts
@@ -34,8 +34,12 @@ export const getCatalogProducts = cache(async function getCatalogProducts() {
       soldLabel: product.soldLabel,
       customizationLabel: product.customizationLabel,
       shippingLabel: product.shippingLabel,
+      chinaLocalFreightFcfa: product.chinaLocalFreightFcfa,
+      chinaLocalFreightLabel: product.chinaLocalFreightLabel,
       overview: product.overview,
       variantGroups: product.variantGroups,
+      variantPricing: product.variantPricing,
+      variantSkus: product.variantSkus,
       tiers: product.tiers,
       specs: product.specs,
     } satisfies ProductCatalogItem))

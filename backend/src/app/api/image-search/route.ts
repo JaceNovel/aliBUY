@@ -26,9 +26,15 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     fileName: image.name,
-    results: results.map((entry) => ({
-      slug: entry.product.slug,
-      score: Number(entry.score.toFixed(4)),
-    })),
+    results: results.flatMap((entry) =>
+      entry
+        ? [
+            {
+              slug: entry.product.slug,
+              score: Number(entry.score.toFixed(4)),
+            },
+          ]
+        : [],
+    ),
   });
 }

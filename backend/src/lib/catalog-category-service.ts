@@ -69,11 +69,11 @@ function getCategorySortRank(slug: string) {
   return CATEGORY_SORT_PRIORITY[slug] ?? 999;
 }
 
-export const getCatalogCategories = cache(async function getCatalogCategories() {
+export const getCatalogCategories = cache(async function getCatalogCategories(): Promise<CatalogCategoryRecord[]> {
   return [];
 });
 
-export const getCatalogCategoryBySlug = cache(async function getCatalogCategoryBySlug(slug: string) {
+export const getCatalogCategoryBySlug = cache(async function getCatalogCategoryBySlug(slug: string): Promise<CatalogCategoryRecord | null> {
   const categories = await getCatalogCategories();
   return categories.find((category) => category.slug === slug) ?? null;
 });
