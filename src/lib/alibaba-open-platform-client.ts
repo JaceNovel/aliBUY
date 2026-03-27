@@ -2296,6 +2296,10 @@ async function resolveAlibabaCredentialsForLiveCall() {
   const eligible = accounts.filter((account) => account.status !== "disabled" && account.appKey && account.appSecret);
   const preferredAccount = eligible.find((account) => account.isActive && account.status === "connected")
     ?? eligible.find((account) => account.status === "connected")
+    ?? eligible.find((account) => account.isActive && (account.accessToken || account.refreshToken))
+    ?? eligible.find((account) => account.accessToken || account.refreshToken)
+    ?? eligible.find((account) => account.isActive)
+    ?? eligible[0]
     ?? null;
 
   if (!preferredAccount) {
@@ -2304,10 +2308,15 @@ async function resolveAlibabaCredentialsForLiveCall() {
 
   if ((!preferredAccount.accessToken || isTokenExpiringSoon(preferredAccount.accessTokenExpiresAt)) && preferredAccount.refreshToken) {
     const refreshedAccount = await refreshAlibabaAccountTokens(preferredAccount);
-    return getAccountCredentials(refreshedAccount);
+    return getAccountCredentials(refreshedAccount) ?? getEnvCredentials();
   }
 
-  return getAccountCredentials(preferredAccount) ?? getEnvCredentials();
+  const preferredCredentials = getAccountCredentials(preferredAccount);
+  if (preferredCredentials?.accessToken) {
+    return preferredCredentials;
+  }
+
+  return getEnvCredentials() ?? preferredCredentials;
 }
 
 function resolveDropshippingPoolId(channel: AlibabaFulfillmentChannel) {
@@ -2538,6 +2547,20 @@ function extractAlibabaOperationCode(responseBody: unknown) {
   return getStringValue(envelope?.msg_code)
     ?? getStringValue(envelope?.response_code)
     ?? getStringValue(response?.code);
+}
+
+function extractAlibabaTradeId(responseBody: unknown): string | undefined {
+  const response = isRecord(responseBody) ? responseBody : null;
+  const envelope = response && isRecord(response.result) ? response.result : response;
+  const value = envelope && isRecord(envelope.value) ? envelope.value : response && isRecord(response.value) ? response.value : null;
+  const data = envelope && isRecord(envelope.data) ? envelope.data : response && isRecord(response.data) ? response.data : null;
+
+  return getStringValue(envelope?.trade_id)
+    ?? getStringValue(response?.trade_id)
+    ?? getStringValue(data?.trade_id)
+    ?? getStringValue(value?.trade_id)
+    ?? getStringValue(value?.order_id)
+    ?? getStringValue(data?.order_id);
 }
 
 export async function createAlibabaIcbuProductListing(input: {
@@ -3386,8 +3409,7 @@ export async function createAlibabaSupplierOrders(order: SourcingOrder, mappings
       continue;
     }
 
-    const resultObject = supplierResult.responseBody as { trade_id?: string; data?: { trade_id?: string } };
-    const tradeId = resultObject?.trade_id ?? resultObject?.data?.trade_id;
+    const tradeId = extractAlibabaTradeId(supplierResult.responseBody);
     if (tradeId) {
       tradeIds.push(String(tradeId));
       continue;
