@@ -16,6 +16,8 @@
 # next.js
 /.next/
 /out/
+/frontend/.next/
+/backend/.next/
 
 # production
 /build
@@ -40,3 +42,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# clerk configuration (can include secrets)
+/.clerk/
+/frontend/.clerk/
+
+# local temp folders
+/tmp/

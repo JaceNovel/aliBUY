@@ -1,15 +1,54 @@
-This is a Next.js 16 marketplace with a sourcing, pricing, and logistics layer for importing products from Alibaba and reselling them in Africa in FCFA.
+This repository is prepared for a split deployment:
+
+- Frontend: Next.js app in `frontend/`
+- Backend: API and server logic in `backend/`
+
+Root aliases still exist for compatibility:
+
+- `src -> frontend/src`
+- `public -> frontend/public`
+- `data -> backend/data`
+- `database -> backend/database`
+- `prisma -> backend/prisma`
 
 ## Stack
 
 - Frontend: Next.js 16 App Router + React 19
-- Backend: Route Handlers inside Next.js
+- Backend today: mixed Next.js Route Handlers + progressive Laravel extraction
+- Target backend: Laravel 11 API only
 - ORM: Prisma 6.16.x
 - Database target: PostgreSQL via Prisma datasource
 - Production persistence: PostgreSQL for users, favorites, quotes, support conversations, and authenticated orders
 - Local fallback persistence kept only for sourcing admin bootstrap data under `data/sourcing/*.json`
 
-## Getting Started
+## Progressive Split
+
+Already migrated toward the external API layer:
+
+- Product listing page `/products`
+- Product detail page `/products/[slug]`
+- Product view tracking
+- Checkout order creation
+- Moneroo payment initialization and verification
+
+Current API client:
+
+- `src/lib/api.ts`
+
+Laravel scaffold:
+
+- `backend/laravel`
+
+Still local for now to avoid UX regressions during the progressive migration:
+
+- account/session flows
+- favorites
+- address book
+- quote/support utilities
+- geolocation helper routes
+- promo preview helper route
+
+## Local Development
 
 1. Install dependencies:
 
@@ -17,31 +56,40 @@ This is a Next.js 16 marketplace with a sourcing, pricing, and logistics layer f
 npm install
 ```
 
-2. Copy the environment file and adjust values:
+2. Start the frontend:
 
 ```bash
-cp .env.example .env
+npm run dev:frontend
 ```
 
-3. Generate Prisma client:
+Frontend runs on `http://localhost:3000`.
+
+3. Start the backend:
 
 ```bash
+npm run dev:backend
+```
+
+Backend runs on `http://localhost:4000`.
+
+## Deployment
+
+- Deploy `frontend/` as the visual storefront.
+- Deploy `backend/` as the application/backend service.
+- Do not deploy local build artifacts like `.next/`, `.clerk/`, or `tmp/`.
+- Render Docker deployment is prepared with:
+  - `Dockerfile.frontend`
+  - `Dockerfile.backend`
+  - `render.yaml`
+
+Useful commands:
+
+```bash
+npm run build:frontend
+npm run build:backend
 npm run prisma:generate
-```
-
-4. Configure `DATABASE_URL` and push the schema:
-
-```bash
 npm run prisma:push
 ```
-
-5. Start the dev server:
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
 
 ## Admin Access
 

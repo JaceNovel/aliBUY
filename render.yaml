@@ -1,0 +1,80 @@
+services:
+  - type: web
+    name: alibuy-frontend
+    runtime: docker
+    dockerfilePath: ./Dockerfile.frontend
+    plan: starter
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_BASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_ALIEXPRESS_PROVIDER
+        value: AliExpress
+      - key: NEXT_PUBLIC_DEFAULT_DELIVERY_COUNTRY
+        value: CI
+
+  - type: web
+    name: alibuy-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile.backend
+    plan: starter
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: ALIBABA_ACCOUNT_ENCRYPTION_KEY
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD_HASH
+        sync: false
+      - key: USER_SESSION_SECRET
+        sync: false
+      - key: ADMIN_SESSION_SECRET
+        sync: false
+      - key: MONEROO_SECRET_KEY
+        sync: false
+      - key: MONEROO_WEBHOOK_SECRET
+        sync: false
+      - key: MONEROO_API_BASE_URL
+        value: https://api.moneroo.io
+      - key: ALIEXPRESS_OPEN_PLATFORM_APP_KEY
+        sync: false
+      - key: ALIEXPRESS_OPEN_PLATFORM_APP_SECRET
+        sync: false
+      - key: ALIEXPRESS_OPEN_PLATFORM_ACCESS_TOKEN
+        sync: false
+      - key: ALIEXPRESS_OPEN_PLATFORM_REFRESH_TOKEN
+        sync: false
+      - key: ALIEXPRESS_OPEN_PLATFORM_API_BASE_URL
+        value: https://api-sg.aliexpress.com
+      - key: ALIEXPRESS_OAUTH_AUTHORIZE_URL
+        value: https://api-sg.aliexpress.com/oauth/authorize
+      - key: ALIEXPRESS_OAUTH_TOKEN_URL
+        value: https://api-sg.aliexpress.com/rest/auth/token/create
+      - key: ALIEXPRESS_OAUTH_REFRESH_URL
+        value: https://api-sg.aliexpress.com/rest/auth/token/refresh
+      - key: ALIEXPRESS_MARGIN_RATE
+        value: "0.10"
+      - key: ALIEXPRESS_TARGET_CURRENCY
+        value: USD
+      - key: ALIEXPRESS_TARGET_LANGUAGE
+        value: fr_FR
+      - key: ALIEXPRESS_DEFAULT_SHIP_TO_COUNTRY
+        value: CI
+      - key: ALIEXPRESS_DS_AUTO_PAY_ENABLED
+        value: "false"
+      - key: ALIEXPRESS_DS_PAYMENT_CURRENCY
+        value: USD
+      - key: ALIEXPRESS_DS_WEBHOOK_APP_KEY
+        sync: false
+      - key: ALIEXPRESS_DS_WEBHOOK_SECRET
+        sync: false
+      - key: ALIEXPRESS_DS_WEBHOOK_URL
+        sync: false
+      - key: ALIEXPRESS_SELLER_CALLBACK_URL
+        sync: false
