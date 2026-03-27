@@ -193,8 +193,10 @@ function isPrismaDatabaseUnavailable(error: unknown) {
   const candidate = error as { code?: unknown; message?: unknown; name?: unknown };
   const message = typeof candidate.message === "string" ? candidate.message : "";
   return candidate.code === "P1001"
+    || candidate.code === "P2022"
     || message.includes("Can't reach database server")
-    || message.includes("db.prisma.io:5432");
+    || message.includes("db.prisma.io:5432")
+    || message.includes("does not exist in the current database");
 }
 
 function enableDatabaseFallback(error: unknown) {
