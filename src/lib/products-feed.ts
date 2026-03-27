@@ -85,13 +85,31 @@ function normalizeTrimmedString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function isMissingColumnError(error: unknown) {
-  return Boolean(
-    error
-    && typeof error === "object"
-    && "code" in error
-    && error.code === "P2022",
-  );
+function isPrismaFallbackError(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as { code?: unknown; message?: unknown };
+  const message = typeof candidate.message === "string" ? candidate.message : "";
+
+  return candidate.code === "P2022"
+    || message.includes("Can't reach database server")
+    || message.includes("db.prisma.io:5432")
+    || message.includes("does not exist in the current database");
+}
+
+function logProductsFeedFallback(context: string, error: unknown) {
+  const candidate = error as { code?: unknown; message?: unknown } | null;
+  const code = typeof candidate?.code === "string" ? candidate.code : "unknown";
+  const messageSource = error instanceof Error
+    ? error.message
+    : typeof candidate?.message === "string"
+      ? candidate.message
+      : "";
+  const message = messageSource.split("\n").find((line) => line.trim().length > 0) ?? "Database access failed.";
+
+  console.warn(`[products-feed] ${context} fallback (${code}: ${message})`);
 }
 
 function getPageInput(input?: {
@@ -314,13 +332,21 @@ export async function getProductsFeedPage(input?: {
   const { page, pageSize, skip } = getPageInput(input);
 
   if (process.env.DATABASE_URL) {
-    return getDatabaseFeedPage({
-      page,
-      pageSize,
-      skip,
-      where: buildPublishedWhere(),
-      source: "catalog",
-    });
+    try {
+      return await getDatabaseFeedPage({
+        page,
+        pageSize,
+        skip,
+        where: buildPublishedWhere(),
+        source: "catalog",
+      });
+    } catch (error) {
+      if (!isPrismaFallbackError(error)) {
+        throw error;
+      }
+
+      logProductsFeedFallback("catalog", error);
+    }
   }
 
   const products = await getCatalogProducts();
@@ -361,18 +387,20 @@ export async function getSearchProductsFeedPage(input: {
         skip,
       });
     } catch (error) {
-      console.warn("[products-feed] trigram search fallback", {
-        message: error instanceof Error ? error.message : "Unknown error",
-      });
+      if (!isPrismaFallbackError(error)) {
+        logProductsFeedFallback("trigram search", error);
 
-      return getDatabaseFeedPage({
-        page,
-        pageSize,
-        skip,
-        where: buildSearchWhere(normalizedQuery),
-        source: "search",
-        query: normalizedQuery,
-      });
+        return getDatabaseFeedPage({
+          page,
+          pageSize,
+          skip,
+          where: buildSearchWhere(normalizedQuery),
+          source: "search",
+          query: normalizedQuery,
+        });
+      }
+
+      logProductsFeedFallback("search", error);
     }
   }
 
@@ -407,14 +435,22 @@ export async function getCategoryProductsFeedPage(input: {
   }
 
   if (process.env.DATABASE_URL) {
-    return getDatabaseFeedPage({
-      page,
-      pageSize,
-      skip,
-      where: buildCategoryWhere(normalizedCategory),
-      source: "category",
-      category: normalizedCategory,
-    });
+    try {
+      return await getDatabaseFeedPage({
+        page,
+        pageSize,
+        skip,
+        where: buildCategoryWhere(normalizedCategory),
+        source: "category",
+        category: normalizedCategory,
+      });
+    } catch (error) {
+      if (!isPrismaFallbackError(error)) {
+        throw error;
+      }
+
+      logProductsFeedFallback("category", error);
+    }
   }
 
   const category = await getCatalogCategoryBySlug(normalizedCategory);
@@ -449,20 +485,19 @@ export async function getFeaturedProductsFeed(input?: {
 
         return buildPagePayload(rows, 1, pageSize, "featured", { mode });
       } catch (error) {
-        if (!isMissingColumnError(error)) {
-          throw error;
+        if (isPrismaFallbackError(error)) {
+          logProductsFeedFallback("featured", error);
+        } else {
+          console.warn("[products-feed] popularity columns unavailable, falling back to recent ordering");
+          const rows = await prisma.alibabaImportedProductRecord.findMany({
+            where: buildPublishedWhere(),
+            orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }, { id: "desc" }],
+            take: pageSize,
+            select: PRODUCT_FEED_SELECT,
+          });
+
+          return buildPagePayload(rows, 1, pageSize, "featured", { mode: "recommended" });
         }
-
-        console.warn("[products-feed] popularity columns unavailable, falling back to recent ordering");
-
-        const rows = await prisma.alibabaImportedProductRecord.findMany({
-          where: buildPublishedWhere(),
-          orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }, { id: "desc" }],
-          take: pageSize,
-          select: PRODUCT_FEED_SELECT,
-        });
-
-        return buildPagePayload(rows, 1, pageSize, "featured", { mode: "recommended" });
       }
     }
 
@@ -499,8 +534,8 @@ export async function incrementProductViewCount(slug: string) {
       },
     });
   } catch (error) {
-    if (isMissingColumnError(error)) {
-      console.warn("[products-feed] viewsCount column unavailable, skipping view tracking");
+    if (isPrismaFallbackError(error)) {
+      console.warn("[products-feed] viewsCount unavailable, skipping view tracking");
       return;
     }
 
@@ -547,8 +582,8 @@ export async function incrementProductSalesCounts(items: Array<{ slug: string; q
         })),
     );
   } catch (error) {
-    if (isMissingColumnError(error)) {
-      console.warn("[products-feed] salesCount column unavailable, skipping sales tracking");
+    if (isPrismaFallbackError(error)) {
+      console.warn("[products-feed] salesCount unavailable, skipping sales tracking");
       return;
     }
 
@@ -558,28 +593,36 @@ export async function incrementProductSalesCounts(items: Array<{ slug: string; q
 
 export const getProductFeedCategoryOptions = cache(async function getProductFeedCategoryOptions() {
   if (process.env.DATABASE_URL) {
-    const rows = await prisma.alibabaImportedProductRecord.groupBy({
-      by: ["categorySlug", "categoryTitle"],
-      where: {
-        ...buildPublishedWhere(),
-        categorySlug: { not: null },
-        categoryTitle: { not: null },
-      },
-      _count: {
-        _all: true,
-      },
-      orderBy: {
-        categoryTitle: "asc",
-      },
-    });
+    try {
+      const rows = await prisma.alibabaImportedProductRecord.groupBy({
+        by: ["categorySlug", "categoryTitle"],
+        where: {
+          ...buildPublishedWhere(),
+          categorySlug: { not: null },
+          categoryTitle: { not: null },
+        },
+        _count: {
+          _all: true,
+        },
+        orderBy: {
+          categoryTitle: "asc",
+        },
+      });
 
-    return rows
-      .filter((row) => row.categorySlug && row.categoryTitle)
-      .map((row) => ({
-        slug: row.categorySlug as string,
-        title: row.categoryTitle as string,
-        productCount: row._count._all,
-      })) satisfies ProductFeedCategoryOption[];
+      return rows
+        .filter((row) => row.categorySlug && row.categoryTitle)
+        .map((row) => ({
+          slug: row.categorySlug as string,
+          title: row.categoryTitle as string,
+          productCount: row._count._all,
+        })) satisfies ProductFeedCategoryOption[];
+    } catch (error) {
+      if (!isPrismaFallbackError(error)) {
+        throw error;
+      }
+
+      logProductsFeedFallback("category options", error);
+    }
   }
 
   const categories = await getCatalogCategories();
@@ -598,27 +641,35 @@ export const getProductFeedCategoryBySlug = cache(async function getProductFeedC
   }
 
   if (process.env.DATABASE_URL) {
-    const where = buildCategoryWhere(normalizedCategory);
-    const [row, productCount] = await Promise.all([
-      prisma.alibabaImportedProductRecord.findFirst({
-        where,
-        select: {
-          categorySlug: true,
-          categoryTitle: true,
-        },
-      }),
-      prisma.alibabaImportedProductRecord.count({ where }),
-    ]);
+    try {
+      const where = buildCategoryWhere(normalizedCategory);
+      const [row, productCount] = await Promise.all([
+        prisma.alibabaImportedProductRecord.findFirst({
+          where,
+          select: {
+            categorySlug: true,
+            categoryTitle: true,
+          },
+        }),
+        prisma.alibabaImportedProductRecord.count({ where }),
+      ]);
 
-    if (!row?.categorySlug || !row.categoryTitle) {
-      return null;
+      if (!row?.categorySlug || !row.categoryTitle) {
+        return null;
+      }
+
+      return {
+        slug: row.categorySlug,
+        title: row.categoryTitle,
+        productCount,
+      } satisfies ProductFeedCategorySummary;
+    } catch (error) {
+      if (!isPrismaFallbackError(error)) {
+        throw error;
+      }
+
+      logProductsFeedFallback("category summary", error);
     }
-
-    return {
-      slug: row.categorySlug,
-      title: row.categoryTitle,
-      productCount,
-    } satisfies ProductFeedCategorySummary;
   }
 
   const category = await getCatalogCategoryBySlug(normalizedCategory);
