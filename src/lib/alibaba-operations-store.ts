@@ -200,10 +200,20 @@ function isPrismaDatabaseUnavailable(error: unknown) {
 }
 
 function enableDatabaseFallback(error: unknown) {
-  if (!databaseFallbackForced) {
-    databaseFallbackForced = true;
-    console.warn("[alibaba-operations-store] database unavailable, falling back to JSON storage", error);
+  if (databaseFallbackForced) {
+    return;
   }
+
+  databaseFallbackForced = true;
+
+  const prismaCode = error instanceof Prisma.PrismaClientKnownRequestError ? error.code : undefined;
+  const errorMessage = error instanceof Error ? error.message : undefined;
+  const fallbackCandidate = error as { code?: unknown; message?: unknown } | null;
+  const code = prismaCode ?? (typeof fallbackCandidate?.code === "string" ? fallbackCandidate.code : "unknown");
+  const messageSource = errorMessage ?? (typeof fallbackCandidate?.message === "string" ? fallbackCandidate.message : "");
+  const message = messageSource.split("\n").find((line) => line.trim().length > 0) ?? "Database access failed.";
+
+  console.warn(`[alibaba-operations-store] falling back to JSON storage (${code}: ${message})`);
 }
 
 function invalidateImportedProductsSnapshot() {
