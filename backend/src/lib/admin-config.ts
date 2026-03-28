@@ -2,6 +2,7 @@ export type AdminSectionSlug =
   | "users"
   | "orders"
   | "products"
+  | "aliexpress-sourcing"
   | "categories"
   | "promotions"
   | "promo-codes"
@@ -31,6 +32,7 @@ export const adminNavItems: AdminNavItem[] = [
   { slug: "users", label: "Utilisateurs", icon: "users", description: "Tous les utilisateurs inscrits avec leur activité réelle sur le projet.", href: "/admin/users", publicHref: "/account" },
   { slug: "orders", label: "Commandes", icon: "shopping-cart", description: "Toutes les commandes clients avec livraison, paiement et detail des articles.", href: "/admin/orders", publicHref: "/orders" },
   { slug: "products", label: "Produits", icon: "package", description: "Catalogue produit et fiches detail.", href: "/admin/products", publicHref: "/products" },
+  { slug: "aliexpress-sourcing", label: "AliExpress Sourcing", icon: "ship-wheel", description: "Import catalogue, comptes fournisseurs, lots d'achat et suivi DS AliExpress.", href: "/admin/aliexpress-sourcing", publicHref: "/products" },
   { slug: "categories", label: "Categories", icon: "list", description: "Taxonomie de navigation et familles produit.", href: "/admin/categories", publicHref: "/products" },
   { slug: "promotions", label: "Promotions", icon: "badge-percent", description: "Promos hero, badges et campagnes mode.", href: "/admin/promotions", publicHref: "/mode" },
   { slug: "promo-codes", label: "Codes Promo", icon: "ticket-percent", description: "Codes de reduction et activations marketing.", href: "/admin/promo-codes", publicHref: "/mode" },
@@ -51,6 +53,12 @@ export const adminQuickLinks = [
 ];
 
 export const adminNavSubItems: Partial<Record<AdminSectionSlug, AdminNavSubItem[]>> = {
+  "aliexpress-sourcing": [
+    { label: "Tableau de bord", href: "/admin/aliexpress-sourcing" },
+    { label: "Import catalogue", href: "/admin/aliexpress-sourcing/import-catalog" },
+    { label: "Comptes", href: "/admin/aliexpress-sourcing/accounts" },
+    { label: "Lots", href: "/admin/aliexpress-sourcing/lots" },
+  ],
   products: [
     { label: "Liste", href: "/admin/products" },
     { label: "Ajouter", href: "/admin/products/add" },
