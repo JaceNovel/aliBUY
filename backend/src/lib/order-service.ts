@@ -170,8 +170,8 @@ async function mapOrderRecord(order: SourcingOrder, user: AuthenticatedUser): Pr
 
 export async function getUserOrderRecords(user: AuthenticatedUser) {
   const orders: Awaited<ReturnType<typeof getUserSourcingOrders>> = await getUserSourcingOrders({ userId: user.id, email: user.email });
-  const records = await Promise.all(orders.map((order: SourcingOrder) => mapOrderRecord(order, user)));
-  return records.sort((left, right) => right.dateValue.localeCompare(left.dateValue) || right.timeValue.localeCompare(left.timeValue));
+  const records: OrderRecord[] = await Promise.all(orders.map((order: SourcingOrder) => mapOrderRecord(order, user)));
+  return records.sort((left: OrderRecord, right: OrderRecord) => right.dateValue.localeCompare(left.dateValue) || right.timeValue.localeCompare(left.timeValue));
 }
 
 export async function getUserOrderRecordById(user: AuthenticatedUser, orderId?: string | null) {
