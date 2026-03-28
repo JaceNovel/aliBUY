@@ -402,21 +402,27 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, currencyCo
       const payload = await previewPromoCode(promoCodeInput, baseTotalPrice).catch((error) => ({
         message: error instanceof Error ? error.message : "Code promo invalide.",
       }));
-      if (!payload?.promoCode) {
+      const promoCode = "promoCode" in payload ? payload.promoCode : undefined;
+      if (!promoCode) {
         setAppliedPromo(null);
-        setPromoMessage(typeof payload?.message === "string" ? payload.message : "Code promo invalide.");
+        setPromoMessage(typeof payload.message === "string" ? payload.message : "Code promo invalide.");
         return;
       }
 
+      const discountFcfa = "discountFcfa" in payload && typeof payload.discountFcfa === "number" ? payload.discountFcfa : 0;
+      const finalTotalFcfa = "finalTotalFcfa" in payload && typeof payload.finalTotalFcfa === "number"
+        ? payload.finalTotalFcfa
+        : baseTotalPrice;
+
       setAppliedPromo({
-        code: payload.promoCode.code,
-        label: payload.promoCode.label,
-        discountFcfa: payload.discountFcfa,
-        finalTotalFcfa: payload.finalTotalFcfa,
+        code: promoCode.code,
+        label: promoCode.label,
+        discountFcfa,
+        finalTotalFcfa,
         baseTotalFcfa: baseTotalPrice,
       });
-      setPromoCodeInput(payload.promoCode.code);
-      setPromoMessage(`Code ${payload.promoCode.code} appliqué.`);
+      setPromoCodeInput(promoCode.code);
+      setPromoMessage(`Code ${promoCode.code} appliqué.`);
     } finally {
       setIsApplyingPromo(false);
     }
