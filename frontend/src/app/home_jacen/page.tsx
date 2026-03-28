@@ -5,7 +5,7 @@ import { AdminLoginForm } from "@/components/admin-login-form";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
-  title: "Connexion",
+  title: "Acces prive",
   robots: {
     index: false,
     follow: false,

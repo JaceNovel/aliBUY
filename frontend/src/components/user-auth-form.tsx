@@ -67,7 +67,7 @@ export function UserAuthForm({ mode, nextPath }: UserAuthFormProps) {
       }
 
       const destination = mode === "login" && payload?.isAdmin
-        ? (safeNextPath.startsWith("/admin") ? safeNextPath : "/admin")
+        ? (safeNextPath.startsWith("/admin") ? safeNextPath : "/home_jacen")
         : safeNextPath;
 
       router.replace(destination);

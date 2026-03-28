@@ -88,9 +88,9 @@ export default async function Home() {
       href: "/quotes",
     },
     {
-      title: "Sourcing actif",
+      title: "Support import",
       icon: ShieldCheck,
-      href: "/admin/aliexpress-sourcing",
+      href: "/support-center",
     },
     {
       title: messages.quickActions.quickCustomization,

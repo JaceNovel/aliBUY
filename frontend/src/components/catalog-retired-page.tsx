@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
 
@@ -19,8 +19,6 @@ type CatalogRetiredPageProps = {
   description: string;
   primaryHref?: string;
   primaryLabel?: string;
-  secondaryHref?: string;
-  secondaryLabel?: string;
 };
 
 export function CatalogRetiredPage({
@@ -30,9 +28,7 @@ export function CatalogRetiredPage({
   title,
   description,
   primaryHref = "/quotes",
-  primaryLabel = "Ouvrir un devis",
-  secondaryHref = "/admin/aliexpress-sourcing",
-  secondaryLabel = "Aller au sourcing",
+  primaryLabel = "Demander un devis",
 }: CatalogRetiredPageProps) {
   return (
     <InternalPageShell pricing={pricing}>
@@ -62,18 +58,14 @@ export function CatalogRetiredPage({
 
         <section className="rounded-[30px] bg-[linear-gradient(135deg,#fff4ea_0%,#fff 54%,#f6f8fc_100%)] px-6 py-8 shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 lg:px-8">
           <div className="max-w-[820px]">
-            <h2 className="text-[24px] font-bold tracking-[-0.04em] text-[#222] sm:text-[30px]">Le site passe maintenant par le frontend sourcing</h2>
+            <h2 className="text-[24px] font-bold tracking-[-0.04em] text-[#222] sm:text-[30px]">Le parcours public passe desormais par la demande</h2>
             <p className="mt-3 text-[16px] leading-8 text-[#555]">
-              Les fiches produit publiques ont ete retirees. Les demandes continuent via le devis, le sourcing Alibaba et les flux back-office.
+              Les fiches produit publiques ont ete retirees. Pour lancer une recherche produit ou une demande commerciale, utilisez le devis AfriPay et notre accompagnement direct.
             </p>
           </div>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link href={primaryHref} className="inline-flex h-12 items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[15px] font-semibold text-white transition hover:bg-[#e55e00]">
               {primaryLabel}
-            </Link>
-            <Link href={secondaryHref} className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-[#d9dee7] px-6 text-[15px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
-              {secondaryLabel}
-              <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </section>

@@ -47,9 +47,11 @@ function finalizeResponse(request: NextRequest, response: NextResponse) {
 }
 
 async function handleRequest(request: NextRequest, getClerkUserId?: () => Promise<string | null>) {
+  const isAdminPageRequest = request.nextUrl.pathname === "/admin" || request.nextUrl.pathname.startsWith("/admin/");
+  const isAdminApiRequest = request.nextUrl.pathname.startsWith("/api/admin");
+
   if (request.nextUrl.pathname === "/admin/login") {
-    const loginUrl = new URL("/admin_jacen", request.url);
-    return finalizeResponse(request, NextResponse.redirect(loginUrl));
+    return finalizeResponse(request, new NextResponse("Not Found", { status: 404 }));
   }
 
   if (isProtectedRoute(request)) {
@@ -57,12 +59,16 @@ async function handleRequest(request: NextRequest, getClerkUserId?: () => Promis
     const session = await parseUserSessionToken(request.cookies.get(USER_SESSION_COOKIE)?.value);
 
     if (!userId && !session?.sub) {
+      if (isAdminPageRequest || isAdminApiRequest) {
+        return finalizeResponse(request, new NextResponse("Not Found", { status: 404 }));
+      }
+
       if (request.nextUrl.pathname.startsWith("/api/")) {
         return finalizeResponse(request, NextResponse.json({ message: "Authentification requise." }, { status: 401 }));
       }
 
-      const loginUrl = new URL(request.nextUrl.pathname.startsWith("/admin") ? "/admin_jacen" : "/login", request.url);
-      if (!request.nextUrl.pathname.startsWith("/admin")) {
+      const loginUrl = new URL("/login", request.url);
+      if (!isAdminPageRequest) {
         loginUrl.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
       }
       return finalizeResponse(request, NextResponse.redirect(loginUrl));

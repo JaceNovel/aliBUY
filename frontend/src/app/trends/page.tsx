@@ -9,8 +9,8 @@ export default async function TrendsPage() {
       pricing={pricing}
       label="Tendances"
       badge="Tendances retirees"
-      title="Les tendances publiques ont ete retirees"
-      description="Les produits en stock, promotions et recommandations visibles sur le site ne sont plus exposes. Le parcours public passe desormais par le sourcing."
+      title="Les tendances publiques ne sont plus affichees"
+      description="Les promotions, selections en stock et recommandations ne sont plus visibles publiquement. Les demandes passent maintenant par le devis et l'accompagnement AfriPay."
     />
   );
 }

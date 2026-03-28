@@ -25,7 +25,7 @@ export default async function LoginPage({
   const nextPath = getSafeNextPath(resolvedSearchParams.next);
 
   if (currentUser) {
-    redirect(isAdminEmail(currentUser.email) && nextPath.startsWith("/admin") ? nextPath : isAdminEmail(currentUser.email) ? "/admin" : "/account");
+    redirect(isAdminEmail(currentUser.email) && nextPath.startsWith("/admin") ? nextPath : isAdminEmail(currentUser.email) ? "/home_jacen" : "/account");
   }
 
   return (
