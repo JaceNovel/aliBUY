@@ -151,8 +151,35 @@ function hasDatabase() {
 
 let databaseFallbackForced = false;
 
+const REQUIRED_FREE_DEAL_PRISMA_MODELS = [
+  "freeDealConfigRecord",
+  "freeDealClaimRecord",
+  "freeDealReferralVisitRecord",
+] as const;
+
+function getPrismaRecord(target: unknown, key: string) {
+  if (!target || typeof target !== "object") {
+    return undefined;
+  }
+
+  return (target as Record<string, unknown>)[key];
+}
+
+function hasFreeDealPrismaModels() {
+  return REQUIRED_FREE_DEAL_PRISMA_MODELS.every((modelName) => typeof getPrismaRecord(prisma, modelName) === "object");
+}
+
+function getFreeDealPrismaModel(modelName: (typeof REQUIRED_FREE_DEAL_PRISMA_MODELS)[number]) {
+  const model = getPrismaRecord(prisma, modelName);
+  if (!model) {
+    throw new Error(`Free deal Prisma model ${modelName} is not available.`);
+  }
+
+  return model as Record<string, (...args: unknown[]) => Promise<unknown>>;
+}
+
 function canUseDatabase() {
-  return hasDatabase() && !databaseFallbackForced;
+  return hasDatabase() && !databaseFallbackForced && hasFreeDealPrismaModels();
 }
 
 function isPrismaDatabaseUnavailable(error: unknown) {
@@ -163,8 +190,10 @@ function isPrismaDatabaseUnavailable(error: unknown) {
   const candidate = error as { code?: unknown; message?: unknown };
   const message = typeof candidate.message === "string" ? candidate.message : "";
   return candidate.code === "P1001"
+    || candidate.code === "P2022"
     || message.includes("Can't reach database server")
-    || message.includes("db.prisma.io:5432");
+    || message.includes("db.prisma.io:5432")
+    || message.includes("does not exist in the current database");
 }
 
 function enableDatabaseFallback(error: unknown) {
@@ -352,7 +381,8 @@ export function buildFreeDealShareUrl(origin: string, referralCode: string) {
 async function getClaims() {
   if (canUseDatabase()) {
     try {
-      const records = await prisma.freeDealClaimRecord.findMany({ orderBy: { createdAt: "desc" } });
+      const claimModel = getFreeDealPrismaModel("freeDealClaimRecord");
+      const records = await claimModel.findMany({ orderBy: { createdAt: "desc" } }) as Record<string, unknown>[];
       return records.map((record) => normalizeClaimRecord(record as unknown as Record<string, unknown>));
     } catch (error) {
       if (!isPrismaDatabaseUnavailable(error)) {
@@ -374,7 +404,8 @@ async function saveClaims(claims: FreeDealClaim[]) {
 async function getReferralVisits() {
   if (canUseDatabase()) {
     try {
-      const records = await prisma.freeDealReferralVisitRecord.findMany({ orderBy: { createdAt: "desc" } });
+      const visitModel = getFreeDealPrismaModel("freeDealReferralVisitRecord");
+      const records = await visitModel.findMany({ orderBy: { createdAt: "desc" } }) as Record<string, unknown>[];
       return records.map((record) => normalizeReferralVisitRecord(record as unknown as Record<string, unknown>));
     } catch (error) {
       if (!isPrismaDatabaseUnavailable(error)) {
@@ -396,7 +427,8 @@ async function saveReferralVisits(visits: FreeDealReferralVisit[]) {
 async function referralCodeExists(referralCode: string) {
   if (canUseDatabase()) {
     try {
-      const existing = await prisma.freeDealClaimRecord.findUnique({ where: { referralCode } });
+      const claimModel = getFreeDealPrismaModel("freeDealClaimRecord");
+      const existing = await claimModel.findUnique({ where: { referralCode } });
       return Boolean(existing);
     } catch (error) {
       if (!isPrismaDatabaseUnavailable(error)) {
@@ -425,7 +457,8 @@ async function generateUniqueReferralCode() {
 async function updateClaimRecord(claim: FreeDealClaim) {
   if (canUseDatabase()) {
     try {
-      await prisma.freeDealClaimRecord.update({
+      const claimModel = getFreeDealPrismaModel("freeDealClaimRecord");
+      await claimModel.update({
         where: { id: claim.id },
         data: {
           status: claim.status,
@@ -465,7 +498,8 @@ async function updateClaimRecord(claim: FreeDealClaim) {
 async function createClaimRecord(claim: FreeDealClaim) {
   if (canUseDatabase()) {
     try {
-      await prisma.freeDealClaimRecord.create({
+      const claimModel = getFreeDealPrismaModel("freeDealClaimRecord");
+      await claimModel.create({
         data: {
           id: claim.id,
           status: claim.status,
@@ -508,12 +542,14 @@ async function createClaimRecord(claim: FreeDealClaim) {
 async function getClaimReferralVisitCount(claimId: string) {
   if (canUseDatabase()) {
     try {
-      return prisma.freeDealReferralVisitRecord.count({
+      const visitModel = getFreeDealPrismaModel("freeDealReferralVisitRecord");
+      const count = await visitModel.count({
         where: {
           claimId,
           counted: true,
         },
       });
+      return typeof count === "number" ? count : 0;
     } catch (error) {
       if (!isPrismaDatabaseUnavailable(error)) {
         throw error;
@@ -530,6 +566,7 @@ async function getClaimReferralVisitCount(claimId: string) {
 async function getLatestMatchingClaim(identity: ResolvedFreeDealIdentity) {
   if (canUseDatabase()) {
     try {
+      const claimModel = getFreeDealPrismaModel("freeDealClaimRecord");
       const orConditions: Array<Record<string, string>> = [{ deviceIdHash: identity.deviceIdHash }];
       if (identity.ipHash) {
         orConditions.push({ ipHash: identity.ipHash });
@@ -541,7 +578,7 @@ async function getLatestMatchingClaim(identity: ResolvedFreeDealIdentity) {
         orConditions.push({ customerEmail: identity.customerEmail });
       }
 
-      const record = await prisma.freeDealClaimRecord.findFirst({
+      const record = await claimModel.findFirst({
         where: {
           OR: orConditions,
         },
@@ -570,10 +607,11 @@ async function getLatestMatchingClaim(identity: ResolvedFreeDealIdentity) {
 export async function getFreeDealConfig() {
   if (canUseDatabase()) {
     try {
-      const record = await prisma.freeDealConfigRecord.findFirst({ orderBy: { updatedAt: "desc" } });
+      const configModel = getFreeDealPrismaModel("freeDealConfigRecord");
+      const record = await configModel.findFirst({ orderBy: { updatedAt: "desc" } }) as Record<string, unknown> | null;
       if (record) {
         const normalized = normalizeConfigRecord(record as unknown as Record<string, unknown>);
-        if (normalized.itemLimit !== record.itemLimit) {
+        if (normalized.itemLimit !== toNumber(record.itemLimit, DEFAULT_FREE_DEAL_CONFIG.itemLimit)) {
           return saveFreeDealConfig({ itemLimit: normalized.itemLimit });
         }
 
@@ -609,9 +647,10 @@ export async function saveFreeDealConfig(input: Partial<FreeDealConfig>) {
 
   if (canUseDatabase()) {
     try {
-      const existing = await prisma.freeDealConfigRecord.findUnique({ where: { id: DEFAULT_CONFIG_ID } });
+      const configModel = getFreeDealPrismaModel("freeDealConfigRecord");
+      const existing = await configModel.findUnique({ where: { id: DEFAULT_CONFIG_ID } });
       if (existing) {
-        await prisma.freeDealConfigRecord.update({
+        await configModel.update({
           where: { id: DEFAULT_CONFIG_ID },
           data: {
             enabled: nextConfig.enabled,
@@ -634,7 +673,7 @@ export async function saveFreeDealConfig(input: Partial<FreeDealConfig>) {
           },
         });
       } else {
-        await prisma.freeDealConfigRecord.create({
+        await configModel.create({
           data: {
             id: DEFAULT_CONFIG_ID,
             enabled: nextConfig.enabled,
@@ -688,7 +727,8 @@ export async function getFreeDealClaimByOrderId(orderId: string) {
 
   if (canUseDatabase()) {
     try {
-      const record = await prisma.freeDealClaimRecord.findFirst({ where: { orderId } });
+      const claimModel = getFreeDealPrismaModel("freeDealClaimRecord");
+      const record = await claimModel.findFirst({ where: { orderId } });
       return record ? normalizeClaimRecord(record as unknown as Record<string, unknown>) : null;
     } catch (error) {
       if (!isPrismaDatabaseUnavailable(error)) {
@@ -824,7 +864,7 @@ export async function recordFreeDealReferralVisit(input: {
 
   const identity = resolveFreeDealIdentity(input.visitor);
   const claim = canUseDatabase()
-    ? await prisma.freeDealClaimRecord.findUnique({ where: { referralCode } })
+    ? await getFreeDealPrismaModel("freeDealClaimRecord").findUnique({ where: { referralCode } })
       .then((record) => (record ? normalizeClaimRecord(record as unknown as Record<string, unknown>) : null))
       .catch((error) => {
         if (!isPrismaDatabaseUnavailable(error)) {
@@ -855,7 +895,8 @@ export async function recordFreeDealReferralVisit(input: {
   }
 
   if (canUseDatabase()) {
-    const existingVisit = await prisma.freeDealReferralVisitRecord.findUnique({
+    const visitModel = getFreeDealPrismaModel("freeDealReferralVisitRecord");
+    const existingVisit = await visitModel.findUnique({
       where: {
         claimId_visitorKeyHash: {
           claimId: resolvedClaim.id,
@@ -869,7 +910,7 @@ export async function recordFreeDealReferralVisit(input: {
     }
 
     try {
-      await prisma.freeDealReferralVisitRecord.create({
+      await visitModel.create({
         data: {
           claimId: resolvedClaim.id,
           referralCode,
