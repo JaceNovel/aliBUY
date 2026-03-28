@@ -379,10 +379,10 @@ export async function launchSourcingSupplierPaymentForOrder(orderId: string, tri
 }
 
 export async function launchSourcingSupplierPaymentBatch(mode: SourcingBatchMode) {
-  const orders = await getSourcingOrders();
-  const eligibleOrders = orders
-    .filter((order) => isSourcingOrderEligibleForSupplierPayment(order) && getSourcingOrderBatchMode(order) === mode)
-    .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  const orders: SourcingOrder[] = await getSourcingOrders();
+  const eligibleOrders: SourcingOrder[] = orders
+    .filter((order: SourcingOrder) => isSourcingOrderEligibleForSupplierPayment(order) && getSourcingOrderBatchMode(order) === mode)
+    .sort((left: SourcingOrder, right: SourcingOrder) => left.createdAt.localeCompare(right.createdAt));
 
   const processedOrders: SourcingOrder[] = [];
   const failures: Array<{ orderId: string; message: string }> = [];
