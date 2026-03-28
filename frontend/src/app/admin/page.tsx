@@ -1,9 +1,80 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { ArrowUpRight, Boxes, DollarSign, Package, ShoppingCart, Users } from "lucide-react";
 
 import { adminNavItems } from "@/lib/admin-config";
-import { getAdminMetrics, getAdminMonthlyRevenue, getAdminRecentOrders } from "@/lib/admin-data";
+import { buildApiUrl } from "@/lib/api";
 import { getPricingContext } from "@/lib/pricing";
+import { USER_SESSION_COOKIE } from "@/lib/user-session";
+
+type AdminDashboardPayload = {
+  metrics: {
+    revenueUsd: number;
+    ordersCount: number;
+    productsCount: number;
+    suppliersCount: number;
+  };
+  monthlyRevenue: Array<{
+    label: string;
+    value: number;
+  }>;
+  recentOrders: Array<{
+    id: string;
+    customer: string;
+    product: string;
+    date: string;
+    totalUsd: number;
+    href: string;
+  }>;
+};
+
+const EMPTY_DASHBOARD_DATA: AdminDashboardPayload = {
+  metrics: {
+    revenueUsd: 0,
+    ordersCount: 0,
+    productsCount: 0,
+    suppliersCount: 0,
+  },
+  monthlyRevenue: ["Jan", "Fev", "Mar", "Avr", "Mai", "Juin"].map((label) => ({ label, value: 0 })),
+  recentOrders: [],
+};
+
+async function getAdminDashboardData() {
+  const sessionToken = (await cookies()).get(USER_SESSION_COOKIE)?.value;
+
+  if (!sessionToken) {
+    return {
+      data: EMPTY_DASHBOARD_DATA,
+      warning: "Session admin introuvable pour charger les donnees du tableau de bord.",
+    };
+  }
+
+  try {
+    const response = await fetch(buildApiUrl("/api/admin/dashboard"), {
+      headers: {
+        Cookie: `${USER_SESSION_COOKIE}=${encodeURIComponent(sessionToken)}`,
+      },
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return {
+        data: EMPTY_DASHBOARD_DATA,
+        warning: response.status === 403
+          ? "Le backend a refuse l'acces aux donnees admin pour cette session."
+          : "Le tableau de bord admin est temporairement indisponible.",
+      };
+    }
+
+    const payload = await response.json() as AdminDashboardPayload;
+    return { data: payload, warning: null };
+  } catch {
+    return {
+      data: EMPTY_DASHBOARD_DATA,
+      warning: "Impossible de recuperer les donnees admin depuis le backend.",
+    };
+  }
+}
 
 function buildChartPath(values: number[]) {
   const width = 520;
@@ -21,11 +92,8 @@ function buildChartPath(values: number[]) {
 
 export default async function AdminPage() {
   const pricing = await getPricingContext();
-  const [metrics, monthlyRevenue, recentOrders] = await Promise.all([
-    getAdminMetrics(),
-    getAdminMonthlyRevenue(),
-    getAdminRecentOrders(5),
-  ]);
+  const { data, warning } = await getAdminDashboardData();
+  const { metrics, monthlyRevenue, recentOrders } = data;
   const chartValues = monthlyRevenue.map((entry) => entry.value);
   const chartPath = buildChartPath(chartValues);
   const dashboardCards = [
@@ -65,6 +133,11 @@ export default async function AdminPage() {
         <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Admin panel</div>
         <h1 className="mt-2 text-[34px] font-black tracking-[-0.05em] text-[#ff5b4d]">Tableau de bord administratif</h1>
         <p className="mt-1 text-[17px] text-[#516173]">Vue basee sur les utilisateurs, demandes et commandes reelles du projet.</p>
+        {warning ? (
+          <div className="mt-4 rounded-[16px] border border-[#f3d4a4] bg-[#fff7eb] px-4 py-3 text-[14px] text-[#8a5a00]">
+            {warning}
+          </div>
+        ) : null}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-4">
@@ -127,7 +200,7 @@ export default async function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {recentOrders.map((order) => (
+                {recentOrders.length > 0 ? recentOrders.map((order) => (
                   <tr key={order.id} className="border-t border-[#edf1f6] align-top text-[13px] text-[#1f2937]">
                     <td className="py-4 pr-4 font-semibold"><Link href={order.href} className="transition hover:text-[#ff6a5b]">{order.id}</Link></td>
                     <td className="py-4 pr-4">{order.customer}</td>
@@ -135,7 +208,11 @@ export default async function AdminPage() {
                     <td className="py-4 pr-4">{order.date}</td>
                     <td className="py-4 pr-4 font-semibold">{pricing.formatPrice(order.totalUsd)}</td>
                   </tr>
-                ))}
+                )) : (
+                  <tr className="border-t border-[#edf1f6] align-top text-[13px] text-[#667085]">
+                    <td className="py-4 pr-4" colSpan={5}>Aucune commande recente disponible.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

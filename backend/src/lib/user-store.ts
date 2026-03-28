@@ -18,6 +18,10 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
+function hasDatabase() {
+  return Boolean(process.env.DATABASE_URL);
+}
+
 function isPrismaDatabaseUnavailable(error: unknown) {
   if (!error || typeof error !== "object") {
     return false;
@@ -26,6 +30,8 @@ function isPrismaDatabaseUnavailable(error: unknown) {
   const candidate = error as { code?: unknown; message?: unknown };
   const message = typeof candidate.message === "string" ? candidate.message : "";
   return candidate.code === "P1001"
+    || message.includes("Environment variable not found: DATABASE_URL")
+    || message.includes('error: Environment variable not found: DATABASE_URL')
     || message.includes("Can't reach database server")
     || message.includes("db.prisma.io:5432");
 }
@@ -53,6 +59,10 @@ function toStoredUser(user: {
 }
 
 export async function getStoredUsers() {
+  if (!hasDatabase()) {
+    return [];
+  }
+
   const users = await prisma.user.findMany({ orderBy: { createdAt: "desc" } }).catch((error) => {
     if (isPrismaDatabaseUnavailable(error)) {
       return [];
@@ -64,6 +74,10 @@ export async function getStoredUsers() {
 }
 
 export async function getStoredUserByEmail(email: string) {
+  if (!hasDatabase()) {
+    return null;
+  }
+
   const normalizedEmail = normalizeEmail(email);
   const user = await prisma.user.findUnique({ where: { email: normalizedEmail } }).catch((error) => {
     if (isPrismaDatabaseUnavailable(error)) {
@@ -76,6 +90,10 @@ export async function getStoredUserByEmail(email: string) {
 }
 
 export async function getStoredUserByClerkUserId(clerkUserId: string) {
+  if (!hasDatabase()) {
+    return null;
+  }
+
   const user = await prisma.user.findFirst({ where: { clerkUserId } as never }).catch((error) => {
     if (isPrismaDatabaseUnavailable(error)) {
       return null;
@@ -87,6 +105,10 @@ export async function getStoredUserByClerkUserId(clerkUserId: string) {
 }
 
 export async function getStoredUserById(id: string) {
+  if (!hasDatabase()) {
+    return null;
+  }
+
   const user = await prisma.user.findUnique({ where: { id } }).catch((error) => {
     if (isPrismaDatabaseUnavailable(error)) {
       return null;
