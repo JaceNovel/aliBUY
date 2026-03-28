@@ -43,7 +43,7 @@ const DEFAULT_PROMO_CODES: PromoCodeRecord[] = [
     id: "promo-welcome-10",
     code: "WELCOME10",
     label: "Bienvenue AfriPay",
-    description: "10% sur une commande sourcing eligible.",
+    description: "10% sur une commande eligible.",
     amountType: "percent",
     amountValue: 10,
     minOrderFcfa: 25000,

@@ -23,7 +23,7 @@ export const catalogCategories: CatalogCategoryDefinition[] = [
   {
     slug: "consumer-electronics",
     title: "Electronique grand public",
-    description: "Accessoires PC, VR et bundles high-rotation pour sourcing retail et grossiste.",
+    description: "Accessoires PC, VR et bundles high-rotation pour retail et grossiste.",
     productSlugs: [
       "souris-gaming-g502x-rgb-usb",
       "lunettes-vr-3d-metavers-hifi",
@@ -56,7 +56,7 @@ export const catalogCategories: CatalogCategoryDefinition[] = [
   {
     slug: "agriculture-food",
     title: "Agriculture, Aliments & Boissons",
-    description: "Produits agricoles, alimentaires et boissons pour besoins B2B et sourcing complementaire.",
+    description: "Produits agricoles, alimentaires et boissons pour besoins B2B et complement d'assortiment.",
     productSlugs: [
       "bean-bag-gaming-oxford",
       "bureau-esport-design-simple",

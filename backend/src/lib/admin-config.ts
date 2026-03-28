@@ -10,7 +10,6 @@ export type AdminSectionSlug =
   | "email"
   | "support"
   | "imports"
-  | "alibaba-sourcing"
   | "reviews"
   | "settings";
 
@@ -36,11 +35,10 @@ export const adminNavItems: AdminNavItem[] = [
   { slug: "promotions", label: "Promotions", icon: "badge-percent", description: "Promos hero, badges et campagnes mode.", href: "/admin/promotions", publicHref: "/mode" },
   { slug: "promo-codes", label: "Codes Promo", icon: "ticket-percent", description: "Codes de reduction et activations marketing.", href: "/admin/promo-codes", publicHref: "/mode" },
   { slug: "offers", label: "Offres", icon: "gift", description: "Offres chaudes visibles en home et mode.", href: "/admin/offers", publicHref: "/trends" },
-  { slug: "free-deals", label: "Produits gratuits", icon: "sparkles", description: "Campagne dediee a la page articles gratuits, imports Alibaba et regles de l'offre.", href: "/admin/free-deals", publicHref: "/articles-gratuits" },
+  { slug: "free-deals", label: "Produits gratuits", icon: "sparkles", description: "Campagne dediee a la page articles gratuits et regles de l'offre.", href: "/admin/free-deals", publicHref: "/articles-gratuits" },
   { slug: "email", label: "Email", icon: "mail", description: "Campagnes de relance et communication B2B.", href: "/admin/email", publicHref: "/messages" },
   { slug: "support", label: "Support Client", icon: "headset", description: "Tickets prioritaires et conversations agents.", href: "/admin/support", publicHref: "/messages" },
   { slug: "imports", label: "Demandes d'Importation", icon: "ship-wheel", description: "Dossiers d'import et suivi logistique.", href: "/admin/imports", publicHref: "/orders" },
-  { slug: "alibaba-sourcing", label: "AliExpress Sourcing", icon: "boxes", description: "Automatisation AliExpress DS, import produits, lots d'achat et groupage mer.", href: "/admin/aliexpress-sourcing", publicHref: "/cart" },
   { slug: "reviews", label: "Avis Clients", icon: "star", description: "Qualite percue et retours terrain.", href: "/admin/reviews", publicHref: "/favorites" },
   { slug: "settings", label: "Parametres", icon: "settings", description: "Pays, devise, langue et regles operationnelles.", href: "/admin/settings", publicHref: "/pricing" },
 ];
@@ -68,18 +66,6 @@ export const adminNavSubItems: Partial<Record<AdminSectionSlug, AdminNavSubItem[
   settings: [
     { label: "Rôles & Permissions", href: "/admin/settings" },
     { label: "Site Web", href: "/admin/settings/site-web" },
-  ],
-  "alibaba-sourcing": [
-    { label: "Tableau de bord", href: "/admin/aliexpress-sourcing" },
-    { label: "Comptes fournisseurs", href: "/admin/aliexpress-sourcing/accounts" },
-    { label: "Import catalogue", href: "/admin/aliexpress-sourcing/import-catalog" },
-    { label: "Pays", href: "/admin/aliexpress-sourcing/countries" },
-    { label: "Adresses reception", href: "/admin/aliexpress-sourcing/addresses" },
-    { label: "Mappings produit-source", href: "/admin/aliexpress-sourcing/mappings" },
-    { label: "Demandes", href: "/admin/aliexpress-sourcing/requests" },
-    { label: "Groupes prets", href: "/admin/aliexpress-sourcing/lots" },
-    { label: "Lots d'achat", href: "/admin/aliexpress-sourcing/sourcing-lots" },
-    { label: "Receptions", href: "/admin/aliexpress-sourcing/receptions" },
   ],
 };
 

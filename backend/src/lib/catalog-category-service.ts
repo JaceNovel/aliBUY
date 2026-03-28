@@ -55,7 +55,7 @@ function dedupeProducts(products: ProductCatalogItem[]) {
 
 function buildCategoryDescription(title: string, sourcePath: string[], count: number) {
   if (sourcePath.length > 1) {
-    return `${count} article${count > 1 ? "s" : ""} publie${count > 1 ? "s" : ""} depuis Alibaba dans ${sourcePath.join(" / ")}.`;
+    return `${count} article${count > 1 ? "s" : ""} publie${count > 1 ? "s" : ""} dans ${sourcePath.join(" / ")}.`;
   }
 
   return `${count} article${count > 1 ? "s" : ""} publie${count > 1 ? "s" : ""} dans la categorie ${title}.`;

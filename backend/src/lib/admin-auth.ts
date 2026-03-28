@@ -57,7 +57,7 @@ export async function getAuthorizedAdminAccessByEmail(email?: string | null) {
     return {
       email: normalizedEmail,
       role: "superadmin",
-      permissions: ["dashboard.read", "users.read", "users.manage", "orders.read", "products.read", "products.manage", "promotions.manage", "support.read", "imports.read", "sourcing.manage", "settings.manage", "admin.manage"],
+      permissions: ["dashboard.read", "users.read", "users.manage", "orders.read", "products.read", "products.manage", "promotions.manage", "support.read", "imports.read", "settings.manage", "admin.manage"],
       active: true,
       isSuperAdmin: true,
     } satisfies AdminAccessContext;

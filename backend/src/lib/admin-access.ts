@@ -8,7 +8,6 @@ export type AdminPermission =
   | "promotions.manage"
   | "support.read"
   | "imports.read"
-  | "sourcing.manage"
   | "settings.manage"
   | "admin.manage";
 
@@ -28,11 +27,11 @@ export type AdminAccessRecord = {
 export const ADMIN_ROLE_PRESETS: Record<AdminRole, { label: string; permissions: AdminPermission[] }> = {
   superadmin: {
     label: "Superadmin",
-    permissions: ["dashboard.read", "users.read", "users.manage", "orders.read", "products.read", "products.manage", "promotions.manage", "support.read", "imports.read", "sourcing.manage", "settings.manage", "admin.manage"],
+    permissions: ["dashboard.read", "users.read", "users.manage", "orders.read", "products.read", "products.manage", "promotions.manage", "support.read", "imports.read", "settings.manage", "admin.manage"],
   },
   operations: {
     label: "Opérations",
-    permissions: ["dashboard.read", "users.read", "orders.read", "support.read", "imports.read", "sourcing.manage"],
+    permissions: ["dashboard.read", "users.read", "orders.read", "support.read", "imports.read"],
   },
   support: {
     label: "Support",

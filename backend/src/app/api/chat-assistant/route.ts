@@ -9,15 +9,11 @@ type ChatMessage = {
 
 const QUICK_REPLIES = {
   shipping:
-    "AfriPay vous aide a sourcer sur Alibaba, consolider vos produits et suivre la logistique jusqu'a la livraison. Si vous me donnez le produit, le pays de livraison et la quantite, je peux deja vous guider.",
+    "AfriPay vous aide a comprendre la livraison, le transport et les delais. Donnez-moi votre pays de livraison et le contexte (commande ou question generale) et je vous guide.",
   payment:
     "Nous pouvons vous orienter sur les paiements, la validation des commandes et les etapes de securisation avant expedition. Si votre demande concerne un paiement bloque ou un cas sensible, je peux aussi vous envoyer vers un conseiller.",
   account:
     "Je peux vous aider pour votre compte, vos favoris, votre panier et vos commandes. Si c'est un probleme de connexion ou d'acces admin, je peux vous orienter vers l'espace adapte.",
-  sourcing:
-    "AfriPay est pense pour trouver des produits Alibaba plus vite, comparer les options et lancer l'import avec moins de friction. Dites-moi le produit recherche, la quantite et votre budget.",
-  freeDeals:
-    "La page Articles Gratuits permet de selectionner plusieurs articles d'une campagne speciale contre un montant fixe. Les disponibilites et les regles exactes dependent de la configuration active.",
   order:
     "Pour une commande, je peux vous aider a comprendre le statut, la preparation, l'expedition ou les prochaines etapes. Si le dossier est sensible, je peux vous proposer de parler a une personne.",
 };
@@ -47,14 +43,6 @@ function detectIntent(message: string) {
     return "account";
   }
 
-  if (/(import|alibaba|produit|fournisseur|sourcing|grossiste|moq)/.test(message)) {
-    return "sourcing";
-  }
-
-  if (/(gratuit|articles gratuits|produits gratuits|offre gratuite|offres du jour)/.test(message)) {
-    return "freeDeals";
-  }
-
   if (/(commande|order|suivi|statut|reception|recu)/.test(message)) {
     return "order";
   }
@@ -79,15 +67,7 @@ function buildSuggestions(intent: string, escalate: boolean) {
     return ["Modes de paiement", "Commande securisee", "Parler a une personne"];
   }
 
-  if (intent === "freeDeals") {
-    return ["Articles gratuits", "Conditions de l'offre", "Parler a une personne"];
-  }
-
-  if (intent === "sourcing") {
-    return ["Trouver un produit", "Importer avec AfriPay", "Parler a une personne"];
-  }
-
-  return ["Suivi commande", "Articles gratuits", "Parler a une personne"];
+  return ["Suivi commande", "Paiement", "Parler a une personne"];
 }
 
 function buildReply(message: string) {
@@ -98,7 +78,7 @@ function buildReply(message: string) {
   if (isGreeting(normalized)) {
     return {
       reply:
-        "Bonjour, je suis l'assistant AfriPay. Je peux vous aider pour un produit, une commande, un paiement, la livraison ou l'offre Articles Gratuits. Dites-moi simplement ce dont vous avez besoin.",
+        "Bonjour, je suis l'assistant AfriPay. Je peux vous aider pour une commande, un paiement, la livraison ou votre compte. Dites-moi simplement ce dont vous avez besoin.",
       escalate,
       suggestions: buildSuggestions(intent, escalate),
     };
@@ -123,7 +103,7 @@ function buildReply(message: string) {
 
   return {
     reply:
-      "Je peux vous aider sur AfriPay pour trouver un produit, comprendre une commande, verifier un paiement, suivre une livraison ou acceder a l'offre Articles Gratuits. Donnez-moi un peu plus de contexte et je vous reponds tout de suite.",
+      "Je peux vous aider sur AfriPay pour comprendre une commande, verifier un paiement, suivre une livraison ou gerer votre compte. Donnez-moi un peu plus de contexte et je vous reponds tout de suite.",
     escalate: false,
     suggestions: buildSuggestions(intent, false),
   };

@@ -2,8 +2,6 @@ const apiExamples = [
   "/api/products",
   "/api/pricing-context",
   "/api/search-suggestions",
-  "/api/admin/aliexpress/dashboard",
-  "/api/payments/moneroo/webhook",
   "/api/health",
 ];
 

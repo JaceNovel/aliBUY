@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import type { PaymentStatus } from "@/lib/alibaba-sourcing";
+export type PaymentStatus = "unpaid" | "initialized" | "pending" | "paid" | "failed" | "cancelled";
 
 export const MONEROO_DEFAULT_API_BASE_URL = "https://api.moneroo.io";
 

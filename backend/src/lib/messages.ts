@@ -1,7 +1,7 @@
 const messages = {
   fr: {
     topBar: {
-      description: "AfriPay Marketplace, plateforme de sourcing B2B a positionnement affiliation et partnership Alibaba.",
+      description: "AfriPay Marketplace, plateforme B2B de catalogue, devis, logistique et paiements.",
       supplierOffers: "Partnership",
     },
     nav: {
@@ -61,10 +61,10 @@ const messages = {
     },
     recommendations: {
       heading: "Recommande pour vous",
-      title: "Modules de sourcing associes",
+      title: "Modules associes",
       algorithm: "Algorithme: historique + pays + categories proches",
       premium: "Recommandation premium",
-      readyFor: "Sourcing pret pour",
+      readyFor: "Pret pour",
       description: "",
     },
     pricing: {
@@ -144,7 +144,7 @@ const messages = {
   },
   en: {
     topBar: {
-      description: "AfriPay Marketplace, a B2B sourcing platform positioned around Alibaba affiliation and partnership opportunities.",
+      description: "AfriPay Marketplace, a B2B platform for catalog, quotes, logistics, and payments.",
       supplierOffers: "Partnership",
     },
     nav: {
@@ -204,10 +204,10 @@ const messages = {
     },
     recommendations: {
       heading: "Recommended for you",
-      title: "Related sourcing modules",
+      title: "Related modules",
       algorithm: "Algorithm: history + country + nearby categories",
       premium: "Premium recommendation",
-      readyFor: "Sourcing ready for",
+      readyFor: "Ready for",
       description:
         "Displayed prices are still recalculated server-side based on your country and currency, without breaking the existing API.",
     },

@@ -108,7 +108,7 @@ export function createSiteBrandImageResponse(input: {
                 letterSpacing: -1.2,
               }}
             >
-              Import Alibaba, logistique et paiements unifiés
+              Marketplace B2B, logistique et paiements unifiés
             </div>
           ) : null}
         </div>
