@@ -6,6 +6,13 @@ import { getQuoteRequests, getSupportConversations, getUserAddresses, getUserFav
 import { getSourcingOrders } from "@/lib/sourcing-store";
 import { getStoredUserById, getStoredUsers } from "@/lib/user-store";
 
+type AdminStoredUser = Awaited<ReturnType<typeof getStoredUsers>>[number];
+type AdminSourcingOrder = Awaited<ReturnType<typeof getSourcingOrders>>[number];
+type AdminQuoteRecord = Awaited<ReturnType<typeof getQuoteRequests>>[number];
+type AdminSupportConversation = Awaited<ReturnType<typeof getSupportConversations>>[number];
+type AdminUserSupportConversation = Awaited<ReturnType<typeof getUserSupportConversations>>[number];
+type AdminCatalogProduct = Awaited<ReturnType<typeof getCatalogProducts>>[number];
+
 export type AdminUserRecord = {
   id: string;
   displayName: string;
@@ -104,9 +111,9 @@ export async function getAdminMetrics() {
     getCatalogProducts(),
     getCatalogCategories(),
   ]);
-  const revenueUsd = orders.reduce((sum, order) => sum + convertFcfaToUsd(order.totalPriceFcfa), 0);
-  const promotionsCount = products.filter((product) => product.badge || product.title.toLowerCase().includes("promo")).length;
-  const pendingOrdersCount = orders.filter((order) => order.paymentStatus !== "paid").length;
+  const revenueUsd = orders.reduce((sum: number, order: AdminSourcingOrder) => sum + convertFcfaToUsd(order.totalPriceFcfa), 0);
+  const promotionsCount = products.filter((product: AdminCatalogProduct) => product.badge || product.title.toLowerCase().includes("promo")).length;
+  const pendingOrdersCount = orders.filter((order: AdminSourcingOrder) => order.paymentStatus !== "paid").length;
 
   return {
     revenueUsd,
@@ -139,9 +146,9 @@ export async function getAdminRecentOrders(limit = 5) {
   const orders = await getSourcingOrders();
 
   return [...orders]
-    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    .sort((left: AdminSourcingOrder, right: AdminSourcingOrder) => right.createdAt.localeCompare(left.createdAt))
     .slice(0, limit)
-    .map((order) => ({
+    .map((order: AdminSourcingOrder) => ({
       id: order.orderNumber,
       customer: order.customerName,
       product: order.items[0]?.title ?? `Commande ${order.orderNumber}`,
@@ -156,8 +163,8 @@ export async function getAdminOrders(): Promise<AdminOrderRecord[]> {
   const orders = await getSourcingOrders();
 
   return [...orders]
-    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
-    .map((order) => ({
+    .sort((left: AdminSourcingOrder, right: AdminSourcingOrder) => right.createdAt.localeCompare(left.createdAt))
+    .map((order: AdminSourcingOrder) => ({
       id: order.id,
       orderNumber: order.orderNumber,
       customerName: order.customerName,
@@ -182,10 +189,10 @@ export async function getAdminUsersOverview(): Promise<AdminUserRecord[]> {
     getSupportConversations(),
   ]);
 
-  return users.map((user) => {
-    const ordersCount = orders.filter((order) => order.userId === user.id || order.customerEmail.toLowerCase() === user.email.toLowerCase()).length;
-    const quotesCount = quotes.filter((quote) => quote.userId === user.id).length;
-    const conversationsCount = conversations.filter((conversation) => conversation.userId === user.id).length;
+  return users.map((user: AdminStoredUser) => {
+    const ordersCount = orders.filter((order: AdminSourcingOrder) => order.userId === user.id || order.customerEmail.toLowerCase() === user.email.toLowerCase()).length;
+    const quotesCount = quotes.filter((quote: AdminQuoteRecord) => quote.userId === user.id).length;
+    const conversationsCount = conversations.filter((conversation: AdminSupportConversation) => conversation.userId === user.id).length;
     const status = ordersCount > 0 || quotesCount > 0 || conversationsCount > 0 ? "Actif" : "Nouveau";
 
     return {
@@ -216,9 +223,9 @@ export async function getAdminUserDetail(userId: string) {
     getCatalogProducts(),
   ]);
 
-  const userQuotes = quotes.filter((quote) => quote.userId === userId);
-  const userOrders = orders.filter((order) => order.userId === userId || order.customerEmail.toLowerCase() === user.email.toLowerCase());
-  const favorites = products.filter((product) => favoriteSlugs.includes(product.slug));
+  const userQuotes = quotes.filter((quote: AdminQuoteRecord) => quote.userId === userId);
+  const userOrders = orders.filter((order: AdminSourcingOrder) => order.userId === userId || order.customerEmail.toLowerCase() === user.email.toLowerCase());
+  const favorites = products.filter((product: AdminCatalogProduct) => favoriteSlugs.includes(product.slug));
 
   return {
     user,
@@ -232,14 +239,14 @@ export async function getAdminUserDetail(userId: string) {
 
 export async function getAdminOrderById(orderId: string) {
   const orders = await getSourcingOrders();
-  return orders.find((order) => order.id === orderId || order.orderNumber === orderId) ?? null;
+  return orders.find((order: AdminSourcingOrder) => order.id === orderId || order.orderNumber === orderId) ?? null;
 }
 
 export async function getAdminPromotions() {
   const products = await getCatalogProducts();
   return products
-    .filter((product) => product.badge || product.title.toLowerCase().includes("promo"))
-    .map((product) => ({
+    .filter((product: AdminCatalogProduct) => product.badge || product.title.toLowerCase().includes("promo"))
+    .map((product: AdminCatalogProduct) => ({
       name: product.shortTitle,
       badge: product.badge ?? "Promo",
       priceMinUsd: product.minUsd,
@@ -252,7 +259,7 @@ export const adminPromoCodes: Array<{ code: string; type: string; value: string;
 
 export async function getAdminOffers() {
   const products = await getCatalogProducts();
-  return products.slice(0, 8).map((product) => ({
+  return products.slice(0, 8).map((product: AdminCatalogProduct) => ({
     name: product.shortTitle,
     supplier: product.supplierName,
     moq: `${product.moq} ${product.unit}`,
