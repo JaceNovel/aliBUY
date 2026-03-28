@@ -1,5 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 
 import { FREE_DEAL_DEVICE_COOKIE, FREE_DEAL_ROUTE } from "@/lib/free-deal-constants";
 import { parseUserSessionToken, USER_SESSION_COOKIE } from "@/lib/user-session";
@@ -15,6 +15,8 @@ const isProtectedRoute = createRouteMatcher([
   "/admin/(.*)",
   "/api/admin(.*)",
 ]);
+
+const clerkEnabled = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.trim());
 
 function shouldAttachFreeDealDeviceCookie(pathname: string) {
   return pathname === FREE_DEAL_ROUTE
@@ -44,14 +46,14 @@ function finalizeResponse(request: NextRequest, response: NextResponse) {
   return response;
 }
 
-export default clerkMiddleware(async (auth, request) => {
+async function handleRequest(request: NextRequest, getClerkUserId?: () => Promise<string | null>) {
   if (request.nextUrl.pathname === "/admin/login") {
     const loginUrl = new URL("/admin_jacen", request.url);
     return finalizeResponse(request, NextResponse.redirect(loginUrl));
   }
 
   if (isProtectedRoute(request)) {
-    const { userId } = await auth();
+    const userId = getClerkUserId ? await getClerkUserId() : null;
     const session = await parseUserSessionToken(request.cookies.get(USER_SESSION_COOKIE)?.value);
 
     if (!userId && !session?.sub) {
@@ -68,7 +70,17 @@ export default clerkMiddleware(async (auth, request) => {
   }
 
   return finalizeResponse(request, NextResponse.next());
-});
+}
+
+const clerkProxy = clerkMiddleware(async (auth, request) => handleRequest(request, async () => (await auth()).userId ?? null));
+
+export default function proxy(request: NextRequest, event: NextFetchEvent) {
+  if (!clerkEnabled) {
+    return handleRequest(request);
+  }
+
+  return clerkProxy(request, event);
+}
 
 export const config = {
   matcher: [
