@@ -1,12 +1,6 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
-
 import { ImageResponse } from "next/og";
 
 import { SITE_NAME } from "@/lib/site-config";
-
-const logoPath = path.join(process.cwd(), "public", "WhatsApp_Image_2026-03-22_at_03.03.05-removebg-preview.png");
-const logoDataUri = `data:image/png;base64,${readFileSync(logoPath).toString("base64")}`;
 
 export function createSiteBrandImageResponse(input: {
   width: number;
@@ -59,13 +53,51 @@ export function createSiteBrandImageResponse(input: {
             padding: 48,
           }}
         >
-          <img
-            src={logoDataUri}
-            width={logoWidth}
-            height={logoWidth}
-            alt={`${SITE_NAME} logo`}
-            style={{ objectFit: "contain" }}
-          />
+          <div
+            style={{
+              width: logoWidth,
+              height: logoWidth,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: Math.round(logoWidth * 0.24),
+              background: "linear-gradient(145deg, #ff7a1a 0%, #ff5a00 55%, #c93200 100%)",
+              boxShadow: "0 28px 80px rgba(255,106,0,0.28), inset 0 1px 0 rgba(255,255,255,0.2)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#ffffff",
+                lineHeight: 1,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  fontSize: Math.round(logoWidth * 0.24),
+                  fontWeight: 800,
+                  letterSpacing: -2,
+                }}
+              >
+                AF
+              </div>
+              <div
+                style={{
+                  display: showText ? "flex" : "none",
+                  marginTop: Math.max(12, Math.round(logoWidth * 0.025)),
+                  fontSize: Math.max(18, Math.round(logoWidth * 0.065)),
+                  fontWeight: 600,
+                  letterSpacing: 6,
+                }}
+              >
+                PAY
+              </div>
+            </div>
+          </div>
           {showText ? (
             <div
               style={{
