@@ -7,6 +7,13 @@ import { getAdminUserDetail } from "@/lib/admin-data";
 import { hasAdminPermission } from "@/lib/admin-auth";
 import { getAccountSettings } from "@/lib/account-settings-store";
 
+type AdminUserDetail = NonNullable<Awaited<ReturnType<typeof getAdminUserDetail>>>;
+type AdminUserAddress = AdminUserDetail["addresses"][number];
+type AdminUserOrder = AdminUserDetail["orders"][number];
+type AdminUserFavorite = AdminUserDetail["favorites"][number];
+type AdminUserQuote = AdminUserDetail["quotes"][number];
+type AdminUserConversation = AdminUserDetail["conversations"][number];
+
 export default async function AdminUserDetailPage({ params }: { params: Promise<{ userId: string }> }) {
   if (!(await hasAdminPermission("users.read"))) {
     redirect("/admin");
@@ -69,7 +76,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
         <article className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
           <div className="text-[18px] font-bold text-[#1f2937]">Adresses</div>
           <div className="mt-4 space-y-3">
-            {detail.addresses.length ? detail.addresses.map((address) => (
+            {detail.addresses.length ? detail.addresses.map((address: AdminUserAddress) => (
               <div key={address.id} className="rounded-[16px] border border-[#edf1f6] px-4 py-4 text-[14px] text-[#344054]">
                 <div className="font-semibold text-[#101828]">{address.recipientName}</div>
                 <div className="mt-1 inline-flex items-center gap-2 text-[#667085]"><MapPin className="h-4 w-4" />{address.addressLine1}</div>
@@ -93,7 +100,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
         <article className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
           <div className="text-[18px] font-bold text-[#1f2937]">Commandes</div>
           <div className="mt-4 space-y-3">
-            {detail.orders.length ? detail.orders.map((order) => (
+            {detail.orders.length ? detail.orders.map((order: AdminUserOrder) => (
               <div key={order.id} className="rounded-[16px] border border-[#edf1f6] px-4 py-4 text-[14px] text-[#344054]">
                 <div className="flex items-center justify-between gap-3">
                   <div className="font-semibold text-[#101828]">{order.id}</div>
@@ -109,7 +116,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
         <article className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
           <div className="text-[18px] font-bold text-[#1f2937]">Favoris</div>
           <div className="mt-4 space-y-3">
-            {detail.favorites.length ? detail.favorites.map((favorite) => (
+            {detail.favorites.length ? detail.favorites.map((favorite: AdminUserFavorite) => (
               <div key={favorite.slug} className="rounded-[16px] border border-[#edf1f6] px-4 py-4 text-[14px] text-[#344054]">
                 <div className="font-semibold text-[#101828]">{favorite.title}</div>
                 <div className="mt-1 text-[#667085]">{favorite.slug}</div>
@@ -124,7 +131,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
             <div>
               <div className="mb-2 text-[15px] font-semibold text-[#101828]">Demandes de devis</div>
               <div className="space-y-3">
-                {detail.quotes.length ? detail.quotes.map((quote) => (
+                {detail.quotes.length ? detail.quotes.map((quote: AdminUserQuote) => (
                   <div key={quote.id} className="rounded-[16px] border border-[#edf1f6] px-4 py-4 text-[14px] text-[#344054]">
                     <div className="font-semibold text-[#101828]">{quote.productName}</div>
                     <div className="mt-1 text-[#667085]">Quantité: {quote.quantity}</div>
@@ -136,7 +143,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
             <div>
               <div className="mb-2 text-[15px] font-semibold text-[#101828]">Conversations support</div>
               <div className="space-y-3">
-                {detail.conversations.length ? detail.conversations.map((conversation) => (
+                {detail.conversations.length ? detail.conversations.map((conversation: AdminUserConversation) => (
                   <div key={conversation.id} className="rounded-[16px] border border-[#edf1f6] px-4 py-4 text-[14px] text-[#344054]">
                     <div className="font-semibold text-[#101828]">{conversation.name}</div>
                     <div className="mt-1 text-[#667085]">{conversation.preview}</div>
