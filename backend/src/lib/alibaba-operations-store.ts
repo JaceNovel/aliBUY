@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import { Prisma } from "@prisma/client";
@@ -331,9 +332,24 @@ const DEFAULT_COUNTRY_PROFILES: AlibabaCountryProfile[] = [
   },
 ];
 
-const ROOT_DIR = process.env.VERCEL
-  ? path.join("/tmp", "alibuy", "data", "sourcing")
-  : path.join(process.cwd(), "data", "sourcing");
+function resolveSourcingDir() {
+  const isServerlessRuntime = Boolean(
+    process.env.VERCEL
+    || process.env.VERCEL_ENV
+    || process.env.VERCEL_URL
+    || process.env.AWS_EXECUTION_ENV
+    || process.env.AWS_LAMBDA_FUNCTION_NAME
+    || process.cwd().startsWith("/var/task"),
+  );
+
+  if (process.env.NODE_ENV === "production" || isServerlessRuntime) {
+    return path.join(os.tmpdir(), "afripay", "data", "sourcing");
+  }
+
+  return path.join(process.cwd(), "data", "sourcing");
+}
+
+const ROOT_DIR = resolveSourcingDir();
 const IMPORT_JOBS_PATH = path.join(ROOT_DIR, "alibaba-import-jobs.json");
 const IMPORTED_PRODUCTS_PATH = path.join(ROOT_DIR, "alibaba-imported-products.json");
 const SUPPLIER_ACCOUNTS_PATH = path.join(ROOT_DIR, "alibaba-supplier-accounts.json");

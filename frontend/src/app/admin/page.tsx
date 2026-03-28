@@ -2,7 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { ArrowUpRight, Boxes, DollarSign, Package, ShoppingCart, Users } from "lucide-react";
 
-import { adminNavItems } from "@/lib/admin-config";
+import { adminNavItems, type AdminSectionSlug } from "@/lib/admin-config";
 import { buildApiUrl } from "@/lib/api";
 import { getPricingContext } from "@/lib/pricing";
 import { USER_SESSION_COOKIE } from "@/lib/user-session";
@@ -39,6 +39,46 @@ const EMPTY_DASHBOARD_DATA: AdminDashboardPayload = {
   recentOrders: [],
 };
 
+function normalizeNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function normalizeDashboardPayload(payload: unknown): AdminDashboardPayload {
+  if (!payload || typeof payload !== "object") {
+    return EMPTY_DASHBOARD_DATA;
+  }
+
+  const record = payload as Partial<AdminDashboardPayload>;
+  const metrics = record.metrics && typeof record.metrics === "object"
+    ? record.metrics
+    : EMPTY_DASHBOARD_DATA.metrics;
+
+  return {
+    metrics: {
+      revenueUsd: normalizeNumber(metrics.revenueUsd),
+      ordersCount: normalizeNumber(metrics.ordersCount),
+      productsCount: normalizeNumber(metrics.productsCount),
+      suppliersCount: normalizeNumber(metrics.suppliersCount),
+    },
+    monthlyRevenue: Array.isArray(record.monthlyRevenue)
+      ? record.monthlyRevenue.map((entry, index) => ({
+          label: typeof entry?.label === "string" && entry.label.trim() ? entry.label : EMPTY_DASHBOARD_DATA.monthlyRevenue[index]?.label ?? `M${index + 1}`,
+          value: normalizeNumber(entry?.value),
+        }))
+      : EMPTY_DASHBOARD_DATA.monthlyRevenue,
+    recentOrders: Array.isArray(record.recentOrders)
+      ? record.recentOrders.map((order) => ({
+          id: typeof order?.id === "string" ? order.id : "",
+          customer: typeof order?.customer === "string" ? order.customer : "",
+          product: typeof order?.product === "string" ? order.product : "",
+          date: typeof order?.date === "string" ? order.date : "",
+          totalUsd: normalizeNumber(order?.totalUsd),
+          href: typeof order?.href === "string" && order.href ? order.href : "/admin/orders",
+        }))
+      : [],
+  };
+}
+
 async function getAdminDashboardData() {
   const sessionToken = (await cookies()).get(USER_SESSION_COOKIE)?.value;
 
@@ -66,7 +106,7 @@ async function getAdminDashboardData() {
       };
     }
 
-    const payload = await response.json() as AdminDashboardPayload;
+    const payload = normalizeDashboardPayload(await response.json());
     return { data: payload, warning: null };
   } catch {
     return {
@@ -96,6 +136,10 @@ export default async function AdminPage() {
   const { metrics, monthlyRevenue, recentOrders } = data;
   const chartValues = monthlyRevenue.map((entry) => entry.value);
   const chartPath = buildChartPath(chartValues);
+  const featuredModuleSlugs: AdminSectionSlug[] = ["orders", "products", "aliexpress-sourcing", "users", "imports", "settings"];
+  const featuredAdminModules = featuredModuleSlugs
+    .map((slug) => adminNavItems.find((item) => item.slug === slug))
+    .filter((item): item is (typeof adminNavItems)[number] => Boolean(item));
   const dashboardCards = [
     {
       label: "Revenu Total",
@@ -220,7 +264,7 @@ export default async function AdminPage() {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-3">
-        {adminNavItems.slice(0, 6).map((item) => (
+        {featuredAdminModules.map((item) => (
           <Link key={item.slug} href={item.href} className="rounded-[18px] border border-[#e6eaf0] bg-white px-5 py-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)] transition hover:-translate-y-1 hover:shadow-[0_16px_30px_rgba(17,24,39,0.1)]">
             <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Module admin</div>
             <div className="mt-3 flex items-center justify-between gap-4">

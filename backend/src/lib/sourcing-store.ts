@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -14,7 +15,24 @@ import type {
   SourcingSettings,
 } from "@/lib/alibaba-sourcing";
 
-const SOURCING_DIR = path.join(process.cwd(), "data", "sourcing");
+function resolveSourcingDir() {
+  const isServerlessRuntime = Boolean(
+    process.env.VERCEL
+    || process.env.VERCEL_ENV
+    || process.env.VERCEL_URL
+    || process.env.AWS_EXECUTION_ENV
+    || process.env.AWS_LAMBDA_FUNCTION_NAME
+    || process.cwd().startsWith("/var/task"),
+  );
+
+  if (process.env.NODE_ENV === "production" || isServerlessRuntime) {
+    return path.join(os.tmpdir(), "afripay", "data", "sourcing");
+  }
+
+  return path.join(process.cwd(), "data", "sourcing");
+}
+
+const SOURCING_DIR = resolveSourcingDir();
 const SETTINGS_PATH = path.join(SOURCING_DIR, "settings.json");
 const ORDERS_PATH = path.join(SOURCING_DIR, "orders.json");
 const CONTAINERS_PATH = path.join(SOURCING_DIR, "sea-containers.json");

@@ -63,11 +63,20 @@ function formatImportedPrice(product: AlibabaImportedProduct) {
   return formatTierAwarePrice((amountUsd) => `$${amountUsd.toFixed(2)}`, product);
 }
 
+function formatCount(value: unknown) {
+  return String(typeof value === "number" && Number.isFinite(value) ? value : 0);
+}
+
+function formatUsd(value: unknown) {
+  const amount = typeof value === "number" && Number.isFinite(value) ? value : 0;
+  return `$${amount.toFixed(2)}`;
+}
+
 function hasRecoveredVideo(product: AlibabaImportedProduct) {
   return Boolean(product.videoUrl);
 }
 
-export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
+export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -481,10 +490,10 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "Articles importes", value: String(initialDashboard.stats.importedCount), icon: Package2, accent: "bg-[#fff1e8] text-[#ff6a00]", href: "/admin/aliexpress-sourcing/import-catalog", hint: "Voir les articles importes" },
-          { label: "Publies sur le site", value: String(initialDashboard.stats.publishedCount), icon: CheckCircle2, accent: "bg-[#eafaf0] text-[#16a34a]", href: "/admin/aliexpress-sourcing/import-catalog", hint: "Voir les produits publies" },
-          { label: "Paiements en attente", value: String(initialDashboard.stats.pendingPayments), icon: Wallet, accent: "bg-[#eef4ff] text-[#2f67f6]", href: "/admin/aliexpress-sourcing/lots", hint: initialDashboard.stats.pendingPayments > 0 ? "Ouvrir les liens de paiement AliExpress" : "Aucun lien de paiement en attente" },
-          { label: "Ordres payes", value: String(initialDashboard.stats.paidOrders), icon: Building2, accent: "bg-[#f5efff] text-[#7c3aed]", href: "/admin/aliexpress-sourcing/lots", hint: "Voir les lots d'achat" },
+          { label: "Articles importes", value: formatCount(initialDashboard.stats.importedCount), icon: Package2, accent: "bg-[#fff1e8] text-[#ff6a00]", href: "/admin/aliexpress-sourcing/import-catalog", hint: "Voir les articles importes" },
+          { label: "Publies sur le site", value: formatCount(initialDashboard.stats.publishedCount), icon: CheckCircle2, accent: "bg-[#eafaf0] text-[#16a34a]", href: "/admin/aliexpress-sourcing/import-catalog", hint: "Voir les produits publies" },
+          { label: "Paiements en attente", value: formatCount(initialDashboard.stats.pendingPayments), icon: Wallet, accent: "bg-[#eef4ff] text-[#2f67f6]", href: "/admin/aliexpress-sourcing/lots", hint: (typeof initialDashboard.stats.pendingPayments === "number" ? initialDashboard.stats.pendingPayments : 0) > 0 ? "Ouvrir les liens de paiement AliExpress" : "Aucun lien de paiement en attente" },
+          { label: "Ordres payes", value: formatCount(initialDashboard.stats.paidOrders), icon: Building2, accent: "bg-[#f5efff] text-[#7c3aed]", href: "/admin/aliexpress-sourcing/lots", hint: "Voir les lots d'achat" },
         ].map((card) => {
           const Icon = card.icon;
           return (
@@ -539,7 +548,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="text-[15px] font-semibold text-[#1f2937]">{job.query}</div>
-                      <div className="mt-1 text-[13px] text-[#667085]">{job.importedCount} produits · limite {job.limit} · {job.fulfillmentChannel}</div>
+                      <div className="mt-1 text-[13px] text-[#667085]">{formatCount(job.importedCount)} produits · limite {formatCount(job.limit)} · {job.fulfillmentChannel}</div>
                     </div>
                     <div className="rounded-full bg-[#fff7ed] px-3 py-1 text-[12px] font-semibold text-[#c2410c]">{job.status}</div>
                   </div>
@@ -557,12 +566,12 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-[15px] font-semibold text-[#1f2937]">{order.productTitle}</div>
-                      <div className="mt-1 text-[13px] text-[#667085]">{order.quantity} unites · {order.supplierName}</div>
+                      <div className="mt-1 text-[13px] text-[#667085]">{formatCount(order.quantity)} unites · {order.supplierName}</div>
                       {order.payUrl ? <a href={order.payUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-[12px] font-semibold text-[#2f67f6]">Ouvrir le lien de paiement AliExpress</a> : null}
                     </div>
                     <div className="text-right">
                       <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">{order.paymentStatus}</div>
-                      <div className="mt-1 text-[14px] font-semibold text-[#1f2937]">${order.amountUsd.toFixed(2)}</div>
+                      <div className="mt-1 text-[14px] font-semibold text-[#1f2937]">{formatUsd(order.amountUsd)}</div>
                     </div>
                   </div>
                 </div>
@@ -629,7 +638,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
                   <RefreshCcw className="h-4 w-4" />
                   Réenrichir tout
                 </button>
-                <div className="text-[13px] text-[#667085]">{initialDashboard.importedProducts.length} lignes</div>
+                <div className="text-[13px] text-[#667085]">{formatCount(initialDashboard.importedProducts.length)} lignes</div>
               </div>
             </div>
             <div className="mt-5 space-y-3 max-h-[860px] overflow-auto pr-1">
@@ -646,8 +655,8 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <div className="line-clamp-2 text-[15px] font-semibold text-[#1f2937]">{product.shortTitle}</div>
-                            <div className="mt-1 text-[13px] text-[#667085]">{product.supplierName} · MOQ {product.moq} {product.unit}</div>
-                            <div className="mt-1 text-[12px] text-[#98a2b3]">{product.gallery.length} images · {hasRecoveredVideo(product) ? "video recuperee" : "pas de video"} · stock estime {product.inventory}</div>
+                            <div className="mt-1 text-[13px] text-[#667085]">{product.supplierName} · MOQ {formatCount(product.moq)} {product.unit}</div>
+                            <div className="mt-1 text-[12px] text-[#98a2b3]">{formatCount(product.gallery.length)} images · {hasRecoveredVideo(product) ? "video recuperee" : "pas de video"} · stock estime {formatCount(product.inventory)}</div>
                           </div>
                           <div className="rounded-full bg-[#fff7ed] px-3 py-1 text-[12px] font-semibold text-[#c2410c]">{product.status}</div>
                         </div>
@@ -656,7 +665,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
                             <div className="text-[14px] font-bold text-[#111827]">{formatImportedPrice(product)}</div>
                             {formatTierAwarePriceMeta(product) ? <div className="mt-1 text-[11px] text-[#667085]">{formatTierAwarePriceMeta(product)}</div> : null}
                           </div>
-                          <input value={quantityByProduct[product.id] ?? product.moq} onChange={(event) => setQuantityByProduct((current) => ({ ...current, [product.id]: Number(event.target.value) }))} type="number" min={1} className="h-10 w-28 rounded-[12px] border border-[#d7dce5] px-3 text-[13px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+                          <input value={quantityByProduct[product.id] ?? product.moq ?? 0} onChange={(event) => setQuantityByProduct((current) => ({ ...current, [product.id]: Number(event.target.value) }))} type="number" min={1} className="h-10 w-28 rounded-[12px] border border-[#d7dce5] px-3 text-[13px] text-[#111827] outline-none focus:border-[#ff6a00]" />
                           <button type="button" onClick={() => createPurchaseOrder(product.id)} className="inline-flex h-10 items-center justify-center rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]">Creer un lot DS</button>
                           <button type="button" onClick={() => reenrichImportedItem(product.id)} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#dbe2ea] bg-white px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
                             <RefreshCcw className="h-4 w-4" />
@@ -868,12 +877,12 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                   <div>
                     <div className="text-[16px] font-semibold text-[#1f2937]">{order.productTitle}</div>
-                    <div className="mt-1 text-[13px] text-[#667085]">trade_id: {order.tradeId ?? "non retourne"} · {order.quantity} unites · {order.supplierName}</div>
+                    <div className="mt-1 text-[13px] text-[#667085]">trade_id: {order.tradeId ?? "non retourne"} · {formatCount(order.quantity)} unites · {order.supplierName}</div>
                     <div className="mt-1 text-[13px] text-[#667085]">Etat ordre: {order.orderStatus} · paiement: {order.paymentStatus}</div>
                     {order.payFailureReason ? <div className="mt-1 text-[12px] font-semibold text-[#b42318]">{order.payFailureReason}</div> : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="rounded-[12px] bg-[#fff7ed] px-3 py-2 text-[13px] font-semibold text-[#c2410c]">${order.amountUsd.toFixed(2)}</div>
+                    <div className="rounded-[12px] bg-[#fff7ed] px-3 py-2 text-[13px] font-semibold text-[#c2410c]">{formatUsd(order.amountUsd)}</div>
                     {order.payUrl ? <a href={order.payUrl} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center rounded-[12px] border border-[#dbe2ea] px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">Lien paiement</a> : null}
                     <button type="button" onClick={() => payOrder(order, "pay")} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]"><Wallet className="h-4 w-4" />Lancer DS</button>
                     <button type="button" onClick={() => payOrder(order, "refresh")} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#dbe2ea] px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]"><RefreshCcw className="h-4 w-4" />Actualiser</button>
@@ -903,8 +912,8 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
                 {initialDashboard.receptions.length === 0 ? <tr><td colSpan={4} className="border-t border-[#edf1f6] py-4 text-[13px] text-[#667085]">Aucune reception en cours.</td></tr> : initialDashboard.receptions.map((reception) => (
                   <tr key={reception.id} className="border-t border-[#edf1f6] text-[13px] text-[#1f2937]">
                     <td className="py-3.5 pr-4 font-semibold">{reception.productTitle}</td>
-                    <td className="py-3.5 pr-4">{reception.quantityExpected}</td>
-                    <td className="py-3.5 pr-4">{reception.quantityReceived}</td>
+                    <td className="py-3.5 pr-4">{formatCount(reception.quantityExpected)}</td>
+                    <td className="py-3.5 pr-4">{formatCount(reception.quantityReceived)}</td>
                     <td className="py-3.5 pr-4">{reception.status}</td>
                   </tr>
                 ))}
@@ -917,10 +926,10 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
       {panel === "dashboard" ? (
         <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
           {[
-            { title: "Comptes fournisseurs", value: String(initialDashboard.supplierAccounts.length), icon: Building2, href: "/admin/aliexpress-sourcing/accounts" },
-            { title: "Pays actifs", value: String(initialDashboard.countries.filter((item) => item.enabled).length), icon: Globe2, href: "/admin/aliexpress-sourcing/countries" },
-            { title: "Adresses reception", value: String(initialDashboard.addresses.length), icon: MapPin, href: "/admin/aliexpress-sourcing/addresses" },
-            { title: "Produits recents", value: String(recentImports.length), icon: Package2, href: "/admin/aliexpress-sourcing/import-catalog" },
+            { title: "Comptes fournisseurs", value: formatCount(initialDashboard.supplierAccounts.length), icon: Building2, href: "/admin/aliexpress-sourcing/accounts" },
+            { title: "Pays actifs", value: formatCount(initialDashboard.countries.filter((item) => item.enabled).length), icon: Globe2, href: "/admin/aliexpress-sourcing/countries" },
+            { title: "Adresses reception", value: formatCount(initialDashboard.addresses.length), icon: MapPin, href: "/admin/aliexpress-sourcing/addresses" },
+            { title: "Produits recents", value: formatCount(recentImports.length), icon: Package2, href: "/admin/aliexpress-sourcing/import-catalog" },
           ].map((item) => {
             const Icon = item.icon;
             return (
@@ -938,3 +947,5 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
     </div>
   );
 }
+
+export { AdminAliExpressOperationsClient as AdminAlibabaOperationsClient };

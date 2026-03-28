@@ -233,7 +233,7 @@ function isGenericCategoryLabel(value?: string) {
 
   const normalized = normalizeCategorySegment(value).toLowerCase();
   return !normalized
-    || /^(catalogue importe|produit alibaba|alibaba|general|misc|other|others|undefined|null|n\/?a|na|unknown|sans nom|untitled)$/i.test(normalized)
+    || /^(catalogue importe|produit aliexpress|produit alibaba|aliexpress|alibaba|general|misc|other|others|undefined|null|n\/?a|na|unknown|sans nom|untitled)$/i.test(normalized)
     || /\bnew arrival\b/i.test(normalized);
 }
 
