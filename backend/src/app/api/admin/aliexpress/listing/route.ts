@@ -21,7 +21,7 @@ export async function POST(request: Request) {
 
     if (!result.ok || !isAlibabaOperationSuccessful(result.responseBody)) {
       return Response.json({
-        message: extractAlibabaOperationMessage(result.responseBody) ?? "Creation de fiche Alibaba impossible.",
+        message: extractAlibabaOperationMessage(result.responseBody) ?? "Creation de fiche AliExpress impossible.",
         code: extractAlibabaOperationCode(result.responseBody),
         responseBody: result.responseBody,
       }, { status: 400 });
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     return Response.json({ responseBody: result.responseBody });
   } catch (error) {
     return Response.json({
-      message: error instanceof Error ? error.message : "Creation de fiche Alibaba impossible.",
+      message: error instanceof Error ? error.message : "Creation de fiche AliExpress impossible.",
     }, { status: 400 });
   }
 }

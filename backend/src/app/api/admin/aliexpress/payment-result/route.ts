@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 
     if (!result.ok || !isAlibabaOperationSuccessful(result.responseBody)) {
       return Response.json({
-        message: extractAlibabaOperationMessage(result.responseBody) ?? "Lecture du resultat de paiement Alibaba impossible.",
+        message: extractAlibabaOperationMessage(result.responseBody) ?? "Lecture du resultat de paiement AliExpress impossible.",
         code: extractAlibabaOperationCode(result.responseBody),
         responseBody: result.responseBody,
       }, { status: 400 });
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     return Response.json({ responseBody: result.responseBody });
   } catch (error) {
     return Response.json({
-      message: error instanceof Error ? error.message : "Lecture du resultat de paiement Alibaba impossible.",
+      message: error instanceof Error ? error.message : "Lecture du resultat de paiement AliExpress impossible.",
     }, { status: 400 });
   }
 }

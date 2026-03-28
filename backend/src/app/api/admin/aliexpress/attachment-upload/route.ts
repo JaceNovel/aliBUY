@@ -28,7 +28,7 @@ export async function POST(request: Request) {
 
     if (!result.ok || !isAlibabaOperationSuccessful(result.responseBody)) {
       return Response.json({
-        message: extractAlibabaOperationMessage(result.responseBody) ?? "Upload de piece jointe Alibaba impossible.",
+        message: extractAlibabaOperationMessage(result.responseBody) ?? "Upload de piece jointe AliExpress impossible.",
         code: extractAlibabaOperationCode(result.responseBody),
         responseBody: result.responseBody,
       }, { status: 400 });
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     return Response.json({
-      message: error instanceof Error ? error.message : "Upload de piece jointe Alibaba impossible.",
+      message: error instanceof Error ? error.message : "Upload de piece jointe AliExpress impossible.",
     }, { status: 400 });
   }
 }

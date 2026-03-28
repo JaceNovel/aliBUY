@@ -80,7 +80,7 @@ export function AdminModePromotionsClient({ initialConfig, productOptions }: { i
     }));
   };
 
-  const fillWithCheapAlibabaProducts = () => {
+  const fillWithCheapAliExpressProducts = () => {
     const cheapProducts = [...productOptions].sort((left, right) => left.minUsd - right.minUsd);
     const takeSlugs = (start: number, count: number) => cheapProducts.slice(start, start + count).map((product) => product.slug);
 
@@ -94,7 +94,7 @@ export function AdminModePromotionsClient({ initialConfig, productOptions }: { i
       flashRushSlugs: takeSlugs(0, 6),
       finalDropSlugs: takeSlugs(6, 6),
     }));
-    setFeedback("Sélections remplies avec les produits Alibaba publiés les moins chers.");
+    setFeedback("Sélections remplies avec les produits AliExpress publiés les moins chers.");
   };
 
   const saveConfig = async () => {
@@ -142,9 +142,9 @@ export function AdminModePromotionsClient({ initialConfig, productOptions }: { i
             <p className="mt-1 text-[14px] text-[#667085]">Cette page pilote le hero, les coupons et les sélections produits visibles sur la page mode publique.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={fillWithCheapAlibabaProducts} className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] border border-[#d0d5dd] bg-white px-4 text-[14px] font-semibold text-[#101828] transition hover:border-[#f84557] hover:text-[#f84557]">
+            <button type="button" onClick={fillWithCheapAliExpressProducts} className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] border border-[#d0d5dd] bg-white px-4 text-[14px] font-semibold text-[#101828] transition hover:border-[#f84557] hover:text-[#f84557]">
               <Sparkles className="h-4 w-4" />
-              Auto-remplir avec les petits prix Alibaba
+              Auto-remplir avec les petits prix AliExpress
             </button>
             <button type="button" onClick={saveConfig} disabled={isSaving} className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] bg-[#f84557] px-4 text-[14px] font-semibold text-white shadow-[0_10px_18px_rgba(248,69,87,0.18)] transition hover:bg-[#ea3248] disabled:cursor-not-allowed disabled:opacity-70">
               <Save className="h-4 w-4" />

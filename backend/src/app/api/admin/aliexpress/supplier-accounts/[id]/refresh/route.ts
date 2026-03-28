@@ -10,7 +10,7 @@ export async function POST(
     return Response.json({ account });
   } catch (error) {
     return Response.json({
-      message: error instanceof Error ? error.message : "Refresh token Alibaba impossible.",
+      message: error instanceof Error ? error.message : "Refresh token AliExpress impossible.",
     }, { status: 400 });
   }
 }

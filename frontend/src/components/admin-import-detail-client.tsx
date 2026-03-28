@@ -89,7 +89,7 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-[760px]">
               <div className="inline-flex rounded-full bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#f0631b] backdrop-blur">Open Platform update</div>
-              <h2 className="mt-3 text-[23px] font-black tracking-[-0.05em] text-[#111827] sm:text-[30px]">Cockpit Alibaba Open Platform pour import, OAuth, orders, shipping et webhooks</h2>
+              <h2 className="mt-3 text-[23px] font-black tracking-[-0.05em] text-[#111827] sm:text-[30px]">Cockpit AliExpress Open Platform pour import, OAuth, orders, shipping et webhooks</h2>
               <p className="mt-3 max-w-[680px] text-[13px] leading-6 text-[#475467] sm:text-[15px] sm:leading-7">
                 Cette demande sert maintenant de dossier d&apos;integration. La documentation recue fournie le socle pour l&apos;onboarding GGS, le compte linking, la creation de token, les appels order, l&apos;expedition API et les notifications push.
               </p>
@@ -536,7 +536,7 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
         <section className="rounded-[18px] border border-[#dcdfe4] bg-white p-5 shadow-[0_2px_10px_rgba(16,24,40,0.04)] sm:p-7">
           <h2 className="text-[22px] font-bold tracking-[-0.04em] text-black">Video bank et Eco Buyer sourcing APIs</h2>
           <div className="mt-3 text-[13px] leading-6 text-[#667085]">
-            Cette couche regroupe la gestion video produit et les endpoints Buyer/Eco pour pousser un catalogue partenaire, faire du discovery, recuperer la data produit Alibaba et importer vers des channels stores.
+            Cette couche regroupe la gestion video produit et les endpoints Buyer/Eco pour pousser un catalogue partenaire, faire du discovery, recuperer la data produit AliExpress et importer vers des channels stores.
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">

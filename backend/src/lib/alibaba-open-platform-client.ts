@@ -2374,7 +2374,7 @@ async function refreshAlibabaAccountTokens(account: AlibabaSupplierAccount) {
   });
 
   if (!result.ok) {
-    throw new Error("Refresh du token Alibaba impossible.");
+    throw new Error("Refresh du token AliExpress impossible.");
   }
 
   const normalizedBody = getAliExpressSellerPayload(result.responseBody) ?? result.responseBody;
@@ -3369,7 +3369,7 @@ export async function exchangeAlibabaOAuthCode(input: { accountId: string; code:
   });
 
   if (!result.ok) {
-    throw new Error("Generation du token d'acces Alibaba impossible.");
+    throw new Error("Generation du token d'acces AliExpress impossible.");
   }
 
   const normalizedBody = getAliExpressSellerPayload(result.responseBody) ?? result.responseBody;

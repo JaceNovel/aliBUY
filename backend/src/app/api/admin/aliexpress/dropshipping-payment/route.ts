@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
     if (!result.ok || !isAlibabaOperationSuccessful(result.responseBody)) {
       return Response.json({
-        message: extractAlibabaOperationMessage(result.responseBody) ?? "Paiement dropshipping Alibaba impossible.",
+        message: extractAlibabaOperationMessage(result.responseBody) ?? "Paiement dropshipping AliExpress impossible.",
         code: extractAlibabaOperationCode(result.responseBody),
         responseBody: result.responseBody,
       }, { status: 400 });
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     return Response.json({ responseBody: result.responseBody });
   } catch (error) {
     return Response.json({
-      message: error instanceof Error ? error.message : "Paiement dropshipping Alibaba impossible.",
+      message: error instanceof Error ? error.message : "Paiement dropshipping AliExpress impossible.",
     }, { status: 400 });
   }
 }

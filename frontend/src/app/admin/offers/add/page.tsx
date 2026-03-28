@@ -51,7 +51,7 @@ export default async function AdminOffersAddPage() {
                 <div key={product.slug} className="rounded-[12px] bg-[#f8fafc] px-4 py-3 text-[13px] text-[#475467]">
                   {product.shortTitle}
                 </div>
-              )) : <div className="rounded-[12px] bg-[#fff7ed] px-4 py-3 text-[13px] text-[#9a3412]">Aucun produit importe/publie disponible. Lance un import Alibaba avant de creer une offre.</div>}
+              )) : <div className="rounded-[12px] bg-[#fff7ed] px-4 py-3 text-[13px] text-[#9a3412]">Aucun produit importe/publie disponible. Lance un import AliExpress avant de creer une offre.</div>}
             </div>
           </div>
 

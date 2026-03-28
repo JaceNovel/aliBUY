@@ -1,29 +1,5 @@
 @import "tailwindcss";
 
-@font-face {
-  font-family: "Alibaba_B2B_Sans";
-  src: url("https://s.alicdn.com/@common/font/Alibaba_B2B_Sans_Regular.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Alibaba_B2B_Sans";
-  src: url("https://s.alicdn.com/@common/font/Alibaba_B2B_Sans_SemiBold.woff2") format("woff2");
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Alibaba_B2B_Sans";
-  src: url("https://s.alicdn.com/@common/font/Alibaba_B2B_Sans_Bold.woff2") format("woff2");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
 :root {
   --background: #f4f4f4;
   --foreground: #222222;
@@ -44,7 +20,7 @@
   --color-brand: var(--brand);
   --color-brand-deep: var(--brand-deep);
   --color-warm: var(--warm);
-  --font-sans: var(--font-alibaba-b2b), "Alibaba_B2B_Sans", Inter, sans-serif;
+  --font-sans: "Plus Jakarta Sans", Inter, "Segoe UI", sans-serif;
 }
 
 * {
@@ -61,7 +37,7 @@ body {
     radial-gradient(circle at top, rgba(255, 221, 204, 0.42), transparent 28%),
     linear-gradient(180deg, #f7e9df 0, #f4f4f4 380px, #f4f4f4 100%);
   color: var(--foreground);
-  font-family: "Alibaba_B2B_Sans", Inter, sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.35;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

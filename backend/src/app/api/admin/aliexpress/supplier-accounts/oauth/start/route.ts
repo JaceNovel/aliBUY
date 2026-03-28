@@ -35,9 +35,9 @@ export async function POST(request: Request) {
 
     return Response.json({ account, authorizeUrl });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Impossible de generer l'URL d'autorisation Alibaba.";
+    const message = error instanceof Error ? error.message : "Impossible de generer l'URL d'autorisation AliExpress.";
 
-    console.error("[alibaba/oauth/start] failed", { message });
+    console.error("[aliexpress/oauth/start] failed", { message });
 
     return Response.json({ message }, { status: 400 });
   }

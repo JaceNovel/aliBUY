@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 
     if (!result.ok || !isAlibabaOperationSuccessful(result.responseBody)) {
       return Response.json({
-        message: extractAlibabaOperationMessage(result.responseBody) ?? "Lecture du produit Alibaba impossible.",
+        message: extractAlibabaOperationMessage(result.responseBody) ?? "Lecture du produit AliExpress impossible.",
         code: extractAlibabaOperationCode(result.responseBody),
         responseBody: result.responseBody,
       }, { status: 400 });
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     return Response.json({
-      message: error instanceof Error ? error.message : "Lecture du produit Alibaba impossible.",
+      message: error instanceof Error ? error.message : "Lecture du produit AliExpress impossible.",
     }, { status: 400 });
   }
 }

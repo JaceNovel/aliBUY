@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     return Response.json(result);
   } catch (error) {
     return Response.json({
-      message: error instanceof Error ? error.message : "Import Alibaba impossible.",
+      message: error instanceof Error ? error.message : "Import AliExpress impossible.",
     }, { status: 400 });
   }
 }

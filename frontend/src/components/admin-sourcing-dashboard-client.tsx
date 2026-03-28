@@ -118,8 +118,8 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
 
     if ((order.supplierOrderStatus === "failed" || order.alibabaTradeIds.length === 0) && hasCarrierUnavailableSignal(providerMessage)) {
       return {
-        label: "Aucun transporteur Alibaba disponible pour ce fournisseur vers cette adresse",
-        detail: `Destination actuelle: ${destination}.${providerMessage ? ` Detail Alibaba: ${providerMessage}` : ""}`,
+        label: "Aucun transporteur AliExpress disponible pour ce fournisseur vers cette adresse",
+        detail: `Destination actuelle: ${destination}.${providerMessage ? ` Detail AliExpress: ${providerMessage}` : ""}`,
       };
     }
 
@@ -146,7 +146,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
 
     if (order.alibabaTradeIds.length === 0) {
       return {
-        label: providerMessage || "Aucun trade Alibaba disponible",
+        label: providerMessage || "Aucun trade AliExpress disponible",
         detail: `Destination actuelle: ${destination}`,
       };
     }
@@ -326,14 +326,14 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-[860px]">
             <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a3d]">Admin sourcing</div>
-            <h1 className="mt-2 text-[32px] font-black tracking-[-0.05em] text-[#1f2937]">Alibaba Sourcing</h1>
-            <p className="mt-3 text-[14px] leading-7 text-[#667085]">Les réglages de fret, de marge et de groupage sont maintenant persistés côté serveur. Le checkout client et la création de commande fournisseur Alibaba lisent cette même source.</p>
+            <h1 className="mt-2 text-[32px] font-black tracking-[-0.05em] text-[#1f2937]">AliExpress Sourcing</h1>
+            <p className="mt-3 text-[14px] leading-7 text-[#667085]">Les réglages de fret, de marge et de groupage sont maintenant persistés côté serveur. Le checkout client et la création de commande fournisseur AliExpress lisent cette même source.</p>
             {feedback ? <div className="mt-4 rounded-[16px] bg-white px-4 py-3 text-[13px] font-semibold text-[#1f2937] shadow-[0_8px_18px_rgba(17,24,39,0.05)]">{feedback}</div> : null}
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 xl:min-w-[300px]">
             <Link href="/admin/imports/239826786001021591" className="inline-flex h-12 items-center justify-center gap-2 rounded-[16px] bg-[#ff6a00] px-5 text-[14px] font-semibold text-white transition hover:bg-[#e55e00]">
-              Ouvrir le cockpit API Alibaba
+              Ouvrir le cockpit API AliExpress
               <ArrowUpRight className="h-4 w-4" />
             </Link>
             <Link href="/checkout" className="inline-flex h-12 items-center justify-center gap-2 rounded-[16px] border border-[#dbe2ea] bg-white px-5 text-[14px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
@@ -431,7 +431,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
         <section className="rounded-[20px] border border-[#f3d7c2] bg-[#fffaf6] p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
           <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85300]">Blocages avant lot</div>
           <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Commandes payées non lançables</div>
-          <div className="mt-2 text-[13px] leading-6 text-[#667085]">Ces commandes sont deja payees par le client, mais elles ne peuvent pas encore entrer dans le lancement fournisseur Alibaba.</div>
+          <div className="mt-2 text-[13px] leading-6 text-[#667085]">Ces commandes sont deja payees par le client, mais elles ne peuvent pas encore entrer dans le lancement fournisseur AliExpress.</div>
           <div className="mt-3 rounded-[16px] border border-[#f2d6c2] bg-white/80 px-4 py-3 text-[12px] leading-6 text-[#8a5a33]">
             Dans ce flux admin, le fournisseur n&apos;expedie pas directement vers le pays final du client. Par defaut, il expedie vers votre hub Chine AfriPay (CN). Si besoin, vous pouvez basculer vers votre hub transitaire Chine ou Lome puis relancer la creation fournisseur.
           </div>
@@ -658,7 +658,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
                   <th className="py-3 pr-4 font-semibold">Livraison</th>
                   <th className="py-3 pr-4 font-semibold">Freight</th>
                   <th className="py-3 pr-4 font-semibold">Supplier</th>
-                  <th className="py-3 pr-4 font-semibold">Paiement Alibaba</th>
+                  <th className="py-3 pr-4 font-semibold">Paiement AliExpress</th>
                   <th className="py-3 pr-4 font-semibold">Pay URL</th>
                   <th className="py-3 pr-4 font-semibold">Tracking</th>
                   <th className="py-3 pr-4 font-semibold">Total</th>

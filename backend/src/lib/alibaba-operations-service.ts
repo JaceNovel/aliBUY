@@ -264,7 +264,7 @@ export async function runAlibabaCatalogImport(input: {
     });
 
     if (!searchResult.ok) {
-      throw new Error(searchResult.errorMessage ?? "Recherche Alibaba impossible.");
+      throw new Error(searchResult.errorMessage ?? "Recherche AliExpress impossible.");
     }
 
     if (searchResult.products.length === 0) {
@@ -371,7 +371,7 @@ export async function runAlibabaCatalogImport(input: {
     const failedJob: AlibabaImportJob = {
       ...job,
       status: "failed",
-      errorMessage: error instanceof Error ? error.message : "Import Alibaba impossible.",
+      errorMessage: error instanceof Error ? error.message : "Import AliExpress impossible.",
       updatedAt: nowIso(),
     };
     await saveAlibabaImportJob(failedJob);

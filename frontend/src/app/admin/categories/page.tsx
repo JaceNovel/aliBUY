@@ -22,7 +22,7 @@ export default async function AdminCategoriesPage({ searchParams }: { searchPara
       <section className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-[28px] font-black tracking-[-0.05em] text-[#101828]">Catégories</h1>
-          <p className="mt-1 text-[14px] text-[#667085]">Taxonomie auto-générée depuis les articles Alibaba importés et publiés sur le site.</p>
+          <p className="mt-1 text-[14px] text-[#667085]">Taxonomie auto-générée depuis les articles AliExpress importés et publiés sur le site.</p>
         </div>
         <div className="rounded-[14px] bg-[#fff1f3] px-4 py-3 text-[13px] font-semibold text-[#f72b57]">
           {rows.length} catégorie{rows.length > 1 ? "s" : ""} synchronisée{rows.length > 1 ? "s" : ""}
@@ -48,7 +48,7 @@ export default async function AdminCategoriesPage({ searchParams }: { searchPara
                 <th className="px-4 py-3 font-semibold">Image</th>
                 <th className="px-4 py-3 font-semibold">Nom</th>
                 <th className="px-4 py-3 font-semibold">Slug</th>
-                <th className="px-4 py-3 font-semibold">Chemin Alibaba</th>
+                <th className="px-4 py-3 font-semibold">Chemin AliExpress</th>
                 <th className="px-4 py-3 font-semibold">Produits</th>
                 <th className="px-4 py-3 text-right font-semibold">Action</th>
               </tr>

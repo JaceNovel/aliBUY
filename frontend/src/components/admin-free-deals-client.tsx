@@ -144,7 +144,7 @@ export function AdminFreeDealsClient({
 
   const importFreeDealProducts = async () => {
     if (!importForm.query.trim()) {
-      setFeedback("Saisis une recherche Alibaba pour importer des produits gratuits.");
+      setFeedback("Saisis une recherche AliExpress pour importer des produits gratuits.");
       return;
     }
 
@@ -162,7 +162,7 @@ export function AdminFreeDealsClient({
       const payload = await response.json().catch(() => null);
 
       if (!response.ok || !payload?.config) {
-        setFeedback(payload?.message || "Import Alibaba impossible pour l'offre gratuite.");
+        setFeedback(payload?.message || "Import AliExpress impossible pour l'offre gratuite.");
         return;
       }
 
@@ -174,7 +174,7 @@ export function AdminFreeDealsClient({
       );
       router.refresh();
     } catch {
-      setFeedback("Import Alibaba impossible pour l'offre gratuite.");
+      setFeedback("Import AliExpress impossible pour l'offre gratuite.");
     } finally {
       setIsImporting(false);
     }
@@ -222,7 +222,7 @@ export function AdminFreeDealsClient({
             <h1 className="mt-3 text-[30px] font-black tracking-[-0.06em]">Acquisition client par lot promo</h1>
             <p className="mt-3 text-[15px] leading-7 text-white/90">
               Cette section pilote la page spéciale accessible depuis la recherche “gratuit”, “produit gratuit” ou “article gratuit”.
-              Tu importes ici des produits Alibaba très bon marché, tu décides lesquels apparaissent sur la page et tu règles tout le marketing.
+              Tu importes ici des produits AliExpress très bon marché, tu décides lesquels apparaissent sur la page et tu règles tout le marketing.
             </p>
           </div>
 
@@ -262,7 +262,7 @@ export function AdminFreeDealsClient({
 
           <div className="mt-5 grid gap-4 md:grid-cols-[1fr_120px_140px_auto]">
             <label className="space-y-2 text-[13px] font-semibold text-[#344054]">
-              <span>Recherche Alibaba</span>
+              <span>Recherche AliExpress</span>
               <input
                 value={importForm.query}
                 onChange={(event) => setImportForm((current) => ({ ...current, query: event.target.value }))}

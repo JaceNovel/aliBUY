@@ -258,7 +258,7 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
       <section className="rounded-[20px] border border-[#e6eaf0] bg-white px-5 py-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-[18px] font-bold text-[#1f2937]">Automatisation Alibaba</div>
+            <div className="text-[18px] font-bold text-[#1f2937]">Automatisation AliExpress</div>
             <div className="mt-1 text-[13px] text-[#667085]">Paiement dropshipping, résultat de paiement et suivi logistique par trade.</div>
           </div>
           {canLaunchSupplierPayment ? (
@@ -283,10 +283,10 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
         {!alibabaAutomation || alibabaAutomation.trades.length === 0 ? (
           <div className="mt-4 rounded-[16px] bg-[#fafbfd] px-4 py-4 text-[13px] text-[#667085] ring-1 ring-[#edf1f6]">
             {canLaunchSupplierPayment
-              ? "Aucune automatisation Alibaba n'a encore été lancée pour cette commande. Utilisez le bouton ci-dessus pour créer la demande fournisseur et démarrer le suivi automatique."
+              ? "Aucune automatisation AliExpress n'a encore été lancée pour cette commande. Utilisez le bouton ci-dessus pour créer la demande fournisseur et démarrer le suivi automatique."
               : payUrls.length > 0
-                ? "La demande fournisseur a déjà produit un pay_url manuel. Ouvrez-le ci-dessus pour reprendre le paiement Alibaba."
-                : "Aucun état automatique Alibaba enregistré pour cette commande pour le moment."}
+                ? "La demande fournisseur a déjà produit un pay_url manuel. Ouvrez-le ci-dessus pour reprendre le paiement AliExpress."
+                : "Aucun état automatique AliExpress enregistré pour cette commande pour le moment."}
           </div>
         ) : (
           <div className="mt-4 space-y-3">
@@ -307,7 +307,7 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
 
                 <div className="mt-4 grid gap-3 md:grid-cols-3">
                   <div className="rounded-[14px] bg-white px-3 py-3 ring-1 ring-[#edf1f6]">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Paiement Alibaba</div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Paiement AliExpress</div>
                     <div className="mt-1 text-[14px] font-semibold text-[#1f2937]">{trade.paymentResultStatus || trade.paymentRequestStatus}</div>
                     {trade.paymentRequestMessage ? <div className="mt-1 text-[12px] leading-5 text-[#667085]">{trade.paymentRequestMessage}</div> : null}
                     {trade.paymentResultMessage ? <div className="mt-1 text-[12px] leading-5 text-[#667085]">{trade.paymentResultMessage}</div> : null}
@@ -329,7 +329,7 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
                     {trade.tracking.map((entry, index) => (
                       <div key={`${trade.tradeId}-${entry.trackingNumber || index}`} className="rounded-[14px] bg-white px-3 py-3 ring-1 ring-[#edf1f6]">
                         <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div className="text-[13px] font-semibold text-[#1f2937]">{entry.carrier || "Transporteur Alibaba"}</div>
+                          <div className="text-[13px] font-semibold text-[#1f2937]">{entry.carrier || "Transporteur AliExpress"}</div>
                           <div className="text-[12px] text-[#667085]">{entry.eventCount} événement(s)</div>
                         </div>
                         <div className="mt-1 text-[12px] leading-5 text-[#667085]">Numéro: {entry.trackingNumber || "n/a"}{entry.currentEventCode ? ` · état ${entry.currentEventCode}` : ""}</div>
