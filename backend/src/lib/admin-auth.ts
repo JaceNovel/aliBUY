@@ -31,7 +31,7 @@ export function getAdminPasswordPlain() {
 }
 
 export function isAdminAuthConfigured() {
-  return Boolean(getAdminEmail() && (getAdminPasswordHash() || getAdminPasswordPlain()));
+  return Boolean(getAdminPasswordHash() || getAdminPasswordPlain());
 }
 
 export function isAdminEmail(email?: string | null) {
@@ -46,6 +46,36 @@ export type AdminAccessContext = {
   active: boolean;
   isSuperAdmin: boolean;
 };
+
+export async function getAuthorizedAdminAccessByEmail(email?: string | null) {
+  const normalizedEmail = email?.trim().toLowerCase() || "";
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  if (isAdminEmail(normalizedEmail)) {
+    return {
+      email: normalizedEmail,
+      role: "superadmin",
+      permissions: ["dashboard.read", "users.read", "users.manage", "orders.read", "products.read", "products.manage", "promotions.manage", "support.read", "imports.read", "sourcing.manage", "settings.manage", "admin.manage"],
+      active: true,
+      isSuperAdmin: true,
+    } satisfies AdminAccessContext;
+  }
+
+  const record = await getAdminAccessByEmail(normalizedEmail);
+  if (!record || !record.active) {
+    return null;
+  }
+
+  return {
+    email: record.email,
+    role: record.role,
+    permissions: record.permissions,
+    active: record.active,
+    isSuperAdmin: false,
+  } satisfies AdminAccessContext;
+}
 
 export async function hashAdminPassword(password: string) {
   return sha256Hex(password);
@@ -72,25 +102,22 @@ export async function getAdminCredentialDiagnostics(email: string, password: str
 
 export async function validateAdminCredentials(email: string, password: string) {
   if (!isAdminAuthConfigured()) {
-    throw new Error("Configuration admin incomplète. Définissez ADMIN_EMAIL puis ADMIN_PASSWORD_HASH ou ADMIN_PASSWORD.");
+    throw new Error("Configuration admin incomplète. Définissez ADMIN_PASSWORD_HASH ou ADMIN_PASSWORD.");
   }
 
   const diagnostics = await getAdminCredentialDiagnostics(email, password);
 
-  return diagnostics.emailMatch && (diagnostics.hashMatch || diagnostics.plainMatch);
+  return diagnostics.hashMatch || diagnostics.plainMatch;
 }
 
 export async function getCurrentAdminAccess() {
   const cookieStore = await cookies();
   const session = await parseUserSessionToken(cookieStore.get(USER_SESSION_COOKIE)?.value);
-  if (session?.email && isAdminEmail(session.email)) {
-    return {
-      email: session.email,
-      role: "superadmin",
-      permissions: ["dashboard.read", "users.read", "users.manage", "orders.read", "products.read", "products.manage", "promotions.manage", "support.read", "imports.read", "sourcing.manage", "settings.manage", "admin.manage"],
-      active: true,
-      isSuperAdmin: true,
-    } satisfies AdminAccessContext;
+  if (session?.email) {
+    const sessionAccess = await getAuthorizedAdminAccessByEmail(session.email);
+    if (sessionAccess) {
+      return sessionAccess;
+    }
   }
 
   const user = await getCurrentUser();
@@ -98,28 +125,7 @@ export async function getCurrentAdminAccess() {
     return null;
   }
 
-  if (isAdminEmail(user.email)) {
-    return {
-      email: user.email,
-      role: "superadmin",
-      permissions: ["dashboard.read", "users.read", "users.manage", "orders.read", "products.read", "products.manage", "promotions.manage", "support.read", "imports.read", "sourcing.manage", "settings.manage", "admin.manage"],
-      active: true,
-      isSuperAdmin: true,
-    } satisfies AdminAccessContext;
-  }
-
-  const record = await getAdminAccessByEmail(user.email);
-  if (!record || !record.active) {
-    return null;
-  }
-
-  return {
-    email: record.email,
-    role: record.role,
-    permissions: record.permissions,
-    active: record.active,
-    isSuperAdmin: false,
-  } satisfies AdminAccessContext;
+  return getAuthorizedAdminAccessByEmail(user.email);
 }
 
 export async function hasAdminPermission(permission: AdminPermission) {

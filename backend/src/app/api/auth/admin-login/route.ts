@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { isAdminEmail, validateAdminCredentials } from "@/lib/admin-auth";
+import { getAuthorizedAdminAccessByEmail, validateAdminCredentials } from "@/lib/admin-auth";
 import { createAuthenticatedUserSession, getUserSessionCookieConfig } from "@/lib/user-auth";
 import { createStoredUser, getStoredUserByEmail } from "@/lib/user-store";
 
@@ -29,7 +29,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Adresse e-mail et mot de passe admin requis." }, { status: 400 });
   }
 
-  if (!isAdminEmail(email)) {
+  const adminAccess = await getAuthorizedAdminAccessByEmail(email);
+  if (!adminAccess) {
     return NextResponse.json({ message: "Cet e-mail n'est pas autorise pour l'administration." }, { status: 403 });
   }
 
