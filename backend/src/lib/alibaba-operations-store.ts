@@ -473,8 +473,48 @@ function hasDatabase() {
 
 let databaseFallbackForced = false;
 
+const REQUIRED_ALIBABA_PRISMA_MODELS = [
+  "alibabaSupplierAccountRecord",
+  "alibabaImportJobRecord",
+  "alibabaImportedProductRecord",
+  "alibabaCountryProfileRecord",
+  "alibabaReceptionAddressRecord",
+  "alibabaPurchaseOrderRecord",
+  "alibabaReceptionRecordItem",
+] as const;
+
+function getPrismaRecord(target: unknown, key: string) {
+  if (!target || typeof target !== "object") {
+    return undefined;
+  }
+
+  return (target as Record<string, unknown>)[key];
+}
+
+function hasAlibabaPrismaModels() {
+  return REQUIRED_ALIBABA_PRISMA_MODELS.every((modelName) => typeof getPrismaRecord(prisma, modelName) === "object");
+}
+
+function getAlibabaPrismaModel(modelName: (typeof REQUIRED_ALIBABA_PRISMA_MODELS)[number]) {
+  const model = getPrismaRecord(prisma, modelName);
+  if (!model) {
+    throw new Error(`Alibaba Prisma model ${modelName} is not available.`);
+  }
+
+  return model as Record<string, (...args: unknown[]) => Promise<unknown>>;
+}
+
+function getAlibabaTransactionModel(transaction: unknown, modelName: (typeof REQUIRED_ALIBABA_PRISMA_MODELS)[number]) {
+  const model = getPrismaRecord(transaction, modelName);
+  if (!model) {
+    throw new Error(`Alibaba Prisma transaction model ${modelName} is not available.`);
+  }
+
+  return model as Record<string, (...args: unknown[]) => Promise<unknown>>;
+}
+
 function canUseDatabase() {
-  return hasDatabase() && !databaseFallbackForced;
+  return hasDatabase() && !databaseFallbackForced && hasAlibabaPrismaModels();
 }
 
 function isPrismaDatabaseUnavailable(error: unknown) {
@@ -814,9 +854,9 @@ function mapSupplierAccountRecord(record: {
 }
 
 async function readAlibabaSupplierAccountsDb(): Promise<AlibabaSupplierAccount[]> {
-  const records = await prisma.alibabaSupplierAccountRecord.findMany({
+  const records = await getAlibabaPrismaModel("alibabaSupplierAccountRecord").findMany({
     orderBy: [{ isActive: "desc" }, { updatedAt: "desc" }],
-  });
+  }) as Array<Parameters<typeof mapSupplierAccountRecord>[0]>;
 
   if (records.length === 0) {
     return migrateRecordsFromFile(readAlibabaSupplierAccountsFile, writeAlibabaSupplierAccountsDbBulk);
@@ -838,7 +878,7 @@ async function writeAlibabaSupplierAccountDb(account: AlibabaSupplierAccount): P
   const encryptedAccessToken = account.accessToken ? encryptSensitiveValue(account.accessToken) : undefined;
   const encryptedRefreshToken = account.refreshToken ? encryptSensitiveValue(account.refreshToken) : undefined;
 
-  await prisma.alibabaSupplierAccountRecord.upsert({
+  await getAlibabaPrismaModel("alibabaSupplierAccountRecord").upsert({
     where: { id: account.id },
     create: {
       id: account.id,
@@ -908,7 +948,7 @@ async function writeAlibabaSupplierAccountDb(account: AlibabaSupplierAccount): P
     },
   });
 
-  const record = await prisma.alibabaSupplierAccountRecord.findUnique({ where: { id: account.id } });
+  const record = await getAlibabaPrismaModel("alibabaSupplierAccountRecord").findUnique({ where: { id: account.id } }) as Parameters<typeof mapSupplierAccountRecord>[0] | null;
   if (!record) {
     throw new Error("Impossible de relire le compte Alibaba en base.");
   }
@@ -955,9 +995,9 @@ function mapImportJobRecord(record: {
 }
 
 async function readAlibabaImportJobsDb(): Promise<AlibabaImportJob[]> {
-  const records = await prisma.alibabaImportJobRecord.findMany({
+  const records = await getAlibabaPrismaModel("alibabaImportJobRecord").findMany({
     orderBy: { updatedAt: "desc" },
-  });
+  }) as Array<Parameters<typeof mapImportJobRecord>[0]>;
 
   if (records.length === 0) {
     return migrateRecordsFromFile(() => readJsonFile<AlibabaImportJob[]>(IMPORT_JOBS_PATH, []), writeAlibabaImportJobsDbBulk);
@@ -967,7 +1007,7 @@ async function readAlibabaImportJobsDb(): Promise<AlibabaImportJob[]> {
 }
 
 async function writeAlibabaImportJobDb(job: AlibabaImportJob): Promise<AlibabaImportJob> {
-  await prisma.alibabaImportJobRecord.upsert({
+  await getAlibabaPrismaModel("alibabaImportJobRecord").upsert({
     where: { id: job.id },
     create: {
       id: job.id,
@@ -995,7 +1035,7 @@ async function writeAlibabaImportJobDb(job: AlibabaImportJob): Promise<AlibabaIm
     },
   });
 
-  const record = await prisma.alibabaImportJobRecord.findUnique({ where: { id: job.id } });
+  const record = await getAlibabaPrismaModel("alibabaImportJobRecord").findUnique({ where: { id: job.id } }) as Parameters<typeof mapImportJobRecord>[0] | null;
   if (!record) {
     throw new Error("Impossible de relire le job d'import Alibaba en base.");
   }
@@ -1132,9 +1172,9 @@ function mapImportedProductRecord(record: {
 }
 
 async function readAlibabaImportedProductsDb(): Promise<AlibabaImportedProduct[]> {
-  const records = await prisma.alibabaImportedProductRecord.findMany({
+  const records = await getAlibabaPrismaModel("alibabaImportedProductRecord").findMany({
     orderBy: { updatedAt: "desc" },
-  });
+  }) as Array<Parameters<typeof mapImportedProductRecord>[0]>;
 
   if (records.length === 0) {
     return migrateRecordsFromFile(() => readJsonFile<AlibabaImportedProduct[]>(IMPORTED_PRODUCTS_PATH, []), writeAlibabaImportedProductsDbBulk);
@@ -1156,7 +1196,7 @@ async function readAlibabaImportedProductsDb(): Promise<AlibabaImportedProduct[]
   }
 
   if (duplicateIds.length > 0) {
-    await prisma.alibabaImportedProductRecord.deleteMany({ where: { id: { in: duplicateIds } } });
+    await getAlibabaPrismaModel("alibabaImportedProductRecord").deleteMany({ where: { id: { in: duplicateIds } } });
   }
 
   const mappedProducts = dedupedRecords.map(mapImportedProductRecord);
@@ -1165,7 +1205,7 @@ async function readAlibabaImportedProductsDb(): Promise<AlibabaImportedProduct[]
 }
 
 async function writeAlibabaImportedProductDb(product: AlibabaImportedProduct): Promise<AlibabaImportedProduct> {
-  const existing = await prisma.alibabaImportedProductRecord.findFirst({
+  const existing = await getAlibabaPrismaModel("alibabaImportedProductRecord").findFirst({
     where: {
       OR: [
         { id: product.id },
@@ -1174,14 +1214,14 @@ async function writeAlibabaImportedProductDb(product: AlibabaImportedProduct): P
       ],
     },
     orderBy: { updatedAt: "desc" },
-  });
+  }) as { id: string; createdAt?: Date | null } | null;
   const recordId = existing?.id ?? product.id;
   const itemWeightGrams = toSafeInt(product.itemWeightGrams);
   const moq = Math.max(1, toSafeInt(product.moq, 1));
   const yearsInBusiness = Math.max(0, toSafeInt(product.yearsInBusiness, 0));
   const inventory = Math.max(0, toSafeInt(product.inventory, 0));
 
-  await prisma.alibabaImportedProductRecord.upsert({
+  await getAlibabaPrismaModel("alibabaImportedProductRecord").upsert({
     where: { id: recordId },
     create: {
       id: recordId,
@@ -1274,7 +1314,7 @@ async function writeAlibabaImportedProductDb(product: AlibabaImportedProduct): P
   });
 
   if (product.sourceProductId) {
-    await prisma.alibabaImportedProductRecord.deleteMany({
+    await getAlibabaPrismaModel("alibabaImportedProductRecord").deleteMany({
       where: {
         sourceProductId: product.sourceProductId,
         id: { not: recordId },
@@ -1282,7 +1322,7 @@ async function writeAlibabaImportedProductDb(product: AlibabaImportedProduct): P
     });
   }
 
-  const record = await prisma.alibabaImportedProductRecord.findUnique({ where: { id: recordId } });
+  const record = await getAlibabaPrismaModel("alibabaImportedProductRecord").findUnique({ where: { id: recordId } }) as Parameters<typeof mapImportedProductRecord>[0] | null;
   if (!record) {
     throw new Error("Impossible de relire le produit importe Alibaba en base.");
   }
@@ -1328,7 +1368,7 @@ function mapCountryProfileRecord(record: {
 }
 
 async function readAlibabaCountryProfilesDb(): Promise<AlibabaCountryProfile[]> {
-  const records = await prisma.alibabaCountryProfileRecord.findMany({ orderBy: { countryCode: "asc" } });
+  const records = await getAlibabaPrismaModel("alibabaCountryProfileRecord").findMany({ orderBy: { countryCode: "asc" } }) as Array<Parameters<typeof mapCountryProfileRecord>[0]>;
 
   if (records.length === 0) {
     return migrateRecordsFromFile(() => readJsonFile<AlibabaCountryProfile[]>(COUNTRY_PROFILES_PATH, DEFAULT_COUNTRY_PROFILES), writeAlibabaCountryProfilesDb);
@@ -1339,10 +1379,10 @@ async function readAlibabaCountryProfilesDb(): Promise<AlibabaCountryProfile[]> 
 
 async function writeAlibabaCountryProfilesDb(profiles: AlibabaCountryProfile[]): Promise<AlibabaCountryProfile[]> {
   await prisma.$transaction(async (transaction) => {
-    await transaction.alibabaCountryProfileRecord.deleteMany();
+    await getAlibabaTransactionModel(transaction, "alibabaCountryProfileRecord").deleteMany();
 
     if (profiles.length > 0) {
-      await transaction.alibabaCountryProfileRecord.createMany({
+      await getAlibabaTransactionModel(transaction, "alibabaCountryProfileRecord").createMany({
         data: profiles.map((profile) => ({
           countryCode: profile.countryCode,
           countryName: profile.countryName,
@@ -1399,9 +1439,9 @@ function mapReceptionAddressRecord(record: {
 }
 
 async function readAlibabaReceptionAddressesDb(): Promise<AlibabaReceptionAddress[]> {
-  const records = await prisma.alibabaReceptionAddressRecord.findMany({
+  const records = await getAlibabaPrismaModel("alibabaReceptionAddressRecord").findMany({
     orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
-  });
+  }) as Array<Parameters<typeof mapReceptionAddressRecord>[0]>;
 
   if (records.length === 0) {
     return migrateRecordsFromFile(() => readJsonFile<AlibabaReceptionAddress[]>(RECEPTION_ADDRESSES_PATH, []), writeAlibabaReceptionAddressesDbBulk);
@@ -1413,13 +1453,13 @@ async function readAlibabaReceptionAddressesDb(): Promise<AlibabaReceptionAddres
 async function writeAlibabaReceptionAddressDb(address: AlibabaReceptionAddress): Promise<AlibabaReceptionAddress> {
   await prisma.$transaction(async (transaction) => {
     if (address.isDefault) {
-      await transaction.alibabaReceptionAddressRecord.updateMany({
+      await getAlibabaTransactionModel(transaction, "alibabaReceptionAddressRecord").updateMany({
         where: { NOT: { id: address.id } },
         data: { isDefault: false },
       });
     }
 
-    await transaction.alibabaReceptionAddressRecord.upsert({
+    await getAlibabaTransactionModel(transaction, "alibabaReceptionAddressRecord").upsert({
       where: { id: address.id },
       create: {
         id: address.id,
@@ -1458,7 +1498,7 @@ async function writeAlibabaReceptionAddressDb(address: AlibabaReceptionAddress):
     });
   });
 
-  const record = await prisma.alibabaReceptionAddressRecord.findUnique({ where: { id: address.id } });
+  const record = await getAlibabaPrismaModel("alibabaReceptionAddressRecord").findUnique({ where: { id: address.id } }) as Parameters<typeof mapReceptionAddressRecord>[0] | null;
   if (!record) {
     throw new Error("Impossible de relire l'adresse de reception Alibaba en base.");
   }
@@ -1525,9 +1565,9 @@ function mapPurchaseOrderRecord(record: {
 }
 
 async function readAlibabaPurchaseOrdersDb(): Promise<AlibabaPurchaseOrder[]> {
-  const records = await prisma.alibabaPurchaseOrderRecord.findMany({
+  const records = await getAlibabaPrismaModel("alibabaPurchaseOrderRecord").findMany({
     orderBy: { updatedAt: "desc" },
-  });
+  }) as Array<Parameters<typeof mapPurchaseOrderRecord>[0]>;
 
   if (records.length === 0) {
     return migrateRecordsFromFile(() => readJsonFile<AlibabaPurchaseOrder[]>(PURCHASE_ORDERS_PATH, []), writeAlibabaPurchaseOrdersDbBulk);
@@ -1537,7 +1577,7 @@ async function readAlibabaPurchaseOrdersDb(): Promise<AlibabaPurchaseOrder[]> {
 }
 
 async function writeAlibabaPurchaseOrderDb(order: AlibabaPurchaseOrder): Promise<AlibabaPurchaseOrder> {
-  await prisma.alibabaPurchaseOrderRecord.upsert({
+  await getAlibabaPrismaModel("alibabaPurchaseOrderRecord").upsert({
     where: { id: order.id },
     create: {
       id: order.id,
@@ -1587,7 +1627,7 @@ async function writeAlibabaPurchaseOrderDb(order: AlibabaPurchaseOrder): Promise
     },
   });
 
-  const record = await prisma.alibabaPurchaseOrderRecord.findUnique({ where: { id: order.id } });
+  const record = await getAlibabaPrismaModel("alibabaPurchaseOrderRecord").findUnique({ where: { id: order.id } }) as Parameters<typeof mapPurchaseOrderRecord>[0] | null;
   if (!record) {
     throw new Error("Impossible de relire le lot d'achat Alibaba en base.");
   }
@@ -1628,9 +1668,9 @@ function mapReceptionRecordItem(record: {
 }
 
 async function readAlibabaReceptionRecordsDb(): Promise<AlibabaReceptionRecord[]> {
-  const records = await prisma.alibabaReceptionRecordItem.findMany({
+  const records = await getAlibabaPrismaModel("alibabaReceptionRecordItem").findMany({
     orderBy: { updatedAt: "desc" },
-  });
+  }) as Array<Parameters<typeof mapReceptionRecordItem>[0]>;
 
   if (records.length === 0) {
     return migrateRecordsFromFile(() => readJsonFile<AlibabaReceptionRecord[]>(RECEPTIONS_PATH, []), writeAlibabaReceptionRecordsDbBulk);
@@ -1640,7 +1680,7 @@ async function readAlibabaReceptionRecordsDb(): Promise<AlibabaReceptionRecord[]
 }
 
 async function writeAlibabaReceptionRecordDb(record: AlibabaReceptionRecord): Promise<AlibabaReceptionRecord> {
-  await prisma.alibabaReceptionRecordItem.upsert({
+  await getAlibabaPrismaModel("alibabaReceptionRecordItem").upsert({
     where: { id: record.id },
     create: {
       id: record.id,
@@ -1664,7 +1704,7 @@ async function writeAlibabaReceptionRecordDb(record: AlibabaReceptionRecord): Pr
     },
   });
 
-  const nextRecord = await prisma.alibabaReceptionRecordItem.findUnique({ where: { id: record.id } });
+  const nextRecord = await getAlibabaPrismaModel("alibabaReceptionRecordItem").findUnique({ where: { id: record.id } }) as Parameters<typeof mapReceptionRecordItem>[0] | null;
   if (!nextRecord) {
     throw new Error("Impossible de relire la reception Alibaba en base.");
   }
@@ -1770,7 +1810,7 @@ export async function saveAlibabaImportedProducts(products: AlibabaImportedProdu
 export async function deleteAlibabaImportedProduct(importedProductId: string): Promise<void> {
   if (canUseDatabase()) {
     try {
-      await prisma.alibabaImportedProductRecord.deleteMany({ where: { id: importedProductId } });
+      await getAlibabaPrismaModel("alibabaImportedProductRecord").deleteMany({ where: { id: importedProductId } });
       invalidateCatalogRuntimeCache();
       invalidateImportedProductsSnapshot();
       return;
