@@ -72,8 +72,8 @@ export async function updateSourcingSettings(input: Partial<SourcingSettings>) {
 }
 
 async function assignOrderToSeaContainer(order: SourcingOrder, settings: SourcingSettings) {
-  const containers = await getSourcingSeaContainers();
-  const activeContainer = containers.find((container) => container.status === "pending" || container.status === "ready_to_ship");
+  const containers: SourcingSeaContainer[] = await getSourcingSeaContainers();
+  const activeContainer = containers.find((container: SourcingSeaContainer) => container.status === "pending" || container.status === "ready_to_ship");
   const timestamp = nowIso();
   const nextCurrentCbm = Number(((activeContainer?.currentCbm ?? 0) + order.totalVolumeCbm).toFixed(4));
   const nextFillPercent = Math.min(100, Math.round((nextCurrentCbm / settings.containerTargetCbm) * 100));
@@ -108,7 +108,7 @@ async function assignOrderToSeaContainer(order: SourcingOrder, settings: Sourcin
 }
 
 export async function createCheckoutOrder(input: SourcingCheckoutInput) {
-  const sanitizedItems = input.items.filter((item) => isMeaningfulCartSlug(item.slug) && item.quantity > 0);
+  const sanitizedItems = input.items.filter((item: SourcingCheckoutInput["items"][number]) => isMeaningfulCartSlug(item.slug) && item.quantity > 0);
   if (sanitizedItems.length === 0) {
     throw new Error("Aucun article sourcing valide n'a ete transmis pour cette commande.");
   }
@@ -309,8 +309,8 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
 }
 
 export async function triggerSeaContainerShipment(containerId: string) {
-  const containers = await getSourcingSeaContainers();
-  const container = containers.find((entry) => entry.id === containerId);
+  const containers: SourcingSeaContainer[] = await getSourcingSeaContainers();
+  const container = containers.find((entry: SourcingSeaContainer) => entry.id === containerId);
 
   if (!container) {
     throw new Error("Conteneur introuvable.");
@@ -328,8 +328,8 @@ export async function triggerSeaContainerShipment(containerId: string) {
   };
   await saveSourcingSeaContainer(nextContainer);
 
-  const orders = await getSourcingOrders();
-  for (const order of orders.filter((entry) => entry.containerId === containerId)) {
+  const orders: SourcingOrder[] = await getSourcingOrders();
+  for (const order of orders.filter((entry: SourcingOrder) => entry.containerId === containerId)) {
     await saveSourcingOrder({
       ...order,
       status: "shipment_triggered",
