@@ -21,8 +21,56 @@ const CONTAINERS_PATH = path.join(SOURCING_DIR, "sea-containers.json");
 const LOGS_PATH = path.join(SOURCING_DIR, "alibaba-logs.json");
 const CATALOG_MAPPING_PATH = path.join(SOURCING_DIR, "catalog-mapping.json");
 
+let databaseFallbackForced = false;
+
+function getPrismaRecord(target: unknown, key: string) {
+  if (!target || typeof target !== "object") {
+    return undefined;
+  }
+
+  return (target as Record<string, unknown>)[key];
+}
+
+function getSourcingModelDelegate(modelName: "sourcingSettings" | "sourcingOrder" | "sourcingSeaContainer" | "alibabaIntegrationLog") {
+  const delegate = getPrismaRecord(prisma, modelName);
+  if (!delegate || typeof delegate !== "object") {
+    return null;
+  }
+
+  return delegate as Record<string, (...args: unknown[]) => Promise<unknown>>;
+}
+
 function hasDatabase() {
   return Boolean(process.env.DATABASE_URL);
+}
+
+function canUseDatabase(modelName?: "sourcingSettings" | "sourcingOrder" | "sourcingSeaContainer" | "alibabaIntegrationLog") {
+  if (!hasDatabase() || databaseFallbackForced) {
+    return false;
+  }
+
+  return modelName ? Boolean(getSourcingModelDelegate(modelName)) : true;
+}
+
+function isPrismaDatabaseUnavailable(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as { code?: unknown; message?: unknown };
+  const message = typeof candidate.message === "string" ? candidate.message : "";
+  return candidate.code === "P1001"
+    || candidate.code === "P2022"
+    || message.includes("Can't reach database server")
+    || message.includes("db.prisma.io:5432")
+    || message.includes("does not exist in the current database");
+}
+
+function enableDatabaseFallback(error: unknown) {
+  if (!databaseFallbackForced) {
+    databaseFallbackForced = true;
+    console.warn("[sourcing-store] database unavailable, falling back to JSON storage", error);
+  }
 }
 
 async function ensureSourcingDir() {
@@ -245,10 +293,19 @@ function normalizeLog(record: Record<string, unknown>): AlibabaIntegrationLog {
 
 export async function getSourcingSettings() {
   return getOrSetCatalogRuntimeCache("sourcing-settings", 20_000, async () => {
-    if (hasDatabase()) {
-      const record = await prisma.sourcingSettings.findFirst({ orderBy: { updatedAt: "desc" } });
-      if (record) {
-        return normalizeSettings(record as unknown as Record<string, unknown>);
+    if (canUseDatabase("sourcingSettings")) {
+      try {
+        const settingsModel = getSourcingModelDelegate("sourcingSettings");
+        const record = settingsModel ? await settingsModel.findFirst({ orderBy: { updatedAt: "desc" } }) : null;
+        if (record) {
+          return normalizeSettings(record as Record<string, unknown>);
+        }
+      } catch (error) {
+        if (!isPrismaDatabaseUnavailable(error)) {
+          throw error;
+        }
+
+        enableDatabaseFallback(error);
       }
     }
 
@@ -273,32 +330,41 @@ export async function getSourcingSettings() {
 export async function saveSourcingSettings(settings: SourcingSettings) {
   const normalized = { ...settings, updatedAt: new Date().toISOString() };
 
-  if (hasDatabase()) {
-    const existing = await prisma.sourcingSettings.findFirst({ orderBy: { updatedAt: "desc" } });
-    if (existing) {
-      await prisma.sourcingSettings.update({
-        where: { id: existing.id },
-        data: {
-          currencyCode: normalized.currencyCode,
-          airRatePerKgFcfa: normalized.airRatePerKgFcfa,
-          airEstimatedDays: normalized.airEstimatedDays,
-          seaRealCostPerCbmFcfa: normalized.seaRealCostPerCbmFcfa,
-          seaSellRatePerCbmFcfa: normalized.seaSellRatePerCbmFcfa,
-          seaEstimatedDays: normalized.seaEstimatedDays,
-          freeAirThresholdFcfa: normalized.freeAirThresholdFcfa,
-          freeAirEnabled: normalized.freeAirEnabled,
-          airWeightThresholdKg: normalized.airWeightThresholdKg,
-          containerTargetCbm: normalized.containerTargetCbm,
-          defaultMarginMode: normalized.defaultMarginMode,
-          defaultMarginValue: normalized.defaultMarginValue,
-        },
-      });
-    } else {
-      await prisma.sourcingSettings.create({ data: normalized });
-    }
+  if (canUseDatabase("sourcingSettings")) {
+    try {
+      const settingsModel = getSourcingModelDelegate("sourcingSettings");
+      const existing = settingsModel ? await settingsModel.findFirst({ orderBy: { updatedAt: "desc" } }) as { id: string } | null : null;
+      if (existing) {
+        await settingsModel?.update({
+          where: { id: existing.id },
+          data: {
+            currencyCode: normalized.currencyCode,
+            airRatePerKgFcfa: normalized.airRatePerKgFcfa,
+            airEstimatedDays: normalized.airEstimatedDays,
+            seaRealCostPerCbmFcfa: normalized.seaRealCostPerCbmFcfa,
+            seaSellRatePerCbmFcfa: normalized.seaSellRatePerCbmFcfa,
+            seaEstimatedDays: normalized.seaEstimatedDays,
+            freeAirThresholdFcfa: normalized.freeAirThresholdFcfa,
+            freeAirEnabled: normalized.freeAirEnabled,
+            airWeightThresholdKg: normalized.airWeightThresholdKg,
+            containerTargetCbm: normalized.containerTargetCbm,
+            defaultMarginMode: normalized.defaultMarginMode,
+            defaultMarginValue: normalized.defaultMarginValue,
+          },
+        });
+      } else {
+        await settingsModel?.create({ data: normalized });
+      }
 
-    invalidateCatalogRuntimeCache();
-    return normalized;
+      invalidateCatalogRuntimeCache();
+      return normalized;
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   await writeJsonFile(SETTINGS_PATH, normalized);
@@ -308,9 +374,18 @@ export async function saveSourcingSettings(settings: SourcingSettings) {
 
 export async function getSourcingOrders() {
   return getOrSetCatalogRuntimeCache("sourcing-orders", 20_000, async () => {
-    if (hasDatabase()) {
-      const records = await prisma.sourcingOrder.findMany({ include: { items: true }, orderBy: { createdAt: "desc" } });
-      return records.map((record) => normalizeOrder(record as unknown as Record<string, unknown>));
+    if (canUseDatabase("sourcingOrder")) {
+      try {
+        const orderModel = getSourcingModelDelegate("sourcingOrder");
+        const records = orderModel ? await orderModel.findMany({ include: { items: true }, orderBy: { createdAt: "desc" } }) as Record<string, unknown>[] : [];
+        return records.map((record) => normalizeOrder(record));
+      } catch (error) {
+        if (!isPrismaDatabaseUnavailable(error)) {
+          throw error;
+        }
+
+        enableDatabaseFallback(error);
+      }
     }
 
     const records = await readJsonFile<Record<string, unknown>[]>(ORDERS_PATH, []);
@@ -323,9 +398,18 @@ export async function getSourcingOrderById(orderId: string) {
     return null;
   }
 
-  if (hasDatabase()) {
-    const record = await prisma.sourcingOrder.findUnique({ where: { id: orderId }, include: { items: true } });
-    return record ? normalizeOrder(record as unknown as Record<string, unknown>) : null;
+  if (canUseDatabase("sourcingOrder")) {
+    try {
+      const orderModel = getSourcingModelDelegate("sourcingOrder");
+      const record = orderModel ? await orderModel.findUnique({ where: { id: orderId }, include: { items: true } }) as Record<string, unknown> | null : null;
+      return record ? normalizeOrder(record) : null;
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const orders = await getSourcingOrders();
@@ -337,9 +421,18 @@ export async function getSourcingOrderByMonerooPaymentId(paymentId: string) {
     return null;
   }
 
-  if (hasDatabase()) {
-    const record = await prisma.sourcingOrder.findFirst({ where: { monerooPaymentId: paymentId }, include: { items: true } });
-    return record ? normalizeOrder(record as unknown as Record<string, unknown>) : null;
+  if (canUseDatabase("sourcingOrder")) {
+    try {
+      const orderModel = getSourcingModelDelegate("sourcingOrder");
+      const record = orderModel ? await orderModel.findFirst({ where: { monerooPaymentId: paymentId }, include: { items: true } }) as Record<string, unknown> | null : null;
+      return record ? normalizeOrder(record) : null;
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const orders = await getSourcingOrders();
@@ -347,8 +440,10 @@ export async function getSourcingOrderByMonerooPaymentId(paymentId: string) {
 }
 
 export async function saveSourcingOrder(order: SourcingOrder) {
-  if (hasDatabase()) {
-    await prisma.sourcingOrder.upsert({
+  if (canUseDatabase("sourcingOrder")) {
+    try {
+      const orderModel = getSourcingModelDelegate("sourcingOrder");
+      await orderModel?.upsert({
       where: { id: order.id },
       update: {
         userId: order.userId ?? null,
@@ -461,10 +556,17 @@ export async function saveSourcingOrder(order: SourcingOrder) {
           })),
         },
       },
-    });
+      });
 
-    invalidateCatalogRuntimeCache();
-    return order;
+      invalidateCatalogRuntimeCache();
+      return order;
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const orders = await getSourcingOrders();
@@ -485,9 +587,18 @@ export async function getUserSourcingOrders(input: { userId: string; email: stri
 
 export async function getSourcingSeaContainers() {
   return getOrSetCatalogRuntimeCache("sourcing-sea-containers", 20_000, async () => {
-    if (hasDatabase()) {
-      const records = await prisma.sourcingSeaContainer.findMany({ orderBy: { createdAt: "desc" } });
-      return records.map((record) => normalizeContainer(record as unknown as Record<string, unknown>));
+    if (canUseDatabase("sourcingSeaContainer")) {
+      try {
+        const containerModel = getSourcingModelDelegate("sourcingSeaContainer");
+        const records = containerModel ? await containerModel.findMany({ orderBy: { createdAt: "desc" } }) as Record<string, unknown>[] : [];
+        return records.map((record) => normalizeContainer(record));
+      } catch (error) {
+        if (!isPrismaDatabaseUnavailable(error)) {
+          throw error;
+        }
+
+        enableDatabaseFallback(error);
+      }
     }
 
     const records = await readJsonFile<Record<string, unknown>[]>(CONTAINERS_PATH, []);
@@ -496,8 +607,10 @@ export async function getSourcingSeaContainers() {
 }
 
 export async function saveSourcingSeaContainer(container: SourcingSeaContainer) {
-  if (hasDatabase()) {
-    await prisma.sourcingSeaContainer.upsert({
+  if (canUseDatabase("sourcingSeaContainer")) {
+    try {
+      const containerModel = getSourcingModelDelegate("sourcingSeaContainer");
+      await containerModel?.upsert({
       where: { id: container.id },
       update: {
         code: container.code,
@@ -524,8 +637,15 @@ export async function saveSourcingSeaContainer(container: SourcingSeaContainer) 
       },
     });
 
-    invalidateCatalogRuntimeCache();
-    return container;
+      invalidateCatalogRuntimeCache();
+      return container;
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const containers = await getSourcingSeaContainers();
@@ -538,9 +658,18 @@ export async function saveSourcingSeaContainer(container: SourcingSeaContainer) 
 }
 
 export async function getAlibabaIntegrationLogs() {
-  if (hasDatabase()) {
-    const records = await prisma.alibabaIntegrationLog.findMany({ orderBy: { createdAt: "desc" } });
-    return records.map((record) => normalizeLog(record as unknown as Record<string, unknown>));
+  if (canUseDatabase("alibabaIntegrationLog")) {
+    try {
+      const logModel = getSourcingModelDelegate("alibabaIntegrationLog");
+      const records = logModel ? await logModel.findMany({ orderBy: { createdAt: "desc" } }) as Record<string, unknown>[] : [];
+      return records.map((record) => normalizeLog(record));
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const records = await readJsonFile<Record<string, unknown>[]>(LOGS_PATH, []);
@@ -554,16 +683,25 @@ export async function createAlibabaIntegrationLog(input: Omit<AlibabaIntegration
     ...input,
   };
 
-  if (hasDatabase()) {
-    await prisma.alibabaIntegrationLog.create({
-      data: {
-        ...log,
-        requestBody: toPrismaJson(log.requestBody),
-        responseBody: toPrismaJson(log.responseBody),
-      },
-    });
+  if (canUseDatabase("alibabaIntegrationLog")) {
+    try {
+      const logModel = getSourcingModelDelegate("alibabaIntegrationLog");
+      await logModel?.create({
+        data: {
+          ...log,
+          requestBody: toPrismaJson(log.requestBody),
+          responseBody: toPrismaJson(log.responseBody),
+        },
+      });
 
-    return log;
+      return log;
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
   }
 
   const logs = await getAlibabaIntegrationLogs();
