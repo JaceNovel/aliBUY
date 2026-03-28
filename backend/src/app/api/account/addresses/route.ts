@@ -66,6 +66,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ address: createdAddress }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Impossible d'enregistrer l'adresse.";
-    return NextResponse.json({ message }, { status: 400 });
+    const status = message.includes("n'est pas configure") ? 503 : 400;
+    return NextResponse.json({ message }, { status });
   }
 }

@@ -32,6 +32,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Produit invalide." }, { status: 400 });
   }
 
-  const result = await toggleUserFavorite({ userId: user.id, userEmail: user.email, productSlug });
-  return NextResponse.json(result);
+  try {
+    const result = await toggleUserFavorite({ userId: user.id, userEmail: user.email, productSlug });
+    return NextResponse.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Impossible de mettre a jour le favori.";
+    const status = message.includes("n'est pas configure") ? 503 : 400;
+    return NextResponse.json({ message }, { status });
+  }
 }

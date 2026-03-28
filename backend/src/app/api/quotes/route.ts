@@ -21,23 +21,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Produit, quantite et specifications sont obligatoires." }, { status: 400 });
   }
 
-  const requestRecord = await createQuoteRequest({
-    userId: user.id,
-    userEmail: user.email,
-    userDisplayName: user.displayName,
-    productName,
-    quantity,
-    specifications,
-    budget,
-    shippingWindow,
-    notes,
-  });
+  try {
+    const requestRecord = await createQuoteRequest({
+      userId: user.id,
+      userEmail: user.email,
+      userDisplayName: user.displayName,
+      productName,
+      quantity,
+      specifications,
+      budget,
+      shippingWindow,
+      notes,
+    });
 
-  await ensureDefaultSupportConversation({
-    userId: user.id,
-    userEmail: user.email,
-    userDisplayName: user.displayName,
-  });
+    await ensureDefaultSupportConversation({
+      userId: user.id,
+      userEmail: user.email,
+      userDisplayName: user.displayName,
+    });
 
-  return NextResponse.json({ ok: true, request: requestRecord }, { status: 201 });
+    return NextResponse.json({ ok: true, request: requestRecord }, { status: 201 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Impossible d'enregistrer la demande de devis.";
+    const status = message.includes("n'est pas configure") ? 503 : 400;
+    return NextResponse.json({ message }, { status });
+  }
 }

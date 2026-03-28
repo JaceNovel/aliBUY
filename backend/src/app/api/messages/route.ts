@@ -31,6 +31,8 @@ export async function POST(request: Request) {
     const conversation = await appendSupportConversationMessage({ userId: user.id, conversationId, text });
     return NextResponse.json({ ok: true, conversation });
   } catch (error) {
-    return NextResponse.json({ message: error instanceof Error ? error.message : "Envoi impossible." }, { status: 404 });
+    const message = error instanceof Error ? error.message : "Envoi impossible.";
+    const status = message.includes("n'est pas configure") ? 503 : 404;
+    return NextResponse.json({ message }, { status });
   }
 }

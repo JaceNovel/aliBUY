@@ -4,6 +4,8 @@ import type { CustomerAddressRecord } from "@/lib/customer-addresses";
 import { canonicalizeCountryCode } from "@/lib/country-utils";
 import { prisma } from "@/lib/prisma";
 
+const DATABASE_UNAVAILABLE_MESSAGE = "Le service de donnees n'est pas configure sur cette instance.";
+
 export type FavoriteRecord = {
   id: string;
   userId: string;
@@ -193,7 +195,54 @@ function normalizeCustomerAddressInput(input: CustomerAddressInput) {
   };
 }
 
+function hasDatabase() {
+  return Boolean(process.env.DATABASE_URL);
+}
+
+function createDatabaseUnavailableError() {
+  return new Error(DATABASE_UNAVAILABLE_MESSAGE);
+}
+
+function createPlaceholderConversation(input: {
+  userId: string;
+  userEmail: string;
+  tab?: SupportConversationTab;
+  orderId?: string;
+  orderLabel?: string;
+}): SupportConversationRecord {
+  const createdAt = new Date().toISOString();
+
+  return {
+    id: input.orderId ? `support-${input.orderId}` : `support-${input.userId}`,
+    userId: input.userId,
+    userEmail: input.userEmail,
+    tab: input.tab ?? "service",
+    name: input.orderId ? "Support commande" : "Support AfriPay",
+    email: undefined,
+    role: input.orderId ? `Suivi de ${input.orderLabel ?? "commande"}` : "Support client AfriPay",
+    preview: "Le support sera disponible une fois la base de donnees configuree.",
+    time: toTimeLabel(createdAt),
+    status: "en ligne",
+    aiEnabled: false,
+    orderId: input.orderId,
+    messages: [
+      {
+        id: `${input.orderId ?? input.userId}-welcome`,
+        side: "left",
+        text: "Le support client est temporairement indisponible sur cette instance.",
+        createdAt,
+      },
+    ],
+    createdAt,
+    updatedAt: createdAt,
+  };
+}
+
 export async function getFavoriteRecords() {
+  if (!hasDatabase()) {
+    return [];
+  }
+
   const records = await prisma.favorite.findMany({ include: { user: true }, orderBy: { createdAt: "desc" } });
   return records.map((record) => ({
     id: record.id,
@@ -205,6 +254,10 @@ export async function getFavoriteRecords() {
 }
 
 export async function getUserAddresses(userId: string) {
+  if (!hasDatabase()) {
+    return [];
+  }
+
   const addresses = await prisma.customerAddress.findMany({
     where: { userId },
     orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
@@ -214,6 +267,10 @@ export async function getUserAddresses(userId: string) {
 }
 
 export async function getUserDefaultAddress(userId: string) {
+  if (!hasDatabase()) {
+    return undefined;
+  }
+
   const address = await prisma.customerAddress.findFirst({
     where: { userId, isDefault: true },
     orderBy: { updatedAt: "desc" },
@@ -223,6 +280,10 @@ export async function getUserDefaultAddress(userId: string) {
 }
 
 export async function getUserAddressById(userId: string, addressId: string) {
+  if (!hasDatabase()) {
+    return undefined;
+  }
+
   const address = await prisma.customerAddress.findFirst({
     where: { id: addressId, userId },
   });
@@ -231,6 +292,10 @@ export async function getUserAddressById(userId: string, addressId: string) {
 }
 
 export async function createUserAddress(userId: string, input: CustomerAddressInput) {
+  if (!hasDatabase()) {
+    throw createDatabaseUnavailableError();
+  }
+
   const normalized = normalizeCustomerAddressInput(input);
   const hasAnyAddress = (await prisma.customerAddress.count({ where: { userId } })) > 0;
   const shouldBeDefault = input.isDefault || !hasAnyAddress;
@@ -256,6 +321,10 @@ export async function createUserAddress(userId: string, input: CustomerAddressIn
 }
 
 export async function updateUserAddress(userId: string, addressId: string, input: CustomerAddressInput) {
+  if (!hasDatabase()) {
+    throw createDatabaseUnavailableError();
+  }
+
   const existing = await prisma.customerAddress.findFirst({
     where: { id: addressId, userId },
   });
@@ -289,6 +358,10 @@ export async function updateUserAddress(userId: string, addressId: string, input
 }
 
 export async function setUserDefaultAddress(userId: string, addressId: string) {
+  if (!hasDatabase()) {
+    throw createDatabaseUnavailableError();
+  }
+
   const existing = await prisma.customerAddress.findFirst({
     where: { id: addressId, userId },
   });
@@ -313,6 +386,10 @@ export async function setUserDefaultAddress(userId: string, addressId: string) {
 }
 
 export async function deleteUserAddress(userId: string, addressId: string) {
+  if (!hasDatabase()) {
+    throw createDatabaseUnavailableError();
+  }
+
   const existing = await prisma.customerAddress.findFirst({
     where: { id: addressId, userId },
   });
@@ -348,6 +425,10 @@ export async function getUserFavoriteSlugs(userId: string) {
 }
 
 export async function isUserFavoriteProduct(userId: string, productSlug: string) {
+  if (!hasDatabase()) {
+    return false;
+  }
+
   const record = await prisma.favorite.findUnique({
     where: {
       userId_productSlug: {
@@ -362,6 +443,10 @@ export async function isUserFavoriteProduct(userId: string, productSlug: string)
 }
 
 export async function toggleUserFavorite(input: { userId: string; userEmail: string; productSlug: string }) {
+  if (!hasDatabase()) {
+    throw createDatabaseUnavailableError();
+  }
+
   const existing = await prisma.favorite.findUnique({
     where: {
       userId_productSlug: {
@@ -387,6 +472,10 @@ export async function toggleUserFavorite(input: { userId: string; userEmail: str
 }
 
 export async function getQuoteRequests() {
+  if (!hasDatabase()) {
+    return [];
+  }
+
   const requests = await prisma.quoteRequest.findMany({ include: { user: true }, orderBy: { createdAt: "desc" } });
   return requests.map((request) => ({
     id: request.id,
@@ -421,6 +510,10 @@ export async function createQuoteRequest(input: {
   shippingWindow: string;
   notes?: string;
 }) {
+  if (!hasDatabase()) {
+    throw createDatabaseUnavailableError();
+  }
+
   const request = await prisma.quoteRequest.create({
     data: {
       userId: input.userId,
@@ -453,6 +546,10 @@ export async function createQuoteRequest(input: {
 }
 
 export async function getSupportConversations() {
+  if (!hasDatabase()) {
+    return [];
+  }
+
   const conversations = await prisma.supportConversation.findMany({
     include: { user: true, messages: { orderBy: { createdAt: "asc" } } },
     orderBy: { updatedAt: "desc" },
@@ -471,6 +568,10 @@ export async function ensureDefaultSupportConversation(input: {
   userEmail: string;
   userDisplayName: string;
 }) {
+  if (!hasDatabase()) {
+    return createPlaceholderConversation({ userId: input.userId, userEmail: input.userEmail });
+  }
+
   const conversations = await getSupportConversations();
   const existing = conversations.find((conversation) => conversation.userId === input.userId && conversation.tab === "service" && !conversation.orderId);
 
@@ -509,6 +610,15 @@ export async function ensureOrderSupportConversation(input: {
   orderId: string;
   orderLabel: string;
 }) {
+  if (!hasDatabase()) {
+    return createPlaceholderConversation({
+      userId: input.userId,
+      userEmail: input.userEmail,
+      orderId: input.orderId,
+      orderLabel: input.orderLabel,
+    });
+  }
+
   const existing = await prisma.supportConversation.findFirst({
     where: {
       userId: input.userId,
@@ -552,6 +662,10 @@ export async function appendSupportConversationMessage(input: {
   conversationId: string;
   text: string;
 }) {
+  if (!hasDatabase()) {
+    throw createDatabaseUnavailableError();
+  }
+
   const conversation = await prisma.supportConversation.findFirst({
     where: {
       id: input.conversationId,
@@ -594,6 +708,10 @@ export async function appendAdminSupportConversationMessage(input: {
   conversationId: string;
   text: string;
 }) {
+  if (!hasDatabase()) {
+    throw createDatabaseUnavailableError();
+  }
+
   const conversation = await prisma.supportConversation.findUnique({
     where: { id: input.conversationId },
   });
@@ -641,6 +759,10 @@ export async function appendOrderAutomationNotification(input: {
   orderLabel: string;
   text: string;
 }) {
+  if (!hasDatabase()) {
+    return null;
+  }
+
   if (!input.userId) {
     return null;
   }
