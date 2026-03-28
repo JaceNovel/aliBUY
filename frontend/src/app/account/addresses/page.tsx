@@ -31,7 +31,7 @@ export default async function AccountAddressesPage() {
           <div className="border-b border-[#ececec] px-5 py-5 sm:px-8 sm:py-7">
             <div className="inline-flex items-center gap-2 rounded-full bg-[#fff2e9] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#d85300] sm:px-4 sm:py-2 sm:text-[13px] sm:tracking-[0.16em]">
               <MapPinned className="h-4 w-4" />
-              Carnet d'adresses
+              Carnet d&apos;adresses
             </div>
             <h1 className="mt-3 text-[26px] font-bold tracking-[-0.05em] text-[#222] sm:mt-4 sm:text-[42px]">Gérer vos adresses de livraison</h1>
             <p className="mt-2 max-w-[760px] text-[14px] leading-6 text-[#666] sm:text-[16px] sm:leading-8">

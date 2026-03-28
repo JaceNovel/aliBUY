@@ -433,7 +433,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
           <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Commandes payées non lançables</div>
           <div className="mt-2 text-[13px] leading-6 text-[#667085]">Ces commandes sont deja payees par le client, mais elles ne peuvent pas encore entrer dans le lancement fournisseur Alibaba.</div>
           <div className="mt-3 rounded-[16px] border border-[#f2d6c2] bg-white/80 px-4 py-3 text-[12px] leading-6 text-[#8a5a33]">
-            Dans ce flux admin, le fournisseur n'expedie pas directement vers le pays final du client. Par defaut, il expedie vers votre hub Chine AfriPay (CN). Si besoin, vous pouvez basculer vers votre hub transitaire Chine ou Lome puis relancer la creation fournisseur.
+            Dans ce flux admin, le fournisseur n&apos;expedie pas directement vers le pays final du client. Par defaut, il expedie vers votre hub Chine AfriPay (CN). Si besoin, vous pouvez basculer vers votre hub transitaire Chine ou Lome puis relancer la creation fournisseur.
           </div>
           <div className="mt-5 overflow-x-auto">
             <table className="min-w-full text-left">

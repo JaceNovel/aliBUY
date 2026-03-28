@@ -18,8 +18,8 @@ export default async function SellerSupportPage() {
             <div className="mt-2 text-[14px] leading-6 text-[#667085]">Envoyez votre besoin produit pour ouvrir un accompagnement commercial et sourcing.</div>
           </Link>
           <Link href="/support-center" className="rounded-[20px] border border-[#e6eaf0] bg-[#fafafa] px-5 py-5 transition hover:border-[#ff6a00] hover:bg-white">
-            <div className="text-[18px] font-bold text-[#1f2937]">Centre d'assistance</div>
-            <div className="mt-2 text-[14px] leading-6 text-[#667085]">Consultez les informations utiles puis contactez l'equipe AfriPay si besoin.</div>
+            <div className="text-[18px] font-bold text-[#1f2937]">Centre d&apos;assistance</div>
+            <div className="mt-2 text-[14px] leading-6 text-[#667085]">Consultez les informations utiles puis contactez l&apos;equipe AfriPay si besoin.</div>
           </Link>
         </div>
       </section>

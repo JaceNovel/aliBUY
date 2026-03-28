@@ -33,7 +33,6 @@ export function SearchSuggestionInput({
   useEffect(() => {
     const normalizedQuery = query.trim();
     if (normalizedQuery.length < 2) {
-      setSuggestions([]);
       return;
     }
 
@@ -75,7 +74,11 @@ export function SearchSuggestionInput({
           className={inputClassName}
           onFocus={() => setIsOpen(true)}
           onChange={(event) => {
-            setQuery(event.target.value);
+            const nextQuery = event.target.value;
+            setQuery(nextQuery);
+            if (nextQuery.trim().length < 2) {
+              setSuggestions([]);
+            }
             setIsOpen(true);
           }}
           onBlur={() => {

@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Boxes, Building2, CheckCircle2, Globe2, MapPin, Package2, RefreshCcw, Search, ShoppingBag, Trash2, Wallet } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 
 import type {
   AlibabaCountryProfile,
@@ -110,23 +110,23 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
     [accountForm.id, initialDashboard.supplierAccounts],
   );
   const hasOauthCredentials = Boolean(accountForm.appKey.trim()) && (Boolean(accountForm.appSecret.trim()) || Boolean(editingSupplierAccount?.hasAppSecret));
-
-  useEffect(() => {
-    if (initialDashboard.panel !== "import-catalog") {
-      return;
-    }
-
-    const seededQuery = (searchParams.get("q") ?? searchParams.get("seedQuery") ?? "").trim();
-    const source = (searchParams.get("source") ?? "").trim();
-    if (!seededQuery) {
-      return;
-    }
-
-    setImportForm((current) => current.query.trim() === seededQuery ? current : { ...current, query: seededQuery });
-    if (source === "image-search") {
-      setFeedback((current) => current ?? "Recherche image liee a l'import IA AliExpress. Verifie la requete puis lance l'import.");
-    }
-  }, [initialDashboard.panel, searchParams]);
+  const seededQuery = useMemo(
+    () => initialDashboard.panel === "import-catalog"
+      ? (searchParams.get("q") ?? searchParams.get("seedQuery") ?? "").trim()
+      : "",
+    [initialDashboard.panel, searchParams],
+  );
+  const seededSource = useMemo(
+    () => initialDashboard.panel === "import-catalog" ? (searchParams.get("source") ?? "").trim() : "",
+    [initialDashboard.panel, searchParams],
+  );
+  const activeImportForm = useMemo(
+    () => importForm.query.trim() || !seededQuery ? importForm : { ...importForm, query: seededQuery },
+    [importForm, seededQuery],
+  );
+  const activeFeedback = feedback ?? (seededSource === "image-search" && seededQuery
+    ? "Recherche image liee a l'import IA AliExpress. Verifie la requete puis lance l'import."
+    : null);
 
   const refresh = () => {
     startTransition(() => {
@@ -143,7 +143,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
     const response = await fetch("/api/admin/aliexpress/import", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(importForm),
+      body: JSON.stringify(activeImportForm),
     });
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
@@ -156,7 +156,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
       return;
     }
 
-    setFeedback(`Import AliExpress live termine: ${Array.isArray(payload?.products) ? payload.products.length : 0}/${payload?.targetImportCount ?? importForm.limit} importes.${typeof payload?.skippedExistingCount === "number" && payload.skippedExistingCount > 0 ? ` Deja importes ignores: ${payload.skippedExistingCount}.` : ""}`);
+    setFeedback(`Import AliExpress live termine: ${Array.isArray(payload?.products) ? payload.products.length : 0}/${payload?.targetImportCount ?? activeImportForm.limit} importes.${typeof payload?.skippedExistingCount === "number" && payload.skippedExistingCount > 0 ? ` Deja importes ignores: ${payload.skippedExistingCount}.` : ""}`);
     refresh();
   };
 
@@ -464,7 +464,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
               <span className="font-semibold text-[#1f2937]">Compte actif:</span>
               <span>{activeSupplierAccount ? `${activeSupplierAccount.name} · ${activeSupplierAccount.accountLogin ?? activeSupplierAccount.email}` : "aucun compte connecte"}</span>
             </div>
-            {feedback ? <div className="mt-4 rounded-[16px] bg-white px-4 py-3 text-[13px] font-semibold text-[#1f2937] shadow-[0_8px_18px_rgba(17,24,39,0.05)]">{feedback}</div> : null}
+            {activeFeedback ? <div className="mt-4 rounded-[16px] bg-white px-4 py-3 text-[13px] font-semibold text-[#1f2937] shadow-[0_8px_18px_rgba(17,24,39,0.05)]">{activeFeedback}</div> : null}
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[320px] xl:grid-cols-1">
             <Link href="/products" className="inline-flex h-12 items-center justify-center gap-2 rounded-[16px] bg-[#ff6a00] px-5 text-[14px] font-semibold text-white transition hover:bg-[#e55e00]">
@@ -585,15 +585,15 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">
                 Mot-cle ou reference exacte
-                <input value={importForm.query} onChange={(event) => setImportForm((current) => ({ ...current, query: event.target.value }))} placeholder="3523LDS, BCD126748, bague, piercing..." className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+                <input value={activeImportForm.query} onChange={(event) => setImportForm((current) => ({ ...current, query: event.target.value }))} placeholder="3523LDS, BCD126748, bague, piercing..." className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
               </label>
               <label className="text-[13px] font-semibold text-[#344054]">
                 Nombre a importer
-                <input value={importForm.limit} onChange={(event) => setImportForm((current) => ({ ...current, limit: Number(event.target.value) }))} type="number" min={1} max={100} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+                <input value={activeImportForm.limit} onChange={(event) => setImportForm((current) => ({ ...current, limit: Number(event.target.value) }))} type="number" min={1} max={100} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
               </label>
               <label className="text-[13px] font-semibold text-[#344054]">
                 Flux fournisseur
-                <select value={importForm.fulfillmentChannel} onChange={(event) => setImportForm((current) => ({ ...current, fulfillmentChannel: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]">
+                <select value={activeImportForm.fulfillmentChannel} onChange={(event) => setImportForm((current) => ({ ...current, fulfillmentChannel: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]">
                   <option value="standard_us">Standard US</option>
                   <option value="crossborder">Crossborder</option>
                   <option value="fast_us">Fast US 48h</option>
@@ -604,11 +604,11 @@ export function AdminAlibabaOperationsClient({ initialDashboard }: Props) {
               </label>
             </div>
             <label className="mt-4 inline-flex items-center gap-3 text-[13px] font-semibold text-[#344054]">
-              <input checked={importForm.autoPublish} onChange={(event) => setImportForm((current) => ({ ...current, autoPublish: event.target.checked }))} type="checkbox" className="h-4 w-4 rounded border-[#d7dce5] text-[#ff6a00] focus:ring-[#ff6a00]" />
+              <input checked={activeImportForm.autoPublish} onChange={(event) => setImportForm((current) => ({ ...current, autoPublish: event.target.checked }))} type="checkbox" className="h-4 w-4 rounded border-[#d7dce5] text-[#ff6a00] focus:ring-[#ff6a00]" />
               Publier automatiquement les articles importes sur le site
             </label>
             <div className="mt-5 flex gap-3">
-              <button type="button" onClick={runImport} disabled={isPending || !importForm.query.trim() || !activeSupplierAccount} className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:opacity-60">
+              <button type="button" onClick={runImport} disabled={isPending || !activeImportForm.query.trim() || !activeSupplierAccount} className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:opacity-60">
                 <Search className="h-4 w-4" />
                 Importer maintenant
               </button>

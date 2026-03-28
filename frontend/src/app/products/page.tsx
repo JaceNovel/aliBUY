@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 
@@ -57,7 +58,7 @@ export default async function ProductsPage() {
                 className="rounded-[24px] bg-white p-4 shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 transition hover:-translate-y-0.5"
               >
                 <div className="aspect-[4/3] overflow-hidden rounded-[18px] bg-[#f5f5f5]">
-                  <img src={product.image} alt={product.shortTitle} className="h-full w-full object-cover" />
+                  <Image src={product.image} alt={product.shortTitle} width={640} height={480} className="h-full w-full object-cover" />
                 </div>
                 <div className="mt-4">
                   <div className="line-clamp-2 text-[18px] font-semibold tracking-[-0.04em] text-[#222]">{product.shortTitle}</div>

@@ -35,12 +35,21 @@ const SHARED_CARTS_PATH = path.join(SITE_DIR, "shared-carts.json");
 
 let databaseFallbackForced = false;
 
+function getSharedCartLinkDelegate() {
+  const delegate = (prisma as unknown as Record<string, unknown>).sharedCartLink;
+  if (!delegate || typeof delegate !== "object") {
+    return null;
+  }
+
+  return delegate as Record<string, (...args: unknown[]) => Promise<unknown>>;
+}
+
 function hasDatabase() {
   return Boolean(process.env.DATABASE_URL);
 }
 
 function canUseDatabase() {
-  return hasDatabase() && !databaseFallbackForced;
+  return hasDatabase() && !databaseFallbackForced && Boolean(getSharedCartLinkDelegate());
 }
 
 function isPrismaDatabaseUnavailable(error: unknown) {
@@ -51,8 +60,10 @@ function isPrismaDatabaseUnavailable(error: unknown) {
   const candidate = error as { code?: unknown; message?: unknown };
   const message = typeof candidate.message === "string" ? candidate.message : "";
   return candidate.code === "P1001"
+    || candidate.code === "P2022"
     || message.includes("Can't reach database server")
-    || message.includes("db.prisma.io:5432");
+    || message.includes("db.prisma.io:5432")
+    || message.includes("does not exist in the current database");
 }
 
 function enableDatabaseFallback(error: unknown) {
@@ -219,7 +230,7 @@ function isExpired(sharedCart: SharedCartRecord) {
 export async function getSharedCarts() {
   if (canUseDatabase()) {
     try {
-      const records = await prisma.sharedCartLink.findMany({ orderBy: { createdAt: "desc" } });
+      const records = await getSharedCartLinkDelegate()!.findMany({ orderBy: { createdAt: "desc" } }) as Array<Parameters<typeof toSharedCartRecordFromDatabase>[0]>;
       return records.map(toSharedCartRecordFromDatabase);
     } catch (error) {
       if (!isPrismaDatabaseUnavailable(error)) {
@@ -243,45 +254,53 @@ export async function getSharedCarts() {
 async function saveSharedCarts(nextSharedCarts: SharedCartRecord[]) {
   if (canUseDatabase()) {
     try {
-      await prisma.$transaction([
-        prisma.sharedCartLink.deleteMany({
+      await prisma.$transaction(async (transaction) => {
+        const sharedCartLink = (transaction as unknown as Record<string, unknown>).sharedCartLink as Record<string, (...args: unknown[]) => Promise<unknown>> | undefined;
+        if (!sharedCartLink) {
+          throw new Error("sharedCartLink Prisma delegate is unavailable.");
+        }
+
+        await sharedCartLink.deleteMany({
           where: nextSharedCarts.length > 0 ? { id: { notIn: nextSharedCarts.map((sharedCart) => sharedCart.id) } } : {},
-        }),
-        ...nextSharedCarts.map((sharedCart) => prisma.sharedCartLink.upsert({
-          where: { id: sharedCart.id },
-          update: {
-            token: sharedCart.token,
-            ownerUserId: sharedCart.ownerUserId,
-            ownerEmail: sharedCart.ownerEmail,
-            ownerDisplayName: sharedCart.ownerDisplayName,
-            message: sharedCart.message ?? null,
-            itemsPayload: toPrismaJson(sharedCart.items),
-            status: sharedCart.status,
-            claimCount: sharedCart.claimCount,
-            lastClaimedAt: sharedCart.lastClaimedAt ? new Date(sharedCart.lastClaimedAt) : null,
-            claimedByUserId: sharedCart.claimedByUserId ?? null,
-            claimedByDisplayName: sharedCart.claimedByDisplayName ?? null,
-            claimedOrderId: sharedCart.claimedOrderId ?? null,
-            expiresAt: new Date(sharedCart.expiresAt),
-          },
-          create: {
-            id: sharedCart.id,
-            token: sharedCart.token,
-            ownerUserId: sharedCart.ownerUserId,
-            ownerEmail: sharedCart.ownerEmail,
-            ownerDisplayName: sharedCart.ownerDisplayName,
-            message: sharedCart.message ?? null,
-            itemsPayload: toPrismaJson(sharedCart.items),
-            status: sharedCart.status,
-            claimCount: sharedCart.claimCount,
-            lastClaimedAt: sharedCart.lastClaimedAt ? new Date(sharedCart.lastClaimedAt) : null,
-            claimedByUserId: sharedCart.claimedByUserId ?? null,
-            claimedByDisplayName: sharedCart.claimedByDisplayName ?? null,
-            claimedOrderId: sharedCart.claimedOrderId ?? null,
-            expiresAt: new Date(sharedCart.expiresAt),
-          },
-        })),
-      ]);
+        });
+
+        for (const sharedCart of nextSharedCarts) {
+          await sharedCartLink.upsert({
+            where: { id: sharedCart.id },
+            update: {
+              token: sharedCart.token,
+              ownerUserId: sharedCart.ownerUserId,
+              ownerEmail: sharedCart.ownerEmail,
+              ownerDisplayName: sharedCart.ownerDisplayName,
+              message: sharedCart.message ?? null,
+              itemsPayload: toPrismaJson(sharedCart.items),
+              status: sharedCart.status,
+              claimCount: sharedCart.claimCount,
+              lastClaimedAt: sharedCart.lastClaimedAt ? new Date(sharedCart.lastClaimedAt) : null,
+              claimedByUserId: sharedCart.claimedByUserId ?? null,
+              claimedByDisplayName: sharedCart.claimedByDisplayName ?? null,
+              claimedOrderId: sharedCart.claimedOrderId ?? null,
+              expiresAt: new Date(sharedCart.expiresAt),
+            },
+            create: {
+              id: sharedCart.id,
+              token: sharedCart.token,
+              ownerUserId: sharedCart.ownerUserId,
+              ownerEmail: sharedCart.ownerEmail,
+              ownerDisplayName: sharedCart.ownerDisplayName,
+              message: sharedCart.message ?? null,
+              itemsPayload: toPrismaJson(sharedCart.items),
+              status: sharedCart.status,
+              claimCount: sharedCart.claimCount,
+              lastClaimedAt: sharedCart.lastClaimedAt ? new Date(sharedCart.lastClaimedAt) : null,
+              claimedByUserId: sharedCart.claimedByUserId ?? null,
+              claimedByDisplayName: sharedCart.claimedByDisplayName ?? null,
+              claimedOrderId: sharedCart.claimedOrderId ?? null,
+              expiresAt: new Date(sharedCart.expiresAt),
+            },
+          });
+        }
+      });
       return nextSharedCarts;
     } catch (error) {
       if (!isPrismaDatabaseUnavailable(error)) {
@@ -331,7 +350,7 @@ export async function getSharedCartByToken(token: string) {
 
   if (canUseDatabase()) {
     try {
-      const record = await prisma.sharedCartLink.findUnique({ where: { token: token.trim() } });
+      const record = await getSharedCartLinkDelegate()!.findUnique({ where: { token: token.trim() } }) as Parameters<typeof toSharedCartRecordFromDatabase>[0] | null;
       return record ? toSharedCartRecordFromDatabase(record) : null;
     } catch (error) {
       if (!isPrismaDatabaseUnavailable(error)) {
@@ -349,11 +368,11 @@ export async function getSharedCartByToken(token: string) {
 export async function getSharedCartSummariesForOwner(ownerUserId: string) {
   if (canUseDatabase()) {
     try {
-      const records = await prisma.sharedCartLink.findMany({
+      const records = await getSharedCartLinkDelegate()!.findMany({
         where: { ownerUserId },
         orderBy: { createdAt: "desc" },
         take: 6,
-      });
+      }) as Array<Parameters<typeof toSharedCartRecordFromDatabase>[0]>;
       return records.map(toSharedCartRecordFromDatabase);
     } catch (error) {
       if (!isPrismaDatabaseUnavailable(error)) {
@@ -371,12 +390,20 @@ export async function getSharedCartSummariesForOwner(ownerUserId: string) {
 export async function markSharedCartClaimed(input: { token: string; claimerUserId: string; claimerDisplayName: string }) {
   if (canUseDatabase()) {
     try {
-      const existing = await prisma.sharedCartLink.findUnique({ where: { token: input.token.trim() } });
+      const sharedCartLink = getSharedCartLinkDelegate();
+      if (!sharedCartLink) {
+        throw new Error("sharedCartLink Prisma delegate is unavailable.");
+      }
+
+      const existing = await sharedCartLink.findUnique({ where: { token: input.token.trim() } }) as {
+        status: string;
+        claimCount: number;
+      } | null;
       if (!existing) {
         return null;
       }
 
-      const nextRecord = await prisma.sharedCartLink.update({
+      const nextRecord = await sharedCartLink.update({
         where: { token: input.token.trim() },
         data: {
           status: existing.status === "ordered" ? "ordered" : "claimed",
@@ -385,7 +412,7 @@ export async function markSharedCartClaimed(input: { token: string; claimerUserI
           claimedByUserId: input.claimerUserId,
           claimedByDisplayName: input.claimerDisplayName,
         },
-      });
+      }) as Parameters<typeof toSharedCartRecordFromDatabase>[0];
 
       return toSharedCartRecordFromDatabase(nextRecord);
     } catch (error) {
@@ -420,12 +447,20 @@ export async function markSharedCartClaimed(input: { token: string; claimerUserI
 export async function markSharedCartOrdered(input: { token: string; claimerUserId: string; claimerDisplayName: string; orderId: string }) {
   if (canUseDatabase()) {
     try {
-      const existing = await prisma.sharedCartLink.findUnique({ where: { token: input.token.trim() } });
+      const sharedCartLink = getSharedCartLinkDelegate();
+      if (!sharedCartLink) {
+        throw new Error("sharedCartLink Prisma delegate is unavailable.");
+      }
+
+      const existing = await sharedCartLink.findUnique({ where: { token: input.token.trim() } }) as {
+        claimedOrderId: string | null;
+        claimCount: number;
+      } | null;
       if (!existing) {
         return null;
       }
 
-      const nextRecord = await prisma.sharedCartLink.update({
+      const nextRecord = await sharedCartLink.update({
         where: { token: input.token.trim() },
         data: {
           status: "ordered",
@@ -435,7 +470,7 @@ export async function markSharedCartOrdered(input: { token: string; claimerUserI
           claimedByDisplayName: input.claimerDisplayName,
           claimedOrderId: input.orderId,
         },
-      });
+      }) as Parameters<typeof toSharedCartRecordFromDatabase>[0];
 
       return toSharedCartRecordFromDatabase(nextRecord);
     } catch (error) {

@@ -20,20 +20,9 @@ type RemittanceProofClientProps = {
 };
 
 export function RemittanceProofClient({ currencyCode, orders, initialOrderId }: RemittanceProofClientProps) {
-  if (orders.length === 0) {
-    return (
-      <section className="rounded-[30px] bg-white px-8 py-8 shadow-[0_8px_30px_rgba(24,39,75,0.05)] ring-1 ring-black/5">
-        <h1 className="text-[32px] font-bold tracking-[-0.05em] text-[#222]">Aucune commande a justifier</h1>
-        <p className="mt-3 text-[15px] leading-7 text-[#666]">
-          Vous n&apos;avez pas encore de commande en attente de preuve de virement sur ce compte.
-        </p>
-      </section>
-    );
-  }
-
-  const initialOrder = orders.find((order) => order.id === initialOrderId) ?? orders[0];
-  const [selectedOrderId, setSelectedOrderId] = useState(initialOrder.id);
-  const [amount, setAmount] = useState(initialOrder.total || `${currencyCode} 0`);
+  const initialOrder = orders.find((order) => order.id === initialOrderId) ?? orders[0] ?? null;
+  const [selectedOrderId, setSelectedOrderId] = useState(initialOrder?.id ?? "");
+  const [amount, setAmount] = useState(initialOrder?.total || `${currencyCode} 0`);
   const [transferDate, setTransferDate] = useState(new Date().toISOString().slice(0, 10));
   const [bankName, setBankName] = useState("");
   const [bankReference, setBankReference] = useState("");
@@ -45,7 +34,18 @@ export function RemittanceProofClient({ currencyCode, orders, initialOrderId }: 
 
   const currentOrder = useMemo(() => {
     return orders.find((order) => order.id === selectedOrderId) ?? initialOrder;
-  }, [initialOrder, selectedOrderId]);
+  }, [initialOrder, orders, selectedOrderId]);
+
+  if (!initialOrder || !currentOrder) {
+    return (
+      <section className="rounded-[30px] bg-white px-8 py-8 shadow-[0_8px_30px_rgba(24,39,75,0.05)] ring-1 ring-black/5">
+        <h1 className="text-[32px] font-bold tracking-[-0.05em] text-[#222]">Aucune commande a justifier</h1>
+        <p className="mt-3 text-[15px] leading-7 text-[#666]">
+          Vous n&apos;avez pas encore de commande en attente de preuve de virement sur ce compte.
+        </p>
+      </section>
+    );
+  }
 
   const handleOrderChange = (nextOrderId: string) => {
     const nextOrder = orders.find((order) => order.id === nextOrderId);

@@ -7,13 +7,13 @@ export default function ForgotPasswordPage() {
         <div className="grid w-full max-w-[980px] gap-6 lg:grid-cols-[0.95fr_1.05fr]">
           <section className="rounded-[32px] bg-[#111827] px-7 py-8 text-white shadow-[0_30px_80px_rgba(17,24,39,0.28)] sm:px-8 sm:py-10">
             <div className="text-[12px] font-semibold uppercase tracking-[0.2em] text-[#ffb48a]">AfriPay Compte</div>
-            <h1 className="mt-4 text-[34px] font-black tracking-[-0.05em] sm:text-[46px]">Recuperer l'acces a votre compte</h1>
+            <h1 className="mt-4 text-[34px] font-black tracking-[-0.05em] sm:text-[46px]">Recuperer l&apos;acces a votre compte</h1>
             <p className="mt-4 max-w-[420px] text-[15px] leading-7 text-white/72">
               Cette page est prete pour accueillir la reinitialisation de mot de passe. Le lien est maintenant visible depuis la page de connexion.
             </p>
             <div className="mt-8 rounded-[24px] border border-white/10 bg-white/5 px-5 py-5 text-[14px] leading-7 text-white/82 backdrop-blur">
               <div className="font-semibold text-white">Etape suivante</div>
-              <div className="mt-2">Nous pourrons brancher ici l'envoi d'un email ou d'un code de verification quand vous serez pret.</div>
+              <div className="mt-2">Nous pourrons brancher ici l&apos;envoi d&apos;un email ou d&apos;un code de verification quand vous serez pret.</div>
             </div>
           </section>
 
@@ -28,7 +28,7 @@ export default function ForgotPasswordPage() {
                 Retour a la connexion
               </Link>
               <Link href="/register" className="inline-flex h-12 w-full items-center justify-center rounded-[16px] border border-[#d7dce5] px-5 text-[15px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
-                Aller a l'inscription
+                Aller a l&apos;inscription
               </Link>
             </div>
           </section>

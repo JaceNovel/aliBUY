@@ -50,7 +50,7 @@ export function SiteFooter({ pricing }: SiteFooterProps) {
                 <Link href="/quotes" className="block transition hover:text-[#ff6a00]">Demander un devis</Link>
                 <Link href="/pricing" className="block transition hover:text-[#ff6a00]">Tarifs</Link>
                 <Link href="/protection-commandes" className="block transition hover:text-[#ff6a00]">{messages.nav.orderProtection}</Link>
-                <Link href="/support-center" className="block transition hover:text-[#ff6a00]">Centre d'assistance</Link>
+                <Link href="/support-center" className="block transition hover:text-[#ff6a00]">Centre d&apos;assistance</Link>
                 <Link href="/seller-support" className="block transition hover:text-[#ff6a00]">Support vendeur</Link>
               </div>
             </section>

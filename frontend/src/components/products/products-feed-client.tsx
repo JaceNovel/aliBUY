@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { buildApiUrl, type ProductFeedPage } from "@/lib/api";
 
@@ -69,7 +69,7 @@ export function ProductsFeedClient({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const isFetchingRef = useRef(false);
-  const safeEndpointParams = endpointParams ?? {};
+  const safeEndpointParams = useMemo(() => endpointParams ?? {}, [endpointParams]);
   const requestKey = useMemo(() => buildEndpointUrl(endpointPath, safeEndpointParams, 1, initialPage.pageSize), [endpointPath, initialPage.pageSize, safeEndpointParams]);
   const formatter = useMemo(
     () => buildPriceFormatter(locale, currencyCode, currencyRateFromUsd),
@@ -85,7 +85,7 @@ export function ProductsFeedClient({
     isFetchingRef.current = false;
   }, [initialPage, requestKey]);
 
-  const loadPage = async (nextPage: number) => {
+  const loadPage = useCallback(async (nextPage: number) => {
     if (isFetchingRef.current) {
       return;
     }
@@ -116,7 +116,7 @@ export function ProductsFeedClient({
       isFetchingRef.current = false;
       setIsLoading(false);
     }
-  };
+  }, [endpointPath, initialPage.pageSize, safeEndpointParams]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -137,7 +137,7 @@ export function ProductsFeedClient({
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, page, requestKey]);
+  }, [hasMore, loadPage, page, requestKey]);
 
   if (!items.length && !isLoading) {
     return (

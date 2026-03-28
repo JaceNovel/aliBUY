@@ -1,6 +1,6 @@
 "use client";
 
-import { FileUp, PackageSearch, Send, Sparkles } from "lucide-react";
+import { FileUp, PackageSearch, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 

@@ -68,28 +68,21 @@ export function CategoryMegaMenu({
   const router = useRouter();
   const resolvedTriggerLabel = triggerLabel ?? messages.nav.categories;
   const [activeSlug, setActiveSlug] = useState(categories[0]?.slug ?? "");
+  const activeCategory = categories.find((category) => category.slug === activeSlug) ?? categories[0] ?? null;
 
   useEffect(() => {
-    if (!categories.some((category) => category.slug === activeSlug)) {
-      setActiveSlug(categories[0]?.slug ?? "");
-    }
-  }, [activeSlug, categories]);
-
-  useEffect(() => {
-    const active = categories.find((category) => category.slug === activeSlug) ?? categories[0];
-    if (!active) {
+    if (!activeCategory) {
       return;
     }
 
-    router.prefetch(active.href ?? `/products?category=${encodeURIComponent(active.slug)}`);
-  }, [activeSlug, categories, router]);
+    router.prefetch(activeCategory.href ?? `/products?category=${encodeURIComponent(activeCategory.slug)}`);
+  }, [activeCategory, router]);
 
   const categoryLinks: CategoryLink[] = categories.slice(0, 9).map((category, index) => ({
     slug: category.slug,
     title: category.title,
     icon: categoryIcons[index % categoryIcons.length],
   }));
-  const activeCategory = categories.find((category) => category.slug === activeSlug) ?? categories[0] ?? null;
   const categoryProducts: CategoryProduct[] = activeCategory?.products.slice(0, 5).map((product) => ({
     slug: product.slug,
     title: product.shortTitle,
@@ -114,7 +107,7 @@ export function CategoryMegaMenu({
         <div className="grid min-h-[470px] grid-cols-[430px_minmax(0,1fr)]">
           <div className="border-r border-[#ececec] bg-white px-4 py-6">
             <div className="max-h-[422px] overflow-y-auto pr-2">
-              {categoryLinks.map((item, index) => {
+              {categoryLinks.map((item) => {
                 const Icon = item.icon;
 
                 return (
@@ -166,7 +159,7 @@ export function CategoryMegaMenu({
                 </Link>
               ))}
             </div>
-            {categoryProducts.length === 0 ? <div className="rounded-[18px] bg-[#fafafa] px-4 py-5 text-[14px] text-[#666]">Les catégories se remplissent automatiquement dès qu'un article importé est publié.</div> : null}
+            {categoryProducts.length === 0 ? <div className="rounded-[18px] bg-[#fafafa] px-4 py-5 text-[14px] text-[#666]">Les catégories se remplissent automatiquement dès qu&apos;un article importé est publié.</div> : null}
           </div>
         </div>
       </div>

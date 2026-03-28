@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { LoaderCircle, Save, Search, Sparkles, Trash2, WandSparkles } from "lucide-react";
+import { LoaderCircle, Save, Search, Trash2, WandSparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -463,7 +463,7 @@ export function AdminFreeDealsClient({
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-2 text-[13px] font-semibold text-[#344054]">
-              <span>Activer l'offre</span>
+              <span>Activer l&apos;offre</span>
               <select value={config.enabled ? "true" : "false"} onChange={(event) => updateField("enabled", event.target.value === "true")} className="h-11 w-full rounded-[12px] border border-[#dfe3ea] bg-white px-4 text-[14px] outline-none focus:border-[#ff5b4d]">
                 <option value="true">Active</option>
                 <option value="false">Desactivée</option>
@@ -527,7 +527,7 @@ export function AdminFreeDealsClient({
             <h2 className="text-[22px] font-black tracking-[-0.05em] text-[#101828]">Règles de l’offre</h2>
             <div className="mt-4 grid gap-4">
               <label className="space-y-2 text-[13px] font-semibold text-[#344054]">
-                <span>Nombre exact d'articles</span>
+                <span>Nombre exact d&apos;articles</span>
                 <input type="number" min={7} max={25} value={config.itemLimit} onChange={(event) => updateField("itemLimit", Math.max(7, Number(event.target.value) || 7))} className="h-11 w-full rounded-[12px] border border-[#dfe3ea] px-4 text-[14px] outline-none focus:border-[#ff5b4d]" />
               </label>
 

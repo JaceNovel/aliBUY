@@ -143,7 +143,7 @@ export function UserAuthForm({ mode, nextPath }: UserAuthFormProps) {
           href={alternatePath}
           className="inline-flex h-11 w-full items-center justify-center rounded-[14px] border border-[#d7dce5] px-5 text-[14px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-12 sm:rounded-[16px] sm:text-[15px]"
         >
-          S'inscrire
+          S&apos;inscrire
         </Link>
       ) : null}
 
