@@ -26,11 +26,39 @@ const PRODUCT_FEED_SELECT = {
   maxUsd: true,
   moq: true,
   unit: true,
-} satisfies Prisma.AlibabaImportedProductRecordSelect;
+} as const;
 
-type ProductFeedRow = Prisma.AlibabaImportedProductRecordGetPayload<{
-  select: typeof PRODUCT_FEED_SELECT;
-}>;
+type ProductFeedRow = {
+  slug: string;
+  title: string;
+  image: string;
+  badge?: string | null;
+  minUsd: number;
+  maxUsd?: number | null;
+  moq: number;
+  unit: string;
+};
+
+type ProductFeedWhereInput = Record<string, unknown>;
+type ProductFeedOrderByInput = Record<string, unknown>;
+type ProductFeedCategoryGroupRow = {
+  categorySlug: string | null;
+  categoryTitle: string | null;
+  _count: { _all: number };
+};
+
+function getAlibabaImportedProductDelegate() {
+  const delegate = (prisma as unknown as Record<string, unknown>).alibabaImportedProductRecord;
+  if (!delegate || typeof delegate !== "object") {
+    return null;
+  }
+
+  return delegate as Record<string, (...args: unknown[]) => Promise<unknown>>;
+}
+
+function canUseProductFeedDatabase() {
+  return Boolean(process.env.DATABASE_URL) && Boolean(getAlibabaImportedProductDelegate());
+}
 
 type ProductFeedSource = "catalog" | "search" | "category" | "featured";
 
@@ -148,14 +176,14 @@ function toProductFeedItem(product: {
   };
 }
 
-function buildPublishedWhere(): Prisma.AlibabaImportedProductRecordWhereInput {
+function buildPublishedWhere(): ProductFeedWhereInput {
   return {
     publishedToSite: true,
     status: "published",
   };
 }
 
-function buildSearchWhere(query: string): Prisma.AlibabaImportedProductRecordWhereInput {
+function buildSearchWhere(query: string): ProductFeedWhereInput {
   const normalizedQuery = normalizeTrimmedString(query);
 
   return {
@@ -171,7 +199,7 @@ function buildSearchWhere(query: string): Prisma.AlibabaImportedProductRecordWhe
   };
 }
 
-function buildCategoryWhere(category: string): Prisma.AlibabaImportedProductRecordWhereInput {
+function buildCategoryWhere(category: string): ProductFeedWhereInput {
   const normalizedCategory = normalizeTrimmedString(category);
 
   return {
@@ -210,20 +238,25 @@ async function getDatabaseFeedPage(options: {
   page: number;
   pageSize: number;
   skip: number;
-  where: Prisma.AlibabaImportedProductRecordWhereInput;
-  orderBy?: Prisma.AlibabaImportedProductRecordOrderByWithRelationInput[];
+  where: ProductFeedWhereInput;
+  orderBy?: ProductFeedOrderByInput[];
   source: ProductFeedSource;
   query?: string;
   category?: string;
   mode?: ProductFeaturedMode;
 }) {
-  const rows = await prisma.alibabaImportedProductRecord.findMany({
+  const productModel = getAlibabaImportedProductDelegate();
+  if (!productModel) {
+    throw new Error("Alibaba imported product Prisma model is not available.");
+  }
+
+  const rows = await productModel.findMany({
     where: options.where,
     orderBy: options.orderBy ?? [{ updatedAt: "desc" }, { id: "desc" }],
     skip: options.skip,
     take: options.pageSize + 1,
     select: PRODUCT_FEED_SELECT,
-  });
+  }) as ProductFeedRow[];
 
   return buildPagePayload(rows, options.page, options.pageSize, options.source, {
     query: options.query,
@@ -282,7 +315,7 @@ async function getFeaturedProductsFallbackPage(pageSize: number, mode: ProductFe
   });
 }
 
-function buildFeaturedOrderBy(mode: ProductFeaturedMode): Prisma.AlibabaImportedProductRecordOrderByWithRelationInput[] {
+function buildFeaturedOrderBy(mode: ProductFeaturedMode): ProductFeedOrderByInput[] {
   switch (mode) {
     case "top":
       return [{ salesCount: "desc" }, { viewsCount: "desc" }, { publishedAt: "desc" }, { id: "desc" }];
@@ -347,7 +380,7 @@ export async function getProductsFeedPage(input?: {
 }): Promise<ProductFeedPage> {
   const { page, pageSize, skip } = getPageInput(input);
 
-  if (process.env.DATABASE_URL) {
+  if (canUseProductFeedDatabase()) {
     try {
       return await getDatabaseFeedPage({
         page,
@@ -394,7 +427,7 @@ export async function getSearchProductsFeedPage(input: {
     };
   }
 
-  if (process.env.DATABASE_URL) {
+  if (canUseProductFeedDatabase()) {
     try {
       return await getTrigramSearchProductsFeedPage({
         query: normalizedQuery,
@@ -450,7 +483,7 @@ export async function getCategoryProductsFeedPage(input: {
     };
   }
 
-  if (process.env.DATABASE_URL) {
+  if (canUseProductFeedDatabase()) {
     try {
       return await getDatabaseFeedPage({
         page,
@@ -490,14 +523,19 @@ export async function getFeaturedProductsFeed(input?: {
     : "recommended";
 
   const buildPayload = async () => {
-    if (process.env.DATABASE_URL) {
+    if (canUseProductFeedDatabase()) {
       try {
-        const rows = await prisma.alibabaImportedProductRecord.findMany({
+        const productModel = getAlibabaImportedProductDelegate();
+        if (!productModel) {
+          throw new Error("Alibaba imported product Prisma model is not available.");
+        }
+
+        const rows = await productModel.findMany({
           where: buildPublishedWhere(),
           orderBy: buildFeaturedOrderBy(mode),
           take: pageSize,
           select: PRODUCT_FEED_SELECT,
-        });
+        }) as ProductFeedRow[];
 
         const payload = buildPagePayload(rows, 1, pageSize, "featured", { mode });
         if (hasFeedItems(payload)) {
@@ -510,12 +548,17 @@ export async function getFeaturedProductsFeed(input?: {
           logProductsFeedFallback("featured", error);
         } else {
           console.warn("[products-feed] popularity columns unavailable, falling back to recent ordering");
-          const rows = await prisma.alibabaImportedProductRecord.findMany({
+          const productModel = getAlibabaImportedProductDelegate();
+          if (!productModel) {
+            return getFeaturedProductsFallbackPage(pageSize, "recommended");
+          }
+
+          const rows = await productModel.findMany({
             where: buildPublishedWhere(),
             orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }, { id: "desc" }],
             take: pageSize,
             select: PRODUCT_FEED_SELECT,
-          });
+          }) as ProductFeedRow[];
 
           const payload = buildPagePayload(rows, 1, pageSize, "featured", { mode: "recommended" });
           if (hasFeedItems(payload)) {
@@ -546,12 +589,17 @@ export async function getFeaturedProductsFeed(input?: {
 
 export async function incrementProductViewCount(slug: string) {
   const normalizedSlug = normalizeTrimmedString(slug);
-  if (!normalizedSlug || !process.env.DATABASE_URL) {
+  if (!normalizedSlug || !canUseProductFeedDatabase()) {
     return;
   }
 
   try {
-    await prisma.alibabaImportedProductRecord.updateMany({
+    const productModel = getAlibabaImportedProductDelegate();
+    if (!productModel) {
+      return;
+    }
+
+    await productModel.updateMany({
       where: {
         slug: normalizedSlug,
         publishedToSite: true,
@@ -574,7 +622,7 @@ export async function incrementProductViewCount(slug: string) {
 }
 
 export async function incrementProductSalesCounts(items: Array<{ slug: string; quantity?: number }>) {
-  if (!process.env.DATABASE_URL || items.length === 0) {
+  if (!canUseProductFeedDatabase() || items.length === 0) {
     return;
   }
 
@@ -596,9 +644,17 @@ export async function incrementProductSalesCounts(items: Array<{ slug: string; q
   }
 
   try {
-    await prisma.$transaction(
-      Array.from(quantityBySlug.entries()).map(([slug, quantity]) =>
-        prisma.alibabaImportedProductRecord.updateMany({
+    const productModel = getAlibabaImportedProductDelegate();
+    if (!productModel) {
+      return;
+    }
+
+    await prisma.$transaction(async (transaction) => {
+      const txProductModel = (transaction as unknown as Record<string, unknown>).alibabaImportedProductRecord as Record<string, (...args: unknown[]) => Promise<unknown>> | undefined;
+      const delegate = txProductModel ?? productModel;
+
+      for (const [slug, quantity] of quantityBySlug.entries()) {
+        await delegate.updateMany({
           where: {
             slug,
             publishedToSite: true,
@@ -609,8 +665,9 @@ export async function incrementProductSalesCounts(items: Array<{ slug: string; q
               increment: quantity,
             },
           },
-        })),
-    );
+        });
+      }
+    });
   } catch (error) {
     if (isPrismaFallbackError(error)) {
       console.warn("[products-feed] salesCount unavailable, skipping sales tracking");
@@ -622,9 +679,14 @@ export async function incrementProductSalesCounts(items: Array<{ slug: string; q
 }
 
 export const getProductFeedCategoryOptions = cache(async function getProductFeedCategoryOptions() {
-  if (process.env.DATABASE_URL) {
+  if (canUseProductFeedDatabase()) {
     try {
-      const rows = await prisma.alibabaImportedProductRecord.groupBy({
+      const productModel = getAlibabaImportedProductDelegate();
+      if (!productModel) {
+        throw new Error("Alibaba imported product Prisma model is not available.");
+      }
+
+      const rows = await productModel.groupBy({
         by: ["categorySlug", "categoryTitle"],
         where: {
           ...buildPublishedWhere(),
@@ -637,7 +699,7 @@ export const getProductFeedCategoryOptions = cache(async function getProductFeed
         orderBy: {
           categoryTitle: "asc",
         },
-      });
+      }) as ProductFeedCategoryGroupRow[];
 
       return rows
         .filter((row) => row.categorySlug && row.categoryTitle)
@@ -670,28 +732,34 @@ export const getProductFeedCategoryBySlug = cache(async function getProductFeedC
     return null;
   }
 
-  if (process.env.DATABASE_URL) {
+  if (canUseProductFeedDatabase()) {
     try {
+      const productModel = getAlibabaImportedProductDelegate();
+      if (!productModel) {
+        throw new Error("Alibaba imported product Prisma model is not available.");
+      }
+
       const where = buildCategoryWhere(normalizedCategory);
       const [row, productCount] = await Promise.all([
-        prisma.alibabaImportedProductRecord.findFirst({
+        productModel.findFirst({
           where,
           select: {
             categorySlug: true,
             categoryTitle: true,
           },
         }),
-        prisma.alibabaImportedProductRecord.count({ where }),
+        productModel.count({ where }),
       ]);
 
-      if (!row?.categorySlug || !row.categoryTitle) {
+      const categoryRow = row as { categorySlug?: string | null; categoryTitle?: string | null } | null;
+      if (!categoryRow?.categorySlug || !categoryRow.categoryTitle) {
         return null;
       }
 
       return {
-        slug: row.categorySlug,
-        title: row.categoryTitle,
-        productCount,
+        slug: categoryRow.categorySlug,
+        title: categoryRow.categoryTitle,
+        productCount: typeof productCount === "number" ? productCount : 0,
       } satisfies ProductFeedCategorySummary;
     } catch (error) {
       if (!isPrismaFallbackError(error)) {
