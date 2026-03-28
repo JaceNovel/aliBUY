@@ -7,6 +7,8 @@ import { getSharedCartSummariesForOwner } from "@/lib/cart-share-store";
 import { getPricingContext } from "@/lib/pricing";
 import { getCurrentUser } from "@/lib/user-auth";
 
+type SharedCartSummary = Awaited<ReturnType<typeof getSharedCartSummariesForOwner>>[number];
+
 export default async function CartPage() {
   const pricing = await getPricingContext();
   const user = await getCurrentUser();
@@ -18,7 +20,7 @@ export default async function CartPage() {
         currencyCode={pricing.currency.code}
         locale={pricing.locale}
         isAuthenticated={Boolean(user)}
-        initialSharedCartSummaries={sharedCartSummaries.map((entry) => ({
+        initialSharedCartSummaries={sharedCartSummaries.map((entry: SharedCartSummary) => ({
           id: entry.id,
           token: entry.token,
           ownerDisplayName: entry.ownerDisplayName,
