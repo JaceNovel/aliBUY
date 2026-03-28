@@ -254,7 +254,7 @@ export async function syncSourcingOrderForDeferredSupplierPayment(order: Sourcin
     return order;
   }
 
-  const allOrders = await getSourcingOrders();
+  const allOrders: SourcingOrder[] = await getSourcingOrders();
   const mode = getSourcingOrderBatchMode(order);
   const previousEligibleOrders = mode ? getEligibleBatchOrders(allOrders, mode) : [];
   const previousReady = mode ? isBatchReady(mode, previousEligibleOrders) : false;
@@ -277,8 +277,8 @@ export async function syncSourcingOrderForDeferredSupplierPayment(order: Sourcin
   });
 
   if (mode) {
-    const nextOrders = allOrders.some((entry) => entry.id === nextOrder.id)
-      ? allOrders.map((entry) => (entry.id === nextOrder.id ? nextOrder : entry))
+    const nextOrders: SourcingOrder[] = allOrders.some((entry: SourcingOrder) => entry.id === nextOrder.id)
+      ? allOrders.map((entry: SourcingOrder) => (entry.id === nextOrder.id ? nextOrder : entry))
       : [nextOrder, ...allOrders];
     const nextEligibleOrders = getEligibleBatchOrders(nextOrders, mode);
     const nextReady = isBatchReady(mode, nextEligibleOrders);
@@ -286,7 +286,7 @@ export async function syncSourcingOrderForDeferredSupplierPayment(order: Sourcin
     if (nextReady && !previousReady) {
       await notifyBatchReadyForOrders(nextEligibleOrders, mode);
     } else if (nextReady) {
-      await notifyBatchReadyForOrders(nextEligibleOrders.filter((entry) => entry.id === nextOrder.id), mode);
+      await notifyBatchReadyForOrders(nextEligibleOrders.filter((entry: SourcingOrder) => entry.id === nextOrder.id), mode);
     }
   }
 
