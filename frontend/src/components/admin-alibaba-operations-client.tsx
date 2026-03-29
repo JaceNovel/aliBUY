@@ -16,6 +16,7 @@ import type {
   AlibabaReceptionRecord,
   AlibabaSupplierAccount,
 } from "@/lib/alibaba-operations";
+import { buildApiUrl } from "@/lib/api";
 import type { AlibabaCatalogMapping } from "@/lib/alibaba-sourcing";
 import { formatTierAwarePrice, formatTierAwarePriceMeta } from "@/lib/product-price-display";
 
@@ -371,7 +372,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       return;
     }
 
-    const response = await fetch("/api/admin/aliexpress/supplier-accounts/oauth/start", {
+    const response = await fetch(buildApiUrl("/api/admin/aliexpress/supplier-accounts/oauth/start"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -406,7 +407,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
 
   const connectExistingAccount = async (accountId: string) => {
     setFeedback(null);
-    const response = await fetch("/api/admin/aliexpress/supplier-accounts/oauth/start", {
+    const response = await fetch(buildApiUrl("/api/admin/aliexpress/supplier-accounts/oauth/start"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
