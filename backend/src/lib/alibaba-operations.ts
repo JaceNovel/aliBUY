@@ -26,8 +26,8 @@ export type AlibabaAccountStatus = "connected" | "needs_auth" | "disabled";
 export type AlibabaFulfillmentChannel = "standard_us" | "crossborder" | "fast_us" | "mexico" | "best_seller_us" | "best_seller_mexico";
 
 export const ALIBABA_DEFAULT_AUTHORIZE_URL = "https://api-sg.aliexpress.com/oauth/authorize";
-export const ALIBABA_DEFAULT_TOKEN_URL = "https://api-sg.aliexpress.com/auth/token/create";
-export const ALIBABA_DEFAULT_REFRESH_URL = "https://api-sg.aliexpress.com/auth/token/refresh";
+export const ALIBABA_DEFAULT_TOKEN_URL = "https://api-sg.aliexpress.com/rest/auth/token/create";
+export const ALIBABA_DEFAULT_REFRESH_URL = "https://api-sg.aliexpress.com/rest/auth/token/refresh";
 export const ALIBABA_DEFAULT_API_BASE_URL = "https://api-sg.aliexpress.com";
 
 export type AlibabaImportJob = {

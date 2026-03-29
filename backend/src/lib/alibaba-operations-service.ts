@@ -64,6 +64,42 @@ function getExpiryDate(secondsLike: unknown) {
   return new Date(Date.now() + seconds * 1000).toISOString();
 }
 
+function normalizeAliExpressOAuthUrl(value: string | undefined, type: "authorize" | "token" | "refresh") {
+  const fallback = type === "authorize"
+    ? ALIBABA_DEFAULT_AUTHORIZE_URL
+    : type === "token"
+      ? ALIBABA_DEFAULT_TOKEN_URL
+      : ALIBABA_DEFAULT_REFRESH_URL;
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return fallback;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    if (!url.hostname.includes("aliexpress.com")) {
+      return trimmed;
+    }
+
+    if (type === "authorize") {
+      url.pathname = "/oauth/authorize";
+      return url.toString();
+    }
+
+    const targetPath = type === "token" ? "/rest/auth/token/create" : "/rest/auth/token/refresh";
+    if (url.pathname === "/auth/token/security/create" || url.pathname === "/auth/token/create" || url.pathname === "/rest/auth/token/create") {
+      url.pathname = type === "token" ? targetPath : url.pathname;
+    }
+    if (url.pathname === "/auth/token/security/refresh" || url.pathname === "/auth/token/refresh" || url.pathname === "/rest/auth/token/refresh") {
+      url.pathname = type === "refresh" ? targetPath : url.pathname;
+    }
+
+    return url.toString();
+  } catch {
+    return trimmed;
+  }
+}
+
 export async function getPreferredAlibabaSupplierAccount() {
   const accounts = await getAlibabaSupplierAccounts();
   const eligible = accounts.filter((account) => account.status !== "disabled" && account.appKey && account.appSecret);
@@ -589,9 +625,9 @@ export async function saveAlibabaSupplierAccountInput(input: Omit<AlibabaSupplie
     id: accountId,
     createdAt: existing?.createdAt ?? timestamp,
     updatedAt: timestamp,
-    authorizeUrl: input.authorizeUrl?.trim() || ALIBABA_DEFAULT_AUTHORIZE_URL,
-    tokenUrl: input.tokenUrl?.trim() || ALIBABA_DEFAULT_TOKEN_URL,
-    refreshUrl: input.refreshUrl?.trim() || ALIBABA_DEFAULT_REFRESH_URL,
+    authorizeUrl: normalizeAliExpressOAuthUrl(input.authorizeUrl ?? existing?.authorizeUrl, "authorize"),
+    tokenUrl: normalizeAliExpressOAuthUrl(input.tokenUrl ?? existing?.tokenUrl, "token"),
+    refreshUrl: normalizeAliExpressOAuthUrl(input.refreshUrl ?? existing?.refreshUrl, "refresh"),
     apiBaseUrl: input.apiBaseUrl?.trim() || ALIBABA_DEFAULT_API_BASE_URL,
     isActive: input.isActive ?? existing?.isActive ?? false,
     appKey: normalizedAppKey || existing?.appKey,
