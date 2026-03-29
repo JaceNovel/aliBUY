@@ -2807,6 +2807,35 @@ function normalizeAliExpressSearchTerm(value: string) {
     .toLowerCase();
 }
 
+function extractAliExpressProductId(query: string) {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const directMatch = trimmed.match(/(?:^|\D)(\d{12,20})(?:\D|$)/);
+  if (directMatch?.[1]) {
+    return directMatch[1];
+  }
+
+  try {
+    const url = new URL(trimmed);
+    const pathnameMatch = url.pathname.match(/\/item\/(\d{12,20})\.html/i);
+    if (pathnameMatch?.[1]) {
+      return pathnameMatch[1];
+    }
+
+    const xObjectId = url.searchParams.get("x_object_id");
+    if (xObjectId && /^\d{12,20}$/.test(xObjectId)) {
+      return xObjectId;
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
+}
+
 function buildAliExpressQueryCandidates(query: string) {
   const trimmed = query.trim();
   const normalized = normalizeAliExpressSearchTerm(trimmed);
@@ -2983,7 +3012,46 @@ async function searchAliExpressProducts(input: {
   const foundProducts: AlibabaSearchProduct[] = [];
   const seenProductIds = new Set<string>();
   const queryCandidates = buildAliExpressQueryCandidates(input.query);
+  const directProductId = extractAliExpressProductId(input.query);
   let lastResponse: unknown = null;
+
+  if (directProductId) {
+    for (const context of searchContexts) {
+      const detailResult = await callAliExpressTopEndpoint("aliexpress.ds.product.get", {
+        ship_to_country: context.shipToCountry,
+        product_id: directProductId,
+        target_currency: context.currency,
+        target_language: context.local,
+        remove_personal_benefit: "false",
+      }, {
+        credentials,
+        method: "POST",
+      });
+      lastResponse = detailResult.responseBody;
+
+      if (!detailResult.ok) {
+        continue;
+      }
+
+      const searchSeed = {
+        itemId: directProductId,
+        product_id: directProductId,
+      } satisfies Record<string, unknown>;
+      const normalized = mapAliExpressProductDetailToProduct(searchSeed, detailResult.responseBody, input.query)
+        ?? mapAliExpressSearchItemFallbackToProduct(searchSeed, input.query, context.shipToCountry);
+
+      if (!normalized) {
+        continue;
+      }
+
+      return {
+        ok: true,
+        endpoint: "aliexpress.ds.product.get",
+        responseBody: lastResponse,
+        products: [normalized],
+      };
+    }
+  }
 
   for (const queryCandidate of queryCandidates) {
     for (const context of searchContexts) {
