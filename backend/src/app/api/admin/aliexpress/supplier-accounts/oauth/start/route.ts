@@ -96,7 +96,7 @@ export async function POST(request: Request) {
       id: body?.id ? String(body.id) : undefined,
       name: String(body?.name ?? existing?.name ?? ""),
       email: String(body?.email ?? existing?.email ?? ""),
-      accountPlatform: body?.accountPlatform === "seller" ? "seller" : body?.accountPlatform === "isv" ? "isv" : existing?.accountPlatform ?? "buyer",
+      accountPlatform: body?.accountPlatform === "seller" ? "seller" : body?.accountPlatform === "isv" ? "isv" : existing?.accountPlatform ?? "seller",
       countryCode: String(body?.countryCode ?? existing?.countryCode ?? "CI"),
       defaultDispatchLocation: String(body?.defaultDispatchLocation ?? existing?.defaultDispatchLocation ?? "CN"),
       status: "needs_auth",

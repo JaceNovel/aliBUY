@@ -2135,7 +2135,7 @@ async function callAlibabaEndpoint(pathOrUrl: string, payload: Record<string, un
       ok: false,
       endpoint: pathOrUrl,
       requestBody: payload,
-      responseBody: { message: "Alibaba credentials are missing" },
+      responseBody: { message: "AliExpress credentials are missing" },
       status: 400,
     };
   }
@@ -2289,7 +2289,7 @@ async function callAlibabaMultipartEndpoint(input: {
         ...input.payload,
         [input.fileFieldName]: { fileName: input.fileName, size: input.fileBytes.byteLength },
       },
-      responseBody: { message: "Alibaba credentials are missing" },
+      responseBody: { message: "AliExpress credentials are missing" },
       status: 400,
     };
   }
@@ -2711,29 +2711,22 @@ export async function searchAlibabaProducts(input: {
   fulfillmentChannel: AlibabaFulfillmentChannel;
 }): Promise<AlibabaProductSearchResult> {
   const credentials = await resolveAlibabaCredentialsForLiveCall();
-  if (isAliExpressCredentials(credentials)) {
-    return searchAliExpressProducts({
-      query: input.query,
-      limit: input.limit,
-    });
-  }
-
-  const icbuResult = await searchAlibabaIcbuProducts({
-    query: input.query,
-    limit: Math.min(Math.max(input.limit, 1), 100),
-  });
-
-  if (!icbuResult.ok) {
-    return icbuResult;
-  }
-
-  if (icbuResult.products.length > 0) {
-    const enrichedIcbuProducts = await enrichAlibabaSearchProducts(icbuResult.products);
+  if (!isAliExpressCredentials(credentials)) {
     return {
-      ...icbuResult,
-      products: enrichedIcbuProducts,
+      ok: false,
+      endpoint: "aliexpress.ds.text.search",
+      responseBody: {
+        message: "AliExpress credentials are missing",
+      },
+      products: [],
+      errorMessage: "Import AliExpress indisponible: connecte un compte AliExpress ou configure l'App Key et l'App Secret AliExpress.",
     };
   }
+
+  return searchAliExpressProducts({
+    query: input.query,
+    limit: input.limit,
+  });
 
   const desiredCount = Math.min(Math.max(input.limit, 1), 100);
   const pageSize = Math.min(20, desiredCount);
@@ -2832,33 +2825,29 @@ export async function searchAlibabaProducts(input: {
     console.error("[alibaba/search] no usable products", {
       query: input.query,
       fulfillmentChannel: input.fulfillmentChannel,
-      icbuErrorMessage: icbuResult.errorMessage,
-      icbuErrorCode: "errorCode" in icbuResult ? icbuResult.errorCode : undefined,
       responseCode,
       responseMessage,
-      topLevelKeys: lastResponse ? Object.keys(lastResponse).slice(0, 20) : [],
+      topLevelKeys: lastResponse ? Object.keys(lastResponse as Record<string, unknown>).slice(0, 20) : [],
       candidateCount: collectedProducts.length,
     });
 
     return {
       ok: false,
       endpoint: "/eco/buyer/product/search",
-      responseBody: lastResult.responseBody,
+      responseBody: lastResult?.responseBody ?? lastResponse,
       products: [] as AlibabaSearchProduct[],
       errorMessage: responseMessage
-        ? `Alibaba a repondu mais aucun produit exploitable n'a ete detecte: ${responseMessage}`
-        : icbuResult.errorMessage
-          ? `Aucun produit exploitable detecte. La recherche ICBU par SKU/modele a repondu: ${icbuResult.errorMessage}`
-          : responseCode
-            ? `Alibaba a repondu sans produit exploitable. Code: ${responseCode}.`
-            : "Alibaba n'a renvoye aucun produit exploitable pour cette recherche.",
+        ? `AliExpress a repondu mais aucun produit exploitable n'a ete detecte: ${responseMessage}`
+        : responseCode
+          ? `AliExpress a repondu sans produit exploitable. Code: ${responseCode}.`
+          : "AliExpress n'a renvoye aucun produit exploitable pour cette recherche.",
     };
   }
 
   return {
     ok: true,
     endpoint: "/eco/buyer/product/search",
-    responseBody: lastResult.responseBody,
+    responseBody: lastResult?.responseBody ?? lastResponse,
     products: enrichedProducts,
   };
 }

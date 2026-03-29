@@ -268,7 +268,7 @@ export async function runAlibabaCatalogImport(input: {
     }
 
     if (searchResult.products.length === 0) {
-      throw new Error("Aucun produit live renvoye par Alibaba pour cette recherche.");
+      throw new Error("Aucun produit live AliExpress n'a ete renvoye pour cette recherche.");
     }
 
     const uniqueSearchProducts = searchResult.products.filter((product, index, products) => products.findIndex((entry) => entry.sourceProductId === product.sourceProductId) === index);

@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     id: body?.id ? String(body.id) : undefined,
     name: String(body?.name ?? ""),
     email: String(body?.email ?? ""),
-    accountPlatform: body?.accountPlatform === "seller" ? "seller" : body?.accountPlatform === "isv" ? "isv" : "buyer",
+    accountPlatform: body?.accountPlatform === "seller" ? "seller" : body?.accountPlatform === "isv" ? "isv" : "seller",
     countryCode: String(body?.countryCode ?? "CI"),
     defaultDispatchLocation: String(body?.defaultDispatchLocation ?? "CN"),
     status: body?.status === "connected" ? "connected" : body?.status === "disabled" ? "disabled" : "needs_auth",

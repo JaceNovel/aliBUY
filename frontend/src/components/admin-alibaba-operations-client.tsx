@@ -56,8 +56,8 @@ const panelLinks: Array<{ key: AlibabaPanelSlug; label: string; href: string }> 
 ];
 
 const ALIEXPRESS_DEFAULT_AUTHORIZE_URL = "https://api-sg.aliexpress.com/oauth/authorize";
-const ALIEXPRESS_DEFAULT_TOKEN_URL = "https://api-sg.aliexpress.com/rest/auth/token/create";
-const ALIEXPRESS_DEFAULT_REFRESH_URL = "https://api-sg.aliexpress.com/rest/auth/token/refresh";
+const ALIEXPRESS_DEFAULT_TOKEN_URL = "https://api-sg.aliexpress.com/auth/token/create";
+const ALIEXPRESS_DEFAULT_REFRESH_URL = "https://api-sg.aliexpress.com/auth/token/refresh";
 const ALIEXPRESS_DEFAULT_API_BASE_URL = "https://api-sg.aliexpress.com";
 
 function formatImportedPrice(product: AlibabaImportedProduct) {
@@ -116,7 +116,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     tokenUrl: ALIEXPRESS_DEFAULT_TOKEN_URL,
     refreshUrl: ALIEXPRESS_DEFAULT_REFRESH_URL,
     apiBaseUrl: ALIEXPRESS_DEFAULT_API_BASE_URL,
-    accountPlatform: "buyer",
+    accountPlatform: "seller",
     countryCode: "CI",
     defaultDispatchLocation: "CN",
     status: "needs_auth",
@@ -368,7 +368,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       tokenUrl: ALIEXPRESS_DEFAULT_TOKEN_URL,
       refreshUrl: ALIEXPRESS_DEFAULT_REFRESH_URL,
       apiBaseUrl: ALIEXPRESS_DEFAULT_API_BASE_URL,
-      accountPlatform: "buyer",
+      accountPlatform: "seller",
       countryCode: "CI",
       defaultDispatchLocation: "CN",
       status: "needs_auth",
