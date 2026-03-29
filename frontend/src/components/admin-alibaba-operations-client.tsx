@@ -651,7 +651,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
             <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Recherche AliExpress par mot-cle, SKU ou modele</div>
             <div className="mt-3 rounded-[14px] bg-[#f8fafc] px-4 py-3 text-[13px] text-[#667085]">
               {activeSupplierAccount
-                ? `Import live via ${activeSupplierAccount.name} (${activeSupplierAccount.accountLogin ?? activeSupplierAccount.email}). Les references exactes interrogent d'abord AliExpress DS puis enrichissent la fiche detail avec variantes, attributs et medias.`
+                ? `Import live via ${activeSupplierAccount.name} (${activeSupplierAccount.accountLogin ?? activeSupplierAccount.email}). Les references exactes interrogent d'abord AfriPay+ puis enrichissent la fiche detail avec variantes, attributs et medias.`
                 : selectedSupplierAccount
                   ? `Le compte selectionne est ${selectedSupplierAccount.status === "connected" ? "connecte" : "en attente d'autorisation"}. Termine OAuth dans l'onglet Comptes fournisseurs avant l'import.`
                   : "Aucun compte AliExpress configure. Ajoute et autorise un compte dans l'onglet Comptes fournisseurs avant l'import."}

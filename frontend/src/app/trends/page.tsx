@@ -6,6 +6,7 @@ import { InternalPageShell } from "@/components/internal-page-shell";
 import { getCatalogProducts } from "@/lib/catalog-service";
 import { getFeaturedProductsFeed } from "@/lib/products-feed";
 import { getPricingContext } from "@/lib/pricing";
+import { normalizeStorefrontBadge, shuffleStorefrontItems } from "@/lib/public-storefront";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -22,18 +23,19 @@ export default async function TrendsPage() {
         title: item.title,
         image: item.image,
         priceLabel: pricing.formatPrice(item.minUsd),
-        badge: item.badge,
+        badge: normalizeStorefrontBadge(item.badge),
       }))
     : catalogProducts.slice(0, 12).map((item) => ({
         slug: item.slug,
         title: item.shortTitle,
         image: item.image,
         priceLabel: pricing.formatPrice(item.minUsd),
-        badge: item.badge,
+        badge: normalizeStorefrontBadge(item.badge),
       }));
-  const spotlightItems = items.slice(0, 3);
-  const gridItems = items.slice(0, 18);
-  const highlightedCount = items.filter((item) => Boolean(item.badge)).length;
+  const randomizedItems = shuffleStorefrontItems(items);
+  const spotlightItems = randomizedItems.slice(0, 3);
+  const gridItems = randomizedItems.slice(0, 18);
+  const highlightedCount = randomizedItems.filter((item) => Boolean(item.badge)).length;
 
   return (
     <InternalPageShell pricing={pricing}>
@@ -44,9 +46,8 @@ export default async function TrendsPage() {
           <span className="font-medium text-[#222]">Tendances</span>
         </div>
 
-        <section className="overflow-hidden rounded-[30px] bg-[linear-gradient(135deg,#fff5ef_0%,#fff8f1_46%,#fff 100%)] px-5 py-5 shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 sm:px-6 lg:px-8 lg:py-7">
-          <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-            <div>
+        <section className="hidden gap-4 sm:grid xl:grid-cols-[1.05fr_0.95fr]">
+          <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-[#fff1e7] px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#d85300]">
                 <Flame className="h-4 w-4" />
                 Radar tendances
@@ -72,27 +73,26 @@ export default async function TrendsPage() {
                   <div className="text-[12px] text-[#667085]">colonnes desktop</div>
                 </div>
               </div>
-            </div>
+          </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-3">
-              {spotlightItems.map((item, index) => (
-                <Link key={item.slug} href={`/products/${item.slug}`} className="group overflow-hidden rounded-[22px] bg-white p-2.5 ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(17,24,39,0.12)]">
-                  <div className="relative aspect-[4/5] overflow-hidden rounded-[16px] bg-[#f5f5f5]">
-                    <Image src={item.image} alt={item.title} fill sizes="(min-width: 1280px) 18vw, 30vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
-                    <div className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-[#111827] px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-white">
-                      {index === 0 ? <TrendingUp className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
-                      {item.badge || "Top vue"}
-                    </div>
+          <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-3">
+            {spotlightItems.map((item, index) => (
+              <Link key={item.slug} href={`/products/${item.slug}`} className="group overflow-hidden rounded-[22px] bg-white p-2.5 ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(17,24,39,0.12)]">
+                <div className="relative aspect-[4/5] overflow-hidden rounded-[16px] bg-[#f5f5f5]">
+                  <Image src={item.image} alt={item.title} fill sizes="(min-width: 1280px) 18vw, 30vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                  <div className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-[#111827] px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-white">
+                    {index === 0 ? <TrendingUp className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
+                    {item.badge || "Top vue"}
                   </div>
-                  <div className="mt-3 line-clamp-2 text-[13px] font-semibold leading-5 tracking-[-0.03em] text-[#222]">{item.title}</div>
-                  <div className="mt-2 text-[16px] font-black tracking-[-0.04em] text-[#111827]">{item.priceLabel}</div>
-                </Link>
-              ))}
-            </div>
+                </div>
+                <div className="mt-3 line-clamp-2 text-[13px] font-semibold leading-5 tracking-[-0.03em] text-[#222]">{item.title}</div>
+                <div className="mt-2 text-[16px] font-black tracking-[-0.04em] text-[#111827]">{item.priceLabel}</div>
+              </Link>
+            ))}
           </div>
         </section>
 
-        {items.length === 0 ? (
+        {randomizedItems.length === 0 ? (
           <section className="rounded-[30px] bg-white px-6 py-8 shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 lg:px-8">
             <div className="text-[16px] leading-8 text-[#555]">Aucune tendance publique n&apos;est disponible pour le moment.</div>
           </section>

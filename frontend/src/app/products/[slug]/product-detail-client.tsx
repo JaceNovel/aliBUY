@@ -51,6 +51,8 @@ type ProductDetailClientProps = {
     shortTitle: string;
     locale: string;
     currencyCode: string;
+    countryCode: string;
+    categoryTitle: string;
     moq: number;
     moqVerified?: boolean;
     packaging: string;
@@ -341,6 +343,41 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       };
   const hasSubtotalRange = subtotalRange.maxUsd > subtotalRange.minUsd;
   const dynamicPriceLabel = hasVariantSpecificPricing ? formatPriceSummary(currentPriceSummary) : product.formattedPriceRange;
+  const isFranceDelivery = product.countryCode === "FR";
+  const shippingChoices = isFranceDelivery
+    ? [
+        {
+          key: "air" as const,
+          title: "Express",
+          description: "Livraison rapide a domicile avec suivi prioritaire.",
+          feeLabel: "+2,99 €",
+          summaryLabel: "Express (+2,99 €)",
+        },
+        {
+          key: "sea" as const,
+          title: "Standard",
+          description: "Livraison standard offerte pour la France.",
+          feeLabel: "Gratuit",
+          summaryLabel: "Standard (Gratuit)",
+        },
+      ]
+    : [
+        {
+          key: "air" as const,
+          title: "Express",
+          description: "Plus rapide pour les colis legers et les urgences.",
+          feeLabel: "Rapide",
+          summaryLabel: "Express",
+        },
+        {
+          key: "sea" as const,
+          title: "Standard",
+          description: "Mieux adapte aux commandes lourdes et gros volumes.",
+          feeLabel: "Economique",
+          summaryLabel: "Standard",
+        },
+      ];
+  const selectedShippingChoice = shippingChoices.find((option) => option.key === shippingMethod) ?? null;
   const dynamicPriceHint = hasVariantSpecificPricing
     ? currentPriceSummary.exact
       ? `Prix fixe pour ${Object.entries(previewSelection).map(([, value]) => value).filter(Boolean).join(" · ") || "la variante choisie"}`
@@ -742,7 +779,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
           </div>
 
           <div className="mt-3 inline-flex items-center rounded-full bg-[#fff5e8] px-3 py-2 text-[11px] font-semibold text-[#b77518] ring-1 ring-[#f3dfb8]">
-            N°19 des plus populaires dans sa catégorie
+            Top {product.categoryTitle}
           </div>
 
           <div className="mt-3 rounded-[18px] bg-[#faf7f3] px-3 py-3 text-[11px] text-[#666] ring-1 ring-[#efe7df]">
@@ -1265,33 +1302,28 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
             <div className="mt-6 sm:mt-8">
               <div className="text-[16px] font-semibold text-[#222] sm:text-[18px]">Mode d&apos;expédition</div>
               <div className="mt-3 grid gap-2.5 sm:mt-4 sm:gap-3 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => setShippingMethod("air")}
-                  className={[
-                    "rounded-[14px] border px-3 py-3 text-left transition sm:rounded-[18px] sm:px-4 sm:py-4",
-                    shippingMethod === "air" ? "border-[#ff6a00] bg-[#fff5ed] shadow-[inset_0_0_0_1px_#ff6a00]" : "border-[#e5e5e5] bg-white hover:border-[#ffb48a]",
-                  ].join(" ")}
-                >
-                  <div className="text-[15px] font-semibold text-[#222] sm:text-[17px]">Par avion</div>
-                  <div className="mt-1 text-[12px] leading-5 text-[#666] sm:text-[14px]">Plus rapide pour les colis legers et les urgences.</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShippingMethod("sea")}
-                  className={[
-                    "rounded-[14px] border px-3 py-3 text-left transition sm:rounded-[18px] sm:px-4 sm:py-4",
-                    shippingMethod === "sea" ? "border-[#ff6a00] bg-[#fff5ed] shadow-[inset_0_0_0_1px_#ff6a00]" : "border-[#e5e5e5] bg-white hover:border-[#ffb48a]",
-                  ].join(" ")}
-                >
-                  <div className="text-[15px] font-semibold text-[#222] sm:text-[17px]">Par bateau</div>
-                  <div className="mt-1 text-[12px] leading-5 text-[#666] sm:text-[14px]">Mieux adapte aux commandes lourdes et gros volumes.</div>
-                </button>
+                {shippingChoices.map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => setShippingMethod(option.key)}
+                    className={[
+                      "rounded-[14px] border px-3 py-3 text-left transition sm:rounded-[18px] sm:px-4 sm:py-4",
+                      shippingMethod === option.key ? "border-[#ff6a00] bg-[#fff5ed] shadow-[inset_0_0_0_1px_#ff6a00]" : "border-[#e5e5e5] bg-white hover:border-[#ffb48a]",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-[15px] font-semibold text-[#222] sm:text-[17px]">{option.title}</div>
+                      <div className="text-[13px] font-bold text-[#ff5b1f] sm:text-[15px]">{option.feeLabel}</div>
+                    </div>
+                    <div className="mt-1 text-[12px] leading-5 text-[#666] sm:text-[14px]">{option.description}</div>
+                  </button>
+                ))}
               </div>
               <div className="mt-2.5 rounded-[14px] border border-[#ececec] bg-[#fafafa] px-3 py-2.5 text-[12px] text-[#555] sm:mt-3 sm:rounded-[16px] sm:px-4 sm:py-3 sm:text-[14px]">
                 Poids estime du colis: <span className="font-semibold text-[#222]">{totalWeightKg.toFixed(totalWeightKg >= 10 ? 0 : 2)} kg</span>
               </div>
-              {exceedsSeaThreshold ? (
+              {exceedsSeaThreshold && !isFranceDelivery ? (
                 <div className="mt-2.5 rounded-[14px] border border-[#ffd4b5] bg-[#fff4ea] px-3 py-2.5 text-[12px] font-medium text-[#c85a11] sm:mt-3 sm:rounded-[16px] sm:px-4 sm:py-3 sm:text-[14px]">
                   Ce colis depasse 5 kg, expédition maritime recommandée.
                 </div>
@@ -1366,7 +1398,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                   <span className="ml-1.5 text-[13px] font-medium text-[#666] sm:ml-2 sm:text-[18px]">({formatPriceSummary(currentPriceSummary)}/pièce)</span>
                 </div>
                 <div className="mt-1 text-[12px] text-[#666] sm:text-[14px]">Quantité totale: {totalSelectedQuantity} pièce(s)</div>
-                <div className="mt-1 text-[12px] text-[#666] sm:text-[14px]">Expédition: {shippingMethod === "air" ? "Par avion" : shippingMethod === "sea" ? "Par bateau" : "à choisir"}</div>
+                <div className="mt-1 text-[12px] text-[#666] sm:text-[14px]">Expédition: {selectedShippingChoice?.summaryLabel ?? "à choisir"}</div>
               </div>
               <div className="grid gap-2.5 sm:min-w-[360px] sm:grid-cols-2 sm:gap-3">
                 <button type="button" onClick={proceedToCheckout} disabled={!canSubmitOrder} className="inline-flex h-11 items-center justify-center rounded-full bg-[#ff5b1f] px-5 text-[15px] font-semibold text-white transition hover:bg-[#ec510f] disabled:cursor-not-allowed disabled:bg-[#ffc09f] sm:h-13 sm:px-6 sm:text-[18px]">

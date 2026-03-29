@@ -355,6 +355,7 @@ const IMPORT_JOBS_PATH = path.join(ROOT_DIR, "alibaba-import-jobs.json");
 const IMPORTED_PRODUCTS_PATH = path.join(ROOT_DIR, "alibaba-imported-products.json");
 const IMPORTED_PRODUCTS_BLOB_PATHNAME = "sourcing/alibaba-imported-products.json";
 const SUPPLIER_ACCOUNTS_PATH = path.join(ROOT_DIR, "alibaba-supplier-accounts.json");
+const SUPPLIER_ACCOUNTS_BLOB_PATHNAME = "sourcing/alibaba-supplier-accounts.json";
 const COUNTRY_PROFILES_PATH = path.join(ROOT_DIR, "alibaba-country-profiles.json");
 const RECEPTION_ADDRESSES_PATH = path.join(ROOT_DIR, "alibaba-reception-addresses.json");
 const PURCHASE_ORDERS_PATH = path.join(ROOT_DIR, "alibaba-purchase-orders.json");
@@ -525,6 +526,10 @@ function decryptSensitiveValue(value: unknown) {
 
 async function readAlibabaSupplierAccountsFile() {
   const accounts = await readJsonFile<Array<AlibabaSupplierAccount & Partial<Record<EncryptedField, unknown>>>>(SUPPLIER_ACCOUNTS_PATH, []);
+  return deserializeSupplierAccounts(accounts);
+}
+
+function deserializeSupplierAccounts(accounts: Array<AlibabaSupplierAccount & Partial<Record<EncryptedField, unknown>>>) {
   return accounts.map((account) => ({
     ...account,
     appSecret: decryptSensitiveValue(account.appSecret),
@@ -534,6 +539,26 @@ async function readAlibabaSupplierAccountsFile() {
     hasAccessToken: Boolean(decryptSensitiveValue(account.accessToken)),
     hasRefreshToken: Boolean(decryptSensitiveValue(account.refreshToken)),
   }));
+}
+
+function serializeSupplierAccounts(accounts: AlibabaSupplierAccount[]) {
+  return accounts.map((account) => ({
+    ...account,
+    appSecret: account.appSecret ? encryptSensitiveValue(account.appSecret) : undefined,
+    accessToken: account.accessToken ? encryptSensitiveValue(account.accessToken) : undefined,
+    refreshToken: account.refreshToken ? encryptSensitiveValue(account.refreshToken) : undefined,
+  }));
+}
+
+async function readAlibabaSupplierAccountsSource() {
+  if (canUseBlobStore()) {
+    const blobAccounts = await readJsonBlob<Array<AlibabaSupplierAccount & Partial<Record<EncryptedField, unknown>>>>(SUPPLIER_ACCOUNTS_BLOB_PATHNAME, []);
+    if (blobAccounts.length > 0) {
+      return deserializeSupplierAccounts(blobAccounts);
+    }
+  }
+
+  return readAlibabaSupplierAccountsFile();
 }
 
 function hasDatabase() {
@@ -928,10 +953,12 @@ async function readAlibabaSupplierAccountsDb(): Promise<AlibabaSupplierAccount[]
   }) as Array<Parameters<typeof mapSupplierAccountRecord>[0]>;
 
   if (records.length === 0) {
-    return migrateRecordsFromFile(readAlibabaSupplierAccountsFile, writeAlibabaSupplierAccountsDbBulk);
+    return migrateRecordsFromFile(readAlibabaSupplierAccountsSource, writeAlibabaSupplierAccountsDbBulk);
   }
 
-  return records.map(mapSupplierAccountRecord);
+  const accounts = records.map(mapSupplierAccountRecord);
+  await syncSupplierAccountsJsonSnapshot(accounts);
+  return accounts;
 }
 
 async function writeAlibabaSupplierAccountsDbBulk(accounts: AlibabaSupplierAccount[]): Promise<AlibabaSupplierAccount[]> {
@@ -1026,13 +1053,31 @@ async function writeAlibabaSupplierAccountDb(account: AlibabaSupplierAccount): P
 }
 
 async function writeAlibabaSupplierAccountsFile(accounts: AlibabaSupplierAccount[]) {
-  const next = accounts.map((account) => ({
-    ...account,
-    appSecret: account.appSecret ? encryptSensitiveValue(account.appSecret) : undefined,
-    accessToken: account.accessToken ? encryptSensitiveValue(account.accessToken) : undefined,
-    refreshToken: account.refreshToken ? encryptSensitiveValue(account.refreshToken) : undefined,
-  }));
+  const next = serializeSupplierAccounts(accounts);
   await writeJsonFile(SUPPLIER_ACCOUNTS_PATH, next);
+}
+
+async function syncSupplierAccountsJsonSnapshot(accounts: AlibabaSupplierAccount[]) {
+  try {
+    const existing = canUseBlobStore()
+      ? await readJsonBlob<Array<AlibabaSupplierAccount & Partial<Record<EncryptedField, unknown>>>>(SUPPLIER_ACCOUNTS_BLOB_PATHNAME, [])
+      : await readJsonFile<Array<AlibabaSupplierAccount & Partial<Record<EncryptedField, unknown>>>>(SUPPLIER_ACCOUNTS_PATH, []);
+    const existingLatestUpdatedAt = typeof existing[0]?.updatedAt === "string" ? existing[0].updatedAt : "";
+    const nextLatestUpdatedAt = accounts[0]?.updatedAt ?? "";
+
+    if (existing.length === accounts.length && existingLatestUpdatedAt === nextLatestUpdatedAt) {
+      return;
+    }
+
+    const serialized = serializeSupplierAccounts(accounts);
+    if (canUseBlobStore()) {
+      await writeJsonBlob(SUPPLIER_ACCOUNTS_BLOB_PATHNAME, serialized);
+    }
+
+    await writeJsonFile(SUPPLIER_ACCOUNTS_PATH, serialized);
+  } catch (error) {
+    console.warn("[alibaba-operations-store] unable to sync supplier accounts JSON snapshot", error);
+  }
 }
 
 function mapImportJobRecord(record: {
@@ -1925,7 +1970,7 @@ export async function getAlibabaSupplierAccounts(): Promise<AlibabaSupplierAccou
     }
   }
 
-  return readAlibabaSupplierAccountsFile();
+  return readAlibabaSupplierAccountsSource();
 }
 
 export async function saveAlibabaSupplierAccount(account: AlibabaSupplierAccount): Promise<AlibabaSupplierAccount> {
@@ -1945,6 +1990,9 @@ export async function saveAlibabaSupplierAccount(account: AlibabaSupplierAccount
   const next = accounts.some((entry: AlibabaSupplierAccount) => entry.id === account.id)
     ? accounts.map((entry: AlibabaSupplierAccount) => entry.id === account.id ? account : entry)
     : [account, ...accounts];
+  if (canUseBlobStore()) {
+    await writeJsonBlob(SUPPLIER_ACCOUNTS_BLOB_PATHNAME, serializeSupplierAccounts(next));
+  }
   await writeAlibabaSupplierAccountsFile(next);
   return account;
 }

@@ -24,6 +24,7 @@ import { getMessages } from "@/lib/messages";
 import { getProductImageUrl } from "@/lib/product-image";
 import { formatTierAwarePrice, formatTierAwarePriceMeta } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
+import { normalizeStorefrontBadge, normalizeStorefrontText, shuffleStorefrontItems } from "@/lib/public-storefront";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site-config";
 import { getCurrentUser } from "@/lib/user-auth";
 
@@ -81,7 +82,7 @@ export default async function Home() {
   ]);
   const messages = getMessages(pricing.languageCode);
   const featuredProducts = catalogProducts.slice(0, 8);
-  const marketplaceProducts = catalogProducts.slice(0, 12);
+  const marketplaceProducts = shuffleStorefrontItems(catalogProducts).slice(0, 18);
   const showcaseCategories = catalogCategories.slice(0, 6).map((category) => ({
     slug: category.slug,
     title: category.title,
@@ -97,7 +98,7 @@ export default async function Home() {
     {
       id: "showcase-1",
       title: "Explorez d'autres",
-      subtitle: featuredProducts[1]?.supplierName ?? "Catalogue en direct",
+      subtitle: normalizeStorefrontText(featuredProducts[1]?.supplierName) || "Catalogue en direct",
       items: featuredProducts.slice(1, 5).map((product) => ({
         title: product.shortTitle,
         image: getProductImageUrl(product.image, { width: 420, quality: 74 }),
@@ -108,7 +109,7 @@ export default async function Home() {
     {
       id: "showcase-2",
       title: "Explorez d'autres",
-      subtitle: featuredProducts[5]?.supplierName ?? "Nouveaux produits publies",
+      subtitle: normalizeStorefrontText(featuredProducts[5]?.supplierName) || "Nouveaux produits publies",
       items: featuredProducts.slice(4, 8).map((product) => ({
         title: product.shortTitle,
         image: getProductImageUrl(product.image, { width: 420, quality: 74 }),
@@ -121,7 +122,7 @@ export default async function Home() {
     id: `slide-${product.slug}`,
     image: getProductImageUrl(product.image, { width: 1200, quality: 82 }),
     alt: product.shortTitle,
-    eyebrow: product.badge ?? "March",
+    eyebrow: normalizeStorefrontBadge(product.badge) ?? "AfriPay+",
     title: product.shortTitle,
     subtitle: formatTierAwarePrice(pricing.formatPrice, product),
     buttonLabel: "Commander",
@@ -371,7 +372,7 @@ export default async function Home() {
             </p>
           </section>
         ) : (
-          <section className="rounded-[28px] bg-[#f4f5f7] p-3 shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 sm:p-4">
+          <section>
             <div className="mb-3 flex items-center justify-between gap-3 px-1 sm:mb-4">
               <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a00]">Catalogue en direct</div>
               <Link href="/products" className="text-[12px] font-semibold text-[#111827] transition hover:text-[#ff6a00] sm:text-[13px]">
@@ -394,7 +395,7 @@ export default async function Home() {
                       className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                     />
                     <div className="absolute left-2 top-2 rounded-full bg-[#5d7cff] px-2 py-0.5 text-[9px] font-semibold text-white">
-                      {product.badge || "March"}
+                      {normalizeStorefrontBadge(product.badge) || "AfriPay+"}
                     </div>
                   </div>
                   <div className="pt-2">
@@ -407,7 +408,7 @@ export default async function Home() {
                     <div className="mt-1.5 text-[16px] font-black tracking-[-0.04em] text-[#111827] sm:text-[17px]">
                       {formatTierAwarePrice(pricing.formatPrice, product)}
                     </div>
-                    <div className="mt-1 line-clamp-1 text-[10px] text-[#667085]">{product.supplierName}</div>
+                    <div className="mt-1 line-clamp-1 text-[10px] text-[#667085]">{normalizeStorefrontText(product.supplierName)}</div>
                   </div>
                 </Link>
               ))}

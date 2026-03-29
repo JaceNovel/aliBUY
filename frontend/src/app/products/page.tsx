@@ -6,6 +6,7 @@ import { InternalPageShell } from "@/components/internal-page-shell";
 import { getCatalogProducts } from "@/lib/catalog-service";
 import { formatTierAwarePrice, formatTierAwarePriceMeta } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
+import { normalizeStorefrontText, shuffleStorefrontItems } from "@/lib/public-storefront";
 import { SITE_NAME, SITE_URL } from "@/lib/site-config";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ export default async function ProductsPage() {
     getPricingContext(),
     getCatalogProducts(),
   ]);
+  const randomizedProducts = shuffleStorefrontItems(products);
 
   return (
     <InternalPageShell pricing={pricing}>
@@ -54,7 +56,7 @@ export default async function ProductsPage() {
           </section>
         ) : (
           <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-            {products.map((product) => (
+            {randomizedProducts.map((product) => (
               <Link
                 key={product.slug}
                 href={`/products/${product.slug}`}
@@ -65,7 +67,7 @@ export default async function ProductsPage() {
                 </div>
                 <div className="mt-2">
                   <div className="line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-4 tracking-[-0.03em] text-[#222] sm:min-h-[40px] sm:text-[13px] sm:leading-5">{product.shortTitle}</div>
-                  <div className="mt-1 line-clamp-1 text-[10px] text-[#667085] sm:text-[11px]">{product.supplierName}</div>
+                  <div className="mt-1 line-clamp-1 text-[10px] text-[#667085] sm:text-[11px]">{normalizeStorefrontText(product.supplierName)}</div>
                   <div className="mt-2 text-[15px] font-bold tracking-[-0.03em] text-[#111827] sm:text-[16px]">{formatTierAwarePrice(pricing.formatPrice, product)}</div>
                   {formatTierAwarePriceMeta(product) ? <div className="mt-1 line-clamp-1 text-[10px] text-[#98a2b3]">{formatTierAwarePriceMeta(product)}</div> : null}
                 </div>

@@ -7,6 +7,7 @@ import { getCatalogCategories } from "@/lib/catalog-category-service";
 import { getCatalogProducts } from "@/lib/catalog-service";
 import { getProductImageUrl } from "@/lib/product-image";
 import { getPricingContext } from "@/lib/pricing";
+import { normalizeStorefrontBadge, normalizeStorefrontText, shuffleStorefrontItems } from "@/lib/public-storefront";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -14,7 +15,7 @@ export const revalidate = 0;
 const categoryIcons = [Flame, Shirt, Watch, Bike, PackageCheck, Sparkles, Truck, RefreshCcw];
 
 function formatCompactMetric(product: { soldLabel: string; transactionsLabel: string; responseTime: string }) {
-  return product.soldLabel || product.transactionsLabel || product.responseTime;
+  return normalizeStorefrontText(product.soldLabel || product.transactionsLabel || product.responseTime);
 }
 
 export default async function ModePage() {
@@ -24,9 +25,10 @@ export default async function ModePage() {
     getCatalogCategories(),
   ]);
   const spotlightCategory = categories[0] ?? null;
+  const randomizedCatalogProducts = shuffleStorefrontItems(catalogProducts);
   const stripCategories = categories.slice(0, 8);
-  const spotlightProducts = spotlightCategory?.products.slice(0, 8) ?? catalogProducts.slice(0, 8);
-  const denseGridProducts = catalogProducts.slice(0, 24);
+  const spotlightProducts = shuffleStorefrontItems(spotlightCategory?.products ?? randomizedCatalogProducts).slice(0, 8);
+  const denseGridProducts = randomizedCatalogProducts;
 
   return (
     <InternalPageShell pricing={pricing}>
@@ -37,8 +39,8 @@ export default async function ModePage() {
           <span className="font-medium text-[#222]">Mode</span>
         </div>
 
-        <section className="overflow-hidden rounded-[28px] bg-white shadow-[0_14px_34px_rgba(17,24,39,0.08)] ring-1 ring-black/5">
-          <div className="bg-[linear-gradient(90deg,#ff6a00_0%,#ff8447_48%,#ff9f64_100%)] px-5 py-4 text-white sm:px-6">
+        <section className="space-y-4">
+          <div className="rounded-[22px] bg-[linear-gradient(90deg,#ff6a00_0%,#ff8447_48%,#ff9f64_100%)] px-5 py-4 text-white sm:px-6">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex items-center gap-3 text-[30px] font-black tracking-[-0.06em]">
                 <span>AfriPay+</span>
@@ -51,8 +53,7 @@ export default async function ModePage() {
             </div>
           </div>
 
-          <div className="px-4 py-3 sm:px-5">
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
               {stripCategories.map((category, index) => {
                 const Icon = categoryIcons[index % categoryIcons.length] ?? Sparkles;
                 return (
@@ -74,11 +75,9 @@ export default async function ModePage() {
                   </Link>
                 );
               })}
-            </div>
           </div>
 
-          <div className="px-4 pb-4 sm:px-5 sm:pb-5">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-8">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-8">
               {spotlightProducts.map((product, index) => (
                 <Link key={product.slug} href={`/products/${product.slug}`} className="group overflow-hidden rounded-[4px] bg-white transition hover:-translate-y-0.5">
                   <div className="flex items-center justify-between bg-[#ff7b36] px-2 py-1 text-[10px] font-bold text-white">
@@ -91,17 +90,16 @@ export default async function ModePage() {
                   <div className="px-1.5 pb-1.5 pt-2">
                     <div className="line-clamp-2 min-h-[32px] text-[10px] font-semibold leading-4 text-[#222] sm:text-[11px]">{product.shortTitle}</div>
                     {index % 3 === 0 ? <div className="mt-1 text-[9px] font-semibold text-[#ef4444]">Stock faible</div> : null}
-                    <div className="mt-1 line-clamp-1 text-[9px] text-[#6b7280]">{product.supplierName}</div>
+                    <div className="mt-1 line-clamp-1 text-[9px] text-[#6b7280]">{normalizeStorefrontText(product.supplierName)}</div>
                     <div className="mt-1 line-clamp-1 text-[9px] text-[#6b7280]">{formatCompactMetric(product)}</div>
                     <div className="mt-1 text-[12px] font-black tracking-[-0.03em] text-[#111827] sm:text-[13px]">{pricing.formatPrice(product.minUsd)}</div>
                   </div>
                 </Link>
               ))}
-            </div>
           </div>
         </section>
 
-        <section className="rounded-[28px] bg-white px-4 py-4 shadow-[0_14px_34px_rgba(17,24,39,0.08)] ring-1 ring-black/5 sm:px-5 sm:py-5">
+        <section className="space-y-3">
           <div className="mb-3 flex items-center justify-between gap-4">
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Marketplace mode</div>
@@ -119,7 +117,7 @@ export default async function ModePage() {
               >
                 <div className="flex items-center justify-between bg-[#ff7b36] px-2 py-1 text-[10px] font-bold text-white">
                   <span className="inline-flex items-center gap-1"><BadgeCheck className="h-3 w-3" /> ALL</span>
-                  <span>{product.badge || "Live"}</span>
+                  <span>{normalizeStorefrontBadge(product.badge) || "AfriPay+"}</span>
                 </div>
                 <div className="relative aspect-square overflow-hidden bg-[#f5f5f5]">
                   <Image src={getProductImageUrl(product.image, { width: 420, quality: 74 })} alt={product.shortTitle} fill sizes="(min-width: 1280px) 11vw, (min-width: 1024px) 18vw, 30vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
@@ -127,7 +125,7 @@ export default async function ModePage() {
                 <div className="px-1.5 pb-2 pt-2">
                   <div className="line-clamp-2 min-h-[32px] text-[10px] font-semibold leading-4 text-[#222] sm:text-[11px]">{product.shortTitle}</div>
                   {index % 4 === 1 ? <div className="mt-1 text-[9px] font-semibold text-[#ef4444]">Stock faible</div> : null}
-                  <div className="mt-1 line-clamp-1 text-[9px] text-[#6b7280]">{product.supplierName}</div>
+                  <div className="mt-1 line-clamp-1 text-[9px] text-[#6b7280]">{normalizeStorefrontText(product.supplierName)}</div>
                   <div className="mt-1 line-clamp-1 text-[9px] text-[#6b7280]">{formatCompactMetric(product)}</div>
                   <div className="mt-1 text-[12px] font-black tracking-[-0.03em] text-[#111827] sm:text-[13px]">{pricing.formatPrice(product.minUsd)}</div>
                 </div>

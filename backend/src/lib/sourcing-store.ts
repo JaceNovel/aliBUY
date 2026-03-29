@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
+import { list, put } from "@vercel/blob";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
@@ -38,8 +39,14 @@ const ORDERS_PATH = path.join(SOURCING_DIR, "orders.json");
 const CONTAINERS_PATH = path.join(SOURCING_DIR, "sea-containers.json");
 const LOGS_PATH = path.join(SOURCING_DIR, "alibaba-logs.json");
 const CATALOG_MAPPING_PATH = path.join(SOURCING_DIR, "catalog-mapping.json");
+const CATALOG_MAPPING_SEED_PATH = process.env.ALIBABA_MAPPING_PATH?.trim() || path.join(process.cwd(), "data", "sourcing", "catalog-mapping.json");
+const CATALOG_MAPPING_BLOB_PATHNAME = "sourcing/catalog-mapping.json";
 
 let databaseFallbackForced = false;
+
+function canUseBlobStore() {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+}
 
 function getPrismaRecord(target: unknown, key: string) {
   if (!target || typeof target !== "object") {
@@ -110,6 +117,80 @@ async function readJsonFile<T>(filePath: string, fallback: T): Promise<T> {
 async function writeJsonFile<T>(filePath: string, value: T) {
   await ensureSourcingDir();
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+async function readJsonSeedFile<T>(filePath: string, fallback: T): Promise<T> {
+  try {
+    const raw = await readFile(filePath, "utf8");
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+async function readJsonBlob<T>(pathname: string, fallback: T): Promise<T> {
+  if (!canUseBlobStore()) {
+    return fallback;
+  }
+
+  try {
+    const { blobs } = await list({ prefix: pathname, limit: 10 });
+    const candidate = blobs
+      .filter((blob) => blob.pathname === pathname)
+      .sort((left, right) => right.uploadedAt.getTime() - left.uploadedAt.getTime())[0];
+
+    if (!candidate?.url) {
+      return fallback;
+    }
+
+    const response = await fetch(candidate.url, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`Blob read failed with status ${response.status}.`);
+    }
+
+    return await response.json() as T;
+  } catch (error) {
+    console.warn(`[sourcing-store] unable to read blob snapshot ${pathname}`, error);
+    return fallback;
+  }
+}
+
+async function writeJsonBlob<T>(pathname: string, value: T) {
+  if (!canUseBlobStore()) {
+    return;
+  }
+
+  await put(pathname, `${JSON.stringify(value, null, 2)}\n`, {
+    access: "public",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: "application/json; charset=utf-8",
+  });
+}
+
+async function readExplicitAlibabaCatalogMappings() {
+  if (canUseBlobStore()) {
+    const blobMappings = await readJsonBlob<AlibabaCatalogMapping[]>(CATALOG_MAPPING_BLOB_PATHNAME, []);
+    if (blobMappings.length > 0) {
+      return blobMappings;
+    }
+  }
+
+  const runtimeMappings = await readJsonFile<AlibabaCatalogMapping[]>(CATALOG_MAPPING_PATH, []);
+  if (runtimeMappings.length > 0) {
+    if (canUseBlobStore()) {
+      await writeJsonBlob(CATALOG_MAPPING_BLOB_PATHNAME, runtimeMappings);
+    }
+
+    return runtimeMappings;
+  }
+
+  const seedMappings = await readJsonSeedFile<AlibabaCatalogMapping[]>(CATALOG_MAPPING_SEED_PATH, []);
+  if (seedMappings.length > 0 && canUseBlobStore()) {
+    await writeJsonBlob(CATALOG_MAPPING_BLOB_PATHNAME, seedMappings);
+  }
+
+  return seedMappings;
 }
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
@@ -729,7 +810,7 @@ export async function createAlibabaIntegrationLog(input: Omit<AlibabaIntegration
 
 export async function getAlibabaCatalogMappings() {
   const [explicitMappings, importedProducts] = await Promise.all([
-    readJsonFile<AlibabaCatalogMapping[]>(CATALOG_MAPPING_PATH, []),
+    readExplicitAlibabaCatalogMappings(),
     getAlibabaImportedProducts(),
   ]);
   const mergedMappings = new Map<string, AlibabaCatalogMapping>();

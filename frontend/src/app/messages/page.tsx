@@ -69,6 +69,7 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
           })),
         }))}
         initialConversationId={resolvedSearchParams.conversationId ?? null}
+        isAuthenticated={Boolean(user)}
       />
     </InternalPageShell>
   );

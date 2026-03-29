@@ -7,6 +7,7 @@ import { InternalPageShell } from "@/components/internal-page-shell";
 import { getCatalogCategoryBySlug } from "@/lib/catalog-category-service";
 import { formatTierAwarePrice } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
+import { normalizeStorefrontText } from "@/lib/public-storefront";
 import { SITE_URL } from "@/lib/site-config";
 
 export const dynamic = "force-dynamic";
@@ -72,7 +73,7 @@ export default async function CategoryPage({
                 <Image src={product.image} alt={product.shortTitle} width={640} height={480} className="h-full w-full object-cover" />
               </div>
               <div className="mt-2 line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-4 tracking-[-0.03em] text-[#222] sm:min-h-[40px] sm:text-[13px] sm:leading-5">{product.shortTitle}</div>
-              <div className="mt-1 line-clamp-1 text-[10px] text-[#667085] sm:text-[11px]">{product.supplierName}</div>
+              <div className="mt-1 line-clamp-1 text-[10px] text-[#667085] sm:text-[11px]">{normalizeStorefrontText(product.supplierName)}</div>
               <div className="mt-2 text-[15px] font-bold tracking-[-0.03em] text-[#111827] sm:text-[16px]">{formatTierAwarePrice(pricing.formatPrice, product)}</div>
             </Link>
           ))}

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { normalizeStorefrontBadge } from "@/lib/public-storefront";
 import type { ProductFeedItem } from "@/lib/products-feed";
 import { getProductImageUrl } from "@/lib/product-image";
 
@@ -10,12 +11,14 @@ type ProductCardProps = {
 };
 
 export function ProductCard({ product, formattedPrice }: ProductCardProps) {
+  const badge = normalizeStorefrontBadge(product.badge);
+
   return (
     <Link href={`/products/${product.slug}`} className="group overflow-hidden rounded-[16px] bg-white ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(17,24,39,0.12)] sm:rounded-[18px]">
       <div className="relative aspect-[0.95] bg-[#f5f5f5]">
-        {product.badge ? (
+        {badge ? (
           <div className="absolute left-2 top-2 z-10 rounded-full bg-[#de0505] px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-white">
-            {product.badge}
+            {badge}
           </div>
         ) : null}
         <Image

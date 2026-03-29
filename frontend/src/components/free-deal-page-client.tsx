@@ -345,7 +345,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
               <div className="rounded-full bg-[#ff9800] p-2 text-white shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
                 <Sparkles className="h-4 w-4" />
               </div>
-              <div className="text-[28px] font-black tracking-[-0.06em] sm:text-[40px]">Daly Time</div>
+              <div className="text-[28px] font-black tracking-[-0.06em] sm:text-[40px]">Daily Time</div>
               <div className="text-[13px] font-semibold text-white/95 sm:text-[16px]">Offres limitées</div>
               <div className="text-[13px] font-semibold text-white/95 sm:text-[16px]">Jusqu&apos;a {config.dealTagText}</div>
             </div>

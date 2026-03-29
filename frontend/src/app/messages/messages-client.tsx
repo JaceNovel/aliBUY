@@ -42,9 +42,10 @@ function getStatusStyles(status: MessageStatus) {
 type MessagesClientProps = {
   conversations: MessageEntry[];
   initialConversationId: string | null;
+  isAuthenticated: boolean;
 };
 
-export function MessagesClient({ conversations, initialConversationId }: MessagesClientProps) {
+export function MessagesClient({ conversations, initialConversationId, isAuthenticated }: MessagesClientProps) {
   const fallbackConversationId = initialConversationId && conversations.some((entry) => entry.id === initialConversationId) ? initialConversationId : null;
   const defaultConversationId = fallbackConversationId ?? conversations[0]?.id ?? null;
 
@@ -84,6 +85,11 @@ export function MessagesClient({ conversations, initialConversationId }: Message
   }, [selectedConversationId, selectedConversation?.messages]);
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setIsSyncing(false);
+      return;
+    }
+
     let cancelled = false;
 
     const syncMessages = async (showLoader = false) => {
@@ -123,7 +129,7 @@ export function MessagesClient({ conversations, initialConversationId }: Message
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, []);
+  }, [isAuthenticated]);
 
   if (!selectedConversation) {
     return (
@@ -140,7 +146,7 @@ export function MessagesClient({ conversations, initialConversationId }: Message
   const handleSend = async () => {
     const nextMessage = draftMessage.trim();
 
-    if (!nextMessage || isClosedConversation) {
+    if (!nextMessage || isClosedConversation || !isAuthenticated) {
       return;
     }
 
@@ -220,7 +226,11 @@ export function MessagesClient({ conversations, initialConversationId }: Message
           <h1 className="text-[20px] font-bold tracking-[-0.05em] text-[#222] sm:text-[30px]">Messages</h1>
           <Star className="h-4 w-4 text-[#ff6a00] sm:h-5 sm:w-5" />
         </div>
-        <p className="mt-2 text-[13px] leading-5 text-[#666] sm:mt-3 sm:text-[15px] sm:leading-7">Conversations reelles associees a votre compte utilisateur.</p>
+        <p className="mt-2 text-[13px] leading-5 text-[#666] sm:mt-3 sm:text-[15px] sm:leading-7">
+          {isAuthenticated
+            ? "Conversations reelles associees a votre compte utilisateur."
+            : "Apercu invite. Connectez-vous pour conserver vos conversations et envoyer des messages au support."}
+        </p>
 
         <label className="mt-4 flex h-10 items-center gap-2.5 rounded-[14px] bg-[#f6f6f6] px-3.5 text-[#888] sm:mt-5 sm:h-12 sm:gap-3 sm:px-4">
           <Search className="h-4 w-4" />
@@ -292,7 +302,7 @@ export function MessagesClient({ conversations, initialConversationId }: Message
               <span className={["rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] sm:px-3 sm:py-1 sm:text-[12px] sm:tracking-[0.08em]", getStatusStyles(selectedConversation.status)].join(" ")}>
                 {selectedConversation.status}
               </span>
-                {isSyncing ? <span className="text-[11px] font-medium text-[#98a2b3]">sync...</span> : null}
+                {isAuthenticated && isSyncing ? <span className="text-[11px] font-medium text-[#98a2b3]">sync...</span> : null}
               </div>
               <div className="mt-1 text-[12px] text-[#666] sm:mt-2 sm:text-[15px]">{selectedConversation.role}</div>
               {selectedConversation.email ? <div className="mt-1 text-[11px] text-[#999] sm:text-[13px]">{selectedConversation.email}</div> : null}
@@ -355,16 +365,18 @@ export function MessagesClient({ conversations, initialConversationId }: Message
               placeholder={
                 isClosedConversation
                   ? "Ce dossier est clos. Reouvrez-le via le Service AfriPay pour envoyer un nouveau message."
+                  : !isAuthenticated
+                    ? "Connectez-vous pour envoyer un message et conserver l'historique."
                   : `Ecrire a ${selectedConversation.name}...`
               }
-              disabled={isClosedConversation}
+              disabled={isClosedConversation || !isAuthenticated}
               className="h-10 flex-1 rounded-full bg-transparent px-2.5 text-[13px] outline-none placeholder:text-[#9aa0aa] disabled:cursor-not-allowed sm:h-12 sm:px-3 sm:text-[15px]"
             />
 
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                disabled={isClosedConversation}
+                disabled={isClosedConversation || !isAuthenticated}
                 className="inline-flex h-9 items-center gap-2 rounded-full border border-[#e1e5ec] px-3 text-[12px] font-medium text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:px-4 sm:text-[13px]"
               >
                 <Paperclip className="h-4 w-4" />
@@ -373,7 +385,7 @@ export function MessagesClient({ conversations, initialConversationId }: Message
               </button>
               <button
                 type="button"
-                disabled={isClosedConversation}
+                disabled={isClosedConversation || !isAuthenticated}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#e1e5ec] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-10"
                 aria-label="Ajouter une image"
               >
@@ -381,7 +393,7 @@ export function MessagesClient({ conversations, initialConversationId }: Message
               </button>
               <button
                 type="button"
-                disabled={isClosedConversation}
+                disabled={isClosedConversation || !isAuthenticated}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#e1e5ec] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-10"
                 aria-label="Ajouter un emoji"
               >
@@ -389,11 +401,11 @@ export function MessagesClient({ conversations, initialConversationId }: Message
               </button>
 
               <div className="ml-auto text-[10px] text-[#88909b] sm:text-[12px]">
-                {isClosedConversation ? "Dossier clos" : `${draftMessage.trim().length} caractere(s)`}
+                {isClosedConversation ? "Dossier clos" : !isAuthenticated ? "Connexion requise" : `${draftMessage.trim().length} caractere(s)`}
               </div>
               <button
                 type="submit"
-                disabled={!draftMessage.trim() || isClosedConversation}
+                disabled={!draftMessage.trim() || isClosedConversation || !isAuthenticated}
                 className="inline-flex h-9 items-center gap-2 rounded-full bg-[#ff6a00] px-4 text-[13px] font-semibold text-white transition hover:bg-[#ef6100] disabled:cursor-not-allowed disabled:bg-[#ffb88d] sm:h-10 sm:gap-3 sm:px-5 sm:text-[14px]"
               >
                 <SendHorizonal className="h-4 w-4" />
