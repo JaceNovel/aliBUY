@@ -10,7 +10,8 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const tradeId = searchParams.get("tradeId") ?? searchParams.get("trade_id") ?? undefined;
-    const result = await queryAlibabaOrderLogisticsTracking({ tradeId: tradeId ?? "" });
+    const language = searchParams.get("language") ?? undefined;
+    const result = await queryAlibabaOrderLogisticsTracking({ tradeId: tradeId ?? "", language: language ?? undefined });
 
     if (!result.ok || !isAlibabaOperationSuccessful(result.responseBody)) {
       return Response.json({

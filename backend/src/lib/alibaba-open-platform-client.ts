@@ -109,6 +109,12 @@ export type AlibabaBasicFreightInput = {
   zipCode?: string;
   dispatchLocation?: string;
   enableDistributionWaybill?: boolean;
+  selectedSkuId?: string | number;
+  provinceCode?: string;
+  cityCode?: string;
+  language?: string;
+  currency?: string;
+  locale?: string;
 };
 
 export type AlibabaAdvancedFreightItemInput = {
@@ -124,6 +130,11 @@ export type AlibabaAdvancedFreightInput = {
   address?: Record<string, unknown>;
   dispatchLocation?: string;
   enableDistributionWaybill?: boolean;
+  language?: string;
+  currency?: string;
+  locale?: string;
+  provinceCode?: string;
+  cityCode?: string;
 };
 
 export type AlibabaFreightOption = {
@@ -328,6 +339,11 @@ function splitAliExpressImages(value: unknown) {
 function getAliExpressSellerPayload(responseBody: unknown) {
   if (!isRecord(responseBody)) {
     return null;
+  }
+
+  if (isRecord(responseBody.resp_result)) {
+    const categoryEnvelope = responseBody.resp_result as Record<string, unknown>;
+    return isRecord(categoryEnvelope.result) ? categoryEnvelope.result as Record<string, unknown> : categoryEnvelope;
   }
 
   if (isRecord(responseBody.result)) {
@@ -1524,6 +1540,38 @@ function hasUsefulAlibabaPayload(responseBody: unknown) {
   }
 
   if (Array.isArray(response.tracking_list)) {
+    return true;
+  }
+
+  const sellerPayload = getAliExpressSellerPayload(responseBody);
+  if (sellerPayload) {
+    if (Array.isArray(sellerPayload.categories) && sellerPayload.categories.length > 0) {
+      return true;
+    }
+
+    if (Array.isArray(sellerPayload.delivery_options) && sellerPayload.delivery_options.length > 0) {
+      return true;
+    }
+
+    if (Array.isArray(sellerPayload.result) && sellerPayload.result.length > 0) {
+      return true;
+    }
+
+    if (isRecord(sellerPayload.order_list) || Array.isArray(sellerPayload.order_list)) {
+      return true;
+    }
+
+    if (isRecord(sellerPayload.data)) {
+      const data = sellerPayload.data as Record<string, unknown>;
+      if (Array.isArray(data.tracking_detail_line_list) && data.tracking_detail_line_list.length > 0) {
+        return true;
+      }
+    }
+  }
+
+  const respResult = isRecord(response.resp_result) ? response.resp_result as Record<string, unknown> : null;
+  const respPayload = respResult && isRecord(respResult.result) ? respResult.result as Record<string, unknown> : null;
+  if (respPayload && Array.isArray(respPayload.categories) && respPayload.categories.length > 0) {
     return true;
   }
 
@@ -3296,14 +3344,37 @@ export async function searchAlibabaProducts(input: {
 export async function createAlibabaBuyNowOrder(payload: Record<string, unknown>) {
   const credentials = await resolveAlibabaCredentialsForLiveCall();
   if (isAliExpressCredentials(credentials)) {
+    const wrappedOrderRequest = payload.param_place_order_request4_open_api_d_t_o;
+    const camelWrappedOrderRequest = payload.paramPlaceOrderRequest4OpenApiDto;
+    const rawOrderRequest = isRecord(wrappedOrderRequest)
+      ? wrappedOrderRequest as Record<string, unknown>
+      : isRecord(camelWrappedOrderRequest)
+        ? camelWrappedOrderRequest as Record<string, unknown>
+        : Object.fromEntries(Object.entries(payload).filter(([key]) => key !== "ds_extend_request" && key !== "dsExtendRequest"));
+    const rawDsExtendRequest = payload.ds_extend_request ?? payload.dsExtendRequest;
+    const defaultPayment = {
+      pay_currency: process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD",
+      try_to_pay: process.env.ALIEXPRESS_DS_AUTO_PAY_ENABLED === "true",
+    };
+    const dsExtendRequest = typeof rawDsExtendRequest === "string"
+      ? rawDsExtendRequest
+      : JSON.stringify(
+          isRecord(rawDsExtendRequest)
+            ? {
+                ...rawDsExtendRequest,
+                payment: {
+                  ...defaultPayment,
+                  ...(isRecord(rawDsExtendRequest.payment) ? rawDsExtendRequest.payment as Record<string, unknown> : {}),
+                },
+              }
+            : {
+                payment: defaultPayment,
+              },
+        );
+
     return callAliExpressTopEndpoint("aliexpress.ds.order.create", {
-      ds_extend_request: JSON.stringify({
-        payment: {
-          pay_currency: process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD",
-          try_to_pay: process.env.ALIEXPRESS_DS_AUTO_PAY_ENABLED === "true",
-        },
-      }),
-      param_place_order_request4_open_api_d_t_o: JSON.stringify(payload),
+      ds_extend_request: dsExtendRequest,
+      param_place_order_request4_open_api_d_t_o: JSON.stringify(rawOrderRequest),
     }, {
       credentials,
       method: "POST",
@@ -3331,7 +3402,12 @@ function normalizeAlibabaAiOptimizationConfig(config?: AlibabaAiOptimizationConf
 
 function isAlibabaOperationSuccessful(responseBody: unknown) {
   const response = isRecord(responseBody) ? responseBody : null;
-  const envelope = response && isRecord(response.result) ? response.result : response;
+  const respResult = response && isRecord(response.resp_result) ? response.resp_result as Record<string, unknown> : null;
+  const envelope = response && isRecord(response.result)
+    ? response.result as Record<string, unknown>
+    : respResult && isRecord(respResult.result)
+      ? respResult.result as Record<string, unknown>
+      : response;
 
   if (!envelope) {
     return false;
@@ -3348,24 +3424,47 @@ function isAlibabaOperationSuccessful(responseBody: unknown) {
     return isTruthyAlibabaFlag(envelope.success) || hasUsefulPayload;
   }
 
+  const respCode = getStringValue(respResult?.resp_code)?.trim().toLowerCase();
+  if (respCode) {
+    return ["0", "200", "null", "success", "true"].includes(respCode)
+      && (hasUsefulPayload || getStringValue(respResult?.resp_msg)?.trim().toLowerCase() === "success");
+  }
+
   return hasUsefulPayload;
 }
 
 function extractAlibabaOperationMessage(responseBody: unknown) {
   const response = isRecord(responseBody) ? responseBody : null;
-  const envelope = response && isRecord(response.result) ? response.result : response;
+  const respResult = response && isRecord(response.resp_result) ? response.resp_result as Record<string, unknown> : null;
+  const envelope = response && isRecord(response.result)
+    ? response.result as Record<string, unknown>
+    : respResult && isRecord(respResult.result)
+      ? respResult.result as Record<string, unknown>
+      : response;
 
   return getStringValue(envelope?.message)
+    ?? getStringValue(envelope?.msg)
+    ?? getStringValue(envelope?.error_msg)
     ?? getStringValue(envelope?.response_msg)
-    ?? getStringValue(response?.message);
+    ?? getStringValue(respResult?.resp_msg)
+    ?? getStringValue(response?.message)
+    ?? getStringValue(response?.msg);
 }
 
 function extractAlibabaOperationCode(responseBody: unknown) {
   const response = isRecord(responseBody) ? responseBody : null;
-  const envelope = response && isRecord(response.result) ? response.result : response;
+  const respResult = response && isRecord(response.resp_result) ? response.resp_result as Record<string, unknown> : null;
+  const envelope = response && isRecord(response.result)
+    ? response.result as Record<string, unknown>
+    : respResult && isRecord(respResult.result)
+      ? respResult.result as Record<string, unknown>
+      : response;
 
   return getStringValue(envelope?.msg_code)
+    ?? getStringValue(envelope?.error_code)
+    ?? getStringValue(envelope?.code)
     ?? getStringValue(envelope?.response_code)
+    ?? getStringValue(respResult?.resp_code)
     ?? getStringValue(response?.code);
 }
 
@@ -3374,13 +3473,27 @@ function extractAlibabaTradeId(responseBody: unknown): string | undefined {
   const envelope = response && isRecord(response.result) ? response.result : response;
   const value = envelope && isRecord(envelope.value) ? envelope.value : response && isRecord(response.value) ? response.value : null;
   const data = envelope && isRecord(envelope.data) ? envelope.data : response && isRecord(response.data) ? response.data : null;
+  const orderList = envelope && isRecord(envelope.order_list)
+    ? envelope.order_list as Record<string, unknown>
+    : response && isRecord(response.order_list)
+      ? response.order_list as Record<string, unknown>
+      : null;
+  const orderNumbers = orderList
+    ? Array.isArray(orderList.number)
+      ? orderList.number
+      : Array.isArray(orderList.order_ids)
+        ? orderList.order_ids
+        : []
+    : [];
+  const firstOrderNumber = orderNumbers.find((entry) => typeof entry === "string" || typeof entry === "number");
 
   return getStringValue(envelope?.trade_id)
     ?? getStringValue(response?.trade_id)
     ?? getStringValue(data?.trade_id)
     ?? getStringValue(value?.trade_id)
     ?? getStringValue(value?.order_id)
-    ?? getStringValue(data?.order_id);
+    ?? getStringValue(data?.order_id)
+    ?? getStringValue(firstOrderNumber);
 }
 
 export async function createAlibabaIcbuProductListing(input: {
@@ -3403,28 +3516,52 @@ export async function createAlibabaIcbuProductListing(input: {
 
 export async function getAlibabaIcbuCategories(input?: {
   parentCategoryId?: string | number;
+  language?: string;
+  appSignature?: string;
 }) {
+  const credentials = await resolveAlibabaCredentialsForLiveCall();
+  if (isAliExpressCredentials(credentials)) {
+    return callAliExpressTopEndpoint("aliexpress.ds.category.get", {
+      ...(typeof input?.parentCategoryId !== "undefined" && input.parentCategoryId !== null && String(input.parentCategoryId).trim().length > 0
+        ? { categoryId: String(input.parentCategoryId) }
+        : {}),
+      language: input?.language ?? process.env.ALIEXPRESS_DEFAULT_LANGUAGE?.split("_")[0] ?? "en",
+      ...(String(input?.appSignature ?? "").trim() ? { app_signature: String(input?.appSignature).trim() } : {}),
+    }, {
+      credentials,
+      method: "GET",
+    });
+  }
+
   return callAlibabaEndpoint("/alibaba/icbu/category/get/v2", {
     ...(typeof input?.parentCategoryId !== "undefined" && input.parentCategoryId !== null && String(input.parentCategoryId).trim().length > 0
       ? { parent_category_id: String(input.parentCategoryId) }
       : {}),
   }, {
-    credentials: await resolveAlibabaCredentialsForLiveCall(),
+    credentials,
     method: "GET",
   });
 }
 
 export function normalizeAlibabaIcbuCategories(responseBody: unknown): AlibabaIcbuCategorySummary[] {
   const response = isRecord(responseBody) ? responseBody : null;
-  const entries = Array.isArray(response?.data) ? response.data : [];
+  const sellerPayload = getAliExpressSellerPayload(responseBody);
+  const entries = Array.isArray(response?.data)
+    ? response.data
+    : Array.isArray(sellerPayload?.categories)
+      ? sellerPayload.categories
+      : [];
 
   return entries.flatMap((entry) => {
     if (!isRecord(entry)) {
       return [] as AlibabaIcbuCategorySummary[];
     }
 
-    const categoryId = getStringValue(entry.category_id);
-    const categoryName = getStringValue(entry.category_name);
+    const categoryId = getStringValue(entry.category_id) ?? getStringValue(entry.id);
+    const categoryName = getStringValue(entry.category_name)
+      ?? getStringValue(entry.title)
+      ?? getStringValue(entry.name)
+      ?? getStringValue(entry.categoryName);
     if (!categoryId || !categoryName) {
       return [] as AlibabaIcbuCategorySummary[];
     }
@@ -3433,8 +3570,51 @@ export function normalizeAlibabaIcbuCategories(responseBody: unknown): AlibabaIc
       categoryId,
       categoryName,
       level: getNumberValue(entry.level),
-      leafCategory: isTruthyAlibabaFlag(entry.leaf_category),
+      leafCategory: typeof entry.isleaf !== "undefined"
+        ? isTruthyAlibabaFlag(entry.isleaf)
+        : isTruthyAlibabaFlag(entry.leaf_category),
     } satisfies AlibabaIcbuCategorySummary];
+  });
+}
+
+export async function queryAliExpressDsFreight(input: {
+  productId: string | number;
+  quantity: string | number;
+  shipToCountry: string;
+  selectedSkuId?: string | number;
+  provinceCode?: string;
+  cityCode?: string;
+  language?: string;
+  currency?: string;
+  locale?: string;
+}) {
+  if (!String(input.shipToCountry).trim()) {
+    throw new Error("ship_to_country est obligatoire pour interroger le fret AliExpress DS.");
+  }
+
+  if (!String(input.productId).trim()) {
+    throw new Error("product_id est obligatoire pour interroger le fret AliExpress DS.");
+  }
+
+  if (!String(input.quantity).trim()) {
+    throw new Error("quantity est obligatoire pour interroger le fret AliExpress DS.");
+  }
+
+  return callAliExpressTopEndpoint("aliexpress.ds.freight.query", {
+    queryDeliveryReq: JSON.stringify({
+      quantity: String(input.quantity).trim(),
+      shipToCountry: String(input.shipToCountry).trim().toUpperCase(),
+      productId: String(input.productId).trim(),
+      ...(String(input.selectedSkuId ?? "").trim() ? { selectedSkuId: String(input.selectedSkuId).trim() } : {}),
+      ...(String(input.provinceCode ?? "").trim() ? { provinceCode: String(input.provinceCode).trim() } : {}),
+      ...(String(input.cityCode ?? "").trim() ? { cityCode: String(input.cityCode).trim() } : {}),
+      language: input.language ?? process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "en_US",
+      currency: input.currency ?? process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD",
+      locale: input.locale ?? process.env.ALIEXPRESS_DEFAULT_LOCALE ?? process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "en_US",
+    }),
+  }, {
+    credentials: await resolveAlibabaCredentialsForLiveCall(),
+    method: "POST",
   });
 }
 
@@ -3487,6 +3667,21 @@ export async function calculateAlibabaBasicFreight(input: AlibabaBasicFreightInp
     throw new Error("quantity est obligatoire pour estimer le fret Alibaba.");
   }
 
+  const credentials = await resolveAlibabaCredentialsForLiveCall();
+  if (isAliExpressCredentials(credentials)) {
+    return queryAliExpressDsFreight({
+      productId: input.productId,
+      quantity: input.quantity,
+      shipToCountry: input.destinationCountry,
+      selectedSkuId: input.selectedSkuId,
+      provinceCode: input.provinceCode,
+      cityCode: input.cityCode,
+      language: input.language,
+      currency: input.currency,
+      locale: input.locale,
+    });
+  }
+
   return callAlibabaEndpoint("/shipping/freight/calculate", {
     destination_country: String(input.destinationCountry).trim().toUpperCase(),
     product_id: String(input.productId).trim(),
@@ -3497,21 +3692,42 @@ export async function calculateAlibabaBasicFreight(input: AlibabaBasicFreightInp
       ? { enable_distribution_waybill: input.enableDistributionWaybill }
       : {}),
   }, {
-    credentials: await resolveAlibabaCredentialsForLiveCall(),
+    credentials,
   });
 }
 
 export async function calculateAlibabaAdvancedFreight(input: AlibabaAdvancedFreightInput) {
-  if (!String(input.eCompanyId).trim()) {
-    throw new Error("e_company_id est obligatoire pour le calcul avance du fret Alibaba.");
-  }
-
   if (!String(input.destinationCountry).trim()) {
     throw new Error("destination_country est obligatoire pour le calcul avance du fret Alibaba.");
   }
 
   if (!Array.isArray(input.logisticsProductList) || input.logisticsProductList.length === 0) {
     throw new Error("logistics_product_list doit contenir au moins un produit.");
+  }
+
+  const credentials = await resolveAlibabaCredentialsForLiveCall();
+  if (isAliExpressCredentials(credentials)) {
+    const primaryItem = input.logisticsProductList[0];
+    if (input.logisticsProductList.length > 1) {
+      throw new Error("AliExpress DS freight.query ne gere qu'un produit par appel. Envoie un seul article pour le calcul de fret DS.");
+    }
+
+    const address = isRecord(input.address) ? input.address : null;
+    return queryAliExpressDsFreight({
+      productId: primaryItem.productId,
+      quantity: primaryItem.quantity,
+      selectedSkuId: primaryItem.skuId,
+      shipToCountry: input.destinationCountry,
+      provinceCode: input.provinceCode ?? getStringValue(address?.provinceCode) ?? getStringValue(address?.province_code),
+      cityCode: input.cityCode ?? getStringValue(address?.cityCode) ?? getStringValue(address?.city_code),
+      language: input.language,
+      currency: input.currency,
+      locale: input.locale,
+    });
+  }
+
+  if (!String(input.eCompanyId).trim()) {
+    throw new Error("e_company_id est obligatoire pour le calcul avance du fret Alibaba.");
   }
 
   return callAlibabaEndpoint("/order/freight/calculate", {
@@ -3528,12 +3744,37 @@ export async function calculateAlibabaAdvancedFreight(input: AlibabaAdvancedFrei
       ? { enable_distribution_waybill: input.enableDistributionWaybill }
       : {}),
   }, {
-    credentials: await resolveAlibabaCredentialsForLiveCall(),
+    credentials,
   });
 }
 
 export function normalizeAlibabaFreightOptions(responseBody: unknown): AlibabaFreightOption[] {
   const response = isRecord(responseBody) ? responseBody : null;
+  const sellerPayload = getAliExpressSellerPayload(responseBody);
+  const deliveryOptions = Array.isArray(sellerPayload?.delivery_options) ? sellerPayload.delivery_options : [];
+  if (deliveryOptions.length > 0) {
+    return deliveryOptions.flatMap((entry) => {
+      if (!isRecord(entry)) {
+        return [] as AlibabaFreightOption[];
+      }
+
+      return [{
+        destinationCountry: getStringValue(sellerPayload?.ship_to_country),
+        vendorCode: getStringValue(entry.code),
+        vendorName: getStringValue(entry.company),
+        shippingType: getStringValue(entry.code),
+        dispatchCountry: getStringValue(entry.ship_from_country),
+        deliveryTime: getStringValue(entry.delivery_date_desc)
+          ?? getStringValue(entry.estimated_delivery_time)
+          ?? (getStringValue(entry.min_delivery_days) || getStringValue(entry.max_delivery_days)
+            ? `${getStringValue(entry.min_delivery_days) ?? "?"}-${getStringValue(entry.max_delivery_days) ?? "?"} jours`
+            : undefined),
+        feeAmount: getNumberValue(entry.shipping_fee_cent, entry.shipping_fee),
+        feeCurrency: getStringValue(entry.shipping_fee_currency),
+      } satisfies AlibabaFreightOption];
+    });
+  }
+
   const entries = Array.isArray(response?.value) ? response.value : [];
 
   return entries.flatMap((entry) => {
@@ -3619,15 +3860,26 @@ export function normalizeAlibabaMergePayGroups(responseBody: unknown): AlibabaMe
   });
 }
 
-export async function queryAlibabaOrderLogisticsTracking(input: { tradeId: string | number }) {
+export async function queryAlibabaOrderLogisticsTracking(input: { tradeId: string | number; language?: string }) {
   if (!String(input.tradeId).trim()) {
     throw new Error("trade_id est obligatoire pour lire le suivi logistique Alibaba.");
+  }
+
+  const credentials = await resolveAlibabaCredentialsForLiveCall();
+  if (isAliExpressCredentials(credentials)) {
+    return callAliExpressTopEndpoint("aliexpress.ds.order.tracking.get", {
+      ae_order_id: String(input.tradeId).trim(),
+      language: input.language ?? process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "en_US",
+    }, {
+      credentials,
+      method: "POST",
+    });
   }
 
   return callAlibabaEndpoint("/order/logistics/tracking/get", {
     trade_id: String(input.tradeId).trim(),
   }, {
-    credentials: await resolveAlibabaCredentialsForLiveCall(),
+    credentials,
   });
 }
 
@@ -3665,6 +3917,38 @@ export async function uploadAlibabaOrderAttachment(input: {
 }
 
 export function normalizeAlibabaLogisticsTracking(responseBody: unknown): AlibabaLogisticsTracking[] {
+  const sellerPayload = getAliExpressSellerPayload(responseBody);
+  const trackingData = sellerPayload && isRecord(sellerPayload.data) ? sellerPayload.data : null;
+  const trackingLines = Array.isArray(trackingData?.tracking_detail_line_list)
+    ? trackingData.tracking_detail_line_list
+    : [];
+  if (trackingLines.length > 0) {
+    return trackingLines.flatMap((entry) => {
+      if (!isRecord(entry)) {
+        return [] as AlibabaLogisticsTracking[];
+      }
+
+      const detailNodes = Array.isArray(entry.detail_node_list) ? entry.detail_node_list : [];
+      return [{
+        carrier: getStringValue(entry.carrier_name),
+        trackingNumber: getStringValue(entry.mail_no),
+        currentEventCode: getStringValue(sellerPayload?.code),
+        eventList: detailNodes.flatMap((event) => {
+          if (!isRecord(event)) {
+            return [] as AlibabaLogisticsTrackingEvent[];
+          }
+
+          return [{
+            eventCode: getStringValue(event.tracking_name),
+            eventLocation: undefined,
+            eventName: getStringValue(event.tracking_detail_desc),
+            eventTime: getStringValue(event.time_stamp),
+          } satisfies AlibabaLogisticsTrackingEvent];
+        }),
+      } satisfies AlibabaLogisticsTracking];
+    });
+  }
+
   const response = isRecord(responseBody) ? responseBody : null;
   const entries = Array.isArray(response?.tracking_list) ? response.tracking_list : [];
 
@@ -3720,8 +4004,13 @@ export async function createAlibabaDropshippingPayment(input: {
       endpoint: "aliexpress.ds.order.create",
       requestBody: input.paymentRequest ?? { tradeId: input.tradeId },
       responseBody: {
-        provider: "aliexpress-ds",
-        message: "AliExpress DS utilise le lancement d'ordre ou l'auto-pay intégré, sans endpoint de paiement séparé dans ce flux.",
+        code: "0",
+        result: {
+          success: "true",
+          provider: "aliexpress-ds",
+          mode: "embedded_order_create_or_autopay",
+          message: "AliExpress DS utilise order.create avec try_to_pay ou l'auto-pay du compte, sans endpoint de paiement separe dans ce flux.",
+        },
       },
       status: 200,
     };

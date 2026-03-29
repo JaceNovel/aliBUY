@@ -15,6 +15,12 @@ export async function POST(request: Request) {
       quantity: body?.quantity,
       zipCode: body?.zipCode ?? body?.zip_code,
       dispatchLocation: body?.dispatchLocation ?? body?.dispatch_location,
+      selectedSkuId: body?.selectedSkuId ?? body?.selected_sku_id,
+      provinceCode: body?.provinceCode ?? body?.province_code,
+      cityCode: body?.cityCode ?? body?.city_code,
+      language: body?.language,
+      currency: body?.currency,
+      locale: body?.locale,
       enableDistributionWaybill: typeof body?.enableDistributionWaybill === "boolean"
         ? body.enableDistributionWaybill
         : typeof body?.enable_distribution_waybill === "boolean"

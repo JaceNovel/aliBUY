@@ -33,6 +33,11 @@ export async function POST(request: Request) {
       }),
       address: body?.address && typeof body.address === "object" ? body.address as Record<string, unknown> : undefined,
       dispatchLocation: body?.dispatchLocation ?? body?.dispatch_location,
+      provinceCode: body?.provinceCode ?? body?.province_code,
+      cityCode: body?.cityCode ?? body?.city_code,
+      language: body?.language,
+      currency: body?.currency,
+      locale: body?.locale,
       enableDistributionWaybill: typeof body?.enableDistributionWaybill === "boolean"
         ? body.enableDistributionWaybill
         : typeof body?.enable_distribution_waybill === "boolean"

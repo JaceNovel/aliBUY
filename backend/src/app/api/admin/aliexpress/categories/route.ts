@@ -10,7 +10,9 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const parentCategoryId = searchParams.get("parentCategoryId") ?? undefined;
-    const result = await getAlibabaIcbuCategories({ parentCategoryId });
+    const language = searchParams.get("language") ?? undefined;
+    const appSignature = searchParams.get("appSignature") ?? searchParams.get("app_signature") ?? undefined;
+    const result = await getAlibabaIcbuCategories({ parentCategoryId, language, appSignature });
 
     if (!result.ok || !isAlibabaOperationSuccessful(result.responseBody)) {
       return Response.json({
