@@ -414,6 +414,46 @@ function usesAliExpressSecurityTokenEndpoint(pathOrUrl: string, type: "token" | 
   }
 }
 
+function buildAliExpressOAuthEndpointVariant(pathOrUrl: string, targetPath: string) {
+  try {
+    const url = pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")
+      ? new URL(pathOrUrl)
+      : new URL(pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`, "https://api-sg.aliexpress.com");
+
+    url.pathname = targetPath.startsWith("/rest/") ? targetPath : `/rest${targetPath}`;
+    return pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")
+      ? url.toString()
+      : url.pathname;
+  } catch {
+    return pathOrUrl;
+  }
+}
+
+function getAliExpressOAuthEndpointCandidates(pathOrUrl: string, type: "token" | "refresh") {
+  const normalized = pathOrUrl.trim();
+  const currentIsSecurity = usesAliExpressSecurityTokenEndpoint(normalized, type);
+  const alternatePath = type === "token"
+    ? currentIsSecurity
+      ? "/auth/token/create"
+      : "/auth/token/security/create"
+    : currentIsSecurity
+      ? "/auth/token/refresh"
+      : "/auth/token/security/refresh";
+  const alternate = buildAliExpressOAuthEndpointVariant(normalized, alternatePath);
+
+  return alternate !== normalized ? [normalized, alternate] : [normalized];
+}
+
+function shouldTryAliExpressOAuthAlternateEndpoint(responseBody: unknown) {
+  const code = getAliExpressOAuthResponseCode(responseBody)?.trim().toUpperCase();
+  const message = getAliExpressOAuthResponseMessage(responseBody)?.trim().toLowerCase();
+
+  return code === "AUTH_TYPE_UNSUPPORTED"
+    || code === "INCOMPLETESIGNATURE"
+    || code === "ISV.402"
+    || message === "creation failed";
+}
+
 function encodeAlibabaOAuthState(input: { accountId: string; redirectUri: string }) {
   return `${encodeURIComponent(input.accountId)}|${encodeURIComponent(input.redirectUri)}`;
 }
@@ -2509,16 +2549,28 @@ async function refreshAlibabaAccountTokens(account: AlibabaSupplierAccount) {
     throw new Error("Aucun refresh token Alibaba disponible.");
   }
 
-  const result = await callAlibabaEndpoint(account.refreshUrl || credentials.refreshUrl, {
-    grant_type: "refresh_token",
-    refresh_token: credentials.refreshToken,
-  }, {
-    includeAccessToken: false,
-    credentials,
-  });
+  const refreshUrl = account.refreshUrl || credentials.refreshUrl;
+  let result: Awaited<ReturnType<typeof callAlibabaEndpoint>> | null = null;
 
-  if (!result.ok || !isAliExpressOAuthTokenResponseSuccessful(result.responseBody)) {
-    throw new Error(getAliExpressOAuthResponseMessage(result.responseBody) ?? "Refresh du token AliExpress impossible.");
+  for (const candidateUrl of getAliExpressOAuthEndpointCandidates(refreshUrl, "refresh")) {
+    result = await callAlibabaEndpoint(candidateUrl, {
+      refresh_token: credentials.refreshToken,
+    }, {
+      includeAccessToken: false,
+      credentials,
+    });
+
+    if (result.ok && isAliExpressOAuthTokenResponseSuccessful(result.responseBody)) {
+      break;
+    }
+
+    if (!shouldTryAliExpressOAuthAlternateEndpoint(result.responseBody) || candidateUrl === getAliExpressOAuthEndpointCandidates(refreshUrl, "refresh").at(-1)) {
+      throw new Error(getAliExpressOAuthResponseMessage(result.responseBody) ?? "Refresh du token AliExpress impossible.");
+    }
+  }
+
+  if (!result || !result.ok || !isAliExpressOAuthTokenResponseSuccessful(result.responseBody)) {
+    throw new Error(result ? (getAliExpressOAuthResponseMessage(result.responseBody) ?? "Refresh du token AliExpress impossible.") : "Refresh du token AliExpress impossible.");
   }
 
   const body = getAliExpressOAuthResponseBody(result.responseBody) as {
@@ -3616,27 +3668,35 @@ export async function exchangeAlibabaOAuthCode(input: { accountId: string; code:
   }
 
   const tokenUrl = account.tokenUrl || credentials.tokenUrl;
-  const tokenPayload: Record<string, string> = {
-    code: input.code,
-    grant_type: "authorization_code",
-  };
-
-  if (input.redirectUri?.trim()) {
-    tokenPayload.redirect_uri = input.redirectUri.trim();
-  }
-
-  if (usesAliExpressSecurityTokenEndpoint(tokenUrl, "token")) {
-    tokenPayload.uuid = randomUUID();
-  }
 
   try {
-    const result = await callAlibabaEndpoint(tokenUrl, tokenPayload, {
-      includeAccessToken: false,
-      credentials,
-    });
+    let result: Awaited<ReturnType<typeof callAlibabaEndpoint>> | null = null;
 
-    if (!result.ok || !isAliExpressOAuthTokenResponseSuccessful(result.responseBody)) {
-      throw new Error(getAliExpressOAuthResponseMessage(result.responseBody) ?? "Generation du token d'acces AliExpress impossible.");
+    for (const candidateUrl of getAliExpressOAuthEndpointCandidates(tokenUrl, "token")) {
+      const tokenPayload: Record<string, string> = {
+        code: input.code,
+      };
+
+      if (usesAliExpressSecurityTokenEndpoint(candidateUrl, "token")) {
+        tokenPayload.uuid = randomUUID();
+      }
+
+      result = await callAlibabaEndpoint(candidateUrl, tokenPayload, {
+        includeAccessToken: false,
+        credentials,
+      });
+
+      if (result.ok && isAliExpressOAuthTokenResponseSuccessful(result.responseBody)) {
+        break;
+      }
+
+      if (!shouldTryAliExpressOAuthAlternateEndpoint(result.responseBody) || candidateUrl === getAliExpressOAuthEndpointCandidates(tokenUrl, "token").at(-1)) {
+        throw new Error(getAliExpressOAuthResponseMessage(result.responseBody) ?? "Generation du token d'acces AliExpress impossible.");
+      }
+    }
+
+    if (!result || !result.ok || !isAliExpressOAuthTokenResponseSuccessful(result.responseBody)) {
+      throw new Error(result ? (getAliExpressOAuthResponseMessage(result.responseBody) ?? "Generation du token d'acces AliExpress impossible.") : "Generation du token d'acces AliExpress impossible.");
     }
 
     const body = getAliExpressOAuthResponseBody(result.responseBody) as {

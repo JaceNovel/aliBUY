@@ -86,12 +86,20 @@ function normalizeAliExpressOAuthUrl(value: string | undefined, type: "authorize
       return url.toString();
     }
 
-    const targetPath = type === "token" ? "/rest/auth/token/security/create" : "/rest/auth/token/security/refresh";
-    if (url.pathname === "/auth/token/security/create" || url.pathname === "/auth/token/create" || url.pathname === "/rest/auth/token/create") {
-      url.pathname = type === "token" ? targetPath : url.pathname;
+    if (type === "token") {
+      if (url.pathname === "/auth/token/security/create" || url.pathname === "/rest/auth/token/security/create") {
+        url.pathname = "/rest/auth/token/security/create";
+      } else if (url.pathname === "/auth/token/create" || url.pathname === "/rest/auth/token/create") {
+        url.pathname = "/rest/auth/token/create";
+      }
     }
-    if (url.pathname === "/auth/token/security/refresh" || url.pathname === "/auth/token/refresh" || url.pathname === "/rest/auth/token/refresh") {
-      url.pathname = type === "refresh" ? targetPath : url.pathname;
+
+    if (type === "refresh") {
+      if (url.pathname === "/auth/token/security/refresh" || url.pathname === "/rest/auth/token/security/refresh") {
+        url.pathname = "/rest/auth/token/security/refresh";
+      } else if (url.pathname === "/auth/token/refresh" || url.pathname === "/rest/auth/token/refresh") {
+        url.pathname = "/rest/auth/token/refresh";
+      }
     }
 
     return url.toString();
