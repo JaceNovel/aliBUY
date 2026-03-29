@@ -414,6 +414,33 @@ function usesAliExpressSecurityTokenEndpoint(pathOrUrl: string, type: "token" | 
   }
 }
 
+function encodeAlibabaOAuthState(input: { accountId: string; redirectUri: string }) {
+  return `${encodeURIComponent(input.accountId)}|${encodeURIComponent(input.redirectUri)}`;
+}
+
+export function decodeAlibabaOAuthState(state?: string | null) {
+  if (!state) {
+    return null;
+  }
+
+  const [encodedAccountId, ...encodedRedirectUriParts] = state.split("|");
+  if (!encodedAccountId) {
+    return null;
+  }
+
+  try {
+    return {
+      accountId: decodeURIComponent(encodedAccountId),
+      redirectUri: encodedRedirectUriParts.length > 0 ? decodeURIComponent(encodedRedirectUriParts.join("|")) : undefined,
+    };
+  } catch {
+    return {
+      accountId: state,
+      redirectUri: undefined,
+    };
+  }
+}
+
 function extractAliExpressSearchItems(payload: unknown) {
   if (!isRecord(payload)) {
     return [] as Array<Record<string, unknown>>;
@@ -2483,6 +2510,7 @@ async function refreshAlibabaAccountTokens(account: AlibabaSupplierAccount) {
   }
 
   const result = await callAlibabaEndpoint(account.refreshUrl || credentials.refreshUrl, {
+    grant_type: "refresh_token",
     refresh_token: credentials.refreshToken,
   }, {
     includeAccessToken: false,
@@ -3567,7 +3595,10 @@ export async function buildAlibabaAuthorizationUrl(input: {
   authorizeUrl.searchParams.set("response_type", "code");
   authorizeUrl.searchParams.set("client_id", input.account.appKey);
   authorizeUrl.searchParams.set("redirect_uri", input.redirectUri);
-  authorizeUrl.searchParams.set("state", input.account.id);
+  authorizeUrl.searchParams.set("state", encodeAlibabaOAuthState({
+    accountId: input.account.id,
+    redirectUri: input.redirectUri,
+  }));
   if (isAliExpressAccount(input.account)) {
     authorizeUrl.searchParams.set("force_auth", "true");
   }
@@ -3575,7 +3606,7 @@ export async function buildAlibabaAuthorizationUrl(input: {
   return authorizeUrl.toString();
 }
 
-export async function exchangeAlibabaOAuthCode(input: { accountId: string; code: string }) {
+export async function exchangeAlibabaOAuthCode(input: { accountId: string; code: string; redirectUri?: string }) {
   const accounts = await getAlibabaSupplierAccounts();
   const account = accounts.find((entry) => entry.id === input.accountId);
   const credentials = getAccountCredentials(account);
@@ -3587,67 +3618,85 @@ export async function exchangeAlibabaOAuthCode(input: { accountId: string; code:
   const tokenUrl = account.tokenUrl || credentials.tokenUrl;
   const tokenPayload: Record<string, string> = {
     code: input.code,
+    grant_type: "authorization_code",
   };
+
+  if (input.redirectUri?.trim()) {
+    tokenPayload.redirect_uri = input.redirectUri.trim();
+  }
 
   if (usesAliExpressSecurityTokenEndpoint(tokenUrl, "token")) {
     tokenPayload.uuid = randomUUID();
   }
 
-  const result = await callAlibabaEndpoint(tokenUrl, tokenPayload, {
-    includeAccessToken: false,
-    credentials,
-  });
+  try {
+    const result = await callAlibabaEndpoint(tokenUrl, tokenPayload, {
+      includeAccessToken: false,
+      credentials,
+    });
 
-  if (!result.ok || !isAliExpressOAuthTokenResponseSuccessful(result.responseBody)) {
-    throw new Error(getAliExpressOAuthResponseMessage(result.responseBody) ?? "Generation du token d'acces AliExpress impossible.");
+    if (!result.ok || !isAliExpressOAuthTokenResponseSuccessful(result.responseBody)) {
+      throw new Error(getAliExpressOAuthResponseMessage(result.responseBody) ?? "Generation du token d'acces AliExpress impossible.");
+    }
+
+    const body = getAliExpressOAuthResponseBody(result.responseBody) as {
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?: string | number;
+      refresh_expires_in?: string | number;
+      country?: string;
+      locale?: string;
+      account_id?: string;
+      account?: string;
+      havana_id?: string;
+      seller_id?: string;
+      user_id?: string;
+      user_nick?: string;
+      user_info?: { loginId?: string; seller_id?: string; user_id?: string };
+    };
+
+    const nextAccount: AlibabaSupplierAccount = {
+      ...account,
+      accessToken: body.access_token,
+      refreshToken: body.refresh_token,
+      accessTokenExpiresAt: body.expires_in ? new Date(Date.now() + Number(body.expires_in) * 1000).toISOString() : account.accessTokenExpiresAt,
+      refreshTokenExpiresAt: body.refresh_expires_in ? new Date(Date.now() + Number(body.refresh_expires_in) * 1000).toISOString() : account.refreshTokenExpiresAt,
+      oauthCountry: body.country ?? body.locale ?? account.oauthCountry,
+      accountId: body.account_id ?? body.user_id ?? body.havana_id ?? account.accountId,
+      accountLogin: body.account ?? body.user_nick ?? body.user_info?.loginId ?? account.accountLogin,
+      accountName: body.user_nick ?? body.user_info?.loginId ?? account.accountName,
+      memberId: body.seller_id ?? body.user_id ?? body.user_info?.seller_id ?? body.user_info?.user_id ?? account.memberId,
+      status: "connected",
+      isActive: true,
+      lastAuthorizedAt: new Date().toISOString(),
+      lastError: undefined,
+      accessTokenHint: body.access_token ? `${body.access_token.slice(0, 10)}...` : account.accessTokenHint,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await Promise.all(accounts.filter((entry) => entry.id !== nextAccount.id && entry.isActive).map((entry) => saveAlibabaSupplierAccount({
+      ...entry,
+      isActive: false,
+      updatedAt: nextAccount.updatedAt,
+    })));
+    await saveAlibabaSupplierAccount(nextAccount);
+
+    return {
+      account: nextAccount,
+      responseBody: result.responseBody,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Generation du token d'acces AliExpress impossible.";
+
+    await saveAlibabaSupplierAccount({
+      ...account,
+      status: "needs_auth",
+      lastError: message,
+      updatedAt: new Date().toISOString(),
+    });
+
+    throw error;
   }
-
-  const body = getAliExpressOAuthResponseBody(result.responseBody) as {
-    access_token?: string;
-    refresh_token?: string;
-    expires_in?: string | number;
-    refresh_expires_in?: string | number;
-    country?: string;
-    locale?: string;
-    account_id?: string;
-    account?: string;
-    havana_id?: string;
-    seller_id?: string;
-    user_id?: string;
-    user_nick?: string;
-    user_info?: { loginId?: string; seller_id?: string; user_id?: string };
-  };
-
-  const nextAccount: AlibabaSupplierAccount = {
-    ...account,
-    accessToken: body.access_token,
-    refreshToken: body.refresh_token,
-    accessTokenExpiresAt: body.expires_in ? new Date(Date.now() + Number(body.expires_in) * 1000).toISOString() : account.accessTokenExpiresAt,
-    refreshTokenExpiresAt: body.refresh_expires_in ? new Date(Date.now() + Number(body.refresh_expires_in) * 1000).toISOString() : account.refreshTokenExpiresAt,
-    oauthCountry: body.country ?? body.locale ?? account.oauthCountry,
-    accountId: body.account_id ?? body.user_id ?? body.havana_id ?? account.accountId,
-    accountLogin: body.account ?? body.user_nick ?? body.user_info?.loginId ?? account.accountLogin,
-    accountName: body.user_nick ?? body.user_info?.loginId ?? account.accountName,
-    memberId: body.seller_id ?? body.user_id ?? body.user_info?.seller_id ?? body.user_info?.user_id ?? account.memberId,
-    status: "connected",
-    isActive: true,
-    lastAuthorizedAt: new Date().toISOString(),
-    lastError: undefined,
-    accessTokenHint: body.access_token ? `${body.access_token.slice(0, 10)}...` : account.accessTokenHint,
-    updatedAt: new Date().toISOString(),
-  };
-
-  await Promise.all(accounts.filter((entry) => entry.id !== nextAccount.id && entry.isActive).map((entry) => saveAlibabaSupplierAccount({
-    ...entry,
-    isActive: false,
-    updatedAt: nextAccount.updatedAt,
-  })));
-  await saveAlibabaSupplierAccount(nextAccount);
-
-  return {
-    account: nextAccount,
-    responseBody: result.responseBody,
-  };
 }
 
 export async function refreshAlibabaOAuthAccessToken(input?: { accountId?: string }) {

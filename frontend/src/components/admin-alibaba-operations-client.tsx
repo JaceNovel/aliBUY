@@ -81,6 +81,22 @@ function getSupplierAccountStatusMeta(status: AlibabaSupplierAccount["status"]) 
   };
 }
 
+function getOauthFeedback(status?: string | null, message?: string | null) {
+  if (status === "success") {
+    return "Connexion AliExpress terminee. Le compte est pret si le jeton a bien ete recu.";
+  }
+
+  if (status === "missing_params") {
+    return "Retour OAuth AliExpress incomplet. Relance la connexion depuis le bouton Connecter.";
+  }
+
+  if (status === "failed") {
+    return message ? `Connexion AliExpress echouee: ${message}` : "Connexion AliExpress echouee pendant l'echange du code OAuth.";
+  }
+
+  return null;
+}
+
 function formatImportedPrice(product: AlibabaImportedProduct) {
   return formatTierAwarePrice((amountUsd) => `$${amountUsd.toFixed(2)}`, product);
 }
@@ -168,6 +184,8 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   );
   const selectedSupplierAccountStatusMeta = selectedSupplierAccount ? getSupplierAccountStatusMeta(selectedSupplierAccount.status) : null;
   const hasOauthCredentials = Boolean(accountForm.appKey.trim()) && (Boolean(accountForm.appSecret.trim()) || Boolean(editingSupplierAccount?.hasAppSecret));
+  const oauthStatus = useMemo(() => searchParams.get("oauth"), [searchParams]);
+  const oauthMessage = useMemo(() => searchParams.get("message"), [searchParams]);
   const seededQuery = useMemo(
     () => initialDashboard.panel === "import-catalog"
       ? (searchParams.get("q") ?? searchParams.get("seedQuery") ?? "").trim()
@@ -182,9 +200,11 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     () => importForm.query.trim() || !seededQuery ? importForm : { ...importForm, query: seededQuery },
     [importForm, seededQuery],
   );
-  const activeFeedback = feedback ?? (seededSource === "image-search" && seededQuery
-    ? "Recherche image liee a l'import IA AliExpress. Verifie la requete puis lance l'import."
-    : null);
+  const activeFeedback = feedback
+    ?? getOauthFeedback(oauthStatus, oauthMessage)
+    ?? (seededSource === "image-search" && seededQuery
+      ? "Recherche image liee a l'import IA AliExpress. Verifie la requete puis lance l'import."
+      : null);
 
   const refresh = () => {
     startTransition(() => {
@@ -781,7 +801,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                     <div>
                       <div className="text-[15px] font-semibold text-[#1f2937]">{account.name}</div>
                       <div className="mt-1 text-[13px] text-[#667085]">{account.email} · {account.accountPlatform} · {account.countryCode}</div>
-                      <div className="mt-1 text-[12px] text-[#98a2b3]">{account.accountLogin ?? "connexion AliExpress a finaliser"} · {account.hasAccessToken ? "acces actif" : "acces a autoriser"} · {account.hasRefreshToken ? "renouvellement actif" : "renouvellement en attente"}</div>
+                      <div className="mt-1 text-[12px] text-[#98a2b3]">{account.accountLogin ?? "Connexion AliExpress a finaliser"} · {account.hasAccessToken ? "session active" : "session non finalisee"}{account.lastError ? ` · ${account.lastError}` : ""}</div>
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2">
                       {account.isActive ? <div className="rounded-full bg-[#eef4ff] px-3 py-1 text-[12px] font-semibold text-[#2f67f6]">Selectionne</div> : null}

@@ -1,4 +1,4 @@
-import { exchangeAlibabaOAuthCode } from "@/lib/alibaba-open-platform-client";
+import { decodeAlibabaOAuthState, exchangeAlibabaOAuthCode } from "@/lib/alibaba-open-platform-client";
 import { env } from "@/lib/env";
 
 function resolveAdminSiteOrigin(url: URL) {
@@ -18,7 +18,8 @@ function resolveAdminSiteOrigin(url: URL) {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  const accountId = url.searchParams.get("state") ?? url.searchParams.get("accountId");
+  const oauthState = decodeAlibabaOAuthState(url.searchParams.get("state"));
+  const accountId = oauthState?.accountId ?? url.searchParams.get("accountId") ?? url.searchParams.get("state");
   const siteOrigin = resolveAdminSiteOrigin(url);
   const adminUrl = new URL("/admin/aliexpress-sourcing/accounts", siteOrigin);
 
@@ -28,7 +29,11 @@ export async function GET(request: Request) {
   }
 
   try {
-    await exchangeAlibabaOAuthCode({ accountId, code });
+    await exchangeAlibabaOAuthCode({
+      accountId,
+      code,
+      redirectUri: oauthState?.redirectUri,
+    });
     adminUrl.searchParams.set("oauth", "success");
     return Response.redirect(adminUrl, 302);
   } catch (error) {
