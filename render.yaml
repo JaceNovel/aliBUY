@@ -45,9 +45,9 @@ services:
       - key: ALIEXPRESS_OAUTH_AUTHORIZE_URL
         value: https://api-sg.aliexpress.com/oauth/authorize
       - key: ALIEXPRESS_OAUTH_TOKEN_URL
-        value: https://api-sg.aliexpress.com/rest/auth/token/create
+        value: https://api-sg.aliexpress.com/rest/auth/token/security/create
       - key: ALIEXPRESS_OAUTH_REFRESH_URL
-        value: https://api-sg.aliexpress.com/rest/auth/token/refresh
+        value: https://api-sg.aliexpress.com/rest/auth/token/security/refresh
       - key: ALIEXPRESS_MARGIN_RATE
         value: "0.10"
       - key: ALIEXPRESS_TARGET_CURRENCY

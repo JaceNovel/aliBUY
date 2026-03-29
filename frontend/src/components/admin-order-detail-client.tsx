@@ -273,7 +273,7 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
           ) : null}
           {!canLaunchSupplierPayment && payUrls.length > 0 ? (
             <Link href={payUrls[0]} target="_blank" className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] border border-[#ffd6bf] bg-[#fff6f0] px-5 text-[14px] font-semibold text-[#d85300] transition hover:opacity-80">
-              Ouvrir le pay_url
+              Ouvrir le lien de paiement
               <ExternalLink className="h-4 w-4" />
             </Link>
           ) : null}
@@ -285,7 +285,7 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
             {canLaunchSupplierPayment
               ? "Aucune automatisation AliExpress n'a encore été lancée pour cette commande. Utilisez le bouton ci-dessus pour créer la demande fournisseur et démarrer le suivi automatique."
               : payUrls.length > 0
-                ? "La demande fournisseur a déjà produit un pay_url manuel. Ouvrez-le ci-dessus pour reprendre le paiement AliExpress."
+                ? "La demande fournisseur a déjà produit un lien de paiement manuel. Ouvrez-le ci-dessus pour reprendre le paiement AliExpress."
                 : "Aucun état automatique AliExpress enregistré pour cette commande pour le moment."}
           </div>
         ) : (
@@ -299,7 +299,7 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
                   </div>
                   {trade.payUrl ? (
                     <Link href={trade.payUrl} target="_blank" className="inline-flex items-center gap-1 text-[13px] font-semibold text-[#ff6a5b] transition hover:opacity-80">
-                      Ouvrir pay_url
+                      Ouvrir le lien de paiement
                       <ExternalLink className="h-3.5 w-3.5" />
                     </Link>
                   ) : null}
@@ -315,7 +315,7 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
                   <div className="rounded-[14px] bg-white px-3 py-3 ring-1 ring-[#edf1f6]">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Dernière vérification</div>
                     <div className="mt-1 text-[14px] font-semibold text-[#1f2937]">{trade.paymentResultCheckedAt ? new Date(trade.paymentResultCheckedAt).toLocaleString("fr-FR") : "Pas encore"}</div>
-                    <div className="mt-1 text-[12px] leading-5 text-[#667085]">Trigger: {alibabaAutomation.lastTrigger || "n/a"}</div>
+                    <div className="mt-1 text-[12px] leading-5 text-[#667085]">Déclencheur: {alibabaAutomation.lastTrigger || "n/a"}</div>
                   </div>
                   <div className="rounded-[14px] bg-white px-3 py-3 ring-1 ring-[#edf1f6]">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Tracking</div>

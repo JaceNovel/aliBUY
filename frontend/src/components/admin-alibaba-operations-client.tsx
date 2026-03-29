@@ -56,8 +56,8 @@ const panelLinks: Array<{ key: AlibabaPanelSlug; label: string; href: string }> 
 ];
 
 const ALIEXPRESS_DEFAULT_AUTHORIZE_URL = "https://api-sg.aliexpress.com/oauth/authorize";
-const ALIEXPRESS_DEFAULT_TOKEN_URL = "https://api-sg.aliexpress.com/rest/auth/token/create";
-const ALIEXPRESS_DEFAULT_REFRESH_URL = "https://api-sg.aliexpress.com/rest/auth/token/refresh";
+const ALIEXPRESS_DEFAULT_TOKEN_URL = "https://api-sg.aliexpress.com/rest/auth/token/security/create";
+const ALIEXPRESS_DEFAULT_REFRESH_URL = "https://api-sg.aliexpress.com/rest/auth/token/security/refresh";
 const ALIEXPRESS_DEFAULT_API_BASE_URL = "https://api-sg.aliexpress.com";
 
 function formatImportedPrice(product: AlibabaImportedProduct) {
@@ -240,7 +240,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     setFeedback(
       payUrl
         ? "Lot fournisseur lance. Ouvre maintenant le lien de paiement si AliExpress en a renvoye un."
-        : "Lot fournisseur cree en brouillon ou lance sans pay_url. Utilise Actualiser pour relire le statut.",
+        : "Lot fournisseur cree en brouillon ou lance sans lien de paiement. Utilise Actualiser pour relire le statut.",
     );
     refresh();
   };
@@ -484,7 +484,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       <section className="rounded-[24px] border border-[#e6eaf0] bg-[linear-gradient(135deg,#fff5ef_0%,#ffffff_45%,#eef5ff_100%)] px-5 py-6 shadow-[0_8px_22px_rgba(17,24,39,0.05)] sm:px-7">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-[980px]">
-            <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a3d]">AliExpress DS automation</div>
+            <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a3d]">Automatisation vendeur AliExpress</div>
             <h1 className="mt-2 text-[32px] font-black tracking-[-0.05em] text-[#1f2937]">Import catalogue, lots d&apos;achat et commandes AliExpress</h1>
             <p className="mt-3 text-[14px] leading-7 text-[#667085]">
               Recherche DS par mot-clé, récupération des attributs/SKU, marge 10%, publication catalogue site, création des lots internes puis lancement manuel
@@ -714,7 +714,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
         <section className="grid gap-4 xl:grid-cols-[0.86fr_1.14fr]">
           <article className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
             <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Compte AliExpress</div>
-            <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Liaison buyer / seller / ISV</div>
+            <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Autorisation seller / buyer / ISV</div>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">Nom<input value={accountForm.name} onChange={(event) => setAccountForm((current) => ({ ...current, name: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
               <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">Email<input value={accountForm.email} onChange={(event) => setAccountForm((current) => ({ ...current, email: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
@@ -722,10 +722,10 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
               <label className="text-[13px] font-semibold text-[#344054]">Resource owner<input value={accountForm.resourceOwner} onChange={(event) => setAccountForm((current) => ({ ...current, resourceOwner: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
               <label className="text-[13px] font-semibold text-[#344054]">App Key<input value={accountForm.appKey} onChange={(event) => setAccountForm((current) => ({ ...current, appKey: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
               <label className="text-[13px] font-semibold text-[#344054]">App Secret<input value={accountForm.appSecret} onChange={(event) => setAccountForm((current) => ({ ...current, appSecret: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
-              <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">Authorize URL<input value={accountForm.authorizeUrl} onChange={(event) => setAccountForm((current) => ({ ...current, authorizeUrl: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
-              <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">Token URL<input value={accountForm.tokenUrl} onChange={(event) => setAccountForm((current) => ({ ...current, tokenUrl: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
-              <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">Refresh URL<input value={accountForm.refreshUrl} onChange={(event) => setAccountForm((current) => ({ ...current, refreshUrl: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
-              <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">API Base URL<input value={accountForm.apiBaseUrl} onChange={(event) => setAccountForm((current) => ({ ...current, apiBaseUrl: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
+              <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">URL d'autorisation<input value={accountForm.authorizeUrl} onChange={(event) => setAccountForm((current) => ({ ...current, authorizeUrl: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
+              <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">URL du token<input value={accountForm.tokenUrl} onChange={(event) => setAccountForm((current) => ({ ...current, tokenUrl: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
+              <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">URL de rafraîchissement<input value={accountForm.refreshUrl} onChange={(event) => setAccountForm((current) => ({ ...current, refreshUrl: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
+              <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">URL racine API<input value={accountForm.apiBaseUrl} onChange={(event) => setAccountForm((current) => ({ ...current, apiBaseUrl: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
               <label className="text-[13px] font-semibold text-[#344054]">Plateforme<select value={accountForm.accountPlatform} onChange={(event) => setAccountForm((current) => ({ ...current, accountPlatform: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]"><option value="buyer">Buyer</option><option value="seller">Seller</option><option value="isv">ISV</option></select></label>
               <label className="text-[13px] font-semibold text-[#344054]">Statut<select value={accountForm.status} onChange={(event) => setAccountForm((current) => ({ ...current, status: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]"><option value="needs_auth">A autoriser</option><option value="connected">Connecte</option><option value="disabled">Desactive</option></select></label>
               <label className="text-[13px] font-semibold text-[#344054]">Pays<input value={accountForm.countryCode} onChange={(event) => setAccountForm((current) => ({ ...current, countryCode: event.target.value.toUpperCase() }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
@@ -742,7 +742,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
             </div>
             <div className="mt-3 text-[12px] leading-5 text-[#667085]">
               {hasOauthCredentials
-                ? "Le bouton OAuth est pret. Un clic ouvre la page AliExpress d'autorisation."
+                ? "Le bouton OAuth est pret. Un clic ouvre la page de connexion vendeur AliExpress puis la demande d'autorisation."
                 : editingSupplierAccount?.hasAppSecret
                   ? "Ajoutez l'App Key du compte puis cliquez sur Autoriser OAuth. Le secret deja enregistre sera reutilise."
                   : "Renseignez App Key et App Secret pour ouvrir la page OAuth AliExpress."}

@@ -86,7 +86,7 @@ function normalizeAliExpressOAuthUrl(value: string | undefined, type: "authorize
       return url.toString();
     }
 
-    const targetPath = type === "token" ? "/rest/auth/token/create" : "/rest/auth/token/refresh";
+    const targetPath = type === "token" ? "/rest/auth/token/security/create" : "/rest/auth/token/security/refresh";
     if (url.pathname === "/auth/token/security/create" || url.pathname === "/auth/token/create" || url.pathname === "/rest/auth/token/create") {
       url.pathname = type === "token" ? targetPath : url.pathname;
     }
@@ -135,7 +135,7 @@ export async function upsertAlibabaSupplierAccountTokens(input: {
   const accounts = await getAlibabaSupplierAccounts();
   const existing = accounts.find((account) => account.id === input.accountId);
   if (!existing) {
-    throw new Error("Compte fournisseur Alibaba introuvable.");
+    throw new Error("Compte fournisseur AliExpress introuvable.");
   }
 
   const nextAccount: AlibabaSupplierAccount = {
@@ -309,7 +309,15 @@ export async function runAlibabaCatalogImport(input: {
 
     const uniqueSearchProducts = searchResult.products.filter((product, index, products) => products.findIndex((entry) => entry.sourceProductId === product.sourceProductId) === index);
     const productsWithRequiredData = uniqueSearchProducts.filter((product) => product.priceVerified && product.moqVerified && product.weightVerified && product.itemWeightGrams > 0);
-    const freshProducts = productsWithRequiredData.filter((product) => !existingSourceProductIds.has(product.sourceProductId)).slice(0, job.limit);
+    const fallbackEligibleProducts = uniqueSearchProducts.filter((product) => {
+      if (productsWithRequiredData.some((entry) => entry.sourceProductId === product.sourceProductId)) {
+        return false;
+      }
+
+      return product.priceVerified && product.minUsd > 0 && typeof product.image === "string" && product.image.length > 0;
+    });
+    const importCandidates = productsWithRequiredData.length > 0 ? productsWithRequiredData : fallbackEligibleProducts;
+    const freshProducts = importCandidates.filter((product) => !existingSourceProductIds.has(product.sourceProductId)).slice(0, job.limit);
     const rejectedReasonCounts = uniqueSearchProducts.reduce((counts, product) => {
       if (!product.priceVerified) {
         counts.price += 1;
@@ -324,7 +332,11 @@ export async function runAlibabaCatalogImport(input: {
       }
 
       return counts;
-    }, { price: 0, moq: 0, weight: 0 });
+    }, { price: 0, moq: 0, weight: 0, fallback: 0 });
+
+    fallbackEligibleProducts.forEach(() => {
+      rejectedReasonCounts.fallback += 1;
+    });
 
     const importedProducts = await Promise.all(freshProducts.map(async (product) => {
       const liveCategoryInfo = await resolveAlibabaIcbuCategoryInfo({
@@ -356,15 +368,15 @@ export async function runAlibabaCatalogImport(input: {
       };
     }));
 
-    const skippedMissingRequiredDataCount = uniqueSearchProducts.length - productsWithRequiredData.length;
-    const skippedExistingCount = Math.max(0, productsWithRequiredData.length - freshProducts.length);
+    const skippedMissingRequiredDataCount = Math.max(0, uniqueSearchProducts.length - importCandidates.length);
+    const skippedExistingCount = Math.max(0, importCandidates.length - freshProducts.length);
 
     if (importedProducts.length > 0) {
       await saveAlibabaImportedProducts(importedProducts);
     }
 
     const warningMessage = importedProducts.length < job.limit
-      ? `Import partiel: ${importedProducts.length}/${job.limit} importes.${skippedMissingRequiredDataCount > 0 ? ` Rejets donnees fournisseur: ${skippedMissingRequiredDataCount}.` : ""}${rejectedReasonCounts.price > 0 ? ` Prix incoherent: ${rejectedReasonCounts.price}.` : ""}${rejectedReasonCounts.moq > 0 ? ` MOQ non verifie: ${rejectedReasonCounts.moq}.` : ""}${rejectedReasonCounts.weight > 0 ? ` Poids non exploitable: ${rejectedReasonCounts.weight}.` : ""}${skippedExistingCount > 0 ? ` Deja importes ignores: ${skippedExistingCount}.` : ""}`
+      ? `Import partiel: ${importedProducts.length}/${job.limit} importes.${productsWithRequiredData.length === 0 && fallbackEligibleProducts.length > 0 ? ` Mode secours AliExpress utilise: ${Math.min(fallbackEligibleProducts.length, job.limit)} fiche(s).` : ""}${skippedMissingRequiredDataCount > 0 ? ` Rejets donnees fournisseur: ${skippedMissingRequiredDataCount}.` : ""}${rejectedReasonCounts.price > 0 ? ` Prix incoherent: ${rejectedReasonCounts.price}.` : ""}${rejectedReasonCounts.moq > 0 ? ` MOQ non verifie: ${rejectedReasonCounts.moq}.` : ""}${rejectedReasonCounts.weight > 0 ? ` Poids non exploitable: ${rejectedReasonCounts.weight}.` : ""}${skippedExistingCount > 0 ? ` Deja importes ignores: ${skippedExistingCount}.` : ""}`
       : undefined;
 
     const completedJob: AlibabaImportJob = {
@@ -387,7 +399,7 @@ export async function runAlibabaCatalogImport(input: {
         skippedExistingCount,
         skippedMissingRequiredDataCount,
         rejectedReasonCounts,
-        fallback: false,
+        fallback: productsWithRequiredData.length === 0 && fallbackEligibleProducts.length > 0,
         warningMessage,
       },
     });
@@ -395,7 +407,7 @@ export async function runAlibabaCatalogImport(input: {
     return {
       job: completedJob,
       products: importedProducts,
-      usedFallback: false,
+      usedFallback: productsWithRequiredData.length === 0 && fallbackEligibleProducts.length > 0,
       targetImportCount: job.limit,
       exploredCount: uniqueSearchProducts.length,
       skippedExistingCount,
@@ -836,7 +848,7 @@ export async function payAlibabaPurchaseOrder(orderId: string) {
     ...order,
     paymentStatus: paymentResult.ok ? (payUrl ? "pay_url_generated" : "pending") : "failed",
     payUrl,
-    payFailureReason: paymentResult.ok ? undefined : paymentObject?.value?.reason_message ?? paymentObject?.reason_message ?? "Paiement Alibaba echoue",
+    payFailureReason: paymentResult.ok ? undefined : paymentObject?.value?.reason_message ?? paymentObject?.reason_message ?? "Paiement AliExpress echoue",
     rawPaymentResponse: paymentResult.responseBody,
     updatedAt: nowIso(),
   };
@@ -848,7 +860,7 @@ export async function refreshAlibabaPaymentStatus(orderId: string) {
   const orders = await getAlibabaPurchaseOrders();
   const order = orders.find((entry) => entry.id === orderId);
   if (!order) {
-    throw new Error("Ordre Alibaba introuvable.");
+    throw new Error("Ordre AliExpress introuvable.");
   }
 
   if (!order.tradeId) {
