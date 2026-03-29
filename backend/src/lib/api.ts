@@ -162,6 +162,19 @@ type ApiRequestOptions = RequestInit & {
 
 function getApiBaseUrl() {
   if (typeof window !== "undefined") {
+    if (API_URL) {
+      return API_URL;
+    }
+
+    const hostname = window.location.hostname.toLowerCase();
+    if (hostname === "api.afripay.space") {
+      return window.location.origin;
+    }
+
+    if (hostname === "afripay.space" || hostname === "www.afripay.space") {
+      return `${window.location.protocol}//api.afripay.space`;
+    }
+
     return API_URL;
   }
 
