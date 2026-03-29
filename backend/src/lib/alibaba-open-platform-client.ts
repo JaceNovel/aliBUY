@@ -498,51 +498,106 @@ export function decodeAlibabaOAuthState(state?: string | null) {
 }
 
 function extractAliExpressSearchItems(payload: unknown) {
-  if (!isRecord(payload)) {
+  const parseAliExpressSearchContainer = (value: unknown): unknown => {
+    if (typeof value !== "string") {
+      return value;
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+      return value;
+    }
+
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return value;
+    }
+  };
+
+  const isAliExpressSearchRecord = (record: Record<string, unknown>) => {
+    return Boolean(
+      getStringValue(record.itemId)
+      ?? getStringValue(record.item_id)
+      ?? getStringValue(record.product_id)
+      ?? getStringValue(record.productId),
+    ) && Boolean(
+      getStringValue(record.title)
+      ?? getStringValue(record.item_title)
+      ?? getStringValue(record.subject)
+      ?? getStringValue(record.itemMainPic)
+      ?? getStringValue(record.item_main_pic)
+      ?? getStringValue(record.salePrice)
+      ?? getStringValue(record.sale_price)
+      ?? getStringValue(record.targetSalePrice)
+      ?? getStringValue(record.target_sale_price),
+    );
+  };
+
+  const normalizeAliExpressSearchArray = (value: unknown) => {
+    const parsed = parseAliExpressSearchContainer(value);
+    if (!Array.isArray(parsed)) {
+      return [] as Array<Record<string, unknown>>;
+    }
+
+    const records = parsed
+      .map((entry) => parseAliExpressSearchContainer(entry))
+      .filter(isRecord) as Array<Record<string, unknown>>;
+
+    return records.filter(isAliExpressSearchRecord);
+  };
+
+  const parsedPayload = parseAliExpressSearchContainer(payload);
+  if (!isRecord(parsedPayload) && !Array.isArray(parsedPayload)) {
     return [] as Array<Record<string, unknown>>;
   }
 
-  const directArrays = [
-    payload.products,
-    payload.product_list,
-    payload.item_list,
-    payload.items,
-    payload.records,
-    payload.result_list,
-    payload.result,
-    payload.data,
+  const searchArrayKeys = [
+    "products",
+    "product_list",
+    "products_list",
+    "productsList",
+    "item_list",
+    "items",
+    "records",
+    "result_list",
+    "content",
+    "list",
+    "data",
+    "result",
   ];
 
-  for (const candidate of directArrays) {
-    if (Array.isArray(candidate)) {
-      return candidate.filter(isRecord) as Array<Record<string, unknown>>;
+  for (const candidate of [
+    parsedPayload,
+    isRecord(parsedPayload) ? parseAliExpressSearchContainer(parsedPayload.data) : undefined,
+    isRecord(parsedPayload) ? parseAliExpressSearchContainer(parsedPayload.result) : undefined,
+    isRecord(parsedPayload) ? parseAliExpressSearchContainer(parsedPayload.page_result) : undefined,
+    isRecord(parsedPayload) ? parseAliExpressSearchContainer(parsedPayload.pageResult) : undefined,
+    isRecord(parsedPayload) ? parseAliExpressSearchContainer(parsedPayload.search_result) : undefined,
+    isRecord(parsedPayload) ? parseAliExpressSearchContainer(parsedPayload.searchResult) : undefined,
+  ]) {
+    const records = normalizeAliExpressSearchArray(candidate);
+    if (records.length > 0) {
+      return records;
     }
   }
 
-  const nestedRecords = [
-    payload.data,
-    payload.result,
-    payload.page_result,
-    payload.pageResult,
-    payload.search_result,
-    payload.searchResult,
-  ].filter(isRecord) as Array<Record<string, unknown>>;
+  if (!isRecord(parsedPayload)) {
+    return [] as Array<Record<string, unknown>>;
+  }
 
-  for (const record of nestedRecords) {
-    const nestedArrays = [
-      record.products,
-      record.product_list,
-      record.item_list,
-      record.items,
-      record.records,
-      record.result_list,
-      record.data,
-      record.result,
-    ];
+  for (const node of collectObjectNodes(parsedPayload)) {
+    for (const key of searchArrayKeys) {
+      const records = normalizeAliExpressSearchArray(node[key]);
+      if (records.length > 0) {
+        return records;
+      }
+    }
 
-    for (const candidate of nestedArrays) {
-      if (Array.isArray(candidate)) {
-        return candidate.filter(isRecord) as Array<Record<string, unknown>>;
+    for (const value of Object.values(node)) {
+      const records = normalizeAliExpressSearchArray(value);
+      if (records.length > 0) {
+        return records;
       }
     }
   }
@@ -3178,7 +3233,10 @@ async function searchAliExpressProducts(input: {
         }
 
         for (const searchItem of products) {
-          const productId = getStringValue(searchItem.itemId) ?? getStringValue(searchItem.product_id);
+          const productId = getStringValue(searchItem.itemId)
+            ?? getStringValue(searchItem.item_id)
+            ?? getStringValue(searchItem.product_id)
+            ?? getStringValue(searchItem.productId);
           if (!productId || seenProductIds.has(productId)) {
             continue;
           }
