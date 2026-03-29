@@ -55,6 +55,44 @@ type CategoryProduct = {
 
 const categoryIcons: LucideIcon[] = [Star, Headphones, Diamond, PencilRuler, Wheat, Shirt, Sofa, Volleyball, Sprout];
 
+function resolveCategoryIcon(slug: string, title: string) {
+  const haystack = `${slug} ${title}`.toLowerCase();
+
+  if (/(bijou|jewel|ring|watch|accessor)/.test(haystack)) {
+    return Diamond;
+  }
+
+  if (/(phone|telephone|mobile|tablet|audio|headphone|ecouteur)/.test(haystack)) {
+    return Headphones;
+  }
+
+  if (/(mode|fashion|shirt|vetement|chaussure|sac)/.test(haystack)) {
+    return Shirt;
+  }
+
+  if (/(meuble|maison|bureau|sofa|chair|table)/.test(haystack)) {
+    return Sofa;
+  }
+
+  if (/(jardin|garden|plante|nature)/.test(haystack)) {
+    return Sprout;
+  }
+
+  if (/(sport|fitness|gaming|loisir)/.test(haystack)) {
+    return Volleyball;
+  }
+
+  if (/(outil|outilage|design|bureau d'etude|ruler)/.test(haystack)) {
+    return PencilRuler;
+  }
+
+  if (/(aliment|epicerie|cuisine|grain|food)/.test(haystack)) {
+    return Wheat;
+  }
+
+  return categoryIcons[Math.abs(slug.length + title.length) % categoryIcons.length] ?? Star;
+}
+
 export function CategoryMegaMenu({
   triggerLabel,
   showMenuIcon = true,
@@ -81,7 +119,7 @@ export function CategoryMegaMenu({
   const categoryLinks: CategoryLink[] = categories.slice(0, 9).map((category, index) => ({
     slug: category.slug,
     title: category.title,
-    icon: categoryIcons[index % categoryIcons.length],
+    icon: resolveCategoryIcon(category.slug, category.title),
   }));
   const categoryProducts: CategoryProduct[] = activeCategory?.products.slice(0, 5).map((product) => ({
     slug: product.slug,

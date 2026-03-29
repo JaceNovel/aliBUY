@@ -292,6 +292,11 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
         throw new Error(checkoutPayload?.message || "Impossible de preparer cette offre.");
       }
 
+      if (typeof checkoutPayload.checkoutUrl === "string" && checkoutPayload.checkoutUrl.length > 0) {
+        window.location.href = checkoutPayload.checkoutUrl;
+        return;
+      }
+
       const paymentResponse = await fetch(buildApiUrl("/api/payments/init"), {
         method: "POST",
         headers: {

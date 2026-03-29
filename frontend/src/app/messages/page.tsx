@@ -4,6 +4,29 @@ import { ensureDefaultSupportConversation, getUserSupportConversations } from "@
 import { getPricingContext } from "@/lib/pricing";
 import { getCurrentUser } from "@/lib/user-auth";
 
+function createGuestConversation() {
+  const createdAt = new Date().toISOString();
+
+  return {
+    id: "guest-support",
+    name: "Support AfriPay",
+    email: undefined,
+    role: "Assistance generale",
+    preview: "Posez votre question, puis connectez-vous si vous voulez garder l'historique.",
+    time: new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(createdAt)),
+    status: "en ligne" as const,
+    updatedAt: createdAt,
+    messages: [
+      {
+        id: "guest-support-welcome",
+        side: "left" as const,
+        text: "Bienvenue sur la messagerie AfriPay. Connectez-vous pour conserver vos conversations et recevoir des reponses reliees a vos commandes.",
+        createdAt,
+      },
+    ],
+  };
+}
+
 type MessagesPageProps = {
   searchParams: Promise<{
     tab?: string;
@@ -22,11 +45,14 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
   }
 
   const conversations = user ? await getUserSupportConversations(user.id) : [];
+  const resolvedConversations = conversations.length > 0
+    ? conversations
+    : [createGuestConversation()];
 
   return (
     <InternalPageShell pricing={pricing}>
       <MessagesClient
-        conversations={conversations.map((conversation) => ({
+        conversations={resolvedConversations.map((conversation) => ({
           id: conversation.id,
           name: conversation.name,
           email: conversation.email,

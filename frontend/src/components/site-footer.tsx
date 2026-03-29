@@ -23,11 +23,11 @@ export function SiteFooter({ pricing }: SiteFooterProps) {
             <section>
               <div className="text-[30px] font-black tracking-[-0.06em] text-[#111827]">AfriPay</div>
               <p className="mt-4 max-w-[460px] text-[15px] leading-7 text-[#5f6470]">
-                Plateforme de sourcing B2B pour importer depuis AliExpress, publier un catalogue propre, centraliser les devis,
+                Plateforme de sourcing B2B pour publier un catalogue propre, centraliser les devis,
                 suivre les commandes et vendre avec une presentation claire pour vos clients en Afrique.
               </p>
               <div className="mt-5 flex flex-wrap gap-3 text-[13px] font-semibold text-[#8a5a2b]">
-                <span className="rounded-full bg-white/90 px-4 py-2 ring-1 ring-[#f2d9c5]">Import AliExpress structure</span>
+                <span className="rounded-full bg-white/90 px-4 py-2 ring-1 ring-[#f2d9c5]">Catalogue structure</span>
                 <span className="rounded-full bg-white/90 px-4 py-2 ring-1 ring-[#f2d9c5]">Catalogue AfriPay</span>
                 <span className="rounded-full bg-white/90 px-4 py-2 ring-1 ring-[#f2d9c5]">Paiements et logistique</span>
               </div>

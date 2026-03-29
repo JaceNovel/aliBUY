@@ -31,6 +31,7 @@ type BannerSlide = {
 };
 
 type CategoryItem = {
+  slug?: string;
   title: string;
   href?: string;
 };
@@ -44,6 +45,28 @@ type HomeDiscoveryShowcaseProps = {
 };
 
 const categoryIcons = [Star, Shirt, Headphones, Dumbbell, Sparkles, Gem, Sparkles, Headphones];
+
+function resolveCategoryIcon(slug: string | undefined, title: string) {
+  const haystack = `${slug ?? ""} ${title}`.toLowerCase();
+
+  if (/(bijou|jewel|ring|watch|accessor)/.test(haystack)) {
+    return Gem;
+  }
+
+  if (/(mode|fashion|shirt|vetement|chaussure|sac)/.test(haystack)) {
+    return Shirt;
+  }
+
+  if (/(phone|telephone|mobile|tablet|audio|headphone|ecouteur)/.test(haystack)) {
+    return Headphones;
+  }
+
+  if (/(sport|fitness|gaming|loisir)/.test(haystack)) {
+    return Dumbbell;
+  }
+
+  return categoryIcons[Math.abs((slug ?? title).length + title.length) % categoryIcons.length] ?? Star;
+}
 
 const fallbackHistoryCard: ShowcaseCardItem = {
   title: "Produit recent",
@@ -80,6 +103,30 @@ export function HomeDiscoveryShowcase({ categories = [], historyCard, historyCar
       })),
     ),
   ].slice(0, 12);
+
+  useEffect(() => {
+    if (slides.length <= 1) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setActiveSlide((current) => (current + 1) % slides.length);
+    }, 4200);
+
+    return () => window.clearInterval(interval);
+  }, [slides.length]);
+
+  useEffect(() => {
+    if (resolvedHistoryCards.length <= 1) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setActiveHistoryIndex((current) => (current + 1) % resolvedHistoryCards.length);
+    }, 3400);
+
+    return () => window.clearInterval(interval);
+  }, [resolvedHistoryCards.length]);
 
   useEffect(() => {
     const element = categoryContainerRef.current;
@@ -161,7 +208,7 @@ export function HomeDiscoveryShowcase({ categories = [], historyCard, historyCar
               <style>{`.hide-scrollbar::-webkit-scrollbar{display:none}`}</style>
               <div className="hide-scrollbar space-y-1">
                 {categories.map((item, index) => {
-                  const Icon = categoryIcons[index % categoryIcons.length];
+                  const Icon = resolveCategoryIcon(item.slug, item.title);
                   const content = (
                     <>
                       <span className="flex items-center gap-3">

@@ -13,7 +13,7 @@ export const revalidate = 0;
 
 export const metadata: Metadata = {
   title: `Catalogue | ${SITE_NAME}`,
-  description: "Catalogue produit alimente depuis l'import AliExpress.",
+  description: "Catalogue produit public AfriPay avec variantes, prix et details utiles.",
   alternates: {
     canonical: `${SITE_URL}/products`,
   },
@@ -37,13 +37,13 @@ export default async function ProductsPage() {
         <section className="rounded-[30px] bg-white px-6 py-6 shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 lg:px-8 lg:py-7">
           <div className="max-w-[760px]">
             <div className="inline-flex rounded-full bg-[#fff1e7] px-4 py-2 text-[13px] font-semibold uppercase tracking-[0.16em] text-[#d85300]">
-              Catalogue AliExpress
+              Catalogue AfriPay
             </div>
             <h1 className="mt-4 text-[30px] font-bold tracking-[-0.05em] text-[#222] sm:text-[38px]">
-              Produits importes avec variantes et attributs
+              Produits avec variantes et attributs
             </h1>
             <p className="mt-4 text-[16px] leading-8 text-[#555]">
-              Les fiches ci-dessous proviennent de l&apos;import fournisseur et gardent les options utiles pour la page détail.
+              Retrouvez ici les produits publics actuellement visibles sur le site, avec leurs options utiles pour la consultation et la commande.
             </p>
           </div>
         </section>

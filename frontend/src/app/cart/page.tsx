@@ -12,7 +12,12 @@ type SharedCartSummary = Awaited<ReturnType<typeof getSharedCartSummariesForOwne
 export default async function CartPage() {
   const pricing = await getPricingContext();
   const user = await getCurrentUser();
-  const sharedCartSummaries = user ? await getSharedCartSummariesForOwner(user.id) : [];
+  const sharedCartSummaries = user
+    ? await getSharedCartSummariesForOwner(user.id).catch((error) => {
+        console.warn("[cart-page] unable to load shared cart summaries", error);
+        return [] as SharedCartSummary[];
+      })
+    : [];
 
   return (
     <InternalPageShell pricing={pricing}>

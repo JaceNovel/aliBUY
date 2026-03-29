@@ -156,7 +156,7 @@ export function CartPageClient({ currencyCode, locale, isAuthenticated, initialS
       <section className="rounded-[28px] border border-[#ece7df] bg-[linear-gradient(135deg,#fff6ef_0%,#ffffff_45%,#eef6ff_100%)] px-5 py-6 shadow-[0_16px_40px_rgba(17,24,39,0.05)] sm:px-8 sm:py-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">AliExpress sourcing</div>
+            <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Sourcing AfriPay</div>
             <h1 className="mt-2 text-[30px] font-black tracking-[-0.05em] text-[#1f2937]">Panier, transport et prix finaux</h1>
             <p className="mt-3 max-w-[760px] text-[14px] leading-6 text-[#667085]">Livraison avion offerte dès 15 000 FCFA, calcul du poids et du volume en direct, plus regroupement maritime vers un conteneur dès que le volume cumulé atteint 1 CBM.</p>
           </div>

@@ -28,7 +28,8 @@ export function LanguageSelectorPopover({
   const [isPending, startTransition] = useTransition();
   const closeTimeoutRef = useRef<number | null>(null);
   const selectedLanguage = draftLanguage ?? (languageCode as LanguageCode);
-  const messages = getMessages(languageCode);
+  const messages = getMessages(selectedLanguage);
+  const selectedLanguageLabel = LANGUAGE_OPTIONS.find((option) => option.code === selectedLanguage)?.label ?? languageLabel;
 
   useEffect(() => {
     return () => {
@@ -105,7 +106,7 @@ export function LanguageSelectorPopover({
         ].join(" ")}
       >
         <Globe2 className={compact ? "h-3.5 w-3.5" : "h-5 w-5"} />
-        <span className={compact ? "truncate" : ""}>{languageLabel}</span>
+        <span className={compact ? "truncate" : ""}>{selectedLanguageLabel}</span>
         <ChevronDown className="h-4 w-4" />
       </button>
 

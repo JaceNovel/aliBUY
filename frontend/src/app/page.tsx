@@ -7,6 +7,7 @@ import { CategoryMegaMenu, type CategoryMegaMenuCategory } from "@/components/ca
 import { AboutMenu } from "@/components/about-menu";
 import { DeliveryAddressPopover } from "@/components/delivery-address-popover";
 import { HeaderActionGroup } from "@/components/header-action-group";
+import { HomeDiscoveryShowcase } from "@/components/home-discovery-showcase";
 import { HomeSearchForm } from "@/components/home-search-form";
 import { LanguageSelectorPopover } from "@/components/language-selector-popover";
 import { MobileCategoryStrip } from "@/components/mobile-category-strip";
@@ -79,6 +80,51 @@ export default async function Home() {
   ]);
   const messages = getMessages(pricing.languageCode);
   const featuredProducts = catalogProducts.slice(0, 8);
+  const showcaseCategories = catalogCategories.slice(0, 6).map((category) => ({
+    slug: category.slug,
+    title: category.title,
+    href: category.href,
+  }));
+  const showcaseHistoryCards = featuredProducts.slice(0, 5).map((product) => ({
+    title: product.shortTitle,
+    image: getProductImageUrl(product.image, { width: 640, quality: 76 }),
+    price: formatTierAwarePrice(pricing.formatPrice, product),
+    href: `/products/${product.slug}`,
+  }));
+  const showcaseExploreCards = [
+    {
+      id: "showcase-1",
+      title: "Explorez d'autres",
+      subtitle: featuredProducts[1]?.supplierName ?? "Catalogue en direct",
+      items: featuredProducts.slice(1, 5).map((product) => ({
+        title: product.shortTitle,
+        image: getProductImageUrl(product.image, { width: 420, quality: 74 }),
+        price: formatTierAwarePrice(pricing.formatPrice, product),
+        href: `/products/${product.slug}`,
+      })),
+    },
+    {
+      id: "showcase-2",
+      title: "Explorez d'autres",
+      subtitle: featuredProducts[5]?.supplierName ?? "Nouveaux produits publies",
+      items: featuredProducts.slice(4, 8).map((product) => ({
+        title: product.shortTitle,
+        image: getProductImageUrl(product.image, { width: 420, quality: 74 }),
+        price: formatTierAwarePrice(pricing.formatPrice, product),
+        href: `/products/${product.slug}`,
+      })),
+    },
+  ].filter((card) => card.items.length === 4);
+  const showcaseSlides = featuredProducts.slice(0, 5).map((product, index) => ({
+    id: `slide-${product.slug}`,
+    image: getProductImageUrl(product.image, { width: 1200, quality: 82 }),
+    alt: product.shortTitle,
+    eyebrow: index === 0 ? "MarchExpo" : product.badge ?? "AfriPay DS",
+    title: index === 0 ? "Classement des fournisseurs" : product.shortTitle,
+    subtitle: index === 0 ? undefined : `${product.supplierName} · ${formatTierAwarePrice(pricing.formatPrice, product)}`,
+    buttonLabel: "Commander",
+    href: `/products/${product.slug}`,
+  }));
   const megaMenuCategories: CategoryMegaMenuCategory[] = catalogCategories.slice(0, 9).map((category) => ({
     slug: category.slug,
     title: category.title,
@@ -293,6 +339,22 @@ export default async function Home() {
       </section>
 
       <div className="mx-auto max-w-[1580px] px-4 pb-14 pt-5 sm:px-6 sm:pt-8 xl:px-10">
+        {featuredProducts.length > 0 ? (
+          <div className="mb-6 sm:mb-8">
+            <HomeDiscoveryShowcase
+              categories={showcaseCategories}
+              historyCards={showcaseHistoryCards}
+              exploreCards={showcaseExploreCards}
+              slides={showcaseSlides}
+            />
+            <div className="mt-6 flex items-center justify-center gap-5 px-4 text-center text-[14px] text-[#7a7a7a] sm:mt-8">
+              <span className="h-px flex-1 max-w-[96px] bg-[#d9d9d9]" />
+              <span className="whitespace-nowrap tracking-[-0.01em]">Recommandé pour votre entreprise</span>
+              <span className="h-px flex-1 max-w-[96px] bg-[#d9d9d9]" />
+            </div>
+          </div>
+        ) : null}
+
         {featuredProducts.length === 0 ? (
           <section className="rounded-[28px] bg-white px-6 py-8 text-center shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 sm:px-8 sm:py-10">
             <div className="inline-flex items-center gap-2 rounded-full bg-[#fff2e9] px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85300]">

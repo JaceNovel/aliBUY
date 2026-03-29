@@ -43,10 +43,10 @@ function createId() {
 
 function buildInitialMessage(firstName?: string) {
   if (firstName) {
-    return `Bonjour ${firstName}, bienvenue sur AfriPay. Je peux vous aider pour vos commandes, vos imports AliExpress, vos paiements ou l'offre Articles Gratuits.`;
+    return `Bonjour ${firstName}, bienvenue sur AfriPay. Je peux vous aider pour vos commandes, vos produits, vos paiements ou l'offre Articles Gratuits.`;
   }
 
-  return "Bonjour, bienvenue sur AfriPay. Je peux vous aider pour vos commandes, vos imports AliExpress, vos paiements ou l'offre Articles Gratuits.";
+  return "Bonjour, bienvenue sur AfriPay. Je peux vous aider pour vos commandes, vos produits, vos paiements ou l'offre Articles Gratuits.";
 }
 
 export function SiteChatWidget() {
