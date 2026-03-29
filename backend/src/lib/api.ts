@@ -1,7 +1,29 @@
 import { SITE_URL } from "@/lib/site-config";
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "").trim().replace(/\/$/, "");
-const SERVER_FALLBACK_API_URL = API_URL || SITE_URL.replace(/\/$/, "");
+
+function inferServerFallbackApiUrl() {
+  const normalizedSiteUrl = SITE_URL.replace(/\/$/, "");
+
+  if (API_URL) {
+    return API_URL;
+  }
+
+  try {
+    const siteUrl = new URL(normalizedSiteUrl);
+    const hostname = siteUrl.hostname.toLowerCase();
+
+    if (hostname === "afripay.space" || hostname === "www.afripay.space") {
+      return `${siteUrl.protocol}//api.afripay.space`;
+    }
+
+    return normalizedSiteUrl;
+  } catch {
+    return normalizedSiteUrl;
+  }
+}
+
+const SERVER_FALLBACK_API_URL = inferServerFallbackApiUrl();
 
 export const PRODUCTS_FEED_PAGE_SIZE = 20;
 
