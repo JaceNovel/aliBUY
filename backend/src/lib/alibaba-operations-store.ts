@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { Prisma } from "@prisma/client";
+import { list, put } from "@vercel/blob";
 
 import type {
   AlibabaCountryProfile,
@@ -352,6 +353,7 @@ function resolveSourcingDir() {
 const ROOT_DIR = resolveSourcingDir();
 const IMPORT_JOBS_PATH = path.join(ROOT_DIR, "alibaba-import-jobs.json");
 const IMPORTED_PRODUCTS_PATH = path.join(ROOT_DIR, "alibaba-imported-products.json");
+const IMPORTED_PRODUCTS_BLOB_PATHNAME = "sourcing/alibaba-imported-products.json";
 const SUPPLIER_ACCOUNTS_PATH = path.join(ROOT_DIR, "alibaba-supplier-accounts.json");
 const COUNTRY_PROFILES_PATH = path.join(ROOT_DIR, "alibaba-country-profiles.json");
 const RECEPTION_ADDRESSES_PATH = path.join(ROOT_DIR, "alibaba-reception-addresses.json");
@@ -388,14 +390,64 @@ async function writeJsonFile<T>(filePath: string, value: T) {
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
+function canUseBlobStore() {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+}
+
+async function readJsonBlob<T>(pathname: string, fallback: T): Promise<T> {
+  if (!canUseBlobStore()) {
+    return fallback;
+  }
+
+  try {
+    const { blobs } = await list({ prefix: pathname, limit: 10 });
+    const candidate = blobs
+      .filter((blob) => blob.pathname === pathname)
+      .sort((left, right) => right.uploadedAt.getTime() - left.uploadedAt.getTime())[0];
+
+    if (!candidate?.url) {
+      await writeJsonBlob(pathname, fallback);
+      return fallback;
+    }
+
+    const response = await fetch(candidate.url, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`Blob read failed with status ${response.status}.`);
+    }
+
+    return await response.json() as T;
+  } catch (error) {
+    console.warn(`[alibaba-operations-store] unable to read blob snapshot ${pathname}`, error);
+    return fallback;
+  }
+}
+
+async function writeJsonBlob<T>(pathname: string, value: T) {
+  if (!canUseBlobStore()) {
+    return;
+  }
+
+  await put(pathname, `${JSON.stringify(value, null, 2)}\n`, {
+    access: "public",
+    addRandomSuffix: false,
+    contentType: "application/json; charset=utf-8",
+  });
+}
+
 async function syncImportedProductsJsonSnapshot(products: AlibabaImportedProduct[]) {
   try {
-    const existing = await readJsonFile<AlibabaImportedProduct[]>(IMPORTED_PRODUCTS_PATH, []);
+    const existing = canUseBlobStore()
+      ? await readJsonBlob<AlibabaImportedProduct[]>(IMPORTED_PRODUCTS_BLOB_PATHNAME, [])
+      : await readJsonFile<AlibabaImportedProduct[]>(IMPORTED_PRODUCTS_PATH, []);
     const existingLatestUpdatedAt = existing[0]?.updatedAt ?? "";
     const nextLatestUpdatedAt = products[0]?.updatedAt ?? "";
 
     if (existing.length === products.length && existingLatestUpdatedAt === nextLatestUpdatedAt) {
       return;
+    }
+
+    if (canUseBlobStore()) {
+      await writeJsonBlob(IMPORTED_PRODUCTS_BLOB_PATHNAME, products);
     }
 
     await writeJsonFile(IMPORTED_PRODUCTS_PATH, products);
@@ -1786,6 +1838,13 @@ async function readAlibabaImportedProductsSource(): Promise<AlibabaImportedProdu
     }
   }
 
+  if (canUseBlobStore()) {
+    const blobProducts = await readJsonBlob<AlibabaImportedProduct[]>(IMPORTED_PRODUCTS_BLOB_PATHNAME, []);
+    if (blobProducts.length > 0) {
+      return blobProducts;
+    }
+  }
+
   return readJsonFile<AlibabaImportedProduct[]>(IMPORTED_PRODUCTS_PATH, []);
 }
 
@@ -1817,6 +1876,9 @@ export async function saveAlibabaImportedProducts(products: AlibabaImportedProdu
   }
 
   const next = [...nextMap.values()].sort((left: AlibabaImportedProduct, right: AlibabaImportedProduct) => right.updatedAt.localeCompare(left.updatedAt));
+  if (canUseBlobStore()) {
+    await writeJsonBlob(IMPORTED_PRODUCTS_BLOB_PATHNAME, next);
+  }
   await writeJsonFile(IMPORTED_PRODUCTS_PATH, next);
   invalidateCatalogRuntimeCache();
   invalidateImportedProductsSnapshot();
@@ -1841,6 +1903,9 @@ export async function deleteAlibabaImportedProduct(importedProductId: string): P
 
   const products = await readAlibabaImportedProductsSource();
   const next = products.filter((product: AlibabaImportedProduct) => product.id !== importedProductId);
+  if (canUseBlobStore()) {
+    await writeJsonBlob(IMPORTED_PRODUCTS_BLOB_PATHNAME, next);
+  }
   await writeJsonFile(IMPORTED_PRODUCTS_PATH, next);
   invalidateCatalogRuntimeCache();
   invalidateImportedProductsSnapshot();

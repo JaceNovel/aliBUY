@@ -4,6 +4,7 @@ import { cache } from "react";
 
 import { slugifyCategoryLabel } from "@/lib/alibaba-operations";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
+import { buildApiUrl } from "@/lib/api";
 import type { ProductCatalogItem } from "@/lib/products-data";
 
 export type CatalogCategoryRecord = {
@@ -71,7 +72,29 @@ function getCategorySortRank(slug: string) {
   return CATEGORY_SORT_PRIORITY[slug] ?? 999;
 }
 
+async function fetchRemoteCatalogCategories() {
+  try {
+    const response = await fetch(buildApiUrl("/api/catalog/categories"), {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = await response.json().catch(() => null) as { items?: CatalogCategoryRecord[] } | null;
+    return Array.isArray(payload?.items) ? payload.items : null;
+  } catch {
+    return null;
+  }
+}
+
 export const getCatalogCategories = cache(async function getCatalogCategories(): Promise<CatalogCategoryRecord[]> {
+  const remoteCategories = await fetchRemoteCatalogCategories();
+  if (remoteCategories) {
+    return remoteCategories;
+  }
+
   const importedProducts = await getAlibabaImportedProducts();
   const publishedProducts = importedProducts.filter((product) => product.publishedToSite && product.status !== "archived");
   const categories = new Map<string, CategoryAccumulator>();

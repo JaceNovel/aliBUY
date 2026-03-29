@@ -1,9 +1,32 @@
 import { cache } from "react";
 
+import { buildApiUrl } from "@/lib/api";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { type ProductCatalogItem } from "@/lib/products-data";
 
+async function fetchRemoteCatalogProducts() {
+  try {
+    const response = await fetch(buildApiUrl("/api/catalog/products"), {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = await response.json().catch(() => null) as { items?: ProductCatalogItem[] } | null;
+    return Array.isArray(payload?.items) ? payload.items : null;
+  } catch {
+    return null;
+  }
+}
+
 export const getCatalogProducts = cache(async function getCatalogProducts(): Promise<ProductCatalogItem[]> {
+  const remoteProducts = await fetchRemoteCatalogProducts();
+  if (remoteProducts) {
+    return remoteProducts;
+  }
+
   const importedProducts = await getAlibabaImportedProducts();
 
   return importedProducts
