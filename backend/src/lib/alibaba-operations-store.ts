@@ -357,9 +357,13 @@ const IMPORTED_PRODUCTS_BLOB_PATHNAME = "sourcing/alibaba-imported-products.json
 const SUPPLIER_ACCOUNTS_PATH = path.join(ROOT_DIR, "alibaba-supplier-accounts.json");
 const SUPPLIER_ACCOUNTS_BLOB_PATHNAME = "sourcing/alibaba-supplier-accounts.json";
 const COUNTRY_PROFILES_PATH = path.join(ROOT_DIR, "alibaba-country-profiles.json");
+const COUNTRY_PROFILES_BLOB_PATHNAME = "sourcing/alibaba-country-profiles.json";
 const RECEPTION_ADDRESSES_PATH = path.join(ROOT_DIR, "alibaba-reception-addresses.json");
+const RECEPTION_ADDRESSES_BLOB_PATHNAME = "sourcing/alibaba-reception-addresses.json";
 const PURCHASE_ORDERS_PATH = path.join(ROOT_DIR, "alibaba-purchase-orders.json");
+const PURCHASE_ORDERS_BLOB_PATHNAME = "sourcing/alibaba-purchase-orders.json";
 const RECEPTIONS_PATH = path.join(ROOT_DIR, "alibaba-receptions.json");
+const RECEPTIONS_BLOB_PATHNAME = "sourcing/alibaba-receptions.json";
 type EncryptedField = "appSecret" | "accessToken" | "refreshToken";
 
 type EncryptedPayload = {
@@ -1057,6 +1061,130 @@ async function writeAlibabaSupplierAccountsFile(accounts: AlibabaSupplierAccount
   await writeJsonFile(SUPPLIER_ACCOUNTS_PATH, next);
 }
 
+async function readAlibabaCountryProfilesSource() {
+  if (canUseBlobStore()) {
+    const blobProfiles = await readJsonBlob<AlibabaCountryProfile[]>(COUNTRY_PROFILES_BLOB_PATHNAME, []);
+    if (blobProfiles.length > 0) {
+      return blobProfiles;
+    }
+  }
+
+  return readJsonFile<AlibabaCountryProfile[]>(COUNTRY_PROFILES_PATH, DEFAULT_COUNTRY_PROFILES);
+}
+
+async function syncAlibabaCountryProfilesJsonSnapshot(profiles: AlibabaCountryProfile[]) {
+  try {
+    const existing = canUseBlobStore()
+      ? await readJsonBlob<AlibabaCountryProfile[]>(COUNTRY_PROFILES_BLOB_PATHNAME, [])
+      : await readJsonFile<AlibabaCountryProfile[]>(COUNTRY_PROFILES_PATH, DEFAULT_COUNTRY_PROFILES);
+
+    if (JSON.stringify(existing) === JSON.stringify(profiles)) {
+      return;
+    }
+
+    if (canUseBlobStore()) {
+      await writeJsonBlob(COUNTRY_PROFILES_BLOB_PATHNAME, profiles);
+    }
+
+    await writeJsonFile(COUNTRY_PROFILES_PATH, profiles);
+  } catch (error) {
+    console.warn("[alibaba-operations-store] unable to sync country profiles JSON snapshot", error);
+  }
+}
+
+async function readAlibabaReceptionAddressesSource() {
+  if (canUseBlobStore()) {
+    const blobAddresses = await readJsonBlob<AlibabaReceptionAddress[]>(RECEPTION_ADDRESSES_BLOB_PATHNAME, []);
+    if (blobAddresses.length > 0) {
+      return blobAddresses;
+    }
+  }
+
+  return readJsonFile<AlibabaReceptionAddress[]>(RECEPTION_ADDRESSES_PATH, []);
+}
+
+async function syncAlibabaReceptionAddressesJsonSnapshot(addresses: AlibabaReceptionAddress[]) {
+  try {
+    const existing = canUseBlobStore()
+      ? await readJsonBlob<AlibabaReceptionAddress[]>(RECEPTION_ADDRESSES_BLOB_PATHNAME, [])
+      : await readJsonFile<AlibabaReceptionAddress[]>(RECEPTION_ADDRESSES_PATH, []);
+
+    if (JSON.stringify(existing) === JSON.stringify(addresses)) {
+      return;
+    }
+
+    if (canUseBlobStore()) {
+      await writeJsonBlob(RECEPTION_ADDRESSES_BLOB_PATHNAME, addresses);
+    }
+
+    await writeJsonFile(RECEPTION_ADDRESSES_PATH, addresses);
+  } catch (error) {
+    console.warn("[alibaba-operations-store] unable to sync reception addresses JSON snapshot", error);
+  }
+}
+
+async function readAlibabaPurchaseOrdersSource() {
+  if (canUseBlobStore()) {
+    const blobOrders = await readJsonBlob<AlibabaPurchaseOrder[]>(PURCHASE_ORDERS_BLOB_PATHNAME, []);
+    if (blobOrders.length > 0) {
+      return blobOrders;
+    }
+  }
+
+  return readJsonFile<AlibabaPurchaseOrder[]>(PURCHASE_ORDERS_PATH, []);
+}
+
+async function syncAlibabaPurchaseOrdersJsonSnapshot(orders: AlibabaPurchaseOrder[]) {
+  try {
+    const existing = canUseBlobStore()
+      ? await readJsonBlob<AlibabaPurchaseOrder[]>(PURCHASE_ORDERS_BLOB_PATHNAME, [])
+      : await readJsonFile<AlibabaPurchaseOrder[]>(PURCHASE_ORDERS_PATH, []);
+
+    if (JSON.stringify(existing) === JSON.stringify(orders)) {
+      return;
+    }
+
+    if (canUseBlobStore()) {
+      await writeJsonBlob(PURCHASE_ORDERS_BLOB_PATHNAME, orders);
+    }
+
+    await writeJsonFile(PURCHASE_ORDERS_PATH, orders);
+  } catch (error) {
+    console.warn("[alibaba-operations-store] unable to sync purchase orders JSON snapshot", error);
+  }
+}
+
+async function readAlibabaReceptionRecordsSource() {
+  if (canUseBlobStore()) {
+    const blobRecords = await readJsonBlob<AlibabaReceptionRecord[]>(RECEPTIONS_BLOB_PATHNAME, []);
+    if (blobRecords.length > 0) {
+      return blobRecords;
+    }
+  }
+
+  return readJsonFile<AlibabaReceptionRecord[]>(RECEPTIONS_PATH, []);
+}
+
+async function syncAlibabaReceptionRecordsJsonSnapshot(records: AlibabaReceptionRecord[]) {
+  try {
+    const existing = canUseBlobStore()
+      ? await readJsonBlob<AlibabaReceptionRecord[]>(RECEPTIONS_BLOB_PATHNAME, [])
+      : await readJsonFile<AlibabaReceptionRecord[]>(RECEPTIONS_PATH, []);
+
+    if (JSON.stringify(existing) === JSON.stringify(records)) {
+      return;
+    }
+
+    if (canUseBlobStore()) {
+      await writeJsonBlob(RECEPTIONS_BLOB_PATHNAME, records);
+    }
+
+    await writeJsonFile(RECEPTIONS_PATH, records);
+  } catch (error) {
+    console.warn("[alibaba-operations-store] unable to sync reception records JSON snapshot", error);
+  }
+}
+
 async function syncSupplierAccountsJsonSnapshot(accounts: AlibabaSupplierAccount[]) {
   try {
     const existing = canUseBlobStore()
@@ -1485,10 +1613,12 @@ async function readAlibabaCountryProfilesDb(): Promise<AlibabaCountryProfile[]> 
   const records = await getAlibabaPrismaModel("alibabaCountryProfileRecord").findMany({ orderBy: { countryCode: "asc" } }) as Array<Parameters<typeof mapCountryProfileRecord>[0]>;
 
   if (records.length === 0) {
-    return migrateRecordsFromFile(() => readJsonFile<AlibabaCountryProfile[]>(COUNTRY_PROFILES_PATH, DEFAULT_COUNTRY_PROFILES), writeAlibabaCountryProfilesDb);
+    return migrateRecordsFromFile(readAlibabaCountryProfilesSource, writeAlibabaCountryProfilesDb);
   }
 
-  return records.map(mapCountryProfileRecord);
+  const profiles = records.map(mapCountryProfileRecord);
+  await syncAlibabaCountryProfilesJsonSnapshot(profiles);
+  return profiles;
 }
 
 async function writeAlibabaCountryProfilesDb(profiles: AlibabaCountryProfile[]): Promise<AlibabaCountryProfile[]> {
@@ -1558,10 +1688,12 @@ async function readAlibabaReceptionAddressesDb(): Promise<AlibabaReceptionAddres
   }) as Array<Parameters<typeof mapReceptionAddressRecord>[0]>;
 
   if (records.length === 0) {
-    return migrateRecordsFromFile(() => readJsonFile<AlibabaReceptionAddress[]>(RECEPTION_ADDRESSES_PATH, []), writeAlibabaReceptionAddressesDbBulk);
+    return migrateRecordsFromFile(readAlibabaReceptionAddressesSource, writeAlibabaReceptionAddressesDbBulk);
   }
 
-  return records.map(mapReceptionAddressRecord);
+  const addresses = records.map(mapReceptionAddressRecord);
+  await syncAlibabaReceptionAddressesJsonSnapshot(addresses);
+  return addresses;
 }
 
 async function writeAlibabaReceptionAddressDb(address: AlibabaReceptionAddress): Promise<AlibabaReceptionAddress> {
@@ -1625,7 +1757,9 @@ async function writeAlibabaReceptionAddressesDbBulk(addresses: AlibabaReceptionA
     await writeAlibabaReceptionAddressDb(address);
   }
 
-  return readAlibabaReceptionAddressesDb();
+  const nextAddresses = await readAlibabaReceptionAddressesDb();
+  await syncAlibabaReceptionAddressesJsonSnapshot(nextAddresses);
+  return nextAddresses;
 }
 
 function mapPurchaseOrderRecord(record: {
@@ -1684,10 +1818,12 @@ async function readAlibabaPurchaseOrdersDb(): Promise<AlibabaPurchaseOrder[]> {
   }) as Array<Parameters<typeof mapPurchaseOrderRecord>[0]>;
 
   if (records.length === 0) {
-    return migrateRecordsFromFile(() => readJsonFile<AlibabaPurchaseOrder[]>(PURCHASE_ORDERS_PATH, []), writeAlibabaPurchaseOrdersDbBulk);
+    return migrateRecordsFromFile(readAlibabaPurchaseOrdersSource, writeAlibabaPurchaseOrdersDbBulk);
   }
 
-  return records.map(mapPurchaseOrderRecord);
+  const orders = records.map(mapPurchaseOrderRecord);
+  await syncAlibabaPurchaseOrdersJsonSnapshot(orders);
+  return orders;
 }
 
 async function writeAlibabaPurchaseOrderDb(order: AlibabaPurchaseOrder): Promise<AlibabaPurchaseOrder> {
@@ -1754,7 +1890,9 @@ async function writeAlibabaPurchaseOrdersDbBulk(orders: AlibabaPurchaseOrder[]):
     await writeAlibabaPurchaseOrderDb(order);
   }
 
-  return readAlibabaPurchaseOrdersDb();
+  const nextOrders = await readAlibabaPurchaseOrdersDb();
+  await syncAlibabaPurchaseOrdersJsonSnapshot(nextOrders);
+  return nextOrders;
 }
 
 function mapReceptionRecordItem(record: {
@@ -1787,10 +1925,12 @@ async function readAlibabaReceptionRecordsDb(): Promise<AlibabaReceptionRecord[]
   }) as Array<Parameters<typeof mapReceptionRecordItem>[0]>;
 
   if (records.length === 0) {
-    return migrateRecordsFromFile(() => readJsonFile<AlibabaReceptionRecord[]>(RECEPTIONS_PATH, []), writeAlibabaReceptionRecordsDbBulk);
+    return migrateRecordsFromFile(readAlibabaReceptionRecordsSource, writeAlibabaReceptionRecordsDbBulk);
   }
 
-  return records.map(mapReceptionRecordItem);
+  const nextRecords = records.map(mapReceptionRecordItem);
+  await syncAlibabaReceptionRecordsJsonSnapshot(nextRecords);
+  return nextRecords;
 }
 
 async function writeAlibabaReceptionRecordDb(record: AlibabaReceptionRecord): Promise<AlibabaReceptionRecord> {
@@ -1831,7 +1971,9 @@ async function writeAlibabaReceptionRecordsDbBulk(records: AlibabaReceptionRecor
     await writeAlibabaReceptionRecordDb(record);
   }
 
-  return readAlibabaReceptionRecordsDb();
+  const nextRecords = await readAlibabaReceptionRecordsDb();
+  await syncAlibabaReceptionRecordsJsonSnapshot(nextRecords);
+  return nextRecords;
 }
 
 export async function getAlibabaImportJobs(): Promise<AlibabaImportJob[]> {
@@ -2010,7 +2152,7 @@ export async function getAlibabaCountryProfiles(): Promise<AlibabaCountryProfile
     }
   }
 
-  return readJsonFile<AlibabaCountryProfile[]>(COUNTRY_PROFILES_PATH, DEFAULT_COUNTRY_PROFILES);
+  return readAlibabaCountryProfilesSource();
 }
 
 export async function saveAlibabaCountryProfiles(profiles: AlibabaCountryProfile[]): Promise<AlibabaCountryProfile[]> {
@@ -2027,6 +2169,9 @@ export async function saveAlibabaCountryProfiles(profiles: AlibabaCountryProfile
   }
 
   await writeJsonFile(COUNTRY_PROFILES_PATH, profiles);
+  if (canUseBlobStore()) {
+    await writeJsonBlob(COUNTRY_PROFILES_BLOB_PATHNAME, profiles);
+  }
   return profiles;
 }
 
@@ -2044,7 +2189,7 @@ export async function getAlibabaReceptionAddresses(): Promise<AlibabaReceptionAd
       }
     }
 
-    return readJsonFile<AlibabaReceptionAddress[]>(RECEPTION_ADDRESSES_PATH, []);
+    return readAlibabaReceptionAddressesSource();
   });
 }
 
@@ -2070,6 +2215,9 @@ export async function saveAlibabaReceptionAddress(address: AlibabaReceptionAddre
   const next = normalizedAddresses.some((entry: AlibabaReceptionAddress) => entry.id === address.id)
     ? normalizedAddresses.map((entry: AlibabaReceptionAddress) => entry.id === address.id ? address : entry)
     : [address, ...normalizedAddresses];
+  if (canUseBlobStore()) {
+    await writeJsonBlob(RECEPTION_ADDRESSES_BLOB_PATHNAME, next);
+  }
   await writeJsonFile(RECEPTION_ADDRESSES_PATH, next);
   invalidateCatalogRuntimeCache();
   return address;
@@ -2088,7 +2236,7 @@ export async function getAlibabaPurchaseOrders(): Promise<AlibabaPurchaseOrder[]
     }
   }
 
-  return readJsonFile<AlibabaPurchaseOrder[]>(PURCHASE_ORDERS_PATH, []);
+  return readAlibabaPurchaseOrdersSource();
 }
 
 export async function saveAlibabaPurchaseOrder(order: AlibabaPurchaseOrder): Promise<AlibabaPurchaseOrder> {
@@ -2108,6 +2256,9 @@ export async function saveAlibabaPurchaseOrder(order: AlibabaPurchaseOrder): Pro
   const next = orders.some((entry: AlibabaPurchaseOrder) => entry.id === order.id)
     ? orders.map((entry: AlibabaPurchaseOrder) => entry.id === order.id ? order : entry)
     : [order, ...orders];
+  if (canUseBlobStore()) {
+    await writeJsonBlob(PURCHASE_ORDERS_BLOB_PATHNAME, next);
+  }
   await writeJsonFile(PURCHASE_ORDERS_PATH, next);
   return order;
 }
@@ -2125,7 +2276,7 @@ export async function getAlibabaReceptionRecords(): Promise<AlibabaReceptionReco
     }
   }
 
-  return readJsonFile<AlibabaReceptionRecord[]>(RECEPTIONS_PATH, []);
+  return readAlibabaReceptionRecordsSource();
 }
 
 export async function saveAlibabaReceptionRecord(record: AlibabaReceptionRecord): Promise<AlibabaReceptionRecord> {
@@ -2145,6 +2296,9 @@ export async function saveAlibabaReceptionRecord(record: AlibabaReceptionRecord)
   const next = records.some((entry: AlibabaReceptionRecord) => entry.id === record.id)
     ? records.map((entry: AlibabaReceptionRecord) => entry.id === record.id ? record : entry)
     : [record, ...records];
+  if (canUseBlobStore()) {
+    await writeJsonBlob(RECEPTIONS_BLOB_PATHNAME, next);
+  }
   await writeJsonFile(RECEPTIONS_PATH, next);
   return record;
 }
