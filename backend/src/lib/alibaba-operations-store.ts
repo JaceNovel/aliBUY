@@ -2036,7 +2036,11 @@ async function readAlibabaImportedProductsSource(): Promise<AlibabaImportedProdu
   return readJsonFile<AlibabaImportedProduct[]>(IMPORTED_PRODUCTS_PATH, []);
 }
 
-export async function getAlibabaImportedProducts(): Promise<AlibabaImportedProduct[]> {
+export async function getAlibabaImportedProducts(options?: { fresh?: boolean }): Promise<AlibabaImportedProduct[]> {
+  if (options?.fresh) {
+    return readAlibabaImportedProductsSource();
+  }
+
   return getOrSetCatalogRuntimeCache("alibaba-imported-products", 30_000, readAlibabaImportedProductsSource);
 }
 

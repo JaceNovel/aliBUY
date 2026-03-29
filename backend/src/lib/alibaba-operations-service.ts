@@ -448,7 +448,7 @@ export async function runAlibabaCatalogImport(input: {
 }
 
 export async function publishImportedProducts(productIds: string[]) {
-  const products = await getAlibabaImportedProducts();
+  const products = await getAlibabaImportedProducts({ fresh: true });
   const timestamp = nowIso();
   const next = products.map((product) => productIds.includes(product.id)
     ? { ...product, publishedToSite: true, status: "published" as const, publishedAt: timestamp, updatedAt: timestamp }
@@ -477,7 +477,7 @@ function resolveImportedProduct(products: AlibabaImportedProduct[], ...identifie
 }
 
 export async function deleteImportedProduct(importedProductId: string, sourceProductId?: string) {
-  const products = await getAlibabaImportedProducts();
+  const products = await getAlibabaImportedProducts({ fresh: true });
   const product = resolveImportedProduct(products, importedProductId, sourceProductId);
 
   if (!product) {
@@ -501,7 +501,7 @@ export async function deleteImportedProduct(importedProductId: string, sourcePro
 }
 
 export async function reenrichImportedProduct(importedProductId: string) {
-  const products = await getAlibabaImportedProducts();
+  const products = await getAlibabaImportedProducts({ fresh: true });
   const product = resolveImportedProduct(products, importedProductId);
 
   if (!product) {
@@ -733,7 +733,7 @@ export async function createAlibabaPurchaseOrder(input: {
   shippingAddressId?: string;
 }) {
   const [products, addresses] = await Promise.all([
-    getAlibabaImportedProducts(),
+    getAlibabaImportedProducts({ fresh: true }),
     getAlibabaReceptionAddresses(),
   ]);
   const product = resolveImportedProduct(products, input.importedProductId, input.sourceProductId);
