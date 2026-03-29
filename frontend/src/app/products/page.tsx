@@ -8,6 +8,9 @@ import { formatTierAwarePrice, formatTierAwarePriceMeta } from "@/lib/product-pr
 import { getPricingContext } from "@/lib/pricing";
 import { SITE_NAME, SITE_URL } from "@/lib/site-config";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export const metadata: Metadata = {
   title: `Catalogue | ${SITE_NAME}`,
   description: "Catalogue produit alimente depuis l'import AliExpress.",

@@ -2,6 +2,8 @@ import "server-only";
 
 import { cache } from "react";
 
+import { slugifyCategoryLabel } from "@/lib/alibaba-operations";
+import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import type { ProductCatalogItem } from "@/lib/products-data";
 
 export type CatalogCategoryRecord = {
@@ -70,7 +72,69 @@ function getCategorySortRank(slug: string) {
 }
 
 export const getCatalogCategories = cache(async function getCatalogCategories(): Promise<CatalogCategoryRecord[]> {
-  return [];
+  const importedProducts = await getAlibabaImportedProducts();
+  const publishedProducts = importedProducts.filter((product) => product.publishedToSite && product.status !== "archived");
+  const categories = new Map<string, CategoryAccumulator>();
+
+  for (const product of publishedProducts) {
+    const title = product.categoryTitle?.trim()
+      || product.categoryPath?.find((entry) => entry.trim().length > 0)?.trim()
+      || "Catalogue importe";
+    const sourcePath = Array.isArray(product.categoryPath) && product.categoryPath.length > 0
+      ? product.categoryPath.filter((entry) => entry.trim().length > 0)
+      : [title];
+    const slug = (product.categorySlug?.trim() || slugifyCategoryLabel(title));
+    const existing = categories.get(slug);
+
+    if (existing) {
+      existing.products.push(product);
+      if (product.query?.trim()) {
+        existing.queries.add(product.query.trim());
+      }
+      continue;
+    }
+
+    categories.set(slug, {
+      slug,
+      title,
+      description: "",
+      sourcePath,
+      queries: new Set(product.query?.trim() ? [product.query.trim()] : []),
+      products: [product],
+    });
+  }
+
+  return [...categories.values()]
+    .map((category) => {
+      const products = dedupeProducts(category.products);
+      const count = products.length;
+
+      return {
+        slug: category.slug,
+        title: category.title,
+        description: buildCategoryDescription(category.title, category.sourcePath, count),
+        href: buildCategoryHref(category.slug),
+        image: products[0]?.image,
+        productCount: count,
+        productSlugs: products.map((product) => product.slug),
+        sourcePath: category.sourcePath,
+        sourcePathLabel: category.sourcePath.join(" / "),
+        queries: [...category.queries],
+        products,
+      } satisfies CatalogCategoryRecord;
+    })
+    .sort((left, right) => {
+      const rank = getCategorySortRank(left.slug) - getCategorySortRank(right.slug);
+      if (rank !== 0) {
+        return rank;
+      }
+
+      if (right.productCount !== left.productCount) {
+        return right.productCount - left.productCount;
+      }
+
+      return left.title.localeCompare(right.title, "fr");
+    });
 });
 
 export const getCatalogCategoryBySlug = cache(async function getCatalogCategoryBySlug(slug: string): Promise<CatalogCategoryRecord | null> {

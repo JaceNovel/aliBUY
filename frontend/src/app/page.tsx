@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ScrollText, ShieldCheck, Sparkles, WandSparkles, type LucideIcon } from "lucide-react";
 import type { Metadata } from "next";
@@ -16,11 +17,16 @@ import { SiteFooter } from "@/components/site-footer";
 import { SupportMenu } from "@/components/support-menu";
 import { UnavailableLink } from "@/components/unavailable-link";
 import { getCatalogCategories } from "@/lib/catalog-category-service";
+import { getCatalogProducts } from "@/lib/catalog-service";
 import { getMessages } from "@/lib/messages";
 import { getProductImageUrl } from "@/lib/product-image";
+import { formatTierAwarePrice, formatTierAwarePriceMeta } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site-config";
 import { getCurrentUser } from "@/lib/user-auth";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const HOME_HERO_NAV_ITEMS: ReadonlyArray<{ label: string; href: string; active?: boolean }> = [
   { label: "Mode", href: "/mode" },
@@ -65,12 +71,14 @@ function QuickActionItem({ item }: { item: QuickAction }) {
 }
 
 export default async function Home() {
-  const [pricing, catalogCategories, user] = await Promise.all([
+  const [pricing, catalogCategories, catalogProducts, user] = await Promise.all([
     getPricingContext(),
     getCatalogCategories(),
+    getCatalogProducts(),
     getCurrentUser(),
   ]);
   const messages = getMessages(pricing.languageCode);
+  const featuredProducts = catalogProducts.slice(0, 8);
   const megaMenuCategories: CategoryMegaMenuCategory[] = catalogCategories.slice(0, 9).map((category) => ({
     slug: category.slug,
     title: category.title,
@@ -285,16 +293,60 @@ export default async function Home() {
       </section>
 
       <div className="mx-auto max-w-[1580px] px-4 pb-14 pt-5 sm:px-6 sm:pt-8 xl:px-10">
-        <section className="rounded-[28px] bg-white px-6 py-8 text-center shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 sm:px-8 sm:py-10">
-          <div className="inline-flex items-center gap-2 rounded-full bg-[#fff2e9] px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85300]">
-            <Sparkles className="h-4 w-4" />
-            Catalogue en attente
-          </div>
-          <h2 className="mt-4 text-[30px] font-bold tracking-[-0.05em] text-[#222] sm:text-[38px]">Pas d&apos;articles pour le moment</h2>
-          <p className="mx-auto mt-3 max-w-[760px] text-[15px] leading-7 text-[#666]">
-            L&apos;accueil garde son design, mais les produits publics ont ete retires. Tu peux continuer avec un devis, la recherche ou le sourcing.
-          </p>
-        </section>
+        {featuredProducts.length === 0 ? (
+          <section className="rounded-[28px] bg-white px-6 py-8 text-center shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 sm:px-8 sm:py-10">
+            <div className="inline-flex items-center gap-2 rounded-full bg-[#fff2e9] px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85300]">
+              <Sparkles className="h-4 w-4" />
+              Catalogue en attente
+            </div>
+            <h2 className="mt-4 text-[30px] font-bold tracking-[-0.05em] text-[#222] sm:text-[38px]">Pas d&apos;articles pour le moment</h2>
+            <p className="mx-auto mt-3 max-w-[760px] text-[15px] leading-7 text-[#666]">
+              Aucun produit publie n&apos;est encore disponible. Publie les imports depuis l&apos;admin sourcing pour les faire apparaitre ici.
+            </p>
+          </section>
+        ) : (
+          <section className="rounded-[28px] bg-white px-6 py-8 shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 sm:px-8 sm:py-10">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full bg-[#fff2e9] px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85300]">
+                  <Sparkles className="h-4 w-4" />
+                  Catalogue public
+                </div>
+                <h2 className="mt-4 text-[30px] font-bold tracking-[-0.05em] text-[#222] sm:text-[38px]">Produits deja publies</h2>
+                <p className="mt-3 max-w-[760px] text-[15px] leading-7 text-[#666]">
+                  Les derniers produits importes et publies apparaissent directement sur l&apos;accueil et dans le catalogue.
+                </p>
+              </div>
+              <Link href="/products" className="inline-flex h-11 items-center justify-center rounded-full bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937]">
+                Voir tout le catalogue
+              </Link>
+            </div>
+
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {featuredProducts.slice(0, 4).map((product) => (
+                <Link
+                  key={product.slug}
+                  href={`/products/${product.slug}`}
+                  className="rounded-[24px] border border-[#edf1f6] bg-[#fcfcfc] p-4 transition hover:-translate-y-0.5 hover:border-[#ffd3bc]"
+                >
+                  <div className="aspect-[4/3] overflow-hidden rounded-[18px] bg-[#f5f5f5]">
+                    <Image
+                      src={getProductImageUrl(product.image, { width: 640, quality: 76 })}
+                      alt={product.shortTitle}
+                      width={640}
+                      height={480}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <div className="mt-4 line-clamp-2 text-[17px] font-semibold tracking-[-0.04em] text-[#222]">{product.shortTitle}</div>
+                  <div className="mt-2 text-[13px] text-[#667085]">{product.supplierName} · MOQ {product.moq} {product.unit}</div>
+                  <div className="mt-3 text-[18px] font-bold text-[#111827]">{formatTierAwarePrice(pricing.formatPrice, product)}</div>
+                  {formatTierAwarePriceMeta(product) ? <div className="mt-1 text-[12px] text-[#98a2b3]">{formatTierAwarePriceMeta(product)}</div> : null}
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
 
       <SiteFooter pricing={{ ...pricing, shippingWindow: undefined }} />

@@ -2935,6 +2935,18 @@ const ALIEXPRESS_SEARCH_TOKEN_TRANSLATIONS: Record<string, string> = {
   portefeuilles: "wallets",
   perruque: "wig",
   perruques: "wigs",
+  carte: "card",
+  graphique: "graphics",
+  graphiques: "graphics",
+  ecran: "screen",
+  ecrans: "screens",
+  creme: "cream",
+  cremes: "creams",
+  solaire: "sun",
+  soleil: "sun",
+  gaming: "gaming",
+  ordinateur: "computer",
+  informatique: "computer",
   femme: "women",
   femmes: "women",
   homme: "men",
@@ -2943,11 +2955,29 @@ const ALIEXPRESS_SEARCH_TOKEN_TRANSLATIONS: Record<string, string> = {
   enfants: "kids",
 };
 
+const ALIEXPRESS_SEARCH_PHRASE_TRANSLATIONS: Array<[string, string[]]> = [
+  ["carte graphique", ["graphics card", "gpu", "video card"]],
+  ["creme solaire", ["sunscreen", "sun cream"]],
+  ["ecran gaming", ["gaming monitor", "gaming screen"]],
+  ["ecran pc", ["computer monitor", "pc monitor"]],
+  ["case computer", ["computer case", "pc case"]],
+];
+
 function normalizeAliExpressSearchTerm(value: string) {
   return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
+}
+
+function normalizeAliExpressHardwareTerms(value: string) {
+  return value
+    .replace(/(\d+)\s*(?:giga|gig|go)\b/gi, "$1gb")
+    .replace(/\brx\s*(\d{3,4})\b/gi, "rx$1")
+    .replace(/\brtx\s*(\d{3,4})\b/gi, "rtx$1")
+    .replace(/\bgtx\s*(\d{3,4})\b/gi, "gtx$1")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function extractAliExpressProductId(query: string) {
@@ -2981,17 +3011,28 @@ function extractAliExpressProductId(query: string) {
 
 function buildAliExpressQueryCandidates(query: string) {
   const trimmed = query.trim();
-  const normalized = normalizeAliExpressSearchTerm(trimmed);
+  const normalized = normalizeAliExpressHardwareTerms(normalizeAliExpressSearchTerm(trimmed));
   const normalizedTokens = normalized.split(/\s+/g).map((token) => token.trim()).filter(Boolean);
   const translatedTokens = normalizedTokens.map((token) => ALIEXPRESS_SEARCH_TOKEN_TRANSLATIONS[token] ?? token);
   const translated = translatedTokens.join(" ").trim();
-  const shortestUsefulTranslation = translatedTokens.find((token) => token.length >= 3 && token !== "women" && token !== "men" && token !== "kids") ?? "";
+  const phraseTranslations = ALIEXPRESS_SEARCH_PHRASE_TRANSLATIONS
+    .filter(([phrase]) => normalized.includes(phrase))
+    .flatMap(([, translations]) => translations);
+  const informativeTokens = uniqueStrings([
+    ...translatedTokens,
+    ...normalizedTokens,
+  ]).filter((token) => token.length >= 3 && token !== "women" && token !== "men" && token !== "kids" && !/^\d+$/.test(token));
+  const shortestUsefulTranslation = informativeTokens[0] ?? "";
+  const longestUsefulTranslation = [...informativeTokens].sort((left, right) => right.length - left.length)[0] ?? "";
 
   return uniqueStrings([
     trimmed,
     normalized !== trimmed.toLowerCase() ? normalized : "",
     translated !== normalized ? translated : "",
+    ...phraseTranslations,
+    ...informativeTokens,
     shortestUsefulTranslation,
+    longestUsefulTranslation,
   ]).filter((entry) => entry.length > 0);
 }
 
@@ -3157,6 +3198,7 @@ async function searchAliExpressProducts(input: {
   const queryCandidates = buildAliExpressQueryCandidates(input.query);
   const directProductId = extractAliExpressProductId(input.query);
   let lastResponse: unknown = null;
+  let lastSearchError: AlibabaProductSearchResult | null = null;
 
   if (directProductId) {
     for (const context of searchContexts) {
@@ -3217,13 +3259,15 @@ async function searchAliExpressProducts(input: {
             break;
           }
 
-          return {
+          lastSearchError = {
             ok: false,
             endpoint: "aliexpress.ds.text.search",
             responseBody: searchResult.responseBody,
             products: [],
             errorMessage: "Recherche AliExpress DS impossible.",
           };
+
+          continue;
         }
 
         const payload = getAliExpressSellerPayload(searchResult.responseBody);
@@ -3294,9 +3338,11 @@ async function searchAliExpressProducts(input: {
   return {
     ok: foundProducts.length > 0,
     endpoint: "aliexpress.ds.text.search",
-    responseBody: lastResponse,
+    responseBody: foundProducts.length > 0 ? lastResponse : (lastSearchError?.responseBody ?? lastResponse),
     products: foundProducts,
-    errorMessage: foundProducts.length > 0 ? undefined : "Aucun produit AliExpress exploitable n'a été trouvé. Essaie un mot-cle plus simple ou verifie le pays de destination configure.",
+    errorMessage: foundProducts.length > 0
+      ? undefined
+      : lastSearchError?.errorMessage ?? "Aucun produit AliExpress exploitable n'a été trouvé. Essaie un mot-cle plus simple ou verifie le pays de destination configure.",
   };
 }
 
