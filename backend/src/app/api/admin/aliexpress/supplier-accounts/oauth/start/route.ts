@@ -110,6 +110,7 @@ export async function POST(request: Request) {
       apiBaseUrl: body?.apiBaseUrl ? String(body.apiBaseUrl) : existing?.apiBaseUrl,
       isActive: typeof body?.isActive === "boolean" ? body.isActive : true,
       accessTokenHint: body?.accessTokenHint ? String(body.accessTokenHint) : existing?.accessTokenHint,
+      lastError: undefined,
     });
 
     const authorizeUrl = await buildAlibabaAuthorizationUrl({

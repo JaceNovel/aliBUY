@@ -32,6 +32,7 @@ export async function POST(request: Request) {
     oauthCountry: body?.oauthCountry ? String(body.oauthCountry) : undefined,
     isActive: typeof body?.isActive === "boolean" ? body.isActive : undefined,
     accessTokenHint: body?.accessTokenHint ? String(body.accessTokenHint) : undefined,
+    lastError: undefined,
   });
 
   return Response.json({ account });

@@ -91,7 +91,7 @@ function getOauthFeedback(status?: string | null, message?: string | null) {
   }
 
   if (status === "failed") {
-    return message ? `Connexion AliExpress echouee: ${message}` : "Connexion AliExpress echouee pendant l'echange du code OAuth.";
+    return "Connexion AliExpress echouee. Relance la connexion pour terminer l'autorisation.";
   }
 
   return null;
@@ -801,7 +801,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                     <div>
                       <div className="text-[15px] font-semibold text-[#1f2937]">{account.name}</div>
                       <div className="mt-1 text-[13px] text-[#667085]">{account.email} · {account.accountPlatform} · {account.countryCode}</div>
-                      <div className="mt-1 text-[12px] text-[#98a2b3]">{account.accountLogin ?? "Connexion AliExpress a finaliser"} · {account.hasAccessToken ? "session active" : "session non finalisee"}{account.lastError ? ` · ${account.lastError}` : ""}</div>
+                      <div className="mt-1 text-[12px] text-[#98a2b3]">{account.accountLogin ?? "Connexion AliExpress a finaliser"} · {account.hasAccessToken ? "session active" : "session non finalisee"}</div>
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2">
                       {account.isActive ? <div className="rounded-full bg-[#eef4ff] px-3 py-1 text-[12px] font-semibold text-[#2f67f6]">Selectionne</div> : null}
