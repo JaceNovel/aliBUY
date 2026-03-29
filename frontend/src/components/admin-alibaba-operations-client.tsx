@@ -133,7 +133,14 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     () => initialDashboard.purchaseOrders.filter((order) => order.paymentStatus === "pending" || order.paymentStatus === "pay_url_generated"),
     [initialDashboard.purchaseOrders],
   );
-  const activeSupplierAccount = useMemo(() => initialDashboard.supplierAccounts.find((account) => account.isActive && account.status === "connected") ?? initialDashboard.supplierAccounts.find((account) => account.status === "connected") ?? null, [initialDashboard.supplierAccounts]);
+  const selectedSupplierAccount = useMemo(
+    () => initialDashboard.supplierAccounts.find((account) => account.isActive) ?? initialDashboard.supplierAccounts[0] ?? null,
+    [initialDashboard.supplierAccounts],
+  );
+  const activeSupplierAccount = useMemo(
+    () => initialDashboard.supplierAccounts.find((account) => account.isActive && account.status === "connected") ?? initialDashboard.supplierAccounts.find((account) => account.status === "connected") ?? null,
+    [initialDashboard.supplierAccounts],
+  );
   const editingSupplierAccount = useMemo(
     () => accountForm.id ? initialDashboard.supplierAccounts.find((account) => account.id === accountForm.id) ?? null : null,
     [accountForm.id, initialDashboard.supplierAccounts],
@@ -166,7 +173,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   const runImport = async () => {
     setFeedback(null);
     if (!activeSupplierAccount) {
-      setFeedback("Connecte d'abord un compte AliExpress actif pour lancer l'import live.");
+      setFeedback(selectedSupplierAccount ? "Le compte selectionne n'est pas encore autorise. Clique sur Connecter pour terminer OAuth." : "Connecte d'abord un compte AliExpress actif pour lancer l'import live.");
       return;
     }
     const response = await fetch("/api/admin/aliexpress/import", {
@@ -484,8 +491,8 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
               des commandes AliExpress depuis le back-office.
             </p>
             <div className="mt-4 inline-flex flex-wrap items-center gap-2 rounded-[16px] bg-white px-4 py-3 text-[13px] text-[#475467] shadow-[0_8px_18px_rgba(17,24,39,0.05)]">
-              <span className="font-semibold text-[#1f2937]">Compte actif:</span>
-              <span>{activeSupplierAccount ? `${activeSupplierAccount.name} · ${activeSupplierAccount.accountLogin ?? activeSupplierAccount.email}` : "aucun compte connecte"}</span>
+              <span className="font-semibold text-[#1f2937]">Compte selectionne:</span>
+              <span>{selectedSupplierAccount ? `${selectedSupplierAccount.name} · ${selectedSupplierAccount.accountLogin ?? selectedSupplierAccount.email} · ${selectedSupplierAccount.status === "connected" ? "connecte" : "a autoriser"}` : "aucun compte configure"}</span>
             </div>
             {activeFeedback ? <div className="mt-4 rounded-[16px] bg-white px-4 py-3 text-[13px] font-semibold text-[#1f2937] shadow-[0_8px_18px_rgba(17,24,39,0.05)]">{activeFeedback}</div> : null}
           </div>
@@ -603,7 +610,9 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
             <div className="mt-3 rounded-[14px] bg-[#f8fafc] px-4 py-3 text-[13px] text-[#667085]">
               {activeSupplierAccount
                 ? `Import live via ${activeSupplierAccount.name} (${activeSupplierAccount.accountLogin ?? activeSupplierAccount.email}). Les references exactes interrogent d'abord AliExpress DS puis enrichissent la fiche detail avec variantes, attributs et medias.`
-                : "Aucun compte AliExpress connecte. Autorise un compte dans l'onglet Comptes fournisseurs avant l'import."}
+                : selectedSupplierAccount
+                  ? `Le compte selectionne est ${selectedSupplierAccount.status === "connected" ? "connecte" : "en attente d'autorisation"}. Termine OAuth dans l'onglet Comptes fournisseurs avant l'import.`
+                  : "Aucun compte AliExpress configure. Ajoute et autorise un compte dans l'onglet Comptes fournisseurs avant l'import."}
             </div>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">
@@ -753,7 +762,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                       <div className="mt-1 text-[12px] text-[#98a2b3]">{account.accountLogin ?? "non autorise"} · token {account.hasAccessToken ? "present" : "absent"} · refresh {account.hasRefreshToken ? "present" : "absent"}</div>
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2">
-                      {account.isActive ? <div className="rounded-full bg-[#eafaf0] px-3 py-1 text-[12px] font-semibold text-[#15803d]">Actif</div> : null}
+                      {account.isActive ? <div className="rounded-full bg-[#eef4ff] px-3 py-1 text-[12px] font-semibold text-[#2f67f6]">Selectionne</div> : null}
                       <div className="rounded-full bg-[#fff7ed] px-3 py-1 text-[12px] font-semibold text-[#c2410c]">{account.status}</div>
                       <button type="button" onClick={() => setAccountForm({
                         id: account.id,
