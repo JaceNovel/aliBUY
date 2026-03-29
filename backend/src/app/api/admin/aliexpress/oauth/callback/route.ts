@@ -1,10 +1,25 @@
 import { exchangeAlibabaOAuthCode } from "@/lib/alibaba-open-platform-client";
+import { env } from "@/lib/env";
+
+function resolveAdminSiteOrigin(url: URL) {
+  const configuredSiteOrigin = process.env.NEXT_PUBLIC_SITE_URL?.trim() || env.frontendOrigin.trim();
+
+  if (configuredSiteOrigin && !configuredSiteOrigin.includes("localhost")) {
+    return configuredSiteOrigin;
+  }
+
+  if (url.hostname.startsWith("api.")) {
+    return `${url.protocol}//www.${url.hostname.slice(4)}`;
+  }
+
+  return url.origin;
+}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const accountId = url.searchParams.get("state") ?? url.searchParams.get("accountId");
-  const siteOrigin = process.env.NEXT_PUBLIC_SITE_URL?.trim() || url.origin;
+  const siteOrigin = resolveAdminSiteOrigin(url);
   const adminUrl = new URL("/admin/aliexpress-sourcing/accounts", siteOrigin);
 
   if (!code || !accountId) {
