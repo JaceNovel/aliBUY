@@ -431,6 +431,18 @@ export async function runAlibabaCatalogImport(input: {
       updatedAt: nowIso(),
     };
     await saveAlibabaImportJob(failedJob);
+    await createAlibabaIntegrationLog({
+      action: "catalog-import",
+      endpoint: "aliexpress.ds.text.search",
+      status: "failed",
+      requestBody: input,
+      responseBody: {
+        errorMessage: error instanceof Error ? error.message : "Import AliExpress impossible.",
+        jobId: failedJob.id,
+        query: failedJob.query,
+        fulfillmentChannel: failedJob.fulfillmentChannel,
+      },
+    });
     throw error;
   }
 }

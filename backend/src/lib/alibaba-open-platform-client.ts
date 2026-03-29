@@ -2719,7 +2719,10 @@ function mapAliExpressSearchItemFallbackToProduct(
   query: string,
   shipToCountry: string,
 ): AlibabaSearchProduct | null {
-  const sourceProductId = getStringValue(searchItem.itemId) ?? getStringValue(searchItem.product_id);
+  const sourceProductId = getStringValue(searchItem.itemId)
+    ?? getStringValue(searchItem.item_id)
+    ?? getStringValue(searchItem.product_id)
+    ?? getStringValue(searchItem.productId);
   if (!sourceProductId) {
     return null;
   }
@@ -2727,8 +2730,13 @@ function mapAliExpressSearchItemFallbackToProduct(
   const gallery = uniqueStrings([
     ...collectStrings(searchItem.itemMainPic),
     ...collectStrings(searchItem.item_main_pic),
+    ...collectStrings(searchItem.item_main_pic_url),
     ...collectStrings(searchItem.image_url),
     ...collectStrings(searchItem.imageUrl),
+    ...collectStrings(searchItem.productMainImageUrl),
+    ...collectStrings(searchItem.product_main_image_url),
+    ...collectStrings(searchItem.productSmallImageUrls),
+    ...collectStrings(searchItem.product_small_image_urls),
   ]);
   const primaryImage = gallery[0];
   if (!primaryImage) {
@@ -2742,18 +2750,46 @@ function mapAliExpressSearchItemFallbackToProduct(
     searchItem.originalPrice,
     searchItem.discountPrice,
     searchItem.appSalePrice,
+    searchItem.target_sale_price,
+    searchItem.sale_price,
+    searchItem.target_original_price,
+    searchItem.original_price,
+    searchItem.discount_price,
+    searchItem.app_sale_price,
+    searchItem.min_price,
+    searchItem.max_price,
+    searchItem.originMinPrice,
+    searchItem.origin_min_price,
   );
   const minRawPrice = priceBounds.min;
   if (!minRawPrice) {
     return null;
   }
 
-  const title = getStringValue(searchItem.title) ?? query;
+  const title = getStringValue(searchItem.title)
+    ?? getStringValue(searchItem.product_title)
+    ?? getStringValue(searchItem.item_title)
+    ?? getStringValue(searchItem.subject)
+    ?? query;
   const minUsd = applyAliExpressMargin(minRawPrice);
   const maxUsd = typeof priceBounds.max === "number" ? applyAliExpressMargin(priceBounds.max) : undefined;
-  const soldCount = getStringValue(searchItem.orders) ?? getStringValue(searchItem.tradeDesc) ?? getStringValue(searchItem.sales_count) ?? "0";
-  const supplierName = getStringValue(searchItem.storeName) ?? getStringValue(searchItem.store_name) ?? getStringValue(searchItem.sellerName) ?? "AliExpress supplier";
-  const supplierLocation = getStringValue(searchItem.storeCountryCode) ?? getStringValue(searchItem.store_country_code) ?? "CN";
+  const soldCount = getStringValue(searchItem.orders)
+    ?? getStringValue(searchItem.latest_volume)
+    ?? getStringValue(searchItem.tradeDesc)
+    ?? getStringValue(searchItem.trade_desc)
+    ?? getStringValue(searchItem.sales_count)
+    ?? getStringValue(searchItem.salesCount)
+    ?? "0";
+  const supplierName = getStringValue(searchItem.storeName)
+    ?? getStringValue(searchItem.store_name)
+    ?? getStringValue(searchItem.sellerName)
+    ?? getStringValue(searchItem.seller_name)
+    ?? getStringValue(searchItem.shop_name)
+    ?? "AliExpress supplier";
+  const supplierLocation = getStringValue(searchItem.storeCountryCode)
+    ?? getStringValue(searchItem.store_country_code)
+    ?? getStringValue(searchItem.ship_from)
+    ?? "CN";
 
   return {
     sourceProductId,
@@ -2812,8 +2848,12 @@ function buildAliExpressSearchContexts() {
 
   const candidates = [
     { shipToCountry: configuredCountry || "CI", local: configuredLanguage || "fr_FR", currency: configuredCurrency || "USD" },
+    { shipToCountry: configuredCountry || "CI", local: "en_US", currency: configuredCurrency || "USD" },
     { shipToCountry: "US", local: "en_US", currency: configuredCurrency || "USD" },
+    { shipToCountry: "US", local: "fr_FR", currency: configuredCurrency || "USD" },
     { shipToCountry: "FR", local: "fr_FR", currency: configuredCurrency || "USD" },
+    { shipToCountry: "FR", local: "en_US", currency: configuredCurrency || "USD" },
+    { shipToCountry: "GB", local: "en_US", currency: configuredCurrency || "USD" },
   ];
 
   return candidates.filter((candidate, index, values) => values.findIndex((entry) => entry.shipToCountry === candidate.shipToCountry && entry.local === candidate.local && entry.currency === candidate.currency) === index);
@@ -2887,16 +2927,16 @@ function extractAliExpressProductId(query: string) {
 function buildAliExpressQueryCandidates(query: string) {
   const trimmed = query.trim();
   const normalized = normalizeAliExpressSearchTerm(trimmed);
-  const translated = normalized
-    .split(/\s+/g)
-    .map((token) => ALIEXPRESS_SEARCH_TOKEN_TRANSLATIONS[token] ?? token)
-    .join(" ")
-    .trim();
+  const normalizedTokens = normalized.split(/\s+/g).map((token) => token.trim()).filter(Boolean);
+  const translatedTokens = normalizedTokens.map((token) => ALIEXPRESS_SEARCH_TOKEN_TRANSLATIONS[token] ?? token);
+  const translated = translatedTokens.join(" ").trim();
+  const shortestUsefulTranslation = translatedTokens.find((token) => token.length >= 3 && token !== "women" && token !== "men" && token !== "kids") ?? "";
 
   return uniqueStrings([
     trimmed,
     normalized !== trimmed.toLowerCase() ? normalized : "",
     translated !== normalized ? translated : "",
+    shortestUsefulTranslation,
   ]).filter((entry) => entry.length > 0);
 }
 
@@ -3184,6 +3224,14 @@ async function searchAliExpressProducts(input: {
       break;
     }
   }
+
+  console.error("[aliexpress/import] no usable DS products", {
+    query: input.query,
+    queryCandidates,
+    directProductId,
+    searchContexts,
+    lastResponse,
+  });
 
   return {
     ok: foundProducts.length > 0,
