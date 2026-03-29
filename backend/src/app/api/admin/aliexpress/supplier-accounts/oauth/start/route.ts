@@ -3,6 +3,27 @@ import { getAlibabaSupplierAccounts } from "@/lib/alibaba-operations-store";
 import { saveAlibabaSupplierAccountInput } from "@/lib/alibaba-operations-service";
 import { env } from "@/lib/env";
 
+type OAuthStartPayload = {
+  id?: string;
+  name?: string;
+  email?: string;
+  accountPlatform?: string;
+  countryCode?: string;
+  defaultDispatchLocation?: string;
+  memberId?: string;
+  resourceOwner?: string;
+  appKey?: string;
+  appSecret?: string;
+  authorizeUrl?: string;
+  tokenUrl?: string;
+  refreshUrl?: string;
+  apiBaseUrl?: string;
+  isActive?: boolean;
+  accessTokenHint?: string;
+  origin?: string;
+  responseMode?: string;
+};
+
 function buildCorsHeaders(request: Request) {
   const requestOrigin = request.headers.get("origin")?.trim();
   const allowedOrigins = new Set([
@@ -29,10 +50,41 @@ export async function OPTIONS(request: Request) {
   });
 }
 
+async function readPayload(request: Request): Promise<OAuthStartPayload> {
+  const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
+
+  if (contentType.includes("application/json")) {
+    return await request.json();
+  }
+
+  const formData = await request.formData();
+
+  return {
+    id: formData.get("id")?.toString(),
+    name: formData.get("name")?.toString(),
+    email: formData.get("email")?.toString(),
+    accountPlatform: formData.get("accountPlatform")?.toString(),
+    countryCode: formData.get("countryCode")?.toString(),
+    defaultDispatchLocation: formData.get("defaultDispatchLocation")?.toString(),
+    memberId: formData.get("memberId")?.toString(),
+    resourceOwner: formData.get("resourceOwner")?.toString(),
+    appKey: formData.get("appKey")?.toString(),
+    appSecret: formData.get("appSecret")?.toString(),
+    authorizeUrl: formData.get("authorizeUrl")?.toString(),
+    tokenUrl: formData.get("tokenUrl")?.toString(),
+    refreshUrl: formData.get("refreshUrl")?.toString(),
+    apiBaseUrl: formData.get("apiBaseUrl")?.toString(),
+    isActive: formData.get("isActive")?.toString() === "true",
+    accessTokenHint: formData.get("accessTokenHint")?.toString(),
+    origin: formData.get("origin")?.toString(),
+    responseMode: formData.get("responseMode")?.toString(),
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const corsHeaders = buildCorsHeaders(request);
-    const body = await request.json();
+    const body = await readPayload(request);
     const url = new URL(request.url);
     const origin = body?.origin ? String(body.origin) : url.origin;
     const configuredRedirectUri = process.env.ALIEXPRESS_SELLER_CALLBACK_URL?.trim();
@@ -64,6 +116,10 @@ export async function POST(request: Request) {
       account,
       redirectUri: redirectUriUsed,
     });
+
+    if (body?.responseMode === "redirect") {
+      return Response.redirect(authorizeUrl, 302);
+    }
 
     return Response.json({ account, authorizeUrl, redirectUriUsed }, { headers: corsHeaders });
   } catch (error) {

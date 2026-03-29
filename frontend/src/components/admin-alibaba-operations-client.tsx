@@ -77,6 +77,25 @@ function hasRecoveredVideo(product: AlibabaImportedProduct) {
   return Boolean(product.videoUrl);
 }
 
+function submitOAuthAuthorizationForm(payload: Record<string, string>) {
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = buildApiUrl("/api/admin/aliexpress/supplier-accounts/oauth/start");
+  form.style.display = "none";
+
+  for (const [key, value] of Object.entries(payload)) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = key;
+    input.value = value;
+    form.append(input);
+  }
+
+  document.body.append(form);
+  form.submit();
+  form.remove();
+}
+
 export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -372,22 +391,27 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       return;
     }
 
-    const response = await fetch(buildApiUrl("/api/admin/aliexpress/supplier-accounts/oauth/start"), {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        ...accountForm,
-        origin: window.location.origin,
-      }),
+    submitOAuthAuthorizationForm({
+      id: accountForm.id,
+      name: accountForm.name,
+      email: accountForm.email,
+      memberId: accountForm.memberId,
+      resourceOwner: accountForm.resourceOwner,
+      appKey: accountForm.appKey,
+      appSecret: accountForm.appSecret,
+      authorizeUrl: accountForm.authorizeUrl,
+      tokenUrl: accountForm.tokenUrl,
+      refreshUrl: accountForm.refreshUrl,
+      apiBaseUrl: accountForm.apiBaseUrl,
+      accountPlatform: accountForm.accountPlatform,
+      countryCode: accountForm.countryCode,
+      defaultDispatchLocation: accountForm.defaultDispatchLocation,
+      status: accountForm.status,
+      isActive: String(accountForm.isActive),
+      accessTokenHint: accountForm.accessTokenHint,
+      origin: window.location.origin,
+      responseMode: "redirect",
     });
-    const payload = await response.json().catch(() => null);
-
-    if (!response.ok || !payload?.authorizeUrl) {
-      setFeedback(payload?.message ?? "Impossible de generer l'URL d'autorisation AliExpress.");
-      return;
-    }
-
-    window.location.assign(String(payload.authorizeUrl));
   };
 
   const refreshAccountToken = async (accountId: string) => {
@@ -407,22 +431,11 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
 
   const connectExistingAccount = async (accountId: string) => {
     setFeedback(null);
-    const response = await fetch(buildApiUrl("/api/admin/aliexpress/supplier-accounts/oauth/start"), {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        id: accountId,
-        origin: window.location.origin,
-      }),
+    submitOAuthAuthorizationForm({
+      id: accountId,
+      origin: window.location.origin,
+      responseMode: "redirect",
     });
-    const payload = await response.json().catch(() => null);
-
-    if (!response.ok || !payload?.authorizeUrl) {
-      setFeedback(payload?.message ?? "Impossible de lancer l'autorisation pour ce compte.");
-      return;
-    }
-
-    window.location.assign(String(payload.authorizeUrl));
   };
 
   const saveAddress = async () => {
