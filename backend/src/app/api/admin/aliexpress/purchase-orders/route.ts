@@ -11,6 +11,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const order = await createAlibabaPurchaseOrder({
       importedProductId: String(body?.importedProductId ?? ""),
+      sourceProductId: body?.sourceProductId ? String(body.sourceProductId) : undefined,
       quantity: Number(body?.quantity ?? 1),
       shippingAddressId: body?.shippingAddressId ? String(body.shippingAddressId) : undefined,
     });

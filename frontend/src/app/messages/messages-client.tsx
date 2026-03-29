@@ -45,6 +45,30 @@ type MessagesClientProps = {
   isAuthenticated: boolean;
 };
 
+function createSupportPlaceholderConversation(isAuthenticated: boolean): MessageEntry {
+  const createdAt = new Date().toISOString();
+
+  return {
+    id: isAuthenticated ? "support-placeholder-auth" : "support-placeholder-guest",
+    name: "Support AfriPay",
+    role: "Assistance generale",
+    preview: isAuthenticated ? "Envoyez votre premier message au support AfriPay." : "Connectez-vous pour conserver vos conversations.",
+    time: new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(createdAt)),
+    status: "en ligne",
+    updatedAt: createdAt,
+    messages: [
+      {
+        id: "support-placeholder-welcome",
+        side: "left",
+        text: isAuthenticated
+          ? "Bienvenue dans votre espace Messages. Vous pouvez envoyer votre premier message au support AfriPay ici."
+          : "Bienvenue sur la messagerie AfriPay. Connectez-vous pour conserver vos conversations et recevoir des reponses reliees a vos commandes.",
+        createdAt,
+      },
+    ],
+  };
+}
+
 export function MessagesClient({ conversations, initialConversationId, isAuthenticated }: MessagesClientProps) {
   const fallbackConversationId = initialConversationId && conversations.some((entry) => entry.id === initialConversationId) ? initialConversationId : null;
   const defaultConversationId = fallbackConversationId ?? conversations[0]?.id ?? null;
@@ -75,6 +99,7 @@ export function MessagesClient({ conversations, initialConversationId, isAuthent
 
   const selectedConversation =
     filteredEntries.find((entry) => entry.id === selectedConversationId) ?? filteredEntries[0] ?? liveConversations[0];
+  const activeConversation = selectedConversation ?? createSupportPlaceholderConversation(isAuthenticated);
 
   useEffect(() => {
     if (!messagesEndRef.current) {
@@ -131,17 +156,8 @@ export function MessagesClient({ conversations, initialConversationId, isAuthent
     };
   }, [isAuthenticated]);
 
-  if (!selectedConversation) {
-    return (
-      <section className="rounded-[24px] bg-white px-6 py-8 shadow-[0_8px_30px_rgba(24,39,75,0.05)] ring-1 ring-black/5">
-        <h1 className="text-[24px] font-bold text-[#222]">Messages</h1>
-        <p className="mt-3 text-[15px] text-[#666]">Aucune conversation n&apos;est encore disponible pour ce compte.</p>
-      </section>
-    );
-  }
-
-  const selectedMessages = selectedConversation.messages;
-  const isClosedConversation = selectedConversation.status === "dossier clos";
+  const selectedMessages = activeConversation.messages;
+  const isClosedConversation = activeConversation.status === "dossier clos";
 
   const handleSend = async () => {
     const nextMessage = draftMessage.trim();
@@ -151,7 +167,7 @@ export function MessagesClient({ conversations, initialConversationId, isAuthent
     }
 
     const optimisticConversation: MessageEntry = {
-      ...selectedConversation,
+      ...activeConversation,
       preview: nextMessage,
       time: "Envoi...",
       messages: [
@@ -161,7 +177,7 @@ export function MessagesClient({ conversations, initialConversationId, isAuthent
     };
 
     setLiveConversations((current) => current.map((entry) => (
-      entry.id === selectedConversation.id ? optimisticConversation : entry
+      entry.id === activeConversation.id ? optimisticConversation : entry
     )));
     setDraftMessage("");
 
@@ -170,12 +186,12 @@ export function MessagesClient({ conversations, initialConversationId, isAuthent
       headers: {
         "content-type": "application/json",
       },
-      body: JSON.stringify({ conversationId: selectedConversation.id, text: nextMessage }),
+      body: JSON.stringify({ conversationId: activeConversation.id, text: nextMessage }),
     });
 
     if (!response.ok) {
       setLiveConversations((current) => current.map((entry) => (
-        entry.id === selectedConversation.id ? { ...entry, messages: selectedMessages } : entry
+        entry.id === activeConversation.id ? { ...entry, messages: selectedMessages } : entry
       )));
       setDraftMessage(nextMessage);
       return;
@@ -254,7 +270,7 @@ export function MessagesClient({ conversations, initialConversationId, isAuthent
               }}
               className={[
                 "block w-full rounded-[16px] px-3.5 py-3.5 text-left ring-1 ring-black/5 transition sm:rounded-[18px] sm:px-4 sm:py-4",
-                selectedConversation.id === conversation.id ? "bg-[#fff3ea] ring-[#ffd4b5]" : "bg-white hover:bg-[#fafafa]",
+                activeConversation.id === conversation.id ? "bg-[#fff3ea] ring-[#ffd4b5]" : "bg-white hover:bg-[#fafafa]",
               ].join(" ")}
             >
               <div className="flex items-start justify-between gap-3">
@@ -298,14 +314,14 @@ export function MessagesClient({ conversations, initialConversationId, isAuthent
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
-                <div className="text-[18px] font-bold tracking-[-0.04em] text-[#222] sm:text-[28px]">{selectedConversation.name}</div>
-              <span className={["rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] sm:px-3 sm:py-1 sm:text-[12px] sm:tracking-[0.08em]", getStatusStyles(selectedConversation.status)].join(" ")}>
-                {selectedConversation.status}
+                <div className="text-[18px] font-bold tracking-[-0.04em] text-[#222] sm:text-[28px]">{activeConversation.name}</div>
+              <span className={["rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] sm:px-3 sm:py-1 sm:text-[12px] sm:tracking-[0.08em]", getStatusStyles(activeConversation.status)].join(" ")}>
+                {activeConversation.status}
               </span>
                 {isAuthenticated && isSyncing ? <span className="text-[11px] font-medium text-[#98a2b3]">sync...</span> : null}
               </div>
-              <div className="mt-1 text-[12px] text-[#666] sm:mt-2 sm:text-[15px]">{selectedConversation.role}</div>
-              {selectedConversation.email ? <div className="mt-1 text-[11px] text-[#999] sm:text-[13px]">{selectedConversation.email}</div> : null}
+              <div className="mt-1 text-[12px] text-[#666] sm:mt-2 sm:text-[15px]">{activeConversation.role}</div>
+              {activeConversation.email ? <div className="mt-1 text-[11px] text-[#999] sm:text-[13px]">{activeConversation.email}</div> : null}
             </div>
           </div>
           <div className="hidden rounded-full bg-[#f7f7f7] px-4 py-2 text-[14px] font-semibold text-[#333] ring-1 ring-black/5 sm:block">
@@ -317,7 +333,7 @@ export function MessagesClient({ conversations, initialConversationId, isAuthent
           <div className="space-y-3.5 sm:space-y-5">
           {selectedMessages.map((message, index) => (
             <div
-              key={message.id ?? `${selectedConversation.id}-${index}`}
+              key={message.id ?? `${activeConversation.id}-${index}`}
               className={["flex gap-3", message.side === "right" ? "justify-end" : "justify-start"].join(" ")}
             >
               {message.side === "left" ? (
@@ -333,7 +349,7 @@ export function MessagesClient({ conversations, initialConversationId, isAuthent
               >
                 <div>{message.text}</div>
                 <div className="mt-2 flex items-center justify-end gap-1 text-[11px] text-[#7c8593]">
-                  <span>{message.createdAt ? new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" }).format(new Date(message.createdAt)) : selectedConversation.time}</span>
+                  <span>{message.createdAt ? new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" }).format(new Date(message.createdAt)) : activeConversation.time}</span>
                   {message.side === "right" ? <CheckCheck className="h-3.5 w-3.5 text-[#16a34a]" /> : null}
                 </div>
               </div>
@@ -367,7 +383,7 @@ export function MessagesClient({ conversations, initialConversationId, isAuthent
                   ? "Ce dossier est clos. Reouvrez-le via le Service AfriPay pour envoyer un nouveau message."
                   : !isAuthenticated
                     ? "Connectez-vous pour envoyer un message et conserver l'historique."
-                  : `Ecrire a ${selectedConversation.name}...`
+                  : `Ecrire a ${activeConversation.name}...`
               }
               disabled={isClosedConversation || !isAuthenticated}
               className="h-10 flex-1 rounded-full bg-transparent px-2.5 text-[13px] outline-none placeholder:text-[#9aa0aa] disabled:cursor-not-allowed sm:h-12 sm:px-3 sm:text-[15px]"

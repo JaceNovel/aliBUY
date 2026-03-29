@@ -259,13 +259,14 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     refresh();
   };
 
-  const createPurchaseOrder = async (importedProductId: string) => {
+  const createPurchaseOrder = async (importedProductId: string, sourceProductId?: string) => {
     setFeedback(null);
     const response = await fetch("/api/admin/aliexpress/purchase-orders", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         importedProductId,
+        sourceProductId,
         quantity: quantityByProduct[importedProductId] ?? 1,
         shippingAddressId: defaultAddressId,
       }),
@@ -287,14 +288,18 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     refresh();
   };
 
-  const deleteImportedItem = async (importedProductId: string) => {
+  const deleteImportedItem = async (importedProductId: string, sourceProductId?: string) => {
     setFeedback(null);
 
     if (!window.confirm("Supprimer cet article importé du catalogue admin ?")) {
       return;
     }
 
-    const response = await fetch(`/api/admin/aliexpress/import/${importedProductId}`, {
+    const deleteUrl = sourceProductId
+      ? `/api/admin/aliexpress/import/${importedProductId}?sourceProductId=${encodeURIComponent(sourceProductId)}`
+      : `/api/admin/aliexpress/import/${importedProductId}`;
+
+    const response = await fetch(deleteUrl, {
       method: "DELETE",
     });
     const payload = await response.json().catch(() => null);
@@ -731,12 +736,12 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                             {formatTierAwarePriceMeta(product) ? <div className="mt-1 text-[11px] text-[#667085]">{formatTierAwarePriceMeta(product)}</div> : null}
                           </div>
                           <input value={quantityByProduct[product.id] ?? product.moq ?? 0} onChange={(event) => setQuantityByProduct((current) => ({ ...current, [product.id]: Number(event.target.value) }))} type="number" min={1} className="h-10 w-28 rounded-[12px] border border-[#d7dce5] px-3 text-[13px] text-[#111827] outline-none focus:border-[#ff6a00]" />
-                          <button type="button" onClick={() => createPurchaseOrder(product.id)} className="inline-flex h-10 items-center justify-center rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]">Creer un lot DS</button>
+                          <button type="button" onClick={() => createPurchaseOrder(product.id, product.sourceProductId)} className="inline-flex h-10 items-center justify-center rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]">Creer un lot DS</button>
                           <button type="button" onClick={() => reenrichImportedItem(product.id)} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#dbe2ea] bg-white px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
                             <RefreshCcw className="h-4 w-4" />
                             Réenrichir
                           </button>
-                          <button type="button" onClick={() => deleteImportedItem(product.id)} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#f2d1d1] bg-[#fff8f8] px-4 text-[13px] font-semibold text-[#c74444] transition hover:bg-[#fff1f1]">
+                          <button type="button" onClick={() => deleteImportedItem(product.id, product.sourceProductId)} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#f2d1d1] bg-[#fff8f8] px-4 text-[13px] font-semibold text-[#c74444] transition hover:bg-[#fff1f1]">
                             <Trash2 className="h-4 w-4" />
                             Supprimer
                           </button>

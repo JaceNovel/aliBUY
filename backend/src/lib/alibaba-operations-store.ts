@@ -2040,6 +2040,22 @@ export async function getAlibabaImportedProducts(): Promise<AlibabaImportedProdu
   return getOrSetCatalogRuntimeCache("alibaba-imported-products", 30_000, readAlibabaImportedProductsSource);
 }
 
+function normalizeImportedProductForFallbackSave(existingProducts: AlibabaImportedProduct[], product: AlibabaImportedProduct) {
+  const existing = existingProducts.find((entry) => entry.id === product.id)
+    ?? existingProducts.find((entry) => entry.sourceProductId === product.sourceProductId)
+    ?? existingProducts.find((entry) => entry.slug === product.slug);
+
+  if (!existing) {
+    return product;
+  }
+
+  return {
+    ...product,
+    id: existing.id,
+    createdAt: existing.createdAt ?? product.createdAt,
+  };
+}
+
 export async function saveAlibabaImportedProducts(products: AlibabaImportedProduct[]): Promise<AlibabaImportedProduct[]> {
   if (canUseDatabase()) {
     try {
@@ -2060,7 +2076,8 @@ export async function saveAlibabaImportedProducts(products: AlibabaImportedProdu
   const nextMap = new Map(existing.map((item: AlibabaImportedProduct) => [item.sourceProductId || item.id, item]));
 
   for (const product of products) {
-    nextMap.set(product.sourceProductId || product.id, product);
+    const normalizedProduct = normalizeImportedProductForFallbackSave(existing, product);
+    nextMap.set(normalizedProduct.sourceProductId || normalizedProduct.id, normalizedProduct);
   }
 
   const next = [...nextMap.values()].sort((left: AlibabaImportedProduct, right: AlibabaImportedProduct) => right.updatedAt.localeCompare(left.updatedAt));

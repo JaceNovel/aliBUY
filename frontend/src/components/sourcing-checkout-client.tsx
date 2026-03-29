@@ -154,12 +154,6 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
     }
   }, [hasUserSelectedShipping, quote.recommendedMethod, selectedShipping, shippingOptions]);
 
-  useEffect(() => {
-    if (deliveryPlan.deliveryProfile.mode === "forwarder" && deliveryMode !== "forwarder") {
-      setDeliveryMode("forwarder");
-    }
-  }, [deliveryMode, deliveryPlan.deliveryProfile.mode]);
-
   const selectedOption = useMemo(() => shippingOptions.find((option) => option.key === selectedShipping) ?? shippingOptions[0] ?? null, [selectedShipping, shippingOptions]);
   const baseTotalPrice = quote.cartProductsTotalFcfa + (selectedOption?.priceFcfa ?? 0);
   const totalPrice = appliedPromo?.baseTotalFcfa === baseTotalPrice ? appliedPromo.finalTotalFcfa : baseTotalPrice;
@@ -199,22 +193,14 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
   const applySavedAddress = (address: CustomerAddressRecord) => {
     const nextAddress = buildFormFromAddress(address, initialUser);
     setForm((current) => ({ ...current, ...nextAddress, notes: current.notes }));
-    setDeliveryMode(canonicalizeCountryCode(nextAddress.countryCode) === "CN" ? "forwarder" : "direct");
+    setDeliveryMode("direct");
     setLocationFeedback(null);
   };
 
   const selectSupportedCountry = (value: string) => {
     const normalized = canonicalizeCountryCode(value, "TG") as CountryCode;
     updateFormField("countryCode", normalized);
-    if (deliveryMode !== "forwarder") {
-      setDeliveryMode("direct");
-    }
-  };
-
-  const enableForwarderMode = () => {
-    setDeliveryMode("forwarder");
-    setErrorMessage(null);
-    setLocationFeedback("Utilisez votre propre agent en Chine. La commande sera clôturée dès la remise au transitaire.");
+    setDeliveryMode("direct");
   };
 
   const hydrateAddressFromCoordinates = async (latitude: number, longitude: number) => {
@@ -511,13 +497,10 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a00]">Mode de livraison</div>
-                <div className="mt-1 text-[13px] text-[#667085] sm:text-[14px]">Adresse client pour la livraison directe, ou bien votre propre agent en Chine si vous préférez.</div>
+                <div className="mt-1 text-[13px] text-[#667085] sm:text-[14px]">Renseignez l'adresse du client pour une livraison directe.</div>
               </div>
               <div className="inline-flex rounded-full bg-[#eef2f6] p-1">
-                <button type="button" onClick={() => setDeliveryMode("direct")} className={["rounded-full px-4 py-2 text-[13px] font-semibold transition", deliveryMode === "direct" ? "bg-white text-[#111827] shadow-[0_4px_14px_rgba(15,23,42,0.08)]" : "text-[#667085]"].join(" ")}>Adresse client</button>
-                <button type="button" onClick={() => {
-                  setDeliveryMode("forwarder");
-                }} className={["rounded-full px-4 py-2 text-[13px] font-semibold transition", deliveryMode === "forwarder" ? "bg-white text-[#111827] shadow-[0_4px_14px_rgba(15,23,42,0.08)]" : "text-[#667085]"].join(" ")}>Agent en Chine</button>
+                <button type="button" onClick={() => setDeliveryMode("direct")} className={["rounded-full px-4 py-2 text-[13px] font-semibold transition", deliveryMode === "direct" ? "bg-white text-[#111827] shadow-[0_4px_14px_rgba(15,23,42,0.08)]" : "text-[#667085]"].join(" ")}>Livraison directe</button>
               </div>
             </div>
 
@@ -550,10 +533,6 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
                     <option key={country.code} value={country.code}>{country.flagEmoji} {country.label}</option>
                   ))}
                 </select>
-                <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] font-medium text-[#667085]">
-                  <span>Vous préférez votre propre agent ?</span>
-                  <button type="button" onClick={enableForwarderMode} className="inline-flex items-center justify-center rounded-full border border-[#d7dce5] px-3 py-1 text-[12px] font-semibold text-[#111827] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">Utiliser mon agent Chine</button>
-                </div>
               </label>
               <label className="text-[13px] font-semibold text-[#344054]">
                 Région / État
@@ -567,14 +546,13 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
               </>
             ) : null}
 
-            {deliveryPlan.deliveryProfile.unsupportedCountry && deliveryMode !== "forwarder" ? (
+            {deliveryPlan.deliveryProfile.unsupportedCountry ? (
               <div className="mt-4 rounded-[18px] border border-[#f8d7a6] bg-[#fff8ee] px-4 py-4 text-[13px] leading-6 text-[#8a4b16]">
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   <div>
                     <div className="font-semibold">{deliveryPlan.deliveryProfile.unsupportedMessage}</div>
-                    <div className="mt-1">Passez par votre agent Chine si vous devez livrer hors des pays déjà configurés sur le site.</div>
-                    <button type="button" onClick={() => setDeliveryMode("forwarder")} className="mt-3 inline-flex h-10 items-center justify-center rounded-full bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]">Mettre l&apos;adresse du transitaire</button>
+                    <div className="mt-1">Cette destination n&apos;est pas encore disponible en livraison directe.</div>
                   </div>
                 </div>
               </div>
@@ -588,27 +566,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
 
             {isDirectAliExpressFlow ? (
               <div className="mt-4 rounded-[18px] border border-[#d8eadf] bg-[#f3fbf6] px-4 py-4 text-[13px] leading-6 text-[#166534]">
-                Ce pays est desservi directement. Votre adresse client sera envoyée au fournisseur et la commande ne passera pas en lot.
-              </div>
-            ) : null}
-
-            {deliveryMode === "forwarder" ? (
-              <div className="mt-4 rounded-[20px] border border-[#dbe7f5] bg-[#f6fbff] p-4">
-                <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#1d4f91]">Agent en Chine</div>
-                <div className="mt-1 text-[13px] text-[#56708d] sm:text-[14px]">Collez l&apos;adresse complète fournie par votre agent en Chine puis ajoutez le marquage du colis.</div>
-                <div className="mt-4 grid gap-4">
-                  <label className="text-[13px] font-semibold text-[#344054]">
-                    Adresse complète du transitaire
-                    <textarea value={forwarderAddressBlock} onChange={(event) => setForwarderAddressBlock(event.target.value)} placeholder="Collez ici le bloc d&apos;adresse complet donné par votre agent" className="mt-2 min-h-[120px] w-full rounded-[18px] border border-[#d7dce5] px-4 py-3 text-[14px] text-[#111827] outline-none focus:border-[#1d4f91]" />
-                  </label>
-                  <label className="text-[13px] font-semibold text-[#344054]">
-                    Informations à mettre sur le colis
-                    <input value={forwarderParcelMarking} onChange={(event) => setForwarderParcelMarking(event.target.value)} placeholder="Nom, code client, numéro, référence..." className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#1d4f91]" />
-                  </label>
-                </div>
-                <div className="mt-4 rounded-[16px] bg-white px-4 py-3 text-[13px] leading-6 text-[#43556c] ring-1 ring-[#dbe7f5]">
-                  Adresse agent Chine sélectionnée: AfriPay n&apos;applique pas la livraison gratuite et la commande sera clôturée dès remise au transitaire.
-                </div>
+                Ce pays est desservi directement. Vous serez directement livre a votre adresse et la commande ne passera pas en lot.
               </div>
             ) : null}
           </div>
@@ -627,17 +585,16 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
           <div className="mt-2 text-[13px] text-[#667085]">Produits finalisés avec marge, hors transport.</div>
           <div className="mt-4 rounded-[18px] bg-[#f8fafc] px-4 py-3 text-[13px] font-medium text-[#475467]">
             {isDirectAliExpressFlow
-              ? "Livraison directe AliExpress vers votre adresse client. Aucun lot air ou mer ne sera créé pour cette commande."
+              ? "Livraison directe vers votre adresse. Aucun lot air ou mer ne sera cree pour cette commande."
               : deliveryPlan.workflow.freeDeliveryEligible
               ? quote.freeShippingMessage
-              : "Mode transitaire: aucune livraison gratuite AfriPay. Seuls les frais jusqu'à votre agent sont calculés."}
+              : "La livraison directe n'est pas encore disponible pour cette destination."}
           </div>
         </section>
 
         <section className="rounded-[28px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)]">
           <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Choix de livraison</div>
           {deliveryMode === "direct" && usesInternalReceptionAddress && quote.recommendedMethod === "sea" ? <div className="mt-3 rounded-[18px] bg-[#eef6ff] px-4 py-3 text-[13px] font-medium text-[#1d4f91]">Au-dessus de 1 kg, le bateau est recommandé et l&apos;avion reste disponible si vous voulez payer l&apos;express.</div> : null}
-          {deliveryMode === "forwarder" ? <div className="mt-3 rounded-[18px] bg-[#eef6ff] px-4 py-3 text-[13px] font-medium text-[#1d4f91]">Pour une adresse agent en Chine, seul le fret local fournisseur -&gt; transitaire est facturé.</div> : null}
           <div className="mt-4 space-y-3">
             {isDirectAliExpressFlow && selectedOption ? (
               <div className="flex items-start gap-3 rounded-[20px] border border-[#d8eadf] bg-[#f8fdf9] px-4 py-4">
@@ -646,10 +603,10 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-[16px] font-semibold text-[#1f2937]">Livraison directe AliExpress</div>
+                    <div className="text-[16px] font-semibold text-[#1f2937]">Livraison directe</div>
                     <div className="text-[16px] font-black tracking-[-0.03em] text-[#1f2937]">{selectedOption.isFree ? "Gratuite" : formatSourcingAmount(selectedOption.priceFcfa, { currencyCode, locale })}</div>
                   </div>
-                  <div className="mt-1 text-[13px] text-[#667085]">Votre adresse client est transmise directement au fournisseur.</div>
+                  <div className="mt-1 text-[13px] text-[#667085]">Vous serez directement livre a votre adresse.</div>
                   <div className="mt-1 text-[13px] text-[#667085]">Délai estimé: {selectedOption.deliveryWindow}</div>
                 </div>
               </div>
@@ -684,7 +641,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
             <div className="text-[16px] font-bold text-[#1f2937]">{formatSourcingAmount(quote.cartProductsTotalFcfa, { currencyCode, locale })}</div>
           </div>
           <div className="mt-3 flex items-center justify-between">
-            <div className="text-[16px] font-semibold text-[#1f2937]">{deliveryMode === "forwarder" ? "Fret" : "Livraison"}</div>
+            <div className="text-[16px] font-semibold text-[#1f2937]">Livraison</div>
             <div className="text-[16px] font-bold text-[#1f2937]">{selectedOption ? (selectedOption.isFree ? "Gratuite" : formatSourcingAmount(selectedOption.priceFcfa, { currencyCode, locale })) : formatSourcingAmount(0, { currencyCode, locale })}</div>
           </div>
           <div className="mt-3 flex items-center justify-between text-[13px] text-[#667085]">
@@ -697,7 +654,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
           </div>
           <div className="mt-1 flex items-center justify-between text-[13px] text-[#667085]">
             <span>Route logistique</span>
-            <span>{deliveryPlan.workflow.routeType === "customer-forwarder" ? "Fournisseur -> transitaire Chine" : usesInternalReceptionAddress ? "Corridor AfriPay interne" : "Livraison directe AliExpress"}</span>
+            <span>{usesInternalReceptionAddress ? "Corridor AfriPay interne" : isDirectAliExpressFlow ? "Livraison directe" : "Livraison a confirmer"}</span>
           </div>
           <div className="mt-4 rounded-[18px] border border-[#edf1f6] bg-[#f8fafc] p-4">
             <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a00]">Code promo</div>
@@ -721,11 +678,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
               <div className="text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{formatSourcingAmount(totalPrice, { currencyCode, locale })}</div>
             </div>
           </div>
-          {deliveryPlan.workflow.routeType === "customer-forwarder" ? (
-            <div className="mt-4 rounded-[18px] bg-[#fff8ee] px-4 py-4 text-[13px] leading-6 text-[#8a4b16] ring-1 ring-[#f6deb5]">
-              La commande sera clôturée dès remise au transitaire.
-            </div>
-          ) : usesInternalReceptionAddress ? (
+          {usesInternalReceptionAddress ? (
             <div className="mt-4 rounded-[18px] bg-[#eef6ff] px-4 py-4 text-[13px] leading-6 text-[#1d4f91] ring-1 ring-[#dbe7f5]">
               Les commandes pour ce pays sont regroupées par lot: 2 kg en avion ou 1 CBM en mer, avec possibilité de lancement manuel avant seuil.
             </div>

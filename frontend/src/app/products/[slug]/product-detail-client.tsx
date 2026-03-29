@@ -7,6 +7,7 @@ import { ChevronDown, ChevronRight, Heart, Minus, Play, Plus, Share2, ShieldChec
 import { useEffect, useRef, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
+import { isSupportedDirectDeliveryCountry } from "@/lib/alibaba-sourcing";
 import { getApplicableVariantPricing, getDisplayPriceTiers, resolveProductPriceSummaryUsd, resolveProductUnitPriceUsd } from "@/lib/product-variant-pricing";
 
 type DetailVariantGroup = {
@@ -343,8 +344,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       };
   const hasSubtotalRange = subtotalRange.maxUsd > subtotalRange.minUsd;
   const dynamicPriceLabel = hasVariantSpecificPricing ? formatPriceSummary(currentPriceSummary) : product.formattedPriceRange;
-  const isFranceDelivery = product.countryCode === "FR";
-  const shippingChoices = isFranceDelivery
+  const supportsDirectAliExpressDelivery = isSupportedDirectDeliveryCountry(product.countryCode);
+  const shippingChoices = supportsDirectAliExpressDelivery
     ? [
         {
           key: "air" as const,
@@ -364,17 +365,17 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     : [
         {
           key: "air" as const,
-          title: "Express",
-          description: "Plus rapide pour les colis legers et les urgences.",
+          title: "Avion",
+          description: "Transport aerien pour les colis urgents ou de faible poids.",
           feeLabel: "Rapide",
-          summaryLabel: "Express",
+          summaryLabel: "Avion",
         },
         {
           key: "sea" as const,
-          title: "Standard",
-          description: "Mieux adapte aux commandes lourdes et gros volumes.",
+          title: "Bateau",
+          description: "Transport maritime mieux adapte aux commandes lourdes et gros volumes.",
           feeLabel: "Economique",
-          summaryLabel: "Standard",
+          summaryLabel: "Bateau",
         },
       ];
   const selectedShippingChoice = shippingChoices.find((option) => option.key === shippingMethod) ?? null;
@@ -1323,7 +1324,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               <div className="mt-2.5 rounded-[14px] border border-[#ececec] bg-[#fafafa] px-3 py-2.5 text-[12px] text-[#555] sm:mt-3 sm:rounded-[16px] sm:px-4 sm:py-3 sm:text-[14px]">
                 Poids estime du colis: <span className="font-semibold text-[#222]">{totalWeightKg.toFixed(totalWeightKg >= 10 ? 0 : 2)} kg</span>
               </div>
-              {exceedsSeaThreshold && !isFranceDelivery ? (
+              {exceedsSeaThreshold && !supportsDirectAliExpressDelivery ? (
                 <div className="mt-2.5 rounded-[14px] border border-[#ffd4b5] bg-[#fff4ea] px-3 py-2.5 text-[12px] font-medium text-[#c85a11] sm:mt-3 sm:rounded-[16px] sm:px-4 sm:py-3 sm:text-[14px]">
                   Ce colis depasse 5 kg, expédition maritime recommandée.
                 </div>

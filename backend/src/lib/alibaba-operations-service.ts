@@ -457,20 +457,28 @@ export async function publishImportedProducts(productIds: string[]) {
   return next.filter((product) => productIds.includes(product.id));
 }
 
-function resolveImportedProduct(products: AlibabaImportedProduct[], identifier: string) {
-  const normalizedIdentifier = identifier.trim();
-  if (!normalizedIdentifier) {
-    return undefined;
+function resolveImportedProduct(products: AlibabaImportedProduct[], ...identifiers: Array<string | undefined>) {
+  for (const identifier of identifiers) {
+    const normalizedIdentifier = identifier?.trim();
+    if (!normalizedIdentifier) {
+      continue;
+    }
+
+    const product = products.find((entry) => entry.id === normalizedIdentifier)
+      ?? products.find((entry) => entry.sourceProductId === normalizedIdentifier)
+      ?? products.find((entry) => entry.slug === normalizedIdentifier);
+
+    if (product) {
+      return product;
+    }
   }
 
-  return products.find((entry) => entry.id === normalizedIdentifier)
-    ?? products.find((entry) => entry.sourceProductId === normalizedIdentifier)
-    ?? products.find((entry) => entry.slug === normalizedIdentifier);
+  return undefined;
 }
 
-export async function deleteImportedProduct(importedProductId: string) {
+export async function deleteImportedProduct(importedProductId: string, sourceProductId?: string) {
   const products = await getAlibabaImportedProducts();
-  const product = resolveImportedProduct(products, importedProductId);
+  const product = resolveImportedProduct(products, importedProductId, sourceProductId);
 
   if (!product) {
     throw new Error("Produit importe introuvable.");
@@ -720,6 +728,7 @@ export async function saveAlibabaCountryProfilesInput(profiles: AlibabaCountryPr
 
 export async function createAlibabaPurchaseOrder(input: {
   importedProductId: string;
+  sourceProductId?: string;
   quantity: number;
   shippingAddressId?: string;
 }) {
@@ -727,7 +736,7 @@ export async function createAlibabaPurchaseOrder(input: {
     getAlibabaImportedProducts(),
     getAlibabaReceptionAddresses(),
   ]);
-  const product = resolveImportedProduct(products, input.importedProductId);
+  const product = resolveImportedProduct(products, input.importedProductId, input.sourceProductId);
   if (!product) {
     throw new Error("Produit importe introuvable.");
   }
