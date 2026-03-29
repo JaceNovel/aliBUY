@@ -1,9 +1,37 @@
 import { buildAlibabaAuthorizationUrl } from "@/lib/alibaba-open-platform-client";
 import { getAlibabaSupplierAccounts } from "@/lib/alibaba-operations-store";
 import { saveAlibabaSupplierAccountInput } from "@/lib/alibaba-operations-service";
+import { env } from "@/lib/env";
+
+function buildCorsHeaders(request: Request) {
+  const requestOrigin = request.headers.get("origin")?.trim();
+  const allowedOrigins = new Set([
+    env.frontendOrigin,
+    ...env.allowedOrigins,
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() ?? "",
+  ]);
+  const allowOrigin = requestOrigin && allowedOrigins.has(requestOrigin)
+    ? requestOrigin
+    : env.frontendOrigin;
+
+  return {
+    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "content-type, authorization",
+    Vary: "Origin",
+  };
+}
+
+export async function OPTIONS(request: Request) {
+  return new Response(null, {
+    status: 204,
+    headers: buildCorsHeaders(request),
+  });
+}
 
 export async function POST(request: Request) {
   try {
+    const corsHeaders = buildCorsHeaders(request);
     const body = await request.json();
     const url = new URL(request.url);
     const origin = body?.origin ? String(body.origin) : url.origin;
@@ -37,12 +65,12 @@ export async function POST(request: Request) {
       redirectUri: redirectUriUsed,
     });
 
-    return Response.json({ account, authorizeUrl, redirectUriUsed });
+    return Response.json({ account, authorizeUrl, redirectUriUsed }, { headers: corsHeaders });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Impossible de generer l'URL d'autorisation AliExpress.";
 
     console.error("[aliexpress/oauth/start] failed", { message });
 
-    return Response.json({ message }, { status: 400 });
+    return Response.json({ message }, { status: 400, headers: buildCorsHeaders(request) });
   }
 }
