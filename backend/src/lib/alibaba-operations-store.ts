@@ -430,6 +430,7 @@ async function writeJsonBlob<T>(pathname: string, value: T) {
   await put(pathname, `${JSON.stringify(value, null, 2)}\n`, {
     access: "public",
     addRandomSuffix: false,
+    allowOverwrite: true,
     contentType: "application/json; charset=utf-8",
   });
 }
