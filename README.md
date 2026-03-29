@@ -1,54 +1,15 @@
-This repository is prepared for a split deployment:
-
-- Frontend: Next.js app in `frontend/`
-- Backend: API and server logic in `backend/`
-
-Root aliases still exist for compatibility:
-
-- `src -> frontend/src`
-- `public -> frontend/public`
-- `data -> backend/data`
-- `database -> backend/database`
-- `prisma -> backend/prisma`
+This is a Next.js 16 marketplace with a sourcing, pricing, and logistics layer for importing products from Alibaba and reselling them in Africa in FCFA.
 
 ## Stack
 
 - Frontend: Next.js 16 App Router + React 19
-- Backend today: mixed Next.js Route Handlers + progressive Laravel extraction
-- Target backend: Laravel 11 API only
+- Backend: Route Handlers inside Next.js
 - ORM: Prisma 6.16.x
 - Database target: PostgreSQL via Prisma datasource
 - Production persistence: PostgreSQL for users, favorites, quotes, support conversations, and authenticated orders
 - Local fallback persistence kept only for sourcing admin bootstrap data under `data/sourcing/*.json`
 
-## Progressive Split
-
-Already migrated toward the external API layer:
-
-- Product listing page `/products`
-- Product detail page `/products/[slug]`
-- Product view tracking
-- Checkout order creation
-- Moneroo payment initialization and verification
-
-Current API client:
-
-- `src/lib/api.ts`
-
-Laravel scaffold:
-
-- `backend/laravel`
-
-Still local for now to avoid UX regressions during the progressive migration:
-
-- account/session flows
-- favorites
-- address book
-- quote/support utilities
-- geolocation helper routes
-- promo preview helper route
-
-## Local Development
+## Getting Started
 
 1. Install dependencies:
 
@@ -56,43 +17,31 @@ Still local for now to avoid UX regressions during the progressive migration:
 npm install
 ```
 
-2. Start the frontend:
+2. Copy the environment file and adjust values:
 
 ```bash
-npm run dev:frontend
+cp .env.example .env
 ```
 
-Frontend runs on `http://localhost:3000`.
-
-3. Start the backend:
+3. Generate Prisma client:
 
 ```bash
-npm run dev:backend
-```
-
-Backend runs on `http://localhost:4000`.
-
-## Deployment
-
-- Deploy the storefront on Vercel from the repository root.
-- Deploy the backend on Render with Docker.
-- `frontend/` remains the visual storefront source folder.
-- `backend/` remains the application/backend service source folder.
-- Do not deploy local build artifacts like `.next/`, `.clerk/`, or `tmp/`.
-- Render backend deployment is prepared with:
-  - `Dockerfile.backend`
-  - `render.yaml`
-- Vercel storefront deployment is prepared with:
-  - `vercel.json`
-
-Useful commands:
-
-```bash
-npm run build:frontend
-npm run build:backend
 npm run prisma:generate
+```
+
+4. Configure `DATABASE_URL` and push the schema:
+
+```bash
 npm run prisma:push
 ```
+
+5. Start the dev server:
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
 
 ## Admin Access
 
@@ -135,7 +84,7 @@ Main files:
 
 ## Admin and Checkout
 
-- Admin sourcing dashboard: `/admin/aliexpress-sourcing`
+- Admin sourcing dashboard: `/admin/alibaba-sourcing`
 - Cart: `/cart`
 - Checkout sourcing: `/checkout`
 - Moneroo payment page: `/orders/payment?orderId=<sourcing-order-id>`
@@ -163,7 +112,7 @@ Notes:
 - Configure the webhook URL in Moneroo dashboard to point to `/api/payments/moneroo/webhook`.
 - Payment status is persisted on sourcing orders using the Moneroo payment id and latest verification payload.
 
-## AliExpress Integration
+## Alibaba Integration
 
 The server integration is ready for:
 
@@ -172,33 +121,55 @@ The server integration is ready for:
 
 Required environment variables:
 
-- `ALIEXPRESS_OPEN_PLATFORM_APP_KEY`
-- `ALIEXPRESS_OPEN_PLATFORM_APP_SECRET`
-- `ALIEXPRESS_OPEN_PLATFORM_ACCESS_TOKEN`
-- `ALIEXPRESS_OPEN_PLATFORM_REFRESH_TOKEN`
-- `ALIEXPRESS_DS_WEBHOOK_APP_KEY`
-- `ALIEXPRESS_DS_WEBHOOK_SECRET`
-- `ALIEXPRESS_DS_WEBHOOK_URL`
-- `ALIEXPRESS_SELLER_CALLBACK_URL`
+- `ALIBABA_OPEN_PLATFORM_APP_KEY`
+- `ALIBABA_OPEN_PLATFORM_APP_SECRET`
+- `ALIBABA_OPEN_PLATFORM_ACCESS_TOKEN`
 
 Important:
 
 - Real upstream calls also require valid catalog mapping data in `data/sourcing/catalog-mapping.json`
-- If credentials or mappings are missing, the system creates the internal order and logs the AliExpress step as skipped instead of failing the checkout.
+- If credentials or mappings are missing, the system creates the internal order and logs the Alibaba step as skipped instead of failing the checkout.
 
 ## Vercel Deployment
 
-Required environment variables on Vercel:
+Deploy this repository as two separate Vercel projects:
+
+- Storefront project: `Root Directory = frontend`
+- Backend project: `Root Directory = backend`
+
+Each app now has its own `package.json`, local `vercel.json`, and Next.js config so Vercel can install and build it directly from its folder.
+
+Storefront environment variables:
 
 - `NEXT_PUBLIC_API_BASE_URL`
 - `NEXT_PUBLIC_ALIEXPRESS_PROVIDER`
 - `NEXT_PUBLIC_DEFAULT_DELIVERY_COUNTRY`
 
+Backend environment variables:
+
+- `DATABASE_URL`
+- `USER_SESSION_SECRET`
+- `ADMIN_EMAIL`
+- `ADMIN_PASSWORD_HASH`
+- `ADMIN_SESSION_SECRET`
+- `MONEROO_SECRET_KEY`
+- `MONEROO_WEBHOOK_SECRET`
+- `ALIBABA_ACCOUNT_ENCRYPTION_KEY`
+- `ALIEXPRESS_OPEN_PLATFORM_APP_KEY`
+- `ALIEXPRESS_OPEN_PLATFORM_APP_SECRET`
+- `ALIEXPRESS_OPEN_PLATFORM_ACCESS_TOKEN`
+- `ALIEXPRESS_OPEN_PLATFORM_REFRESH_TOKEN`
+- `ALIEXPRESS_DS_WEBHOOK_SECRET`
+- `ALIEXPRESS_DS_WEBHOOK_APP_KEY`
+- `ALIEXPRESS_DS_WEBHOOK_URL`
+- `ALIEXPRESS_SELLER_CALLBACK_URL`
+
 Deployment notes:
 
-- Connect the repository root to Vercel. The root Next.js app uses the storefront files through the compatibility links already present in the repo.
-- `npm run build` builds the storefront app only.
-- Point `NEXT_PUBLIC_API_BASE_URL` to the public Render backend URL.
+- `postinstall` runs `prisma generate` in both sub-apps, which Vercel requires for Prisma builds.
+- Leave the Vercel install command as `npm install` and the build command as `npm run build` for both projects.
+- Apply schema changes separately with `npm run deploy:db` or your CI/CD pipeline before switching traffic.
+- Point the storefront `NEXT_PUBLIC_API_BASE_URL` to the deployed backend Vercel URL.
 
 ## Notes
 

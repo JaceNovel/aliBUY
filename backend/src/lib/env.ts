@@ -9,11 +9,7 @@ type EnvConfig = {
   fedapayApiUrl: string;
   fedapayApiKey: string;
   paymentWebhookSecret: string;
-  alibabaAppKey: string;
-  alibabaAppSecret: string;
-  alibabaAccessToken: string;
   adminApiToken: string;
-  alibabaMappingPath: string;
 };
 
 function getEnv(name: string, fallback = ""): string {
@@ -64,19 +60,7 @@ export const env: EnvConfig = {
   get paymentWebhookSecret() {
     return getOptionalEnv("PAYMENT_WEBHOOK_SECRET", "replace-me");
   },
-  get alibabaAppKey() {
-    return getOptionalEnv("ALIBABA_APP_KEY", "replace-me");
-  },
-  get alibabaAppSecret() {
-    return getOptionalEnv("ALIBABA_APP_SECRET", "replace-me");
-  },
-  get alibabaAccessToken() {
-    return getOptionalEnv("ALIBABA_ACCESS_TOKEN", "replace-me");
-  },
   get adminApiToken() {
     return getOptionalEnv("ADMIN_API_TOKEN", "");
-  },
-  get alibabaMappingPath() {
-    return getOptionalEnv("ALIBABA_MAPPING_PATH", `${process.cwd()}/../data/sourcing/catalog-mapping.json`);
   },
 };
