@@ -759,7 +759,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                     <div>
                       <div className="text-[15px] font-semibold text-[#1f2937]">{account.name}</div>
                       <div className="mt-1 text-[13px] text-[#667085]">{account.email} · {account.accountPlatform} · {account.countryCode}</div>
-                      <div className="mt-1 text-[12px] text-[#98a2b3]">{account.accountLogin ?? "non autorise"} · token {account.hasAccessToken ? "present" : "absent"} · refresh {account.hasRefreshToken ? "present" : "absent"}</div>
+                      <div className="mt-1 text-[12px] text-[#98a2b3]">{account.accountLogin ?? "connexion AliExpress a finaliser"} · {account.hasAccessToken ? "acces actif" : "acces a autoriser"} · {account.hasRefreshToken ? "renouvellement actif" : "renouvellement en attente"}</div>
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2">
                       {account.isActive ? <div className="rounded-full bg-[#eef4ff] px-3 py-1 text-[12px] font-semibold text-[#2f67f6]">Selectionne</div> : null}
