@@ -60,6 +60,27 @@ const ALIEXPRESS_DEFAULT_TOKEN_URL = "https://api-sg.aliexpress.com/rest/auth/to
 const ALIEXPRESS_DEFAULT_REFRESH_URL = "https://api-sg.aliexpress.com/rest/auth/token/security/refresh";
 const ALIEXPRESS_DEFAULT_API_BASE_URL = "https://api-sg.aliexpress.com";
 
+function getSupplierAccountStatusMeta(status: AlibabaSupplierAccount["status"]) {
+  if (status === "connected") {
+    return {
+      label: "Connecte",
+      className: "bg-[#ecfdf3] text-[#027a48]",
+    };
+  }
+
+  if (status === "disabled") {
+    return {
+      label: "Desactive",
+      className: "bg-[#f2f4f7] text-[#475467]",
+    };
+  }
+
+  return {
+    label: "A autoriser",
+    className: "bg-[#fff7ed] text-[#c2410c]",
+  };
+}
+
 function formatImportedPrice(product: AlibabaImportedProduct) {
   return formatTierAwarePrice((amountUsd) => `$${amountUsd.toFixed(2)}`, product);
 }
@@ -145,6 +166,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     () => accountForm.id ? initialDashboard.supplierAccounts.find((account) => account.id === accountForm.id) ?? null : null,
     [accountForm.id, initialDashboard.supplierAccounts],
   );
+  const selectedSupplierAccountStatusMeta = selectedSupplierAccount ? getSupplierAccountStatusMeta(selectedSupplierAccount.status) : null;
   const hasOauthCredentials = Boolean(accountForm.appKey.trim()) && (Boolean(accountForm.appSecret.trim()) || Boolean(editingSupplierAccount?.hasAppSecret));
   const seededQuery = useMemo(
     () => initialDashboard.panel === "import-catalog"
@@ -492,7 +514,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
             </p>
             <div className="mt-4 inline-flex flex-wrap items-center gap-2 rounded-[16px] bg-white px-4 py-3 text-[13px] text-[#475467] shadow-[0_8px_18px_rgba(17,24,39,0.05)]">
               <span className="font-semibold text-[#1f2937]">Compte selectionne:</span>
-              <span>{selectedSupplierAccount ? `${selectedSupplierAccount.name} · ${selectedSupplierAccount.accountLogin ?? selectedSupplierAccount.email} · ${selectedSupplierAccount.status === "connected" ? "connecte" : "a autoriser"}` : "aucun compte configure"}</span>
+              <span>{selectedSupplierAccount ? `${selectedSupplierAccount.name} · ${selectedSupplierAccount.accountLogin ?? selectedSupplierAccount.email} · ${selectedSupplierAccountStatusMeta?.label.toLowerCase() ?? "a autoriser"}` : "aucun compte configure"}</span>
             </div>
             {activeFeedback ? <div className="mt-4 rounded-[16px] bg-white px-4 py-3 text-[13px] font-semibold text-[#1f2937] shadow-[0_8px_18px_rgba(17,24,39,0.05)]">{activeFeedback}</div> : null}
           </div>
@@ -763,7 +785,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2">
                       {account.isActive ? <div className="rounded-full bg-[#eef4ff] px-3 py-1 text-[12px] font-semibold text-[#2f67f6]">Selectionne</div> : null}
-                      <div className="rounded-full bg-[#fff7ed] px-3 py-1 text-[12px] font-semibold text-[#c2410c]">{account.status}</div>
+                      <div className={`rounded-full px-3 py-1 text-[12px] font-semibold ${getSupplierAccountStatusMeta(account.status).className}`}>{getSupplierAccountStatusMeta(account.status).label}</div>
                       <button type="button" onClick={() => setAccountForm({
                         id: account.id,
                         name: account.name,
