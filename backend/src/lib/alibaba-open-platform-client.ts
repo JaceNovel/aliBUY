@@ -2771,6 +2771,58 @@ function buildAliExpressSearchContexts() {
   return candidates.filter((candidate, index, values) => values.findIndex((entry) => entry.shipToCountry === candidate.shipToCountry && entry.local === candidate.local && entry.currency === candidate.currency) === index);
 }
 
+const ALIEXPRESS_SEARCH_TOKEN_TRANSLATIONS: Record<string, string> = {
+  bague: "ring",
+  bagues: "rings",
+  bracelet: "bracelet",
+  bracelets: "bracelets",
+  collier: "necklace",
+  colliers: "necklaces",
+  boucle: "earring",
+  boucles: "earrings",
+  montre: "watch",
+  montres: "watches",
+  chaussure: "shoes",
+  chaussures: "shoes",
+  robe: "dress",
+  robes: "dresses",
+  sac: "bag",
+  sacs: "bags",
+  portefeuille: "wallet",
+  portefeuilles: "wallets",
+  perruque: "wig",
+  perruques: "wigs",
+  femme: "women",
+  femmes: "women",
+  homme: "men",
+  hommes: "men",
+  enfant: "kids",
+  enfants: "kids",
+};
+
+function normalizeAliExpressSearchTerm(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function buildAliExpressQueryCandidates(query: string) {
+  const trimmed = query.trim();
+  const normalized = normalizeAliExpressSearchTerm(trimmed);
+  const translated = normalized
+    .split(/\s+/g)
+    .map((token) => ALIEXPRESS_SEARCH_TOKEN_TRANSLATIONS[token] ?? token)
+    .join(" ")
+    .trim();
+
+  return uniqueStrings([
+    trimmed,
+    normalized !== trimmed.toLowerCase() ? normalized : "",
+    translated !== normalized ? translated : "",
+  ]).filter((entry) => entry.length > 0);
+}
+
 function mapAliExpressProductDetailToProduct(
   searchItem: Record<string, unknown>,
   detailResponseBody: unknown,
@@ -2930,78 +2982,85 @@ async function searchAliExpressProducts(input: {
   const maxPages = Math.max(1, Math.ceil(desiredCount / pageSize));
   const foundProducts: AlibabaSearchProduct[] = [];
   const seenProductIds = new Set<string>();
+  const queryCandidates = buildAliExpressQueryCandidates(input.query);
   let lastResponse: unknown = null;
 
-  for (const context of searchContexts) {
-    for (let pageIndex = 1; pageIndex <= maxPages && foundProducts.length < desiredCount; pageIndex += 1) {
-      const searchResult = await callAliExpressTopEndpoint("aliexpress.ds.text.search", {
-        keyWord: input.query,
-        local: context.local,
-        countryCode: context.shipToCountry,
-        sortBy: "orders,desc",
-        pageSize,
-        pageIndex,
-        currency: context.currency,
-      }, {
-        credentials,
-        method: "POST",
-      });
-      lastResponse = searchResult.responseBody;
-      if (!searchResult.ok) {
-        if (foundProducts.length > 0) {
-          break;
-        }
-
-        return {
-          ok: false,
-          endpoint: "aliexpress.ds.text.search",
-          responseBody: searchResult.responseBody,
-          products: [],
-          errorMessage: "Recherche AliExpress DS impossible.",
-        };
-      }
-
-      const payload = getAliExpressSellerPayload(searchResult.responseBody);
-      const products = extractAliExpressSearchItems(payload);
-      if (products.length === 0) {
-        break;
-      }
-
-      for (const searchItem of products) {
-        const productId = getStringValue(searchItem.itemId) ?? getStringValue(searchItem.product_id);
-        if (!productId || seenProductIds.has(productId)) {
-          continue;
-        }
-
-        let normalized: AlibabaSearchProduct | null = null;
-        const detailResult = await callAliExpressTopEndpoint("aliexpress.ds.product.get", {
-          ship_to_country: context.shipToCountry,
-          product_id: productId,
-          target_currency: context.currency,
-          target_language: context.local,
-          remove_personal_benefit: "false",
+  for (const queryCandidate of queryCandidates) {
+    for (const context of searchContexts) {
+      for (let pageIndex = 1; pageIndex <= maxPages && foundProducts.length < desiredCount; pageIndex += 1) {
+        const searchResult = await callAliExpressTopEndpoint("aliexpress.ds.text.search", {
+          keyWord: queryCandidate,
+          local: context.local,
+          countryCode: context.shipToCountry,
+          sortBy: "orders,desc",
+          pageSize,
+          pageIndex,
+          currency: context.currency,
         }, {
           credentials,
           method: "POST",
         });
+        lastResponse = searchResult.responseBody;
+        if (!searchResult.ok) {
+          if (foundProducts.length > 0) {
+            break;
+          }
 
-        if (detailResult.ok) {
-          normalized = mapAliExpressProductDetailToProduct(searchItem, detailResult.responseBody, input.query);
+          return {
+            ok: false,
+            endpoint: "aliexpress.ds.text.search",
+            responseBody: searchResult.responseBody,
+            products: [],
+            errorMessage: "Recherche AliExpress DS impossible.",
+          };
         }
 
-        if (!normalized) {
-          normalized = mapAliExpressSearchItemFallbackToProduct(searchItem, input.query, context.shipToCountry);
-        }
-
-        if (!normalized) {
-          continue;
-        }
-
-        seenProductIds.add(productId);
-        foundProducts.push(normalized);
-        if (foundProducts.length >= desiredCount) {
+        const payload = getAliExpressSellerPayload(searchResult.responseBody);
+        const products = extractAliExpressSearchItems(payload);
+        if (products.length === 0) {
           break;
         }
+
+        for (const searchItem of products) {
+          const productId = getStringValue(searchItem.itemId) ?? getStringValue(searchItem.product_id);
+          if (!productId || seenProductIds.has(productId)) {
+            continue;
+          }
+
+          let normalized: AlibabaSearchProduct | null = null;
+          const detailResult = await callAliExpressTopEndpoint("aliexpress.ds.product.get", {
+            ship_to_country: context.shipToCountry,
+            product_id: productId,
+            target_currency: context.currency,
+            target_language: context.local,
+            remove_personal_benefit: "false",
+          }, {
+            credentials,
+            method: "POST",
+          });
+
+          if (detailResult.ok) {
+            normalized = mapAliExpressProductDetailToProduct(searchItem, detailResult.responseBody, input.query);
+          }
+
+          if (!normalized) {
+            normalized = mapAliExpressSearchItemFallbackToProduct(searchItem, input.query, context.shipToCountry);
+          }
+
+          if (!normalized) {
+            continue;
+          }
+
+          seenProductIds.add(productId);
+          foundProducts.push(normalized);
+          if (foundProducts.length >= desiredCount) {
+            break;
+          }
+        }
+      }
+
+      if (foundProducts.length > 0) {
+        break;
       }
     }
 
