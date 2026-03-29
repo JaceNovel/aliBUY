@@ -4,7 +4,8 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const accountId = url.searchParams.get("state") ?? url.searchParams.get("accountId");
-  const adminUrl = new URL("/admin/aliexpress-sourcing/accounts", url.origin);
+  const siteOrigin = process.env.NEXT_PUBLIC_SITE_URL?.trim() || url.origin;
+  const adminUrl = new URL("/admin/aliexpress-sourcing/accounts", siteOrigin);
 
   if (!code || !accountId) {
     adminUrl.searchParams.set("oauth", "missing_params");

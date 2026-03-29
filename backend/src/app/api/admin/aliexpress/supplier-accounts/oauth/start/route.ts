@@ -7,6 +7,10 @@ export async function POST(request: Request) {
     const body = await request.json();
     const url = new URL(request.url);
     const origin = body?.origin ? String(body.origin) : url.origin;
+    const configuredRedirectUri = process.env.ALIEXPRESS_SELLER_CALLBACK_URL?.trim();
+    const redirectUriUsed = configuredRedirectUri && configuredRedirectUri.length > 0
+      ? configuredRedirectUri
+      : `${origin}/api/admin/aliexpress/oauth/callback`;
     const existing = body?.id ? (await getAlibabaSupplierAccounts()).find((account) => account.id === String(body.id)) : undefined;
     const account = await saveAlibabaSupplierAccountInput({
       id: body?.id ? String(body.id) : undefined,
@@ -30,10 +34,10 @@ export async function POST(request: Request) {
 
     const authorizeUrl = await buildAlibabaAuthorizationUrl({
       account,
-      redirectUri: `${origin}/api/admin/aliexpress/oauth/callback`,
+      redirectUri: redirectUriUsed,
     });
 
-    return Response.json({ account, authorizeUrl });
+    return Response.json({ account, authorizeUrl, redirectUriUsed });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Impossible de generer l'URL d'autorisation AliExpress.";
 
