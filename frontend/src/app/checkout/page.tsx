@@ -20,6 +20,7 @@ export default async function CheckoutPage() {
       <SourcingCheckoutClient
         initialUser={{ displayName: user.displayName, email: user.email }}
         savedAddresses={addresses}
+        initialCountryCode={pricing.countryCode}
         currencyCode={pricing.currency.code}
         locale={pricing.locale}
       />

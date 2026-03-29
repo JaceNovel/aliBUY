@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Check, Copy, Gift, LoaderCircle, MapPin, ShoppingCart, Sparkles, Trash2 } from "lucide-react";
+import { Check, Copy, Flame, Gift, LoaderCircle, MapPin, ShoppingCart, Sparkles, Trash2, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
@@ -34,6 +34,7 @@ type FreeDealPageClientProps = {
     fixedPriceLabel: string;
     referralGoal: number;
     dealTagText: string;
+    shippingFromLabel: string;
   };
   access: {
     status: "eligible" | "blocked" | "unlocked" | "disabled";
@@ -332,86 +333,152 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
       code: "SHARE20",
     },
   ];
+  const showcaseProducts = products.slice(0, 12);
 
   return (
     <div className="space-y-6 pb-[calc(11rem+env(safe-area-inset-bottom))] md:pb-0">
-      <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen overflow-hidden bg-[linear-gradient(90deg,#ff0069_0%,#ff3358_38%,#ff6a00_100%)] text-white shadow-[0_24px_60px_rgba(255,45,85,0.18)]">
-        <div className="px-4 py-3 sm:px-6 lg:px-10">
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-            <div className="text-[24px] font-black tracking-[-0.06em] sm:text-[34px]">Deal du Jour</div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/85 sm:text-[13px]">
-              Article gratuit des 10 euro · promo anniversaire · jusqu&apos;a {config.dealTagText}
-            </div>
-          </div>
-          <div className="mt-3 grid gap-2 lg:grid-cols-2">
-            {promoCoupons.map((coupon) => (
-              <div key={coupon.id} className="flex flex-col gap-2 overflow-hidden rounded-[20px] bg-white p-3 text-[#24324a] shadow-[0_10px_24px_rgba(17,24,39,0.1)] sm:grid sm:grid-cols-[1fr_auto] sm:gap-0 sm:p-0">
-                <div className="px-4 py-3 sm:px-5 sm:py-4">
-                  <div className="text-[16px] font-black tracking-[-0.04em] text-[#ff0f73] sm:text-[20px]">{coupon.value}</div>
-                  <div className="mt-1 text-[13px] text-[#ff5b8a]">{coupon.label} <span className="text-[#667085]">| Code: {coupon.code}</span></div>
-                </div>
-                <div className="flex items-center px-1 sm:px-3">
-                  <button
-                    type="button"
-                    onClick={copyShareLink}
-                    className="inline-flex h-10 w-full items-center justify-center rounded-full bg-[#ff0f73] px-5 text-[13px] font-semibold text-white transition hover:bg-[#e20060] sm:w-auto"
-                  >
-                    Copie
-                  </button>
-                </div>
+      <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen overflow-hidden bg-[#f4f5f7]">
+        <div className="relative overflow-hidden bg-[linear-gradient(90deg,#ef2026_0%,#ff1b1f_68%,#ef2026_100%)] text-white shadow-[0_24px_60px_rgba(239,32,38,0.18)]">
+          <div className="pointer-events-none absolute -right-10 top-0 h-full w-[240px] bg-[linear-gradient(135deg,transparent_0%,transparent_38%,rgba(178,0,14,0.55)_38%,rgba(178,0,14,0.55)_62%,transparent_62%)]" />
+          <div className="px-4 py-4 sm:px-6 lg:px-10">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-5">
+              <div className="rounded-full bg-[#ff9800] p-2 text-white shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
+                <Sparkles className="h-4 w-4" />
               </div>
-            ))}
+              <div className="text-[28px] font-black tracking-[-0.06em] sm:text-[40px]">Daly Time</div>
+              <div className="text-[13px] font-semibold text-white/95 sm:text-[16px]">Offres limitées</div>
+              <div className="text-[13px] font-semibold text-white/95 sm:text-[16px]">Jusqu&apos;a {config.dealTagText}</div>
+            </div>
           </div>
         </div>
 
-        <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:px-10 lg:py-5">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/14 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/95 sm:px-4 sm:py-2 sm:text-[12px]">
-              <Sparkles className="h-4 w-4" />
-              {config.heroBadge}
-            </div>
-            <h1 className="mt-3 max-w-[760px] text-[26px] font-black leading-[1.02] tracking-[-0.06em] sm:text-[38px] lg:text-[44px]">
-              {config.heroTitle}
-            </h1>
-            <p className="mt-3 max-w-[760px] text-[14px] leading-6 text-white/90 sm:text-[15px]">
-              {config.heroSubtitle}
-            </p>
-
-            <div className="mt-4 flex flex-wrap gap-2.5">
-              <div className="rounded-[20px] bg-white px-4 py-3 text-[#1f2937] shadow-[0_14px_32px_rgba(15,23,42,0.12)]">
-                <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff4f2a]">Lot fixe</div>
-                <div className="mt-1 text-[22px] font-black tracking-[-0.05em] sm:text-[26px]">{config.fixedPriceLabel}</div>
-                <div className="mt-1 text-[13px] text-[#667085]">{config.itemLimit} article(s) au choix</div>
-              </div>
-              <div className="rounded-[20px] bg-white/14 px-4 py-3 backdrop-blur">
-                <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-white/85">Partage</div>
-                <div className="mt-1 text-[22px] font-black tracking-[-0.05em] sm:text-[26px]">{config.referralGoal}</div>
-                <div className="mt-1 text-[13px] text-white/85">visites uniques pour debloquer a nouveau</div>
-              </div>
-            </div>
+        <div className="mx-auto max-w-[1680px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <div className="mb-5 text-center sm:mb-7">
+            <h1 className="text-[28px] font-black tracking-[-0.06em] text-[#111827] sm:text-[54px]">Offres du jour</h1>
           </div>
 
-          <div className="rounded-[26px] bg-white/12 p-4 backdrop-blur sm:p-5">
-            <div className="rounded-[20px] bg-white px-4 py-4 text-[#1f2937]">
-              <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#fff3ea] text-[#ff4f2a]">
-                  <ShoppingCart className="h-5 w-5" />
-                </div>
-                <div>
-                  <div className="text-[16px] font-black tracking-[-0.03em]">Ajoutez {config.itemLimit} article(s) dans le panier gratuit</div>
-                  <p className="mt-1 text-[14px] leading-6 text-[#475467]">
-                    Les articles de cette offre restent dans un panier separe. Ils ne se melangent pas avec votre panier normal.
-                  </p>
-                </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 xl:gap-5">
+            {showcaseProducts.map((product, index) => {
+              const isSelected = selectedSlugs.includes(product.slug);
+              const isDisabled = !isSelectable || (selectedSlugs.length >= config.itemLimit && !isSelected);
+              const discountValue = Math.min(80, 8 + ((index % 5) + 1) * 7);
+              const showDiscountRibbon = index % 2 === 0;
+              const showChoiceBadge = index % 3 === 1;
+              const showHotBadge = index % 4 === 0;
+
+              return (
+                <article
+                  key={product.slug}
+                  className={[
+                    "overflow-hidden rounded-[14px] bg-white shadow-[0_8px_22px_rgba(17,24,39,0.06)] ring-1 transition",
+                    isSelected ? "ring-[#ff3b30]" : "ring-black/5",
+                    isDisabled ? "opacity-80" : "hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(17,24,39,0.12)]",
+                  ].join(" ")}
+                >
+                  <div className="relative aspect-square bg-[#f6f7fb]">
+                    <Image
+                      src={product.image}
+                      alt={product.title}
+                      fill
+                      sizes="(min-width: 1280px) 15vw, (min-width: 1024px) 22vw, (min-width: 640px) 30vw, 48vw"
+                      className="object-cover"
+                    />
+                    <div className="absolute left-0 right-0 top-0 grid grid-cols-[1fr_auto] bg-[#30c96b] text-white">
+                      <div className="flex items-center justify-center gap-1 border-r border-white/15 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.08em] sm:text-[10px]">
+                        <Check className="h-3.5 w-3.5" />
+                        ALL
+                      </div>
+                      <div className="px-3 py-1 text-[9px] font-bold sm:text-[10px]">Free</div>
+                    </div>
+                    {showDiscountRibbon ? (
+                      <div className="absolute bottom-2 left-0 rounded-r-full bg-[#ef2026] px-2.5 py-1 text-[9px] font-bold text-white shadow-[0_10px_20px_rgba(239,32,38,0.28)] sm:bottom-3 sm:text-[10px]">
+                        -{discountValue}%
+                      </div>
+                    ) : null}
+                    {showChoiceBadge ? (
+                      <div className="absolute left-2 top-9 rounded-[6px] bg-[#ffe27a] px-1.5 py-0.5 text-[9px] font-bold text-[#3d2b00] shadow-[0_8px_18px_rgba(0,0,0,0.12)] sm:top-10 sm:text-[10px]">
+                        Choice
+                      </div>
+                    ) : null}
+                    {showHotBadge ? (
+                      <div className="absolute right-14 top-9 inline-flex items-center gap-1 rounded-full bg-[#111827] px-2 py-0.5 text-[8px] font-bold text-white shadow-[0_8px_18px_rgba(0,0,0,0.16)] sm:right-16 sm:top-10 sm:text-[9px]">
+                        <Flame className="h-3 w-3 text-[#ff7a00]" />
+                        HOT
+                      </div>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => toggleSelection(product.slug)}
+                      disabled={isDisabled}
+                      className={[
+                        "absolute bottom-2 right-2 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#ececec] bg-white text-[#111827] shadow-[0_10px_22px_rgba(17,24,39,0.14)] transition sm:h-12 sm:w-12",
+                        isSelected ? "ring-2 ring-[#ff3b30]" : "",
+                        isDisabled ? "cursor-not-allowed opacity-70" : "hover:scale-105",
+                      ].join(" ")}
+                      aria-label={isSelected ? "Retirer cet article" : "Selectionner cet article"}
+                    >
+                      {isSelected ? <Check className="h-4 w-4 sm:h-5 sm:w-5" /> : <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5" />}
+                    </button>
+                  </div>
+                  <div className="px-2.5 pb-3 pt-2.5 sm:px-3 sm:pb-4">
+                    <div className="line-clamp-2 min-h-[42px] text-[12px] font-medium leading-5 tracking-[-0.03em] text-[#202124] sm:min-h-[52px] sm:text-[14px]">
+                      {product.title}
+                    </div>
+                    <div className="mt-1 text-[11px] font-semibold text-[#ff3b30] sm:text-[12px]">
+                      {isSelected ? "Ajouté au lot" : product.tagText}
+                    </div>
+                    <div className="mt-1 text-[12px] text-[#667085] sm:text-[13px]">{product.supplierName}</div>
+                    <div className="mt-1 inline-flex max-w-full items-center gap-1 text-[10px] text-[#159a55] sm:text-[11px]">
+                      <Truck className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">Livraison gratuite dès {config.shippingFromLabel}</span>
+                    </div>
+                    <div className="mt-2 flex items-end gap-2">
+                      <div className="text-[22px] font-black tracking-[-0.05em] text-[#111827] sm:text-[24px]">{product.freeLabel}</div>
+                      <div className="pb-1 text-[11px] text-[#9aa1ad] line-through sm:text-[13px]">{product.compareAtLabel}</div>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+            <div className="rounded-[24px] bg-white px-4 py-4 shadow-[0_10px_26px_rgba(17,24,39,0.08)] ring-1 ring-black/5 sm:px-5">
+              <div className="flex flex-wrap items-center gap-3">
+                {promoCoupons.map((coupon) => (
+                  <div key={coupon.id} className="flex min-w-[220px] flex-1 items-center justify-between gap-3 rounded-[18px] bg-[#fff6f1] px-4 py-3">
+                    <div>
+                      <div className="text-[18px] font-black tracking-[-0.04em] text-[#ef2026]">{coupon.value}</div>
+                      <div className="text-[12px] text-[#6b7280]">{coupon.label}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={copyShareLink}
+                      className="inline-flex h-10 items-center justify-center rounded-full bg-[#ef2026] px-4 text-[12px] font-semibold text-white transition hover:bg-[#d8151b]"
+                    >
+                      Copie
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 rounded-[18px] bg-[#111827] px-4 py-4 text-white">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">Statut rapide</div>
+                <div className="mt-2 text-[18px] font-black tracking-[-0.04em]">{statusMessage}</div>
+                {shareFeedback ? <div className="mt-2 text-[12px] text-white/80">{shareFeedback}</div> : null}
               </div>
             </div>
 
-            <div className="mt-3 rounded-[20px] bg-white/10 px-4 py-4 text-white">
-              <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white/78">Statut rapide</div>
-              <div className="mt-2 text-[18px] font-black tracking-[-0.04em]">
-                {statusMessage}
+            <div className="rounded-[24px] bg-white px-4 py-4 shadow-[0_10px_26px_rgba(17,24,39,0.08)] ring-1 ring-black/5 sm:px-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#fff1eb] text-[#ef2026]">
+                  <Gift className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ef2026]">Lot gratuit</div>
+                  <div className="mt-1 text-[24px] font-black tracking-[-0.05em] text-[#111827]">{selectedSlugs.length}/{config.itemLimit}</div>
+                  <div className="mt-1 text-[13px] leading-6 text-[#667085]">{config.fixedPriceLabel} pour valider le lot et lancer la livraison.</div>
+                </div>
               </div>
-              {shareFeedback ? <div className="mt-2 text-[12px] font-semibold text-white/80">{shareFeedback}</div> : null}
             </div>
           </div>
         </div>
@@ -431,7 +498,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
           <h2 className="text-[34px] font-black tracking-[-0.06em] text-[#111827] sm:text-[48px]">Offres du jour</h2>
         </div>
 
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+        <div className="hidden grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
         {products.map((product) => {
           const isSelected = selectedSlugs.includes(product.slug);
           const isDisabled = !isSelectable || (selectedSlugs.length >= config.itemLimit && !isSelected);
@@ -499,24 +566,24 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <aside className="overflow-hidden rounded-[30px] bg-white px-5 py-5 shadow-[0_10px_32px_rgba(17,24,39,0.08)] ring-1 ring-black/5 sm:px-6 sm:py-6">
+      <section className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+        <aside className="overflow-hidden rounded-[24px] bg-white px-4 py-4 shadow-[0_10px_28px_rgba(17,24,39,0.08)] ring-1 ring-black/5 sm:px-5 sm:py-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[#fff3ea] text-[#ff4f2a]">
+            <div className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-[#fff3ea] text-[#ff4f2a]">
               <Gift className="h-5 w-5" />
             </div>
             <div>
               <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff4f2a]">Votre lot</div>
-              <div className="mt-1 text-[22px] font-black tracking-[-0.04em] text-[#111827]">
+              <div className="mt-0.5 text-[20px] font-black tracking-[-0.04em] text-[#111827]">
                 {selectedSlugs.length}/{totalCartSlots} article(s)
               </div>
             </div>
           </div>
 
-          <div className="mt-5 rounded-[22px] bg-[#f8fafc] px-4 py-4">
+          <div className="mt-4 rounded-[18px] bg-[#f8fafc] px-4 py-3.5">
             <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#667085]">Montant unique</div>
-            <div className="mt-2 text-[32px] font-black tracking-[-0.05em] text-[#111827]">{config.fixedPriceLabel}</div>
-            <div className="mt-1 text-[13px] leading-6 text-[#667085]">
+            <div className="mt-1.5 text-[28px] font-black tracking-[-0.05em] text-[#111827]">{config.fixedPriceLabel}</div>
+            <div className="mt-1 text-[12px] leading-5 text-[#667085]">
               {isSelectable
                 ? isSelectionComplete
                   ? "Votre lot est complet. Vous pouvez lancer le paiement."
@@ -526,15 +593,15 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
           </div>
 
           {hasStandardCartConflict ? (
-            <div className="mt-4 rounded-[20px] border border-[#ffd7c2] bg-[#fff7f1] px-4 py-4">
-              <div className="text-[15px] font-black tracking-[-0.03em] text-[#111827]">Videz votre panier standard</div>
-              <p className="mt-1 text-[13px] leading-6 text-[#7a4b28]">
+            <div className="mt-4 rounded-[18px] border border-[#ffd7c2] bg-[#fff7f1] px-4 py-3.5">
+              <div className="text-[14px] font-black tracking-[-0.03em] text-[#111827]">Videz votre panier standard</div>
+              <p className="mt-1 text-[12px] leading-5 text-[#7a4b28]">
                 Cette offre utilise un panier dedie. Les articles gratuits ne peuvent pas se melanger avec des articles ordinaires.
               </p>
               <button
                 type="button"
                 onClick={clearStandardCart}
-                className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-black sm:w-auto"
+                className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-[#111827] px-5 text-[13px] font-semibold text-white transition hover:bg-black sm:w-auto"
               >
                 <Trash2 className="h-4 w-4" />
                 Vider votre panier
@@ -542,29 +609,29 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
             </div>
           ) : null}
 
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 space-y-2.5">
             {selectedProducts.length > 0 ? selectedProducts.map((product, index) => (
-              <div key={product.slug} className="flex items-center gap-3 rounded-[18px] bg-[#f8fafc] px-4 py-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#111827] text-[12px] font-bold text-white">
+              <div key={product.slug} className="flex items-center gap-3 rounded-[16px] bg-[#f8fafc] px-3 py-2.5">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#111827] text-[11px] font-bold text-white">
                   {index + 1}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[14px] font-semibold text-[#111827]">{product.title}</div>
-                  <div className="text-[12px] text-[#667085]">{product.compareAtLabel} habille sur la carte</div>
+                  <div className="truncate text-[13px] font-semibold text-[#111827]">{product.title}</div>
+                  <div className="text-[11px] text-[#667085]">Ancien prix {product.compareAtLabel}</div>
                 </div>
               </div>
             )) : (
-              <div className="rounded-[18px] border border-dashed border-[#d0d5dd] px-4 py-4 text-[14px] text-[#667085]">
+              <div className="rounded-[16px] border border-dashed border-[#d0d5dd] px-4 py-4 text-[13px] text-[#667085]">
                 Aucune selection pour le moment.
               </div>
             )}
           </div>
 
-          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
             <button
               type="button"
               onClick={clearFreeDealCart}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-[#d0d5dd] px-5 text-[14px] font-semibold text-[#111827] transition hover:border-[#ff4f2a] hover:text-[#ff4f2a] sm:w-auto"
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-[#d0d5dd] px-5 text-[13px] font-semibold text-[#111827] transition hover:border-[#ff4f2a] hover:text-[#ff4f2a] sm:w-auto"
             >
               <Trash2 className="h-4 w-4" />
               Vider le panier gratuit
@@ -573,7 +640,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
               <button
                 type="button"
                 onClick={copyShareLink}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-[#ffd1bf] bg-[#fff4ed] px-5 text-[14px] font-semibold text-[#ff4f2a] transition hover:bg-[#ffeadd] sm:w-auto"
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-[#ffd1bf] bg-[#fff4ed] px-5 text-[13px] font-semibold text-[#ff4f2a] transition hover:bg-[#ffeadd] sm:w-auto"
               >
                 <Copy className="h-4 w-4" />
                 Copier le lien
@@ -582,24 +649,24 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
           </div>
         </aside>
 
-        <section id="free-deal-checkout" className="overflow-hidden rounded-[30px] bg-white px-5 py-5 shadow-[0_10px_32px_rgba(17,24,39,0.08)] ring-1 ring-black/5 sm:px-6 sm:py-6">
+        <section id="free-deal-checkout" className="overflow-hidden rounded-[24px] bg-white px-4 py-4 shadow-[0_10px_28px_rgba(17,24,39,0.08)] ring-1 ring-black/5 sm:px-5 sm:py-5">
           <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff4f2a]">Paiement</div>
-          <h2 className="mt-2 text-[28px] font-black tracking-[-0.05em] text-[#111827]">Panier gratuit dedie</h2>
-          <p className="mt-2 max-w-[760px] text-[14px] leading-7 text-[#667085]">
+          <h2 className="mt-1.5 text-[24px] font-black tracking-[-0.05em] text-[#111827]">Panier gratuit dedie</h2>
+          <p className="mt-1.5 max-w-[760px] text-[13px] leading-6 text-[#667085]">
             Quand les {config.itemLimit} articles sont dans le panier gratuit, vous validez l&apos;adresse puis vous reglez directement {config.fixedPriceLabel}.
           </p>
 
           {feedback ? <div className="mt-5 rounded-[18px] border border-[#fed7d7] bg-[#fff1f2] px-4 py-4 text-[14px] font-medium text-[#b42318]">{feedback}</div> : null}
           {access.status === "blocked" ? <div className="mt-5 rounded-[18px] border border-[#f4d8c2] bg-[#fff7f1] px-4 py-4 text-[14px] font-medium text-[#8a4b16]">Cette offre n&apos;est plus disponible sur cet appareil.</div> : null}
 
-          <div className="mt-6 rounded-[22px] bg-[#f8fafc] px-4 py-4">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="mt-5 rounded-[18px] bg-[#f8fafc] px-4 py-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1">
                 <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#667085]">Adresse de livraison</div>
-                <div className="mt-2 text-[20px] font-black tracking-[-0.04em] text-[#111827]">
+                <div className="mt-1.5 text-[18px] font-black tracking-[-0.04em] text-[#111827]">
                   {hasAddressDetails ? formState.customerName : "A renseigner"}
                 </div>
-                <div className="mt-1 break-words text-[14px] leading-6 text-[#667085]">
+                <div className="mt-1 break-words text-[13px] leading-5 text-[#667085]">
                   {hasAddressDetails ? `${addressSummary}${formState.customerPhone ? ` · ${formState.customerPhone}` : ""}` : "Ajoutez votre adresse pour finaliser le lot gratuit."}
                 </div>
                 {initialCustomer.hasDefaultAddress && hasAddressDetails ? (
@@ -612,7 +679,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
               <button
                 type="button"
                 onClick={showAddressForm ? closeAddressForm : openAddressForm}
-                className="inline-flex h-11 w-full shrink-0 items-center justify-center rounded-full border border-[#d0d5dd] px-5 text-[14px] font-semibold text-[#111827] transition hover:border-[#ff4f2a] hover:text-[#ff4f2a] sm:w-auto"
+                className="inline-flex h-10 w-full shrink-0 items-center justify-center rounded-full border border-[#d0d5dd] px-5 text-[13px] font-semibold text-[#111827] transition hover:border-[#ff4f2a] hover:text-[#ff4f2a] sm:w-auto"
               >
                 {showAddressForm ? "Fermer" : hasAddressDetails ? "Modifier l'adresse" : "Ajouter l'adresse"}
               </button>
@@ -620,7 +687,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
           </div>
 
           {showAddressForm ? (
-            <div id="free-deal-address" className="mt-6 grid gap-4 md:grid-cols-2">
+            <div id="free-deal-address" className="mt-5 grid gap-3 md:grid-cols-2">
               {[
                 { key: "customerName", label: "Nom complet", placeholder: "Ex: Awa Traore" },
                 { key: "customerEmail", label: "Email", placeholder: "client@email.com" },
@@ -632,21 +699,21 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
                 { key: "addressLine2", label: "Complement", placeholder: "Batiment, etage..." },
                 { key: "postalCode", label: "Code postal", placeholder: "75001" },
               ].map((field) => (
-                <label key={field.key} className={field.key === "addressLine1" ? "space-y-2 text-[13px] font-semibold text-[#344054] md:col-span-2" : "space-y-2 text-[13px] font-semibold text-[#344054]"}>
+                <label key={field.key} className={field.key === "addressLine1" ? "space-y-1.5 text-[12px] font-semibold text-[#344054] md:col-span-2" : "space-y-1.5 text-[12px] font-semibold text-[#344054]"}>
                   <span>{field.label}</span>
                   <input
                     value={formState[field.key as keyof CustomerFormState]}
                     onChange={(event) => handleFieldChange(field.key as keyof CustomerFormState, event.target.value)}
                     placeholder={field.placeholder}
-                    className="h-12 w-full rounded-[16px] border border-[#d0d5dd] bg-white px-4 text-[14px] text-[#111827] outline-none transition focus:border-[#ff4f2a]"
+                    className="h-11 w-full rounded-[14px] border border-[#d0d5dd] bg-white px-4 text-[13px] text-[#111827] outline-none transition focus:border-[#ff4f2a]"
                   />
                 </label>
               ))}
             </div>
           ) : null}
 
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0 text-[14px] text-[#667085]">
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 text-[13px] text-[#667085]">
               {hasStandardCartConflict
                 ? "Videz d'abord votre panier standard."
                 : isSelectionComplete
@@ -664,7 +731,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
                 void submitCheckout();
               }}
               disabled={!canSubmit || isSubmitting || hasStandardCartConflict}
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#111827] px-6 text-[15px] font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[#111827] px-6 text-[14px] font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
               {isSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Gift className="h-4 w-4" />}
               {isSubmitting ? "Preparation..." : config.ctaLabel}

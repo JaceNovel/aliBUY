@@ -58,7 +58,6 @@ export default async function ProductPage({
     title: entry.shortTitle,
     image: entry.image,
     formattedPrice: formatTierAwarePrice(pricing.formatPrice, entry),
-    moqLabel: `MOQ ${entry.moq}`,
   }));
 
   return (
@@ -95,7 +94,6 @@ export default async function ProductPage({
           variantPricing: [],
           specs: product.specs,
           formattedPriceRange: formatTierAwarePrice(pricing.formatPrice, product),
-          moqLabel: `MOQ ${product.moq} ${product.unit}`,
           badge: product.badge,
         }}
         relatedProducts={relatedProducts}

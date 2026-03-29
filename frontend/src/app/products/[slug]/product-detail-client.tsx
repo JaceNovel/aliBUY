@@ -42,7 +42,6 @@ type RelatedProduct = {
   title: string;
   image: string;
   formattedPrice: string;
-  moqLabel: string;
 };
 
 type ProductDetailClientProps = {
@@ -74,7 +73,6 @@ type ProductDetailClientProps = {
     variantPricing: DetailVariantPrice[];
     specs: DetailSpec[];
     formattedPriceRange: string;
-    moqLabel: string;
     badge?: string;
   };
   relatedProducts: RelatedProduct[];
@@ -182,8 +180,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       { label: "Poids", value: weightLabel },
     ],
     [
-      { label: "MOQ", value: `${product.moq} ${product.moq > 1 ? "pieces" : "piece"}` },
       { label: "Usage", value: product.specs[3]?.value ?? inferredUse },
+      { label: "Support", value: product.responseTime || "Selon disponibilite fournisseur" },
     ],
   ];
   const characteristics = characteristicRows.flat();
@@ -347,7 +345,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     ? currentPriceSummary.exact
       ? `Prix fixe pour ${Object.entries(previewSelection).map(([, value]) => value).filter(Boolean).join(" · ") || "la variante choisie"}`
       : `Plage de prix pour ${Object.entries(previewSelection).map(([, value]) => value).filter(Boolean).join(" · ") || "la variante choisie"}`
-    : product.moqLabel;
+    : product.shippingLabel || product.overview[0] || "Prix public mis a jour selon le catalogue";
   const updateMixQuantity = (value: string, delta: number) => {
     setMixQuantities((current) => {
       const nextValue = Math.max(0, (current[value] ?? 0) + delta);
@@ -524,7 +522,6 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
         <section className="overflow-hidden rounded-[28px] bg-white shadow-[0_18px_42px_rgba(24,39,75,0.08)] ring-1 ring-black/5">
           <div
             className="relative aspect-[1/0.92] w-full overflow-hidden bg-[#f4f4f4]"
-            onTouchStart={(event) => handleImageTouchStart(event.touches[0]?.clientX ?? 0)}
             onTouchEnd={(event) => handleImageTouchEnd(event.changedTouches[0]?.clientX ?? 0)}
           >
             {product.badge ? (
@@ -876,7 +873,6 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     </div>
                     <div className="mt-2 line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-4 text-[#222]">{relatedProduct.title}</div>
                     <div className="mt-2 text-[14px] font-bold text-[#f05a00]">{relatedProduct.formattedPrice}</div>
-                    <div className="mt-1 text-[10px] text-[#666]">{relatedProduct.moqLabel}</div>
                   </Link>
                 ))}
               </div>
@@ -1008,7 +1004,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9a6a47]">Quantité</div>
-                    <div className="mt-1 text-[14px] text-[#5f5147]">{product.moqVerified ? `Minimum ${product.moq} ${product.moq > 1 ? "pieces" : "piece"}` : "MOQ fournisseur a confirmer"}</div>
+                    <div className="mt-1 text-[14px] text-[#5f5147]">{product.moqVerified ? `Minimum ${product.moq} ${product.moq > 1 ? "pieces" : "piece"}` : "Minimum fournisseur a confirmer"}</div>
                   </div>
                   <div className="inline-flex items-center gap-2 rounded-full border border-[#e1ddd7] bg-white px-2 py-2 shadow-[0_6px_14px_rgba(17,24,39,0.04)]">
                     <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-40">
@@ -1107,7 +1103,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#a06f49]">Quantité de commande</div>
-                    <div className="mt-1 text-[14px] text-[#6b5a4c]">{product.moqVerified ? `MOQ ${product.moq} ${product.moq > 1 ? "pieces" : "piece"}` : "MOQ fournisseur a confirmer"}</div>
+                    <div className="mt-1 text-[14px] text-[#6b5a4c]">{product.moqVerified ? `Minimum ${product.moq} ${product.moq > 1 ? "pieces" : "piece"}` : "Minimum fournisseur a confirmer"}</div>
                   </div>
                   <div className="inline-flex items-center gap-2 rounded-full border border-[#e1ddd7] bg-white px-2 py-2 shadow-[0_6px_14px_rgba(17,24,39,0.04)]">
                     <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-40">
@@ -1176,16 +1172,15 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
           <Link href="/" className="text-[14px] font-semibold text-[#222] transition hover:text-[#ff6a00]">Retour à la sélection</Link>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
           {relatedProducts.map((relatedProduct) => (
-            <Link key={relatedProduct.slug} href={`/products/${relatedProduct.slug}`} className="group overflow-hidden rounded-[24px] bg-white ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-[0_16px_34px_rgba(24,39,75,0.12)]">
+            <Link key={relatedProduct.slug} href={`/products/${relatedProduct.slug}`} className="group overflow-hidden rounded-[18px] bg-white p-2.5 ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-[0_16px_34px_rgba(24,39,75,0.12)]">
               <div className="relative aspect-square bg-[#f4f4f4]">
                 <Image src={relatedProduct.image} alt={relatedProduct.title} fill sizes="(min-width: 1280px) 18vw, (min-width: 768px) 35vw, 90vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
               </div>
-              <div className="p-4">
-                <div className="line-clamp-2 min-h-[48px] text-[16px] font-semibold leading-6 text-[#222]">{relatedProduct.title}</div>
-                <div className="mt-3 text-[17px] font-bold tracking-[-0.03em] text-[#f05a00]">{relatedProduct.formattedPrice}</div>
-                <div className="mt-2 text-[13px] text-[#666]">{relatedProduct.moqLabel}</div>
+              <div className="pt-2">
+                <div className="line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-4 text-[#222] sm:min-h-[40px] sm:text-[13px] sm:leading-5">{relatedProduct.title}</div>
+                <div className="mt-2 text-[15px] font-bold tracking-[-0.03em] text-[#f05a00] sm:text-[16px]">{relatedProduct.formattedPrice}</div>
               </div>
             </Link>
           ))}

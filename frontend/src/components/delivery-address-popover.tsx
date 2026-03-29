@@ -81,6 +81,7 @@ export function DeliveryAddressPopover({
   const handleSave = () => {
     document.cookie = `afri_country=${selectedCountry}; Max-Age=${60 * 60 * 24 * 180}; Path=/; SameSite=Lax`;
     document.cookie = `afri_currency=${selectedCurrency}; Max-Age=${60 * 60 * 24 * 180}; Path=/; SameSite=Lax`;
+    document.cookie = `afri_country_prompt_dismissed=1; Max-Age=${60 * 60 * 24 * 180}; Path=/; SameSite=Lax`;
 
     startTransition(() => {
       setIsOpen(false);

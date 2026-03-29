@@ -2,7 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 
-import { slugifyCategoryLabel } from "@/lib/alibaba-operations";
+import { canonicalizeAlibabaCategory, slugifyCategoryLabel } from "@/lib/alibaba-operations";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { buildApiUrl } from "@/lib/api";
 import type { ProductCatalogItem } from "@/lib/products-data";
@@ -100,13 +100,13 @@ export const getCatalogCategories = cache(async function getCatalogCategories():
   const categories = new Map<string, CategoryAccumulator>();
 
   for (const product of publishedProducts) {
-    const title = product.categoryTitle?.trim()
-      || product.categoryPath?.find((entry) => entry.trim().length > 0)?.trim()
-      || "Catalogue importe";
-    const sourcePath = Array.isArray(product.categoryPath) && product.categoryPath.length > 0
-      ? product.categoryPath.filter((entry) => entry.trim().length > 0)
-      : [title];
-    const slug = (product.categorySlug?.trim() || slugifyCategoryLabel(title));
+    const normalizedCategory = canonicalizeAlibabaCategory({
+      title: product.categoryTitle?.trim() || product.shortTitle,
+      path: Array.isArray(product.categoryPath) ? product.categoryPath : undefined,
+    });
+    const title = normalizedCategory.title;
+    const sourcePath = normalizedCategory.path;
+    const slug = normalizedCategory.slug || slugifyCategoryLabel(title);
     const existing = categories.get(slug);
 
     if (existing) {

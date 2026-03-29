@@ -9,6 +9,7 @@ import { FREE_DEAL_DEVICE_COOKIE } from "@/lib/free-deal-constants";
 import { resolveRequestIp, resolveRequestOrigin } from "@/lib/free-deal-service";
 import { buildFreeDealShareUrl, getFreeDealAccessState, getFreeDealConfig, getFreeDealProducts } from "@/lib/free-deal-store";
 import { getPricingContext } from "@/lib/pricing";
+import { CURRENCY_CONFIG } from "@/lib/pricing-options";
 import { getProductImageUrl } from "@/lib/product-image";
 import { getCurrentUser } from "@/lib/user-auth";
 
@@ -22,12 +23,8 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-function formatEuro(amount: number) {
-  return new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: Number.isInteger(amount) ? 0 : 2,
-  }).format(amount);
+function convertCurrencyAmountToUsd(amount: number, currencyRateFromUsd: number) {
+  return amount / currencyRateFromUsd;
 }
 
 export default async function FreeDealPage() {
@@ -54,6 +51,9 @@ export default async function FreeDealPage() {
   ]);
   const origin = resolveRequestOrigin(headerStore);
   const compareAtBase = Number((config.fixedPriceEur * config.compareAtMultiplier + config.compareAtExtraEur).toFixed(2));
+  const fixedPriceLabel = pricing.formatPrice(convertCurrencyAmountToUsd(config.fixedPriceEur, CURRENCY_CONFIG.EUR.rateFromUsd));
+  const compareAtLabel = pricing.formatPrice(convertCurrencyAmountToUsd(compareAtBase, CURRENCY_CONFIG.EUR.rateFromUsd));
+  const shippingFromLabel = pricing.formatPrice(convertCurrencyAmountToUsd(15000, CURRENCY_CONFIG.XOF.rateFromUsd));
   const initialCustomer = {
     customerName: defaultAddress?.recipientName ?? user?.displayName ?? "",
     customerEmail: defaultAddress?.email ?? user?.email ?? "",
@@ -80,9 +80,10 @@ export default async function FreeDealPage() {
           shareTitle: config.shareTitle,
           shareDescription: config.shareDescription,
           itemLimit: config.itemLimit,
-          fixedPriceLabel: formatEuro(config.fixedPriceEur),
+          fixedPriceLabel,
           referralGoal: config.referralGoal,
           dealTagText: config.dealTagText,
+          shippingFromLabel,
         }}
         access={{
           status: access.status,
@@ -98,8 +99,8 @@ export default async function FreeDealPage() {
           image: getProductImageUrl(product.image, { width: 720, quality: 78 }),
           supplierName: product.supplierName,
           href: `/products/${product.slug}`,
-          compareAtLabel: formatEuro(compareAtBase),
-          freeLabel: formatEuro(0),
+          compareAtLabel,
+          freeLabel: pricing.formatPrice(0),
           tagText: config.dealTagText,
           badgeText: config.productBadgeText,
         }))}

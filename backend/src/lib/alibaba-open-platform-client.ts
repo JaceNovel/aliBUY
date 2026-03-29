@@ -4509,10 +4509,39 @@ function buildCustomerForwarderFulfillment(order: SourcingOrder) {
   };
 }
 
+function buildCustomerDeliveryFulfillment(order: SourcingOrder) {
+  const address: AlibabaReceptionAddress = {
+    id: `customer-delivery-${order.id}`,
+    label: "Customer Delivery Address",
+    contactName: order.customerName,
+    phone: order.customerPhone,
+    email: order.customerEmail,
+    addressLine1: order.addressLine1,
+    addressLine2: order.addressLine2,
+    city: order.city,
+    state: order.state,
+    postalCode: order.postalCode,
+    countryCode: order.countryCode,
+    isDefault: false,
+    createdAt: order.createdAt,
+    updatedAt: order.updatedAt,
+  };
+
+  return {
+    operatorName: "Livraison directe AliExpress",
+    shippingMark: `Client ${order.customerName} ${order.customerPhone}`,
+    address,
+  };
+}
+
 async function resolveSupplierFulfillment(order: SourcingOrder) {
   const meta = getSourcingOrderMeta(order);
   if (meta.workflow?.routeType === "customer-forwarder") {
     return buildCustomerForwarderFulfillment(order);
+  }
+
+  if (!meta.deliveryProfile?.usesInternalReceptionAddress) {
+    return buildCustomerDeliveryFulfillment(order);
   }
 
   return getInternalSupplierFulfillment(order);

@@ -4,6 +4,7 @@ import { ScrollText, ShieldCheck, Sparkles, WandSparkles, type LucideIcon } from
 import type { Metadata } from "next";
 
 import { CategoryMegaMenu, type CategoryMegaMenuCategory } from "@/components/category-mega-menu";
+import { CountryPreferenceModal } from "@/components/country-preference-modal";
 import { AboutMenu } from "@/components/about-menu";
 import { DeliveryAddressPopover } from "@/components/delivery-address-popover";
 import { HeaderActionGroup } from "@/components/header-action-group";
@@ -80,6 +81,7 @@ export default async function Home() {
   ]);
   const messages = getMessages(pricing.languageCode);
   const featuredProducts = catalogProducts.slice(0, 8);
+  const marketplaceProducts = catalogProducts.slice(0, 12);
   const showcaseCategories = catalogCategories.slice(0, 6).map((category) => ({
     slug: category.slug,
     title: category.title,
@@ -119,9 +121,9 @@ export default async function Home() {
     id: `slide-${product.slug}`,
     image: getProductImageUrl(product.image, { width: 1200, quality: 82 }),
     alt: product.shortTitle,
-    eyebrow: index === 0 ? "MarchExpo" : product.badge ?? "AfriPay DS",
-    title: index === 0 ? "Classement des fournisseurs" : product.shortTitle,
-    subtitle: index === 0 ? undefined : `${product.supplierName} · ${formatTierAwarePrice(pricing.formatPrice, product)}`,
+    eyebrow: product.badge ?? "March",
+    title: product.shortTitle,
+    subtitle: formatTierAwarePrice(pricing.formatPrice, product),
     buttonLabel: "Commander",
     href: `/products/${product.slug}`,
   }));
@@ -155,6 +157,7 @@ export default async function Home() {
 
   return (
     <main className="min-h-screen bg-[#f4f4f4] pb-24 text-[#222] md:pb-0">
+      <CountryPreferenceModal countryCode={pricing.countryCode} currencyCode={pricing.currency.code} />
       <ScrollNavbar
         countryCode={pricing.countryCode}
         countryLabel={pricing.countryLabel}
@@ -338,22 +341,23 @@ export default async function Home() {
         </div>
       </section>
 
-      <div className="mx-auto max-w-[1580px] px-4 pb-14 pt-5 sm:px-6 sm:pt-8 xl:px-10">
-        {featuredProducts.length > 0 ? (
-          <div className="mb-6 sm:mb-8">
-            <HomeDiscoveryShowcase
-              categories={showcaseCategories}
-              historyCards={showcaseHistoryCards}
-              exploreCards={showcaseExploreCards}
-              slides={showcaseSlides}
-            />
-            <div className="mt-6 flex items-center justify-center gap-5 px-4 text-center text-[14px] text-[#7a7a7a] sm:mt-8">
-              <span className="h-px flex-1 max-w-[96px] bg-[#d9d9d9]" />
-              <span className="whitespace-nowrap tracking-[-0.01em]">Recommandé pour votre entreprise</span>
-              <span className="h-px flex-1 max-w-[96px] bg-[#d9d9d9]" />
-            </div>
+      {featuredProducts.length > 0 ? (
+        <section className="relative left-1/2 right-1/2 -mx-[50vw] mb-6 w-screen px-2 pb-1 pt-5 sm:mb-8 sm:px-3 sm:pt-8 xl:px-4">
+          <HomeDiscoveryShowcase
+            categories={showcaseCategories}
+            historyCards={showcaseHistoryCards}
+            exploreCards={showcaseExploreCards}
+            slides={showcaseSlides}
+          />
+          <div className="mt-5 flex items-center justify-center gap-5 px-4 text-center text-[14px] text-[#7a7a7a] sm:mt-6">
+            <span className="h-px flex-1 bg-[#d9d9d9]" />
+            <span className="whitespace-nowrap tracking-[-0.01em]">Recommandé pour votre entreprise</span>
+            <span className="h-px flex-1 bg-[#d9d9d9]" />
           </div>
-        ) : null}
+        </section>
+      ) : null}
+
+      <div className="mx-auto max-w-[1580px] px-4 pb-14 pt-2 sm:px-6 sm:pt-4 xl:px-10">
 
         {featuredProducts.length === 0 ? (
           <section className="rounded-[28px] bg-white px-6 py-8 text-center shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 sm:px-8 sm:py-10">
@@ -367,43 +371,44 @@ export default async function Home() {
             </p>
           </section>
         ) : (
-          <section className="rounded-[28px] bg-white px-6 py-8 shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 sm:px-8 sm:py-10">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <div className="inline-flex items-center gap-2 rounded-full bg-[#fff2e9] px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85300]">
-                  <Sparkles className="h-4 w-4" />
-                  Catalogue public
-                </div>
-                <h2 className="mt-4 text-[30px] font-bold tracking-[-0.05em] text-[#222] sm:text-[38px]">Produits deja publies</h2>
-                <p className="mt-3 max-w-[760px] text-[15px] leading-7 text-[#666]">
-                  Les derniers produits importes et publies apparaissent directement sur l&apos;accueil et dans le catalogue.
-                </p>
-              </div>
-              <Link href="/products" className="inline-flex h-11 items-center justify-center rounded-full bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937]">
-                Voir tout le catalogue
+          <section className="rounded-[28px] bg-[#f4f5f7] p-3 shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 sm:p-4">
+            <div className="mb-3 flex items-center justify-between gap-3 px-1 sm:mb-4">
+              <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a00]">Catalogue en direct</div>
+              <Link href="/products" className="text-[12px] font-semibold text-[#111827] transition hover:text-[#ff6a00] sm:text-[13px]">
+                Voir tout
               </Link>
             </div>
-
-            <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {featuredProducts.slice(0, 4).map((product) => (
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-6">
+              {marketplaceProducts.map((product) => (
                 <Link
                   key={product.slug}
                   href={`/products/${product.slug}`}
-                  className="rounded-[24px] border border-[#edf1f6] bg-[#fcfcfc] p-4 transition hover:-translate-y-0.5 hover:border-[#ffd3bc]"
+                  className="group overflow-hidden rounded-[16px] bg-white p-2 ring-1 ring-[#e9edf3] transition hover:-translate-y-0.5 hover:shadow-[0_16px_28px_rgba(17,24,39,0.12)]"
                 >
-                  <div className="aspect-[4/3] overflow-hidden rounded-[18px] bg-[#f5f5f5]">
+                  <div className="relative aspect-square overflow-hidden rounded-[14px] bg-[#f5f5f5]">
                     <Image
                       src={getProductImageUrl(product.image, { width: 640, quality: 76 })}
                       alt={product.shortTitle}
                       width={640}
                       height={480}
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                     />
+                    <div className="absolute left-2 top-2 rounded-full bg-[#5d7cff] px-2 py-0.5 text-[9px] font-semibold text-white">
+                      {product.badge || "March"}
+                    </div>
                   </div>
-                  <div className="mt-4 line-clamp-2 text-[17px] font-semibold tracking-[-0.04em] text-[#222]">{product.shortTitle}</div>
-                  <div className="mt-2 text-[13px] text-[#667085]">{product.supplierName} · MOQ {product.moq} {product.unit}</div>
-                  <div className="mt-3 text-[18px] font-bold text-[#111827]">{formatTierAwarePrice(pricing.formatPrice, product)}</div>
-                  {formatTierAwarePriceMeta(product) ? <div className="mt-1 text-[12px] text-[#98a2b3]">{formatTierAwarePriceMeta(product)}</div> : null}
+                  <div className="pt-2">
+                    <div className="line-clamp-2 min-h-[38px] text-[11px] font-medium leading-4 text-[#2b2b2b] sm:min-h-[44px] sm:text-[12px]">
+                      {product.shortTitle}
+                    </div>
+                    <div className="mt-1 line-clamp-1 text-[10px] font-semibold text-[#ff5a36]">
+                      {formatTierAwarePriceMeta(product) || "Prix public actualise"}
+                    </div>
+                    <div className="mt-1.5 text-[16px] font-black tracking-[-0.04em] text-[#111827] sm:text-[17px]">
+                      {formatTierAwarePrice(pricing.formatPrice, product)}
+                    </div>
+                    <div className="mt-1 line-clamp-1 text-[10px] text-[#667085]">{product.supplierName}</div>
+                  </div>
                 </Link>
               ))}
             </div>

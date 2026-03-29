@@ -720,7 +720,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <div className="line-clamp-2 text-[15px] font-semibold text-[#1f2937]">{product.shortTitle}</div>
-                            <div className="mt-1 text-[13px] text-[#667085]">{product.supplierName} · MOQ {formatCount(product.moq)} {product.unit}</div>
+                            <div className="mt-1 text-[13px] text-[#667085]">{product.supplierName} · minimum {formatCount(product.moq)} {product.unit}</div>
                             <div className="mt-1 text-[12px] text-[#98a2b3]">{formatCount(product.gallery.length)} images · {hasRecoveredVideo(product) ? "video recuperee" : "pas de video"} · stock estime {formatCount(product.inventory)}</div>
                           </div>
                           <div className="rounded-full bg-[#fff7ed] px-3 py-1 text-[12px] font-semibold text-[#c2410c]">{product.status}</div>

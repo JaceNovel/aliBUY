@@ -79,6 +79,7 @@ function buildLogistics(order: SourcingOrder, status: OrderStatus) {
   const meta = getSourcingOrderMeta(order);
   const workflow = meta.workflow;
   const profile = meta.deliveryProfile;
+  const usesInternalReceptionAddress = profile?.usesInternalReceptionAddress === true;
   const forwarderHubLabel = profile?.forwarder?.hub === "china" || order.countryCode === "CN"
     ? "Chine"
     : profile?.forwarder?.hub === "lome"
@@ -87,9 +88,13 @@ function buildLogistics(order: SourcingOrder, status: OrderStatus) {
   const destination = countryLabels[order.countryCode] ?? order.countryCode;
   const corridorLabel = workflow?.routeType === "customer-forwarder"
     ? `Fournisseur -> votre agent ${forwarderHubLabel ?? destination}`
-    : `Hub AfriPay -> ${destination}`;
+    : usesInternalReceptionAddress
+      ? `Hub AfriPay -> ${destination}`
+      : `AliExpress -> ${destination}`;
   const transitMode = workflow?.routeType === "customer-forwarder"
     ? `Acheminement vers votre agent ${forwarderHubLabel ?? destination}`
+    : !usesInternalReceptionAddress
+      ? "Livraison directe AliExpress vers votre adresse"
     : order.shippingMethod === "sea"
       ? "Groupage mer, dedouanement puis livraison finale"
       : order.shippingMethod === "freight"
@@ -99,7 +104,9 @@ function buildLogistics(order: SourcingOrder, status: OrderStatus) {
     status === "Paiement en attente"
       ? "Paiement en attente de validation avant lancement logistique."
       : status === "Expedition en attente"
-        ? "Commande confirmee. Le dossier est en preparation logistique."
+        ? !usesInternalReceptionAddress && workflow?.routeType !== "customer-forwarder"
+          ? "Commande confirmee. Le fournisseur prepare l'expedition directe vers votre adresse."
+          : "Commande confirmee. Le dossier est en preparation logistique."
         : workflow?.routeType === "customer-forwarder" && order.status === "delivered_to_agent"
           ? "Le colis a ete remis a votre agent. La commande est cloturee avec preuve de remise."
           : order.status === "relay_ready" && workflow?.relayPointAddress
@@ -111,6 +118,8 @@ function buildLogistics(order: SourcingOrder, status: OrderStatus) {
   return {
     agentName: workflow?.routeType === "customer-forwarder"
       ? `Agent client ${forwarderHubLabel ?? destination}`
+      : !usesInternalReceptionAddress
+        ? "Livraison directe AliExpress"
       : order.shippingMethod === "sea"
         ? "Equipe logistique maritime"
         : order.shippingMethod === "freight"

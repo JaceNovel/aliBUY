@@ -81,6 +81,7 @@ export function HomeDiscoveryShowcase({ categories = [], historyCard, historyCar
   const categoryContainerRef = useRef<HTMLDivElement | null>(null);
   const hasSlides = slides.length > 0;
   const hasCategoryPanel = categories.length > 0;
+  const activeBannerSlide = hasSlides ? (slides[activeSlide] ?? slides[0]) : null;
   const resolvedHistoryCards = historyCards && historyCards.length > 0 ? historyCards : [historyCard ?? fallbackHistoryCard];
   const resolvedHistoryCard = resolvedHistoryCards[activeHistoryIndex] ?? fallbackHistoryCard;
   const mobileArticleCards = [
@@ -148,7 +149,7 @@ export function HomeDiscoveryShowcase({ categories = [], historyCard, historyCar
   }, []);
 
   return (
-    <section className="overflow-hidden bg-transparent px-0 py-0 shadow-none ring-0 sm:rounded-[26px] sm:bg-white sm:px-4 sm:py-4 sm:shadow-[0_12px_36px_rgba(24,39,75,0.06)] sm:ring-1 sm:ring-black/5">
+    <section className="overflow-hidden bg-transparent px-0 py-0 shadow-none ring-0 sm:bg-white sm:px-3 sm:py-4 sm:shadow-[0_12px_36px_rgba(24,39,75,0.06)] sm:ring-1 sm:ring-black/5 xl:px-4">
       <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:hidden">
         {mobileArticleCards.map((item) => {
           const cardContent = (
@@ -192,10 +193,10 @@ export function HomeDiscoveryShowcase({ categories = [], historyCard, historyCar
         "grid gap-2.5 xl:items-stretch",
         hasCategoryPanel
           ? hasSlides
-            ? "xl:grid-cols-[minmax(220px,0.92fr)_minmax(250px,0.96fr)_minmax(220px,0.84fr)_minmax(220px,0.84fr)_minmax(300px,1.24fr)]"
+            ? "xl:grid-cols-[minmax(260px,1fr)_minmax(280px,1.08fr)_minmax(240px,0.92fr)_minmax(240px,0.92fr)_minmax(360px,1.35fr)]"
             : "xl:grid-cols-[minmax(220px,0.98fr)_minmax(250px,1fr)_minmax(220px,0.88fr)_minmax(220px,0.88fr)]"
           : hasSlides
-            ? "xl:grid-cols-[minmax(250px,1fr)_minmax(220px,0.9fr)_minmax(220px,0.9fr)_minmax(320px,1.18fr)]"
+            ? "xl:grid-cols-[minmax(300px,1.08fr)_minmax(240px,0.94fr)_minmax(240px,0.94fr)_minmax(380px,1.32fr)]"
             : "xl:grid-cols-[minmax(240px,1.08fr)_minmax(185px,0.84fr)_minmax(185px,0.84fr)_minmax(185px,0.84fr)]",
       ].join(" ")}>
         {hasCategoryPanel ? (
@@ -326,48 +327,38 @@ export function HomeDiscoveryShowcase({ categories = [], historyCard, historyCar
           </article>
         ))}
 
-        {hasSlides ? (
+        {activeBannerSlide ? (
           <article className="relative min-w-0 min-h-[260px] overflow-hidden rounded-[22px] bg-[#d8e3f5] ring-1 ring-[#d4e0f0] sm:min-h-[300px] xl:min-h-[318px]">
-            {slides.map((slide, index) => (
-              <div
-                key={slide.id}
-                className={[
-                  "absolute inset-0 transition-opacity duration-500",
-                  activeSlide === index ? "opacity-100" : "pointer-events-none opacity-0",
-                ].join(" ")}
-              >
-                <div className="absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(7,18,44,0.66)_0%,rgba(7,18,44,0.34)_24%,rgba(7,18,44,0.22)_58%,rgba(7,18,44,0.52)_100%)]" />
-                <div className="relative h-full min-h-[260px] sm:min-h-[300px] xl:min-h-[318px]">
-                  <Image src={slide.image} alt={slide.alt} fill sizes="(min-width: 1280px) 26vw, (min-width: 768px) 38vw, 92vw" className="object-cover" />
-                  <div className="absolute inset-x-0 top-5 z-10 px-5 text-center">
-                    {slide.eyebrow ? <div className="text-[14px] font-semibold tracking-[-0.02em] text-white/90">{slide.eyebrow}</div> : null}
-                    <div className="mx-auto mt-1 max-w-[320px] text-[24px] font-black leading-[1.02] tracking-[-0.05em] text-white drop-shadow-[0_8px_18px_rgba(0,0,0,0.4)] sm:text-[32px]">
-                      {slide.title}
-                    </div>
-                    {slide.subtitle ? <div className="mx-auto mt-2 max-w-[300px] text-[13px] leading-5 font-medium text-white/90">{slide.subtitle}</div> : null}
-                  </div>
-                  <div className="absolute bottom-7 left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-4">
-                    <Link href={slide.href} className="inline-flex h-11 min-w-[180px] items-center justify-center rounded-full bg-[#10245c] px-6 text-[14px] font-semibold text-white shadow-[0_10px_24px_rgba(16,36,92,0.28)] transition hover:bg-[#0b1d4f] sm:h-12 sm:min-w-[210px] sm:px-10 sm:text-[15px]">
-                      {slide.buttonLabel}
-                    </Link>
-                    <div className="flex items-center gap-2 rounded-full bg-black/18 px-3 py-2 backdrop-blur-sm">
-                      {slides.map((dotSlide, dotIndex) => (
-                        <button
-                          key={dotSlide.id}
-                          type="button"
-                          onClick={() => setActiveSlide(dotIndex)}
-                          className={[
-                            "h-2.5 rounded-full transition-all",
-                            activeSlide === dotIndex ? "w-5 bg-white" : "w-2.5 bg-white/55",
-                          ].join(" ")}
-                          aria-label={`Aller au slide ${dotIndex + 1}`}
-                        />
-                      ))}
-                    </div>
-                  </div>
+            <div className="absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(7,18,44,0.66)_0%,rgba(7,18,44,0.34)_24%,rgba(7,18,44,0.22)_58%,rgba(7,18,44,0.52)_100%)]" />
+            <div className="relative h-full min-h-[260px] sm:min-h-[300px] xl:min-h-[318px]">
+              <Image src={activeBannerSlide.image} alt={activeBannerSlide.alt} fill sizes="(min-width: 1280px) 26vw, (min-width: 768px) 38vw, 92vw" className="object-cover" />
+              <div className="absolute inset-x-0 top-4 z-10 px-4 text-center sm:top-5 sm:px-5">
+                {activeBannerSlide.eyebrow ? <div className="text-[11px] font-semibold tracking-[-0.01em] text-white/88 sm:text-[12px]">{activeBannerSlide.eyebrow}</div> : null}
+                <div className="mx-auto mt-1 max-w-[290px] line-clamp-2 text-[20px] font-black leading-[1.02] tracking-[-0.05em] text-white drop-shadow-[0_8px_18px_rgba(0,0,0,0.4)] sm:max-w-[320px] sm:text-[26px]">
+                  {activeBannerSlide.title}
+                </div>
+                {activeBannerSlide.subtitle ? <div className="mx-auto mt-1 max-w-[240px] line-clamp-1 text-[11px] font-medium leading-4 text-white/86 sm:max-w-[260px] sm:text-[12px]">{activeBannerSlide.subtitle}</div> : null}
+              </div>
+              <div className="absolute bottom-7 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-4">
+                <Link href={activeBannerSlide.href} className="inline-flex h-11 min-w-[182px] items-center justify-center rounded-full border border-white/10 bg-[#10245c] px-6 text-center text-[13px] font-semibold !text-white shadow-[0_10px_24px_rgba(16,36,92,0.34)] transition hover:bg-[#0b1d4f] sm:h-12 sm:min-w-[210px] sm:px-10 sm:text-[14px]">
+                  <span className="!text-white">{activeBannerSlide.buttonLabel}</span>
+                </Link>
+                <div className="flex items-center gap-2 rounded-full bg-black/18 px-3 py-2 backdrop-blur-sm">
+                  {slides.map((dotSlide, dotIndex) => (
+                    <button
+                      key={dotSlide.id}
+                      type="button"
+                      onClick={() => setActiveSlide(dotIndex)}
+                      className={[
+                        "h-2.5 rounded-full transition-all",
+                        activeSlide === dotIndex ? "w-5 bg-white" : "w-2.5 bg-white/55",
+                      ].join(" ")}
+                      aria-label={`Aller au slide ${dotIndex + 1}`}
+                    />
+                  ))}
                 </div>
               </div>
-            ))}
+            </div>
           </article>
         ) : null}
       </div>

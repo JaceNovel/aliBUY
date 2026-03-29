@@ -1,4 +1,5 @@
 import type { SourcingOrder } from "@/lib/alibaba-sourcing";
+import { registerFreeDealClaimFromPaidOrder } from "@/lib/free-deal-store";
 import { getMonerooCurrencyCode, normalizeMonerooPaymentStatus, type MonerooPaymentRecord } from "@/lib/moneroo";
 import { incrementProductSalesCounts } from "@/lib/products-feed";
 import { getSourcingOrderById, getSourcingOrderByMonerooPaymentId, saveSourcingOrder } from "@/lib/sourcing-store";
@@ -40,6 +41,7 @@ export async function persistMonerooPaymentToOrder(options: PersistMonerooPaymen
       slug: item.slug,
       quantity: item.quantity,
     })));
+    await registerFreeDealClaimFromPaidOrder(nextOrder).catch(() => null);
   }
 
   return nextOrder;

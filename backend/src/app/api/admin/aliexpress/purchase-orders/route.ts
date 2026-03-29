@@ -7,12 +7,17 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  const order = await createAlibabaPurchaseOrder({
-    importedProductId: String(body?.importedProductId ?? ""),
-    quantity: Number(body?.quantity ?? 1),
-    shippingAddressId: body?.shippingAddressId ? String(body.shippingAddressId) : undefined,
-  });
+  try {
+    const body = await request.json();
+    const order = await createAlibabaPurchaseOrder({
+      importedProductId: String(body?.importedProductId ?? ""),
+      quantity: Number(body?.quantity ?? 1),
+      shippingAddressId: body?.shippingAddressId ? String(body.shippingAddressId) : undefined,
+    });
 
-  return Response.json({ order });
+    return Response.json({ order });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Creation du lot d'achat impossible.";
+    return Response.json({ message }, { status: 400 });
+  }
 }

@@ -457,33 +457,44 @@ export async function publishImportedProducts(productIds: string[]) {
   return next.filter((product) => productIds.includes(product.id));
 }
 
+function resolveImportedProduct(products: AlibabaImportedProduct[], identifier: string) {
+  const normalizedIdentifier = identifier.trim();
+  if (!normalizedIdentifier) {
+    return undefined;
+  }
+
+  return products.find((entry) => entry.id === normalizedIdentifier)
+    ?? products.find((entry) => entry.sourceProductId === normalizedIdentifier)
+    ?? products.find((entry) => entry.slug === normalizedIdentifier);
+}
+
 export async function deleteImportedProduct(importedProductId: string) {
   const products = await getAlibabaImportedProducts();
-  const product = products.find((entry) => entry.id === importedProductId);
+  const product = resolveImportedProduct(products, importedProductId);
 
   if (!product) {
     throw new Error("Produit importe introuvable.");
   }
 
-  await deleteAlibabaImportedProduct(importedProductId);
+  await deleteAlibabaImportedProduct(product.id);
   await createAlibabaIntegrationLog({
     action: "catalog-import-delete",
     endpoint: "internal/imported-products/delete",
     status: "success",
-    requestBody: { importedProductId },
+    requestBody: { importedProductId, resolvedImportedProductId: product.id },
     responseBody: {
-      importedProductId,
+      importedProductId: product.id,
       sourceProductId: product.sourceProductId,
       title: product.title,
     },
   });
 
-  return { deletedId: importedProductId, sourceProductId: product.sourceProductId };
+  return { deletedId: product.id, sourceProductId: product.sourceProductId };
 }
 
 export async function reenrichImportedProduct(importedProductId: string) {
   const products = await getAlibabaImportedProducts();
-  const product = products.find((entry) => entry.id === importedProductId);
+  const product = resolveImportedProduct(products, importedProductId);
 
   if (!product) {
     throw new Error("Produit importe introuvable.");
@@ -716,7 +727,7 @@ export async function createAlibabaPurchaseOrder(input: {
     getAlibabaImportedProducts(),
     getAlibabaReceptionAddresses(),
   ]);
-  const product = products.find((entry) => entry.id === input.importedProductId);
+  const product = resolveImportedProduct(products, input.importedProductId);
   if (!product) {
     throw new Error("Produit importe introuvable.");
   }

@@ -234,6 +234,9 @@ function isGenericCategoryLabel(value?: string) {
   const normalized = normalizeCategorySegment(value).toLowerCase();
   return !normalized
     || /^(catalogue importe|produit aliexpress|produit alibaba|aliexpress|alibaba|general|misc|other|others|undefined|null|n\/?a|na|unknown|sans nom|untitled)$/i.test(normalized)
+    || /\b(?:alibaba|aliexpress)\b/i.test(normalized)
+    || /\baliexpress\s*ds\b/i.test(normalized)
+    || /\b(?:ds|dropshipping)\b/i.test(normalized)
     || /\bnew arrival\b/i.test(normalized);
 }
 
@@ -413,7 +416,7 @@ export function resolveAlibabaDisplayTitle(input: {
     return queryTitle!;
   }
 
-  return "Produit Alibaba";
+  return "Produit AfriPay";
 }
 
 function inferAlibabaCategoryFromContent(input: {
@@ -656,7 +659,7 @@ export function canonicalizeAlibabaCategory(input: {
     return matched;
   }
 
-  const title = normalizedTitle || normalizedPath[normalizedPath.length - 1] || "Catalogue importe";
+  const title = normalizedTitle || normalizedPath[normalizedPath.length - 1] || "Catalogue";
   const path = normalizedPath.length > 0 ? normalizedPath : [title];
 
   return {
@@ -711,7 +714,7 @@ export function extractAlibabaCategoryInfo(input: {
     ?? (isUsefulCategoryCandidate(input.query) ? normalizeCategorySegment(input.query ?? "") : undefined)
     ?? (isUsefulCategoryCandidate(input.keywords?.[0]) ? normalizeCategorySegment(input.keywords?.[0] ?? "") : undefined)
     ?? (isUsefulCategoryCandidate(input.title) ? normalizeCategorySegment(input.title ?? "") : undefined)
-    ?? "Catalogue importe";
+    ?? "Catalogue";
 
   const title = isUsefulCategoryCandidate(leafCategory) ? leafCategory : "Autres produits";
 

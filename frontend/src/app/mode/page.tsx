@@ -1,111 +1,140 @@
 import Image from "next/image";
 import Link from "next/link";
+import { BadgeCheck, Bike, Flame, PackageCheck, RefreshCcw, Shirt, Sparkles, Truck, Watch } from "lucide-react";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
+import { getCatalogCategories } from "@/lib/catalog-category-service";
 import { getCatalogProducts } from "@/lib/catalog-service";
-import { getModePromotionConfig } from "@/lib/mode-promotions-store";
+import { getProductImageUrl } from "@/lib/product-image";
 import { getPricingContext } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const categoryIcons = [Flame, Shirt, Watch, Bike, PackageCheck, Sparkles, Truck, RefreshCcw];
+
+function formatCompactMetric(product: { soldLabel: string; transactionsLabel: string; responseTime: string }) {
+  return product.soldLabel || product.transactionsLabel || product.responseTime;
+}
+
 export default async function ModePage() {
-  const [pricing, config, catalogProducts] = await Promise.all([
+  const [pricing, catalogProducts, categories] = await Promise.all([
     getPricingContext(),
-    getModePromotionConfig(),
     getCatalogProducts(),
+    getCatalogCategories(),
   ]);
-  const productMap = new Map(catalogProducts.map((product) => [product.slug, product]));
-  const fallbackProducts = catalogProducts.slice(0, 18);
-  const selectProducts = (slugs: string[], fallbackStart: number, count: number) => {
-    const selected = slugs
-      .map((slug) => productMap.get(slug) ?? null)
-      .filter((product): product is NonNullable<typeof productMap extends Map<string, infer T> ? T : never> => Boolean(product));
-
-    if (selected.length >= count) {
-      return selected.slice(0, count);
-    }
-
-    const fallback = fallbackProducts
-      .slice(fallbackStart, fallbackStart + Math.max(count * 2, count))
-      .filter((product) => !selected.some((entry) => entry.slug === product.slug));
-    return [...selected, ...fallback].slice(0, count);
-  };
-
-  const heroSlides = config.heroSlides.slice(0, 2).map((slide, index) => ({
-    ...slide,
-    product: (slide.spotlightProductSlug ? productMap.get(slide.spotlightProductSlug) : null) ?? fallbackProducts[index] ?? null,
-  })).filter((slide) => Boolean(slide.product));
-
-  const sections = [
-    { id: "grouped", title: "Offres groupees", products: selectProducts(config.groupedOfferSlugs, 0, 3) },
-    { id: "daily", title: "Deals du jour", products: selectProducts(config.dailyDealSlugs, 3, 3) },
-    { id: "premium", title: "Selection premium", products: selectProducts(config.premiumSelectionSlugs, 0, 6) },
-    { id: "choice", title: "Choix populaires", products: selectProducts(config.choiceDealSlugs, 6, 4) },
-    { id: "trend", title: "Encore plus de promos", products: selectProducts(config.trendPromoSlugs, 10, 4) },
-  ].filter((section) => section.products.length > 0);
+  const spotlightCategory = categories[0] ?? null;
+  const stripCategories = categories.slice(0, 8);
+  const spotlightProducts = spotlightCategory?.products.slice(0, 8) ?? catalogProducts.slice(0, 8);
+  const denseGridProducts = catalogProducts.slice(0, 24);
 
   return (
     <InternalPageShell pricing={pricing}>
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-2 text-[13px] text-[#666]">
           <Link href="/" className="transition hover:text-[#ff6a00]">Accueil</Link>
           <span>/</span>
           <span className="font-medium text-[#222]">Mode</span>
         </div>
 
-        <section className="grid gap-4 lg:grid-cols-2">
-          {heroSlides.map((slide) => (
-            <article key={slide.id} className="relative overflow-hidden rounded-[30px] bg-[linear-gradient(135deg,#fff0f6_0%,#fff7ee_100%)] px-6 py-6 shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5">
-              <div className="absolute right-4 top-4 rounded-full bg-white/85 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#ff6a00]">
-                {slide.deadlinePrefix}
+        <section className="overflow-hidden rounded-[28px] bg-white shadow-[0_14px_34px_rgba(17,24,39,0.08)] ring-1 ring-black/5">
+          <div className="bg-[linear-gradient(90deg,#ff6a00_0%,#ff8447_48%,#ff9f64_100%)] px-5 py-4 text-white sm:px-6">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-3 text-[30px] font-black tracking-[-0.06em]">
+                <span>AfriPay+</span>
               </div>
-              <div className="max-w-[58%]">
-                <h1 className="text-[30px] font-black tracking-[-0.05em] text-[#222]">{slide.headline}</h1>
-                <div className="mt-3 space-y-2 text-[14px] text-[#555]">
-                  {slide.coupons.map((coupon) => (
-                    <div key={`${slide.id}-${coupon.code}`} className="rounded-[16px] bg-white/80 px-4 py-3 ring-1 ring-black/5">
-                      <div className="text-[18px] font-black text-[#111827]">{coupon.value}</div>
-                      <div className="text-[13px] text-[#667085]">{coupon.limit} · {coupon.code}</div>
-                    </div>
-                  ))}
-                </div>
+              <div className="flex flex-wrap items-center gap-4 text-[13px] font-semibold sm:gap-6">
+                <span className="inline-flex items-center gap-2"><Truck className="h-4 w-4" /> Livraison suivie</span>
+                <span className="inline-flex items-center gap-2"><Sparkles className="h-4 w-4" /> Nouveautes publiees</span>
+                <span className="inline-flex items-center gap-2"><RefreshCcw className="h-4 w-4" /> Catalogue mis a jour</span>
               </div>
-              {slide.product ? (
-                <Link href={`/products/${slide.product.slug}`} className="absolute bottom-0 right-0 top-0 flex w-[40%] items-end justify-center p-4">
-                  <div className="relative h-full w-full overflow-hidden rounded-[26px] bg-white/70">
-                    <Image src={slide.product.image} alt={slide.product.shortTitle} fill sizes="(min-width: 1024px) 20vw, 40vw" className="object-cover" />
-                  </div>
-                </Link>
-              ) : null}
-            </article>
-          ))}
-        </section>
-
-        {sections.map((section) => (
-          <section key={section.id} className="rounded-[30px] bg-white px-6 py-6 shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 lg:px-8 lg:py-7">
-            <div className="flex items-center justify-between gap-4">
-              <h2 className="text-[24px] font-bold tracking-[-0.04em] text-[#222]">{section.title}</h2>
-              <Link href="/products" className="text-[14px] font-semibold text-[#ff6a00] transition hover:opacity-80">Voir tout</Link>
             </div>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {section.products.map((product) => (
-                <Link
-                  key={product.slug}
-                  href={`/products/${product.slug}`}
-                  className="rounded-[22px] bg-[#fffaf6] p-4 ring-1 ring-black/5 transition hover:-translate-y-0.5"
-                >
-                  <div className="aspect-[4/3] overflow-hidden rounded-[16px] bg-white">
-                    <Image src={product.image} alt={product.shortTitle} width={640} height={480} className="h-full w-full object-cover" />
+          </div>
+
+          <div className="px-4 py-3 sm:px-5">
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
+              {stripCategories.map((category, index) => {
+                const Icon = categoryIcons[index % categoryIcons.length] ?? Sparkles;
+                return (
+                  <Link
+                    key={category.slug}
+                    href={category.href}
+                    className={[
+                      "flex min-h-[60px] items-center gap-3 rounded-[4px] border px-3 py-2 transition hover:border-[#ffb187] hover:bg-[#fff7f1]",
+                      index === 0 ? "border-[#1f2430] bg-[#1f2430] text-white" : "border-[#efefef] bg-[#fafafa] text-[#222]",
+                    ].join(" ")}
+                  >
+                    <div className={[
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+                      index === 0 ? "bg-white/14 text-white" : "bg-white text-[#444] ring-1 ring-black/5",
+                    ].join(" ")}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <span className="line-clamp-2 text-[11px] font-semibold leading-4 sm:text-[12px]">{category.title}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="px-4 pb-4 sm:px-5 sm:pb-5">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-8">
+              {spotlightProducts.map((product, index) => (
+                <Link key={product.slug} href={`/products/${product.slug}`} className="group overflow-hidden rounded-[4px] bg-white transition hover:-translate-y-0.5">
+                  <div className="flex items-center justify-between bg-[#ff7b36] px-2 py-1 text-[10px] font-bold text-white">
+                    <span className="inline-flex items-center gap-1"><BadgeCheck className="h-3 w-3" /> ALL</span>
+                    <span>Site</span>
                   </div>
-                  <div className="mt-4 line-clamp-2 text-[17px] font-semibold tracking-[-0.04em] text-[#222]">{product.shortTitle}</div>
-                  <div className="mt-2 text-[13px] text-[#667085]">{product.supplierName}</div>
-                  <div className="mt-3 text-[18px] font-bold text-[#111827]">{pricing.formatPrice(product.minUsd)}</div>
+                  <div className="relative aspect-square overflow-hidden bg-[#f5f5f5]">
+                    <Image src={getProductImageUrl(product.image, { width: 420, quality: 74 })} alt={product.shortTitle} fill sizes="(min-width: 1280px) 11vw, (min-width: 1024px) 18vw, 30vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                  </div>
+                  <div className="px-1.5 pb-1.5 pt-2">
+                    <div className="line-clamp-2 min-h-[32px] text-[10px] font-semibold leading-4 text-[#222] sm:text-[11px]">{product.shortTitle}</div>
+                    {index % 3 === 0 ? <div className="mt-1 text-[9px] font-semibold text-[#ef4444]">Stock faible</div> : null}
+                    <div className="mt-1 line-clamp-1 text-[9px] text-[#6b7280]">{product.supplierName}</div>
+                    <div className="mt-1 line-clamp-1 text-[9px] text-[#6b7280]">{formatCompactMetric(product)}</div>
+                    <div className="mt-1 text-[12px] font-black tracking-[-0.03em] text-[#111827] sm:text-[13px]">{pricing.formatPrice(product.minUsd)}</div>
+                  </div>
                 </Link>
               ))}
             </div>
-          </section>
-        ))}
+          </div>
+        </section>
+
+        <section className="rounded-[28px] bg-white px-4 py-4 shadow-[0_14px_34px_rgba(17,24,39,0.08)] ring-1 ring-black/5 sm:px-5 sm:py-5">
+          <div className="mb-3 flex items-center justify-between gap-4">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Marketplace mode</div>
+              <h1 className="mt-1 text-[26px] font-black tracking-[-0.05em] text-[#111827] sm:text-[32px]">Selection mode compacte</h1>
+            </div>
+            <Link href="/products" className="text-[13px] font-semibold text-[#ff6a00] transition hover:opacity-80">Voir tout</Link>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-8">
+            {denseGridProducts.map((product, index) => (
+              <Link
+                key={product.slug}
+                href={`/products/${product.slug}`}
+                className="group overflow-hidden rounded-[4px] bg-white transition hover:-translate-y-0.5"
+              >
+                <div className="flex items-center justify-between bg-[#ff7b36] px-2 py-1 text-[10px] font-bold text-white">
+                  <span className="inline-flex items-center gap-1"><BadgeCheck className="h-3 w-3" /> ALL</span>
+                  <span>{product.badge || "Live"}</span>
+                </div>
+                <div className="relative aspect-square overflow-hidden bg-[#f5f5f5]">
+                  <Image src={getProductImageUrl(product.image, { width: 420, quality: 74 })} alt={product.shortTitle} fill sizes="(min-width: 1280px) 11vw, (min-width: 1024px) 18vw, 30vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                </div>
+                <div className="px-1.5 pb-2 pt-2">
+                  <div className="line-clamp-2 min-h-[32px] text-[10px] font-semibold leading-4 text-[#222] sm:text-[11px]">{product.shortTitle}</div>
+                  {index % 4 === 1 ? <div className="mt-1 text-[9px] font-semibold text-[#ef4444]">Stock faible</div> : null}
+                  <div className="mt-1 line-clamp-1 text-[9px] text-[#6b7280]">{product.supplierName}</div>
+                  <div className="mt-1 line-clamp-1 text-[9px] text-[#6b7280]">{formatCompactMetric(product)}</div>
+                  <div className="mt-1 text-[12px] font-black tracking-[-0.03em] text-[#111827] sm:text-[13px]">{pricing.formatPrice(product.minUsd)}</div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
       </div>
     </InternalPageShell>
   );

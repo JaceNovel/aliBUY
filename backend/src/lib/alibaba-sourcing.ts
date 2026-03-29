@@ -1,7 +1,7 @@
 import { canonicalizeCountryCode } from "@/lib/country-utils";
 import { type ProductCatalogItem } from "@/lib/products-data";
 import { resolveProductUnitPriceUsd } from "@/lib/product-variant-pricing";
-import { CURRENCY_CONFIG, type CurrencyCode } from "@/lib/pricing-options";
+import { COUNTRY_CONFIG, CURRENCY_CONFIG, type CountryCode, type CurrencyCode } from "@/lib/pricing-options";
 
 export type MarginMode = "percent" | "fixed";
 export type ShippingMethodKey = "air" | "sea" | "freight";
@@ -114,6 +114,7 @@ export type SourcingDeliveryProfile = {
   detectedCountryCode?: string;
   detectedCountryLabel?: string;
   detectedCity?: string;
+  usesInternalReceptionAddress?: boolean;
   unsupportedCountry?: boolean;
   unsupportedMessage?: string;
   forwarder?: SourcingForwarderAddress;
@@ -308,8 +309,20 @@ const SOURCING_META_KEY = "__afripaySourcingMeta";
 export const USD_TO_FCFA = 610;
 export const AIR_BATCH_TARGET_KG = 2;
 export const SEA_BATCH_TARGET_CBM = 1;
-export const SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES = ["TG", "BJ", "GH", "CI", "BF"] as const;
+export const INTERNAL_RECEPTION_COUNTRY_CODES = ["TG", "BJ", "GH", "CI", "BF"] as const;
+export const SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES = (Object.keys(COUNTRY_CONFIG) as CountryCode[])
+  .filter((code) => !INTERNAL_RECEPTION_COUNTRY_CODES.includes(code as (typeof INTERNAL_RECEPTION_COUNTRY_CODES)[number]));
 export const SUPPORTED_FORWARDER_COUNTRY_CODES = ["CN"] as const;
+
+export function isInternalReceptionCountry(countryCode?: string) {
+  const normalizedCode = canonicalizeCountryCode(countryCode, "TG");
+  return INTERNAL_RECEPTION_COUNTRY_CODES.includes(normalizedCode as (typeof INTERNAL_RECEPTION_COUNTRY_CODES)[number]);
+}
+
+export function isSupportedDirectDeliveryCountry(countryCode?: string) {
+  const normalizedCode = canonicalizeCountryCode(countryCode, "TG") as CountryCode;
+  return SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES.includes(normalizedCode);
+}
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -423,6 +436,7 @@ function normalizeDeliveryProfile(value: unknown): SourcingDeliveryProfile | und
     detectedCountryCode: typeof value.detectedCountryCode === "string" ? value.detectedCountryCode : undefined,
     detectedCountryLabel: typeof value.detectedCountryLabel === "string" ? value.detectedCountryLabel : undefined,
     detectedCity: typeof value.detectedCity === "string" ? value.detectedCity : undefined,
+    usesInternalReceptionAddress: value.usesInternalReceptionAddress === true,
     unsupportedCountry: value.unsupportedCountry === true,
     unsupportedMessage: typeof value.unsupportedMessage === "string" ? value.unsupportedMessage : undefined,
     forwarder,
@@ -675,6 +689,10 @@ export function getSourcingOrderBatchMode(order: Pick<SourcingOrder, "shippingMe
     return "sea";
   }
 
+  if (!meta.deliveryProfile?.usesInternalReceptionAddress) {
+    return null;
+  }
+
   if (order.shippingMethod === "air") {
     return "air";
   }
@@ -811,18 +829,20 @@ export function resolveSourcingDeliveryPlan(input: {
   const requestedProfile = input.deliveryProfile;
   const requestedMode = requestedProfile?.mode === "forwarder" ? "forwarder" : "direct";
   const isChinaAddress = countryCode === "CN";
-  const isSupportedDirectCountry = SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES.includes(countryCode as (typeof SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES)[number]);
   const forcedForwarder = requestedMode === "forwarder" || isChinaAddress;
+  const internalReceptionCountry = isInternalReceptionCountry(countryCode);
+  const knownSupportedCountry = countryCode in COUNTRY_CONFIG;
 
-  if (!forcedForwarder && !isSupportedDirectCountry) {
+  if (!forcedForwarder && !knownSupportedCountry) {
     return {
       supported: false,
-      unsupportedMessage: "Ce pays n'est pas pris en charge par nos transporteurs. Utilisez un transitaire en Chine.",
+      unsupportedMessage: "Ce pays n'est pas pris en charge par notre livraison directe. Utilisez votre agent en Chine.",
       deliveryProfile: {
         mode: "direct",
         ...requestedProfile,
+        usesInternalReceptionAddress: false,
         unsupportedCountry: true,
-        unsupportedMessage: "Ce pays n'est pas pris en charge par nos transporteurs. Utilisez un transitaire en Chine.",
+        unsupportedMessage: "Ce pays n'est pas pris en charge par notre livraison directe. Utilisez votre agent en Chine.",
       },
       workflow: {
         routeType: "afripay-final-mile",
@@ -845,6 +865,7 @@ export function resolveSourcingDeliveryPlan(input: {
       deliveryProfile: {
         mode: "forwarder",
         ...requestedProfile,
+        usesInternalReceptionAddress: false,
         unsupportedCountry: false,
         unsupportedMessage: undefined,
         forwarder: requestedProfile?.forwarder
@@ -863,13 +884,35 @@ export function resolveSourcingDeliveryPlan(input: {
     };
   }
 
+  if (internalReceptionCountry) {
+    return {
+      supported: true,
+      deliveryProfile: {
+        mode: "direct",
+        ...requestedProfile,
+        usesInternalReceptionAddress: true,
+        unsupportedCountry: false,
+        unsupportedMessage: undefined,
+        forwarder: undefined,
+      },
+      workflow: {
+        routeType: "afripay-final-mile",
+        freeDeliveryEligible: false,
+        supplierDeliveryAddressRole: "afripay-agent",
+        proofs: [],
+      },
+    };
+  }
+
   return {
     supported: true,
     deliveryProfile: {
       mode: "direct",
       ...requestedProfile,
+      usesInternalReceptionAddress: false,
       unsupportedCountry: false,
       unsupportedMessage: undefined,
+      forwarder: undefined,
     },
     workflow: {
       routeType: "afripay-final-mile",

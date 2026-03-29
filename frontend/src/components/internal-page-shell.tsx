@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { AboutMenu } from "@/components/about-menu";
 import { CategoryMegaMenu, type CategoryMegaMenuCategory } from "@/components/category-mega-menu";
+import { CountryPreferenceModal } from "@/components/country-preference-modal";
 import { DeliveryAddressPopover } from "@/components/delivery-address-popover";
 import { HeaderActionGroup } from "@/components/header-action-group";
 import { LanguageSelectorPopover } from "@/components/language-selector-popover";
@@ -55,6 +56,7 @@ export async function InternalPageShell({ pricing, children }: InternalPageShell
 
   return (
     <main className="min-h-screen overflow-x-clip bg-[#f7f7f7] pb-24 text-[#222] md:pb-0">
+      <CountryPreferenceModal countryCode={pricing.countryCode} currencyCode={pricing.currency.code} />
       <header className="border-b border-[#e5e5e5] bg-white">
         <div className="mx-auto max-w-[1680px] px-4 sm:px-6 xl:px-10">
           <div className="xl:hidden">
