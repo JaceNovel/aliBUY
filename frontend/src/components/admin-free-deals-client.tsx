@@ -85,7 +85,7 @@ export function AdminFreeDealsClient({
   const router = useRouter();
   const [config, setConfig] = useState(initialConfig);
   const [productSlugsText, setProductSlugsText] = useState(formatSlugList(initialConfig.productSlugs));
-  const [importForm, setImportForm] = useState({ query: "", limit: 18, maxUsd: 5 });
+  const [importForm, setImportForm] = useState({ query: "", limit: 18, maxUsd: 5, resetImportedProducts: false });
   const [isSaving, setIsSaving] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -170,6 +170,9 @@ export function AdminFreeDealsClient({
       setProductSlugsText(formatSlugList(payload.config.productSlugs));
       setFeedback(
         payload?.warningMessage
+          || (typeof payload?.purgedCount === "number" && payload.purgedCount > 0
+            ? `Catalogue purge puis import termine: ${payload.purgedCount} ancien(s) article(s) supprime(s), ${payload?.importedCount ?? 0}/${payload?.targetImportCount ?? importForm.limit} produits republies.`
+            : undefined)
           || `Import terminé: ${payload?.importedCount ?? 0}/${payload?.targetImportCount ?? importForm.limit} produits publiés et rattachés à la page gratuite.`,
       );
       router.refresh();
@@ -304,6 +307,15 @@ export function AdminFreeDealsClient({
               </button>
             </div>
           </div>
+          <label className="mt-4 inline-flex items-center gap-3 text-[13px] font-semibold text-[#344054]">
+            <input
+              checked={importForm.resetImportedProducts}
+              onChange={(event) => setImportForm((current) => ({ ...current, resetImportedProducts: event.target.checked }))}
+              type="checkbox"
+              className="h-4 w-4 rounded border-[#dfe3ea] text-[#ff6a00]"
+            />
+            Vider les anciens imports avant de recharger l'offre gratuite
+          </label>
 
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             {[

@@ -162,7 +162,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [importForm, setImportForm] = useState({ query: "", limit: 24, fulfillmentChannel: "crossborder", autoPublish: true });
+  const [importForm, setImportForm] = useState({ query: "", limit: 24, fulfillmentChannel: "crossborder", autoPublish: true, resetImportedProducts: false });
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [quantityByProduct, setQuantityByProduct] = useState<Record<string, number>>({});
   const [accountForm, setAccountForm] = useState({
@@ -258,7 +258,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       return;
     }
 
-    setFeedback(`Import AliExpress live termine: ${Array.isArray(payload?.products) ? payload.products.length : 0}/${payload?.targetImportCount ?? activeImportForm.limit} importes.${typeof payload?.skippedExistingCount === "number" && payload.skippedExistingCount > 0 ? ` Deja importes ignores: ${payload.skippedExistingCount}.` : ""}`);
+    setFeedback(`${typeof payload?.purgedCount === "number" && payload.purgedCount > 0 ? `Catalogue purge: ${payload.purgedCount} article(s). ` : ""}Import AliExpress live termine: ${Array.isArray(payload?.products) ? payload.products.length : 0}/${payload?.targetImportCount ?? activeImportForm.limit} importes.${typeof payload?.skippedExistingCount === "number" && payload.skippedExistingCount > 0 ? ` Deja importes ignores: ${payload.skippedExistingCount}.` : ""}`);
     refresh();
   };
 
@@ -380,6 +380,28 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
         ? `Réenrichissement global terminé: ${updatedCount} mis à jour, ${failedCount} en échec.`
         : `Réenrichissement global terminé: ${updatedCount} article(s) mis à jour.`,
     );
+    refresh();
+  };
+
+  const deleteAllImportedItems = async () => {
+    setFeedback(null);
+
+    if (!window.confirm("Supprimer tous les articles importes du catalogue admin ?")) {
+      return;
+    }
+
+    const response = await fetch("/api/admin/aliexpress/import", {
+      method: "DELETE",
+    });
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      setFeedback(payload?.message ?? "Purge du catalogue importe impossible.");
+      return;
+    }
+
+    setSelectedProductIds([]);
+    setFeedback(`Catalogue importe purge: ${Number(payload?.deletedCount ?? 0)} article(s) supprime(s).`);
     refresh();
   };
 
@@ -723,6 +745,10 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
               <input checked={activeImportForm.autoPublish} onChange={(event) => setImportForm((current) => ({ ...current, autoPublish: event.target.checked }))} type="checkbox" className="h-4 w-4 rounded border-[#d7dce5] text-[#ff6a00] focus:ring-[#ff6a00]" />
               Publier automatiquement les articles importes sur le site
             </label>
+            <label className="mt-3 inline-flex items-center gap-3 text-[13px] font-semibold text-[#344054]">
+              <input checked={activeImportForm.resetImportedProducts} onChange={(event) => setImportForm((current) => ({ ...current, resetImportedProducts: event.target.checked }))} type="checkbox" className="h-4 w-4 rounded border-[#d7dce5] text-[#ff6a00] focus:ring-[#ff6a00]" />
+              Vider le catalogue importe avant ce nouvel import
+            </label>
             <div className="mt-5 flex gap-3">
               <button type="button" onClick={runImport} disabled={isPending || !activeImportForm.query.trim() || !activeSupplierAccount} className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:opacity-60">
                 <Search className="h-4 w-4" />
@@ -741,6 +767,10 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                 <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Images, videos et publication catalogue</div>
               </div>
               <div className="flex items-center gap-3">
+                <button type="button" onClick={deleteAllImportedItems} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#f2d1d1] bg-[#fff8f8] px-4 text-[13px] font-semibold text-[#c74444] transition hover:bg-[#fff1f1]">
+                  <Trash2 className="h-4 w-4" />
+                  Tout purger
+                </button>
                 <button type="button" onClick={reenrichAllImportedItems} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#dbe2ea] bg-white px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
                   <RefreshCcw className="h-4 w-4" />
                   Réenrichir tout

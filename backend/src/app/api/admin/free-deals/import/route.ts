@@ -101,6 +101,7 @@ export async function POST(request: Request) {
       limit,
       fulfillmentChannel: "crossborder",
       autoPublish: true,
+      resetImportedProducts: Boolean((body as Record<string, unknown>)?.resetImportedProducts),
     });
     const importedProducts = await getAlibabaImportedProducts();
     const desiredCount = Math.max(currentConfig.itemLimit * 3, currentConfig.itemLimit, 12);
@@ -121,6 +122,7 @@ export async function POST(request: Request) {
       config,
       importedCount: result.products.length,
       targetImportCount: result.targetImportCount,
+      purgedCount: result.purgedCount,
       warningMessage: result.warningMessage,
       productSlugs,
     });

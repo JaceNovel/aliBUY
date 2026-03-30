@@ -1,5 +1,6 @@
 import { cookies, headers } from "next/headers";
 
+import { buildApiUrl } from "@/lib/api";
 import { FREE_DEAL_DEVICE_COOKIE } from "@/lib/free-deal-constants";
 import { createFreeDealOrder, resolveRequestIp, resolveRequestOrigin, type FreeDealCheckoutCustomerInput } from "@/lib/free-deal-service";
 import { getFreeDealAccessState, getFreeDealConfig } from "@/lib/free-deal-store";
@@ -56,9 +57,53 @@ function isValidCheckoutCustomer(customer: FreeDealCheckoutCustomerInput) {
   );
 }
 
+function buildProxyHeaders(request: Request) {
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+  };
+
+  for (const headerName of ["cookie", "user-agent", "x-forwarded-for", "x-real-ip", "x-forwarded-proto", "x-forwarded-host"]) {
+    const value = request.headers.get(headerName);
+    if (value) {
+      headers[headerName] = value;
+    }
+  }
+
+  return headers;
+}
+
+async function maybeProxy(request: Request, rawBody: string) {
+  try {
+    const upstreamUrl = buildApiUrl("/api/free-deals/checkout");
+    const currentUrl = new URL(request.url);
+    const upstreamHost = new URL(upstreamUrl).host;
+
+    if (upstreamHost && upstreamHost !== currentUrl.host) {
+      const upstreamResponse = await fetch(upstreamUrl, {
+        method: "POST",
+        headers: buildProxyHeaders(request),
+        body: rawBody || "{}",
+        cache: "no-store",
+      });
+      const payload = await upstreamResponse.json().catch(() => null);
+      return Response.json(payload, { status: upstreamResponse.status });
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+    const rawBody = await request.text();
+    const proxied = await maybeProxy(request, rawBody);
+    if (proxied) {
+      return proxied;
+    }
+
+    const body = (rawBody ? JSON.parse(rawBody) : {}) as Record<string, unknown>;
     const selectedSlugs = Array.isArray(body.selectedSlugs)
       ? body.selectedSlugs.map((entry) => String(entry).trim()).filter(Boolean)
       : [];

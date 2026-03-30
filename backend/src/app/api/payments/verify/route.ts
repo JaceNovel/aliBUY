@@ -1,17 +1,62 @@
+import { buildApiUrl } from "@/lib/api";
 import { verifyMonerooPayment } from "@/lib/moneroo";
 import { persistMonerooPaymentToOrder } from "@/lib/moneroo-sourcing";
 import { syncSourcingOrderForDeferredSupplierPayment } from "@/lib/sourcing-batch-service";
 import { getSourcingOrderById } from "@/lib/sourcing-store";
 import { getCurrentUser } from "@/lib/user-auth";
 
+function buildProxyHeaders(request: Request) {
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+  };
+
+  for (const headerName of ["cookie", "user-agent", "x-forwarded-for", "x-real-ip", "x-forwarded-proto", "x-forwarded-host"]) {
+    const value = request.headers.get(headerName);
+    if (value) {
+      headers[headerName] = value;
+    }
+  }
+
+  return headers;
+}
+
+async function maybeProxy(request: Request, rawBody: string) {
+  try {
+    const upstreamUrl = buildApiUrl("/api/payments/verify");
+    const currentUrl = new URL(request.url);
+    const upstreamHost = new URL(upstreamUrl).host;
+
+    if (upstreamHost && upstreamHost !== currentUrl.host) {
+      const upstreamResponse = await fetch(upstreamUrl, {
+        method: "POST",
+        headers: buildProxyHeaders(request),
+        body: rawBody || "{}",
+        cache: "no-store",
+      });
+      const payload = await upstreamResponse.json().catch(() => null);
+      return Response.json(payload, { status: upstreamResponse.status });
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 export async function POST(request: Request) {
+  const rawBody = await request.text();
+  const proxied = await maybeProxy(request, rawBody);
+  if (proxied) {
+    return proxied;
+  }
+
   const user = await getCurrentUser();
   if (!user) {
     return Response.json({ message: "Connexion requise." }, { status: 401 });
   }
 
   try {
-    const body = await request.json().catch(() => ({}));
+    const body = rawBody ? JSON.parse(rawBody) : {};
     const orderId = typeof body?.orderId === "string" ? body.orderId : "";
     const requestedPaymentId = typeof body?.paymentId === "string" ? body.paymentId : "";
     const order = await getSourcingOrderById(orderId);

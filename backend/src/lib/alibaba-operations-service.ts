@@ -619,17 +619,25 @@ function toImportedProduct(product: ProductCatalogItem, query: string, published
     soldLabel: product.soldLabel,
     customizationLabel: product.customizationLabel,
     shippingLabel: product.shippingLabel,
+    chinaLocalFreightFcfa: product.chinaLocalFreightFcfa,
+    chinaLocalFreightLabel: product.chinaLocalFreightLabel,
     overview: buildOverview(product),
     variantGroups: product.variantGroups,
+    variantPricing: product.variantPricing,
+    variantSkus: product.variantSkus,
     tiers: product.tiers,
     specs: product.specs,
+    moqVerified: product.moqVerified,
+    supplierCompanyId: "supplierCompanyId" in product ? product.supplierCompanyId : undefined,
+    weightVerified: "weightVerified" in product ? product.weightVerified : undefined,
+    priceVerified: "priceVerified" in product ? product.priceVerified : undefined,
     inventory: Math.max(product.moq * 5, 50),
     status: publishedToSite ? "published" : "imported",
     publishedToSite,
     createdAt: timestamp,
     updatedAt: timestamp,
     publishedAt: publishedToSite ? timestamp : undefined,
-    rawPayload: { source: "fallback-catalog" },
+    rawPayload: "rawPayload" in product ? product.rawPayload : { source: "fallback-catalog" },
   };
 }
 
@@ -686,6 +694,7 @@ export async function runAlibabaCatalogImport(input: {
   limit: number;
   fulfillmentChannel: AlibabaFulfillmentChannel;
   autoPublish: boolean;
+  resetImportedProducts?: boolean;
 }) {
   const timestamp = nowIso();
   const job: AlibabaImportJob = {
@@ -703,6 +712,12 @@ export async function runAlibabaCatalogImport(input: {
   await saveAlibabaImportJob(job);
 
   try {
+    let purgedCount = 0;
+    if (input.resetImportedProducts) {
+      const purgeResult = await deleteAllImportedProducts();
+      purgedCount = purgeResult.deletedCount;
+    }
+
     const existingImportedProducts = await getAlibabaImportedProducts();
     const existingSourceProductIds = new Set(existingImportedProducts.map((product) => product.sourceProductId));
     const explorationLimit = Math.min(Math.max(job.limit * 4, 40), 100);
@@ -809,6 +824,7 @@ export async function runAlibabaCatalogImport(input: {
         importedCount: importedProducts.length,
         targetImportCount: job.limit,
         exploredCount: uniqueSearchProducts.length,
+        purgedCount,
         skippedExistingCount,
         skippedMissingRequiredDataCount,
         rejectedReasonCounts,
@@ -823,6 +839,7 @@ export async function runAlibabaCatalogImport(input: {
       usedFallback: productsWithRequiredData.length === 0 && fallbackEligibleProducts.length > 0,
       targetImportCount: job.limit,
       exploredCount: uniqueSearchProducts.length,
+      purgedCount,
       skippedExistingCount,
       skippedMissingRequiredDataCount,
       rejectedReasonCounts,
@@ -903,6 +920,29 @@ export async function deleteImportedProduct(importedProductId: string, sourcePro
   });
 
   return { deletedId: product.id, sourceProductId: product.sourceProductId };
+}
+
+export async function deleteAllImportedProducts() {
+  const products = await getAlibabaImportedProducts({ fresh: true });
+
+  for (const product of products) {
+    await deleteAlibabaImportedProduct(product.id);
+  }
+
+  await createAlibabaIntegrationLog({
+    action: "catalog-import-delete-all",
+    endpoint: "internal/imported-products/delete-all",
+    status: "success",
+    requestBody: {
+      importedProductCount: products.length,
+    },
+    responseBody: {
+      deletedCount: products.length,
+      sourceProductIds: products.slice(0, 100).map((product) => product.sourceProductId),
+    },
+  });
+
+  return { deletedCount: products.length };
 }
 
 export async function reenrichImportedProduct(importedProductId: string) {
@@ -991,10 +1031,17 @@ export async function reenrichImportedProduct(importedProductId: string) {
     soldLabel: effectiveSnapshot.soldLabel,
     customizationLabel: effectiveSnapshot.customizationLabel,
     shippingLabel: effectiveSnapshot.shippingLabel,
+    chinaLocalFreightFcfa: "chinaLocalFreightFcfa" in effectiveSnapshot ? effectiveSnapshot.chinaLocalFreightFcfa : product.chinaLocalFreightFcfa,
+    chinaLocalFreightLabel: "chinaLocalFreightLabel" in effectiveSnapshot ? effectiveSnapshot.chinaLocalFreightLabel : product.chinaLocalFreightLabel,
     overview: nextOverview,
     variantGroups: nextVariantGroups,
+    variantPricing: effectiveSnapshot.variantPricing ?? product.variantPricing,
+    variantSkus: effectiveSnapshot.variantSkus ?? product.variantSkus,
     tiers: nextTiers,
     specs: nextSpecs,
+    moqVerified: "moqVerified" in effectiveSnapshot ? effectiveSnapshot.moqVerified : product.moqVerified,
+    weightVerified: "weightVerified" in effectiveSnapshot ? effectiveSnapshot.weightVerified : product.weightVerified,
+    priceVerified: "priceVerified" in effectiveSnapshot ? effectiveSnapshot.priceVerified : product.priceVerified,
     inventory: Math.max(effectiveSnapshot.moq * 5, 50),
     updatedAt: timestamp,
     rawPayload: enrichedRawPayload,
