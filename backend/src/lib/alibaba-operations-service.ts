@@ -54,6 +54,10 @@ function formatAliExpressDsOrderCreateFailure(errorCode?: string, errorMessage?:
   const message = String(errorMessage ?? "").trim();
   const normalizedMessage = message.toLowerCase();
 
+  if (code === "SKU_NOT_EXIST") {
+    return "Le SKU AliExpress de ce produit n'existe plus ou n'a pas ete transmis. Reimporte l'article pour resynchroniser ses variantes avant de relancer le lot DS.";
+  }
+
   if (code === "B_DROPSHIPPER_DELIVERY_ADDRESS_VALIDATE_FAIL") {
     if (normalizedMessage.includes("city")) {
       return "Adresse AliExpress invalide: la ville est obligatoire ou non reconnue.";
@@ -99,6 +103,75 @@ function formatAliExpressDsOrderCreateFailure(errorCode?: string, errorMessage?:
   }
 
   return [code, message].filter(Boolean).join(" - ") || "Lancement DS impossible";
+}
+
+function getStringRecordValue(value: unknown, ...keys: string[]) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  for (const key of keys) {
+    const candidate = record[key];
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+
+    if (typeof candidate === "number" && Number.isFinite(candidate)) {
+      return String(candidate);
+    }
+  }
+
+  return undefined;
+}
+
+function extractSkuIdFromAlibabaRawPayload(rawPayload: unknown) {
+  const queue: unknown[] = [rawPayload];
+  const visited = new Set<object>();
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || typeof current !== "object") {
+      continue;
+    }
+
+    if (visited.has(current as object)) {
+      continue;
+    }
+
+    visited.add(current as object);
+
+    if (Array.isArray(current)) {
+      queue.push(...current);
+      continue;
+    }
+
+    const directSkuId = getStringRecordValue(current, "sku_id", "skuId");
+    if (directSkuId) {
+      return directSkuId;
+    }
+
+    const record = current as Record<string, unknown>;
+    const skuCollections = [record.sku_info, record.skus, record.skuInfo, record.trade_info];
+    queue.push(...skuCollections.filter((entry) => typeof entry !== "undefined"));
+    queue.push(...Object.values(record));
+  }
+
+  return undefined;
+}
+
+function resolveAlibabaImportedProductSkuId(product: AlibabaImportedProduct) {
+  const preferredVariantSku = product.variantSkus?.find((entry) => typeof entry.skuId === "string" && entry.skuId.trim() && (typeof entry.inventory !== "number" || entry.inventory > 0));
+  if (preferredVariantSku?.skuId) {
+    return preferredVariantSku.skuId;
+  }
+
+  const fallbackVariantSku = product.variantSkus?.find((entry) => typeof entry.skuId === "string" && entry.skuId.trim());
+  if (fallbackVariantSku?.skuId) {
+    return fallbackVariantSku.skuId;
+  }
+
+  return extractSkuIdFromAlibabaRawPayload(product.rawPayload);
 }
 
 function getAliExpressMarginRate() {
@@ -808,6 +881,7 @@ export async function createAlibabaPurchaseOrder(input: {
   }
 
   const quantity = Math.max(1, input.quantity);
+  const supplierSkuId = resolveAlibabaImportedProductSkuId(product);
   const supplierUnitPrice = Math.max(0, Number(product.minUsd) / (1 + getAliExpressMarginRate()));
   const logisticsPayload = {
     shipment_address: {
@@ -850,6 +924,7 @@ export async function createAlibabaPurchaseOrder(input: {
       {
         product_id: product.sourceProductId,
         product_count: quantity,
+        ...(supplierSkuId ? { sku_id: supplierSkuId } : {}),
         sku_attr: "",
         logistics_service_name: "",
         order_memo: `Batch AfriPay ${product.shortTitle}`,
