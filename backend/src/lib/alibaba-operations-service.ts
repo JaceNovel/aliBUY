@@ -741,12 +741,15 @@ export async function createAlibabaPurchaseOrder(input: {
     throw new Error("Produit importe introuvable.");
   }
 
-  const address = input.shippingAddressId
+  const preferredAddress = input.shippingAddressId
     ? addresses.find((entry) => entry.id === input.shippingAddressId)
-    : addresses.find((entry) => entry.isDefault);
+    : undefined;
+  const address = preferredAddress
+    ?? addresses.find((entry) => entry.isDefault)
+    ?? addresses[0];
 
   if (!address) {
-    throw new Error("Ajoutez d'abord une adresse de reception par defaut.");
+    throw new Error("Ajoutez d'abord une adresse de reception.");
   }
 
   const quantity = Math.max(1, input.quantity);

@@ -163,7 +163,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   const [addressForm, setAddressForm] = useState({ label: "Entrepot principal", contactName: "", phone: "", email: "", addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "", countryCode: "CI", port: "", portCode: "", isDefault: true });
   const [countries, setCountries] = useState(initialDashboard.countries);
 
-  const defaultAddressId = initialDashboard.addresses.find((address) => address.isDefault)?.id;
+  const defaultAddressId = initialDashboard.addresses.find((address) => address.isDefault)?.id ?? initialDashboard.addresses[0]?.id;
   const recentImports = useMemo(() => initialDashboard.importedProducts.slice(0, 8), [initialDashboard.importedProducts]);
   const recentOrders = useMemo(() => initialDashboard.purchaseOrders.slice(0, 8), [initialDashboard.purchaseOrders]);
   const pendingPaymentOrders = useMemo(
@@ -261,6 +261,11 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
 
   const createPurchaseOrder = async (importedProductId: string, sourceProductId?: string) => {
     setFeedback(null);
+    if (!defaultAddressId) {
+      setFeedback("Ajoute d'abord une adresse de reception avant de creer un lot d'achat.");
+      return;
+    }
+
     const response = await fetch("/api/admin/aliexpress/purchase-orders", {
       method: "POST",
       headers: { "content-type": "application/json" },
