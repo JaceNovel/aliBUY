@@ -422,7 +422,16 @@ export async function updateUserAddress(userId: string, addressId: string, input
     const shouldBeDefault = Boolean(input.isDefault) || (existing.isDefault && !input.isDefault) || userAddresses.length === 1;
     const updatedAddress: CustomerAddressRecord = {
       ...existing,
-      ...normalized,
+      label: normalized.label,
+      recipientName: normalized.recipientName,
+      phone: normalized.phone,
+      email: normalized.email ?? undefined,
+      addressLine1: normalized.addressLine1,
+      addressLine2: normalized.addressLine2 ?? undefined,
+      city: normalized.city,
+      state: normalized.state,
+      postalCode: normalized.postalCode ?? undefined,
+      countryCode: normalized.countryCode,
       isDefault: shouldBeDefault,
       updatedAt: new Date().toISOString(),
     };
