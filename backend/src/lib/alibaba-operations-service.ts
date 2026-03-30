@@ -36,6 +36,9 @@ import {
 import {
   createAlibabaBuyNowOrder,
   createAlibabaDropshippingPayment,
+  extractAlibabaOperationCode,
+  extractAlibabaOperationMessage,
+  extractAlibabaTradeId,
   fetchAlibabaProductSnapshot,
   queryAlibabaPaymentResult,
   resolveAlibabaIcbuCategoryInfo,
@@ -921,13 +924,15 @@ export async function payAlibabaPurchaseOrder(orderId: string) {
       };
     };
     const dsResult = responseObject?.result ?? responseObject?.aliexpress_ds_order_create_response?.result;
-    const tradeId = dsResult?.order_list?.number?.[0];
+    const tradeId = dsResult?.order_list?.number?.[0] ?? extractAlibabaTradeId(orderResult.responseBody);
+    const dsErrorCode = dsResult?.error_code ?? extractAlibabaOperationCode(orderResult.responseBody);
+    const dsErrorMessage = dsResult?.error_msg ?? extractAlibabaOperationMessage(orderResult.responseBody);
     const nextOrder: AlibabaPurchaseOrder = {
       ...order,
       tradeId: typeof tradeId !== "undefined" ? String(tradeId) : undefined,
       orderStatus: orderResult.ok && dsResult?.is_success !== false ? "order_created" : "failed",
       paymentStatus: orderResult.ok && dsResult?.is_success !== false ? "pending" : "failed",
-      payFailureReason: orderResult.ok && dsResult?.is_success !== false ? undefined : formatAliExpressDsOrderCreateFailure(dsResult?.error_code, dsResult?.error_msg),
+      payFailureReason: orderResult.ok && dsResult?.is_success !== false ? undefined : formatAliExpressDsOrderCreateFailure(dsErrorCode, dsErrorMessage),
       rawOrderResponse: orderResult.responseBody,
       updatedAt: nowIso(),
     };

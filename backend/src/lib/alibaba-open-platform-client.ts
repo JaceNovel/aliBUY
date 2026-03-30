@@ -4192,7 +4192,7 @@ export async function cancelAlibabaOrder(input: { tradeId: string | number }) {
   });
 }
 
-export { extractAlibabaOperationCode, extractAlibabaOperationMessage, isAlibabaOperationSuccessful };
+export { extractAlibabaOperationCode, extractAlibabaOperationMessage, extractAlibabaTradeId, isAlibabaOperationSuccessful };
 
 export async function createAlibabaDropshippingPayment(input: {
   tradeId?: string;
