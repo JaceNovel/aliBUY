@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
+import { env } from "@/lib/env";
+
 export type PaymentStatus = "unpaid" | "initialized" | "pending" | "paid" | "failed" | "cancelled";
 
 export const MONEROO_DEFAULT_API_BASE_URL = "https://api.moneroo.io";
@@ -61,11 +63,11 @@ export type MonerooInitializePayload = {
 };
 
 function getMonerooApiBaseUrl() {
-  return process.env.MONEROO_API_BASE_URL?.trim() || MONEROO_DEFAULT_API_BASE_URL;
+  return env.monerooApiUrl?.trim() || MONEROO_DEFAULT_API_BASE_URL;
 }
 
 function getMonerooSecretKey() {
-  const secretKey = process.env.MONEROO_SECRET_KEY?.trim();
+  const secretKey = env.monerooSecretKey?.trim();
 
   if (!secretKey) {
     throw new Error("MONEROO_SECRET_KEY is required to initialize or verify Moneroo payments.");
@@ -75,7 +77,7 @@ function getMonerooSecretKey() {
 }
 
 function getMonerooWebhookSecret() {
-  const webhookSecret = process.env.MONEROO_WEBHOOK_SECRET?.trim();
+  const webhookSecret = env.monerooWebhookSecret?.trim();
 
   if (!webhookSecret) {
     throw new Error("MONEROO_WEBHOOK_SECRET is required to validate Moneroo webhooks.");
