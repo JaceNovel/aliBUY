@@ -117,6 +117,20 @@ function formatAliExpressDsOrderCreateFailure(errorCode?: string, errorMessage?:
   return [code, message].filter(Boolean).join(" - ") || "Lancement DS impossible";
 }
 
+function isAliExpressDsAutoPayFailure(errorMessage?: string) {
+  const normalized = String(errorMessage ?? "").trim().toLowerCase();
+  return normalized.includes("autopay fail")
+    || normalized.includes("api pay fail")
+    || normalized.includes("apipayfail")
+    || normalized.includes("ordercreated, autopay fail");
+}
+
+function formatAliExpressDsAutoPayFailure(errorMessage?: string) {
+  const details = String(errorMessage ?? "").trim();
+  const guidance = "Commande DS creee, mais l'auto-paiement a echoue. Verifie la whitelist auto-pay (appKey), le compte acheteur AliExpress, le compte PayPal lie au buyer account, puis active Auto Pay dans AliExpress DS.";
+  return details ? `${guidance} Detail: ${details}` : guidance;
+}
+
 function getStringRecordValue(value: unknown, ...keys: string[]) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return undefined;
@@ -1464,12 +1478,16 @@ export async function payAlibabaPurchaseOrder(orderId: string) {
     const tradeId = dsResult?.order_list?.number?.[0] ?? extractAlibabaTradeId(orderResult.responseBody);
     const dsErrorCode = dsResult?.error_code ?? extractAlibabaOperationCode(orderResult.responseBody);
     const dsErrorMessage = dsResult?.error_msg ?? extractAlibabaOperationMessage(orderResult.responseBody);
+    const dsOrderCreated = orderResult.ok && dsResult?.is_success !== false;
+    const dsAutoPayFailed = dsOrderCreated && isAliExpressDsAutoPayFailure(dsErrorMessage);
     const nextOrder: AlibabaPurchaseOrder = {
       ...order,
       tradeId: typeof tradeId !== "undefined" ? String(tradeId) : undefined,
-      orderStatus: orderResult.ok && dsResult?.is_success !== false ? "order_created" : "failed",
-      paymentStatus: orderResult.ok && dsResult?.is_success !== false ? "pending" : "failed",
-      payFailureReason: orderResult.ok && dsResult?.is_success !== false ? undefined : formatAliExpressDsOrderCreateFailure(dsErrorCode, dsErrorMessage),
+      orderStatus: dsOrderCreated ? "order_created" : "failed",
+      paymentStatus: dsOrderCreated ? (dsAutoPayFailed ? "failed" : "pending") : "failed",
+      payFailureReason: dsOrderCreated
+        ? (dsAutoPayFailed ? formatAliExpressDsAutoPayFailure(dsErrorMessage) : undefined)
+        : formatAliExpressDsOrderCreateFailure(dsErrorCode, dsErrorMessage),
       rawOrderResponse: orderResult.responseBody,
       updatedAt: nowIso(),
     };

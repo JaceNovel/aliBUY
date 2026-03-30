@@ -3581,9 +3581,11 @@ export async function createAlibabaBuyNowOrder(payload: Record<string, unknown>)
         : Object.fromEntries(Object.entries(payload).filter(([key]) => key !== "ds_extend_request" && key !== "dsExtendRequest"));
     const rawDsExtendRequest = payload.ds_extend_request ?? payload.dsExtendRequest;
     const autoPayFlag = String(process.env.ALIEXPRESS_DS_AUTO_PAY_ENABLED ?? "true").trim().toLowerCase();
+    const shouldAutoPay = !(autoPayFlag === "false" || autoPayFlag === "0" || autoPayFlag === "off" || autoPayFlag === "no");
     const defaultPayment = {
       pay_currency: process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD",
-      try_to_pay: !(autoPayFlag === "false" || autoPayFlag === "0" || autoPayFlag === "off" || autoPayFlag === "no"),
+      // Keep string values for broad compatibility with DS gateway payload parsing.
+      try_to_pay: shouldAutoPay ? "true" : "false",
     };
     const dsExtendRequest = typeof rawDsExtendRequest === "string"
       ? rawDsExtendRequest
