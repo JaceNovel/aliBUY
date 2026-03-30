@@ -1,4 +1,4 @@
-import { buildApiUrl } from "@/lib/api";
+import { API_URL, buildApiUrl } from "@/lib/api";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { runAlibabaCatalogImport } from "@/lib/alibaba-operations-service";
 import { getFreeDealConfig, saveFreeDealConfig } from "@/lib/free-deal-store";
@@ -57,7 +57,24 @@ function selectCampaignProducts(products: ImportedOption[], options: { query: st
   return [...new Set(sorted.slice(0, options.desiredCount).map((product) => product.slug))];
 }
 
-async function maybeProxy(request: Request, body: unknown) {
+function buildProxyHeaders(request: Request) {
+  const headers = new Headers({ "content-type": "application/json" });
+
+  for (const headerName of ["cookie", "authorization", "user-agent", "x-forwarded-for", "x-real-ip", "x-forwarded-proto", "x-forwarded-host"]) {
+    const value = request.headers.get(headerName);
+    if (value) {
+      headers.set(headerName, value);
+    }
+  }
+
+  return headers;
+}
+
+async function maybeProxy(request: Request, rawBody: string) {
+  if (!API_URL) {
+    return null;
+  }
+
   try {
     const upstreamUrl = buildApiUrl("/api/admin/free-deals/import");
     const currentUrl = new URL(request.url);
@@ -66,14 +83,35 @@ async function maybeProxy(request: Request, body: unknown) {
     if (upstreamHost && upstreamHost !== currentUrl.host) {
       const upstreamResponse = await fetch(upstreamUrl, {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
+        headers: buildProxyHeaders(request),
+        body: rawBody || "{}",
         cache: "no-store",
       });
-      const payload = await upstreamResponse.json().catch(() => null);
-      return Response.json(payload, { status: upstreamResponse.status });
+
+      if (upstreamResponse.status === 403 || upstreamResponse.status === 404 || upstreamResponse.status >= 500) {
+        console.warn("[admin/free-deals/import] upstream unavailable, fallback to local handler", {
+          upstreamUrl,
+          status: upstreamResponse.status,
+        });
+        return null;
+      }
+
+      const rawPayload = await upstreamResponse.text();
+      if (!rawPayload.trim()) {
+        return Response.json({ ok: upstreamResponse.ok }, { status: upstreamResponse.status });
+      }
+
+      try {
+        const payload = JSON.parse(rawPayload) as unknown;
+        return Response.json(payload, { status: upstreamResponse.status });
+      } catch {
+        return Response.json({ message: rawPayload }, { status: upstreamResponse.status });
+      }
     }
-  } catch {
+  } catch (error) {
+    console.warn("[admin/free-deals/import] upstream request failed, fallback to local handler", {
+      reason: error instanceof Error ? error.message : "unknown",
+    });
     return null;
   }
 
@@ -81,10 +119,19 @@ async function maybeProxy(request: Request, body: unknown) {
 }
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => ({}));
-  const proxied = await maybeProxy(request, body);
+  const rawBody = await request.text();
+  const proxied = await maybeProxy(request, rawBody);
   if (proxied) {
     return proxied;
+  }
+
+  let body: unknown = {};
+  if (rawBody) {
+    try {
+      body = JSON.parse(rawBody) as unknown;
+    } catch {
+      return Response.json({ message: "Charge utile invalide." }, { status: 400 });
+    }
   }
 
   try {

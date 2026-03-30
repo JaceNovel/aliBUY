@@ -5,12 +5,19 @@ import { getPricingContext } from "@/lib/pricing";
 import { getCurrentUser } from "@/lib/user-auth";
 import { redirect } from "next/navigation";
 
-export default async function CheckoutPage() {
+export default async function CheckoutPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ promo?: string }>;
+}) {
   const pricing = await getPricingContext();
+  const resolvedSearchParams = await searchParams;
+  const promoCode = typeof resolvedSearchParams.promo === "string" ? resolvedSearchParams.promo.trim().toUpperCase() : "";
+  const nextPath = promoCode ? `/checkout?promo=${encodeURIComponent(promoCode)}` : "/checkout";
   const user = await getCurrentUser();
 
   if (!user) {
-    redirect("/login?next=/checkout");
+    redirect(`/login?next=${encodeURIComponent(nextPath)}`);
   }
 
   const addresses = await getUserAddresses(user.id);
@@ -23,6 +30,7 @@ export default async function CheckoutPage() {
         initialCountryCode={pricing.countryCode}
         currencyCode={pricing.currency.code}
         locale={pricing.locale}
+        initialPromoCode={promoCode}
       />
     </InternalPageShell>
   );

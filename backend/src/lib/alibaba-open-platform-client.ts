@@ -2855,17 +2855,17 @@ function mapAliExpressSearchItemFallbackToProduct(
   }
 
   const priceBounds = getPriceBounds(
-    searchItem.targetSalePrice,
+    searchItem.offerSalePrice,
+    searchItem.offer_sale_price,
+    searchItem.skuPrice,
+    searchItem.sku_price,
     searchItem.salePrice,
-    searchItem.targetOriginalPrice,
-    searchItem.originalPrice,
-    searchItem.discountPrice,
-    searchItem.appSalePrice,
-    searchItem.target_sale_price,
     searchItem.sale_price,
-    searchItem.target_original_price,
+    searchItem.originalPrice,
     searchItem.original_price,
+    searchItem.discountPrice,
     searchItem.discount_price,
+    searchItem.appSalePrice,
     searchItem.app_sale_price,
     searchItem.min_price,
     searchItem.max_price,
@@ -3130,7 +3130,16 @@ function mapAliExpressProductDetailToProduct(
     .filter((value): value is number => typeof value === "number" && value > 0);
   const minRawPrice = skuPrices.length > 0
     ? Math.min(...skuPrices)
-    : getNumberValue(searchItem.targetSalePrice, searchItem.salePrice, searchItem.targetOriginalPrice, searchItem.originalPrice);
+    : getNumberValue(
+      searchItem.offerSalePrice,
+      searchItem.offer_sale_price,
+      searchItem.skuPrice,
+      searchItem.sku_price,
+      searchItem.salePrice,
+      searchItem.sale_price,
+      searchItem.originalPrice,
+      searchItem.original_price,
+    );
   if (!minRawPrice) {
     return null;
   }

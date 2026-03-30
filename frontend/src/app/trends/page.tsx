@@ -36,7 +36,7 @@ export default async function TrendsPage() {
           <span className="font-medium text-[#222]">Tendances</span>
         </div>
 
-        <section className="hidden bg-transparent px-0 py-0 shadow-none ring-0 sm:block">
+        <section className="bg-transparent px-0 py-0 shadow-none ring-0">
           <div className="flex flex-col gap-4 border-b border-[#efefef] pb-4 sm:gap-5 sm:pb-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-[#fff3ea] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#d85300] sm:text-[12px] sm:tracking-[0.14em]">

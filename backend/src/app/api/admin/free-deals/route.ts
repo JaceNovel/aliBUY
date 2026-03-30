@@ -1,4 +1,4 @@
-import { buildApiUrl } from "@/lib/api";
+import { API_URL, buildApiUrl } from "@/lib/api";
 import { getFreeDealAdminSummary, saveFreeDealConfig, type FreeDealConfig } from "@/lib/free-deal-store";
 import { POST as importFreeDealsPost } from "./import/route";
 
@@ -23,7 +23,24 @@ function parseSlugList(value: unknown, fallback: string[]) {
   return [...new Set(value.map((entry) => String(entry).trim()).filter(Boolean))];
 }
 
+function buildProxyHeaders(request: Request, initialHeaders?: HeadersInit) {
+  const headers = new Headers(initialHeaders);
+
+  for (const headerName of ["cookie", "authorization", "user-agent", "x-forwarded-for", "x-real-ip", "x-forwarded-proto", "x-forwarded-host"]) {
+    const value = request.headers.get(headerName);
+    if (value) {
+      headers.set(headerName, value);
+    }
+  }
+
+  return headers;
+}
+
 async function maybeProxy(request: Request, path: string, init?: RequestInit) {
+  if (!API_URL) {
+    return null;
+  }
+
   try {
     const upstreamUrl = buildApiUrl(path);
     const currentUrl = new URL(request.url);
@@ -33,11 +50,33 @@ async function maybeProxy(request: Request, path: string, init?: RequestInit) {
       const upstreamResponse = await fetch(upstreamUrl, {
         cache: "no-store",
         ...init,
+        headers: buildProxyHeaders(request, init?.headers),
       });
-      const payload = await upstreamResponse.json().catch(() => null);
-      return Response.json(payload, { status: upstreamResponse.status });
+
+      if (upstreamResponse.status === 403 || upstreamResponse.status === 404 || upstreamResponse.status >= 500) {
+        console.warn("[admin/free-deals] upstream unavailable, fallback to local handler", {
+          upstreamUrl,
+          status: upstreamResponse.status,
+        });
+        return null;
+      }
+
+      const rawPayload = await upstreamResponse.text();
+      if (!rawPayload.trim()) {
+        return Response.json({ ok: upstreamResponse.ok }, { status: upstreamResponse.status });
+      }
+
+      try {
+        const payload = JSON.parse(rawPayload) as unknown;
+        return Response.json(payload, { status: upstreamResponse.status });
+      } catch {
+        return Response.json({ message: rawPayload }, { status: upstreamResponse.status });
+      }
     }
-  } catch {
+  } catch (error) {
+    console.warn("[admin/free-deals] upstream request failed, fallback to local handler", {
+      reason: error instanceof Error ? error.message : "unknown",
+    });
     return null;
   }
 

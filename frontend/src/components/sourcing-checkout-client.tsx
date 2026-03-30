@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Check, LocateFixed, MapPinned, Ship, ShoppingCart, Truck } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useCart, useCartQuote } from "@/components/cart-provider";
 import { buildLocalUrl, createOrder, previewPromoCode } from "@/lib/api";
@@ -45,6 +45,7 @@ type SourcingCheckoutClientProps = {
   initialCountryCode: string;
   currencyCode: string;
   locale: string;
+  initialPromoCode?: string;
 };
 
 type ReverseGeocodeResponse = {
@@ -88,7 +89,7 @@ function formatSavedAddress(address: CustomerAddressRecord) {
     .join(" · ");
 }
 
-export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCountryCode, currencyCode, locale }: SourcingCheckoutClientProps) {
+export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCountryCode, currencyCode, locale, initialPromoCode }: SourcingCheckoutClientProps) {
   const { items, clearCart, sharedCartContext, clearSharedCartContext } = useCart();
   const router = useRouter();
   const defaultAddress = savedAddresses.find((address) => address.isDefault) ?? savedAddresses[0];
@@ -103,7 +104,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
   const [forwarderAddressBlock, setForwarderAddressBlock] = useState("");
   const [forwarderParcelMarking, setForwarderParcelMarking] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [promoCodeInput, setPromoCodeInput] = useState("");
+  const [promoCodeInput, setPromoCodeInput] = useState(initialPromoCode ?? "");
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; label: string; discountFcfa: number; finalTotalFcfa: number; baseTotalFcfa: number } | null>(null);
   const [promoMessage, setPromoMessage] = useState<string | null>(null);
   const [isApplyingPromo, setIsApplyingPromo] = useState(false);
@@ -113,6 +114,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hasUserSelectedShipping, setHasUserSelectedShipping] = useState(false);
   const [selectedShipping, setSelectedShipping] = useState<ShippingMethodKey>("air");
+  const hasAutoAppliedPromoRef = useRef(false);
 
   const deliveryPlan = useMemo(() => resolveSourcingDeliveryPlan({
     countryCode: form.countryCode,
@@ -364,8 +366,13 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
     }
   };
 
-  const applyPromoCode = async () => {
-    if (!promoCodeInput.trim()) {
+  const applyPromoCode = useCallback(async (providedCode?: string) => {
+    if (!selectedOption) {
+      return;
+    }
+
+    const code = (providedCode ?? promoCodeInput).trim().toUpperCase();
+    if (!code) {
       setPromoMessage("Saisissez un code promo.");
       return;
     }
@@ -373,7 +380,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
     setIsApplyingPromo(true);
     setPromoMessage(null);
     try {
-      const payload = await previewPromoCode(promoCodeInput, baseTotalPrice).catch((error) => ({
+      const payload = await previewPromoCode(code, baseTotalPrice).catch((error) => ({
         message: error instanceof Error ? error.message : "Code promo invalide.",
       }));
       const promoCode = "promoCode" in payload ? payload.promoCode : undefined;
@@ -400,7 +407,18 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
     } finally {
       setIsApplyingPromo(false);
     }
-  };
+  }, [baseTotalPrice, promoCodeInput, selectedOption]);
+
+  useEffect(() => {
+    const code = initialPromoCode?.trim().toUpperCase() ?? "";
+    if (!code || hasAutoAppliedPromoRef.current || !selectedOption || isApplyingPromo) {
+      return;
+    }
+
+    hasAutoAppliedPromoRef.current = true;
+    setPromoCodeInput(code);
+    void applyPromoCode(code);
+  }, [applyPromoCode, initialPromoCode, isApplyingPromo, selectedOption]);
 
   if (items.length === 0) {
     return (

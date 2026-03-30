@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight, Heart, Minus, Play, Plus, Share2, ShieldCheck, ShoppingCart, Store, TicketPercent, Truck, X } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, Heart, Minus, Play, Plus, Share2, ShieldCheck, ShoppingCart, Store, TicketPercent, Truck, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
@@ -78,6 +78,7 @@ type ProductDetailClientProps = {
     specs: DetailSpec[];
     formattedPriceRange: string;
     badge?: string;
+    sourceUrl?: string;
   };
   relatedProducts: RelatedProduct[];
   initialIsFavorite: boolean | null;
@@ -172,6 +173,14 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
         : "Usage polyvalent";
     const weightLabel = product.itemWeightGrams > 0 ? `${product.itemWeightGrams} g` : "Selon catalogue";
   const displayShippingLabel = /^(Expédition|Expedition)\s+[A-Z]{2,3}$/i.test(product.shippingLabel) ? "Expédition" : product.shippingLabel;
+  const sourceProductUrl = (() => {
+    if (typeof product.sourceUrl === "string" && product.sourceUrl.trim()) {
+      return product.sourceUrl.trim();
+    }
+
+    return /^\d{12,20}$/.test(product.slug) ? `https://www.aliexpress.com/item/${product.slug}.html` : "";
+  })();
+  const lotLabel = `${product.lotCbm} m3`;
   const characteristicRows = [
     [
       { label: "Type", value: product.specs[0]?.value ?? inferredType },
@@ -230,6 +239,28 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
     return formatMoney(summary.minUsd);
   };
+  const normalizeTierPriceUsd = (priceUsd: number) => {
+    if (!Number.isFinite(priceUsd) || priceUsd <= 0) {
+      return 0;
+    }
+
+    // Some imported tiers may be persisted in XOF and then interpreted as USD.
+    // For XOF storefronts, normalize tiny outlier values back to USD scale.
+    if (selectedCurrency.code === "XOF" && priceUsd < 0.01) {
+      return priceUsd * CURRENCY_CONFIG.XOF.rateFromUsd;
+    }
+
+    return priceUsd;
+  };
+  const normalizedProductTiers = product.tiers.map((tier) => ({
+    ...tier,
+    priceUsd: normalizeTierPriceUsd(tier.priceUsd),
+  }));
+  const productWithNormalizedTiers = {
+    ...product,
+    tiers: normalizedProductTiers,
+    variantPricing: product.variantPricing,
+  };
   const getTierMinimum = (label: string) => {
     const normalized = label.replace(/\s/g, "");
     if (normalized.startsWith(">=") || normalized.includes("+")) {
@@ -257,34 +288,18 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
         ...modalSelections,
       }
     : modalSelections;
-  const displayTiers = getDisplayPriceTiers({
-    ...product,
-    tiers: product.tiers,
-    variantPricing: product.variantPricing,
-  }, previewSelection).map((tier) => ({
+  const displayTiers = getDisplayPriceTiers(productWithNormalizedTiers, previewSelection).map((tier) => ({
     ...tier,
     formattedPrice: formatMoney(tier.priceUsd),
   }));
   const sortedTiers = [...displayTiers].sort((left, right) => getTierMinimum(left.quantityLabel) - getTierMinimum(right.quantityLabel));
   const activeTier = [...sortedTiers].reverse().find((tier) => totalSelectedQuantity >= getTierMinimum(tier.quantityLabel)) ?? sortedTiers[0];
-  const hasVariantSpecificPricing = getApplicableVariantPricing({
-    ...product,
-    tiers: product.tiers,
-    variantPricing: product.variantPricing,
-  }, previewSelection).length > 0;
-  const currentPriceSummary = resolveProductPriceSummaryUsd({
-    ...product,
-    tiers: product.tiers,
-    variantPricing: product.variantPricing,
-  }, {
+  const hasVariantSpecificPricing = getApplicableVariantPricing(productWithNormalizedTiers, previewSelection).length > 0;
+  const currentPriceSummary = resolveProductPriceSummaryUsd(productWithNormalizedTiers, {
     quantity: hasVariantSpecificPricing ? Math.max(1, mixGroup ? (mixQuantities[previewSelection[mixGroup.label]] ?? 1) : totalSelectedQuantity) : totalSelectedQuantity,
     selection: previewSelection,
   });
-  const currentUnitPrice = resolveProductUnitPriceUsd({
-    ...product,
-    tiers: product.tiers,
-    variantPricing: product.variantPricing,
-  }, {
+  const currentUnitPrice = resolveProductUnitPriceUsd(productWithNormalizedTiers, {
     quantity: hasVariantSpecificPricing ? Math.max(1, mixGroup ? (mixQuantities[previewSelection[mixGroup.label]] ?? 1) : totalSelectedQuantity) : totalSelectedQuantity,
     selection: previewSelection,
   });
@@ -299,16 +314,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
           [mixGroup.label]: value,
           ...modalSelections,
         };
-        const variantRules = getApplicableVariantPricing({
-          ...product,
-          tiers: product.tiers,
-          variantPricing: product.variantPricing,
-        }, selection);
-        const unitPrice = resolveProductUnitPriceUsd({
-          ...product,
-          tiers: product.tiers,
-          variantPricing: product.variantPricing,
-        }, {
+        const variantRules = getApplicableVariantPricing(productWithNormalizedTiers, selection);
+        const unitPrice = resolveProductUnitPriceUsd(productWithNormalizedTiers, {
           quantity: variantRules.length > 0 ? quantity : totalSelectedQuantity,
           selection,
         });
@@ -348,7 +355,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
         maxUsd: (currentPriceSummary.maxUsd ?? currentPriceSummary.minUsd) * totalSelectedQuantity,
       };
   const hasSubtotalRange = subtotalRange.maxUsd > subtotalRange.minUsd;
-  const dynamicPriceLabel = hasVariantSpecificPricing ? formatPriceSummary(currentPriceSummary) : product.formattedPriceRange;
+  const dynamicPriceLabel = formatPriceSummary(currentPriceSummary);
   const supportsDirectAliExpressDelivery = isSupportedDirectDeliveryCountry(product.countryCode);
   const shippingChoices = supportsDirectAliExpressDelivery
     ? [
@@ -756,10 +763,10 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
         <section className="rounded-[26px] bg-white px-3 py-4 shadow-[0_16px_34px_rgba(24,39,75,0.06)] ring-1 ring-black/5">
           <div className="grid grid-cols-2 gap-2 rounded-[22px] bg-[#f7f4f1] p-2">
-            {product.tiers.slice(0, 2).map((tier, index) => (
+            {normalizedProductTiers.slice(0, 2).map((tier, index) => (
               <div key={tier.quantityLabel} className="rounded-[18px] bg-white px-3 py-3 text-[#222] shadow-[0_8px_18px_rgba(17,24,39,0.05)]">
                 <div className="text-[13px] font-black tracking-[-0.04em] text-[#111]">
-                  {tier.formattedPrice}
+                  {formatMoney(tier.priceUsd)}
                 </div>
                 <div className="mt-1 text-[11px] text-[#555]">
                   {index === 0 ? `Commande minimale : ${product.moq} unité` : tier.quantityLabel}
@@ -859,6 +866,14 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
             <div className="space-y-4 pt-4">
               <div className="rounded-[20px] bg-[#fafafa] px-4 py-4 ring-1 ring-black/5">
                 <h2 className="text-[17px] font-bold tracking-[-0.04em] text-[#222]">Caractéristiques</h2>
+                <div className="mt-3 flex items-center justify-between rounded-[14px] bg-white px-3 py-2.5 ring-1 ring-[#eee]">
+                  <div className="text-[13px] font-semibold text-[#222]">Lot: {lotLabel}</div>
+                  {sourceProductUrl ? (
+                    <a href={sourceProductUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00]" aria-label="Ouvrir la fiche AliExpress">
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  ) : null}
+                </div>
                 <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-5 rounded-[18px] bg-white px-4 py-4 ring-1 ring-[#eee]">
                   {characteristics.slice(0, 6).map((item) => (
                     <div key={`${item.label}-${item.value}`} className="min-w-0">
@@ -1066,6 +1081,14 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               <div className="border-b border-[#ececec] px-5 py-4">
                 <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8a8a8a]">Attributs</div>
                 <h2 className="mt-2 text-[18px] font-bold tracking-[-0.04em] text-[#222] sm:text-[21px]">Caractéristiques du produit</h2>
+                <div className="mt-3 flex items-center justify-between rounded-[14px] bg-[#fafafa] px-3 py-2.5 ring-1 ring-[#eee]">
+                  <div className="text-[13px] font-semibold text-[#222]">Lot: {lotLabel}</div>
+                  {sourceProductUrl ? (
+                    <a href={sourceProductUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00]" aria-label="Ouvrir la fiche AliExpress">
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  ) : null}
+                </div>
               </div>
 
               <div>

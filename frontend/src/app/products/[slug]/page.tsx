@@ -11,6 +11,37 @@ import { SITE_NAME, SITE_URL } from "@/lib/site-config";
 
 import { ProductDetailClient } from "./product-detail-client";
 
+function getString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function resolveAliExpressSourceUrl(product: { slug: string; rawPayload?: unknown }) {
+  const payload = product.rawPayload;
+  if (payload && typeof payload === "object") {
+    const record = payload as Record<string, unknown>;
+    const detail = record.detail && typeof record.detail === "object" ? record.detail as Record<string, unknown> : null;
+    const search = record.search && typeof record.search === "object" ? record.search as Record<string, unknown> : null;
+
+    const detailBaseInfo = detail?.ae_item_base_info_dto && typeof detail.ae_item_base_info_dto === "object"
+      ? detail.ae_item_base_info_dto as Record<string, unknown>
+      : null;
+
+    const detailUrl = getString(detailBaseInfo?.product_detail_url)
+      ?? getString(detailBaseInfo?.detail_url)
+      ?? getString(search?.item_detail_url)
+      ?? getString(search?.detail_url)
+      ?? getString(search?.product_detail_url)
+      ?? getString(search?.productUrl)
+      ?? getString(search?.product_url);
+
+    if (detailUrl) {
+      return detailUrl;
+    }
+  }
+
+  return /^\d{12,20}$/.test(product.slug) ? `https://www.aliexpress.com/item/${product.slug}.html` : undefined;
+}
+
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -105,6 +136,7 @@ export default async function ProductPage({
           })),
           formattedPriceRange: formatTierAwarePrice(pricing.formatPrice, product),
           badge: normalizeStorefrontBadge(product.badge),
+          sourceUrl: resolveAliExpressSourceUrl(product),
         }}
         relatedProducts={relatedProducts}
         initialIsFavorite={null}

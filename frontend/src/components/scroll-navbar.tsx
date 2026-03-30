@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { AboutMenu } from "@/components/about-menu";
 import { CategoryMegaMenu, type CategoryMegaMenuCategory } from "@/components/category-mega-menu";
 import { DeliveryAddressPopover } from "@/components/delivery-address-popover";
 import { HeaderActionGroup } from "@/components/header-action-group";
@@ -91,9 +90,7 @@ export function ScrollNavbar({ countryCode, countryLabel, currencyCode, flagEmoj
         </div>
 
         <div className="hidden min-h-[54px] items-center justify-between gap-6 border-t border-[#efefef] text-[16px] text-[#222] xl:flex">
-          <div className="flex items-center gap-10">
-            <AboutMenu triggerLabel={messages.nav.about} className="transition hover:text-[#ff6a00]" align="right" />
-          </div>
+          <div />
           <div className="flex items-center gap-10">
             <SupportMenu triggerLabel={messages.nav.support} className="transition hover:text-[#ff6a00]" />
             <UnavailableLink label={messages.nav.appExtension} message={messages.unavailable.message} className="text-[16px] text-[#222]" />

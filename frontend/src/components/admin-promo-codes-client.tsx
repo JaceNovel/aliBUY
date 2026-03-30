@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Save, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, Plus, Save, Trash2 } from "lucide-react";
 
 import type { PromoCodeRecord } from "@/lib/promo-codes-store";
 
@@ -32,6 +32,33 @@ export function AdminPromoCodesClient({ initialPromoCodes }: { initialPromoCodes
   const [promoCodes, setPromoCodes] = useState(initialPromoCodes);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [copyingId, setCopyingId] = useState<string | null>(null);
+
+  const buildReceivePath = (code: string) => `/checkout?promo=${encodeURIComponent(code.trim().toUpperCase())}`;
+
+  const copyReceiveLink = async (promoCode: PromoCodeRecord) => {
+    const code = promoCode.code.trim().toUpperCase();
+    if (!code) {
+      setFeedback("Ajoutez un code avant de partager un lien de réception.");
+      return;
+    }
+
+    if (typeof window === "undefined" || !navigator.clipboard) {
+      setFeedback("Copie indisponible sur ce navigateur. Ouvrez le lien manuellement.");
+      return;
+    }
+
+    setCopyingId(promoCode.id);
+    try {
+      const receivePath = buildReceivePath(code);
+      await navigator.clipboard.writeText(`${window.location.origin}${receivePath}`);
+      setFeedback(`Lien de réception copié pour ${code}.`);
+    } catch {
+      setFeedback("Impossible de copier le lien de réception.");
+    } finally {
+      setCopyingId(null);
+    }
+  };
 
   const updatePromoCode = <Key extends keyof PromoCodeRecord>(id: string, key: Key, value: PromoCodeRecord[Key]) => {
     setPromoCodes((current) => current.map((promoCode) => (promoCode.id === id ? { ...promoCode, [key]: value } : promoCode)));
@@ -169,6 +196,26 @@ export function AdminPromoCodesClient({ initialPromoCodes }: { initialPromoCodes
                 <button type="button" onClick={() => void deletePromoCode(promoCode)} className="inline-flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#f84557] text-white transition hover:bg-[#ea3248]">
                   <Trash2 className="h-4 w-4" />
                 </button>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-[14px] border border-[#e4e7ec] bg-[#fcfcfd] px-4 py-3">
+              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#667085]">Réception coupon</div>
+              <div className="mt-2 break-all text-[13px] text-[#344054]">{buildReceivePath(promoCode.code || "CODE")}</div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void copyReceiveLink(promoCode)}
+                  disabled={copyingId === promoCode.id}
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-[10px] border border-[#d0d5dd] px-3 text-[12px] font-semibold text-[#101828] transition hover:border-[#f84557] hover:text-[#f84557] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  {copyingId === promoCode.id ? "Copie..." : "Copier le lien"}
+                </button>
+                <a href={buildReceivePath(promoCode.code || "")} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center justify-center gap-2 rounded-[10px] border border-[#d0d5dd] px-3 text-[12px] font-semibold text-[#101828] transition hover:border-[#f84557] hover:text-[#f84557]">
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Ouvrir le lien
+                </a>
               </div>
             </div>
           </article>

@@ -5,7 +5,6 @@ import type { Metadata } from "next";
 
 import { CategoryMegaMenu, type CategoryMegaMenuCategory } from "@/components/category-mega-menu";
 import { CountryPreferenceModal } from "@/components/country-preference-modal";
-import { AboutMenu } from "@/components/about-menu";
 import { DeliveryAddressPopover } from "@/components/delivery-address-popover";
 import { HeaderActionGroup } from "@/components/header-action-group";
 import { HomeDiscoveryShowcase } from "@/components/home-discovery-showcase";
@@ -283,7 +282,6 @@ export default async function Home() {
                   />
                 </nav>
                 <nav className="flex flex-wrap items-center gap-x-7 gap-y-2 text-[#444]">
-                  <AboutMenu triggerLabel={messages.nav.about} className="transition hover:text-[#ff6a00]" align="right" />
                   <SupportMenu triggerLabel={messages.nav.support} className="transition hover:text-[#ff6a00]" />
                   <UnavailableLink
                     label={messages.nav.appExtension}

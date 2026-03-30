@@ -252,7 +252,7 @@ export async function createAlibabaSourcingQuote(
       ? `Au-dessus de ${settings.airWeightThresholdKg} kg, le bateau est recommande. L'avion reste disponible avec frais.`
       : airIsFree
         ? "Livraison avion offerte debloquee pour ce panier"
-        : `Ajoutez ${formatFcfa(freeAirRemainingFcfa)} de plus pour obtenir la livraison avion offerte`,
+        : "Livraison avion calculee selon le poids du colis.",
     containerProjection: {
       targetCbm: settings.containerTargetCbm,
       projectedCbm: totalCbm,
