@@ -225,7 +225,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     [importForm, seededQuery],
   );
   const activeFeedback = feedback
-    ?? getOauthFeedback(oauthStatus, oauthMessage)
+    ?? getOauthFeedback(oauthStatus)
     ?? (seededSource === "image-search" && seededQuery
       ? "Recherche image liee a l'import IA AliExpress. Verifie la requete puis lance l'import."
       : null);
