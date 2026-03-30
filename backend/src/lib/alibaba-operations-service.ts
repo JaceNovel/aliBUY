@@ -653,7 +653,7 @@ export async function upsertAlibabaSupplierAccountTokens(input: {
   const accounts = await getAlibabaSupplierAccounts();
   const existing = accounts.find((account) => account.id === input.accountId);
   if (!existing) {
-    throw new Error("Compte fournisseur AliExpress introuvable.");
+    throw new Error("Compte fournisseur AliExpress introuvable. En production, configure une persistance (DATABASE_URL ou BLOB_READ_WRITE_TOKEN) puis relance OAuth.");
   }
 
   const nextAccount: AlibabaSupplierAccount = {

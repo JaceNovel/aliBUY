@@ -81,7 +81,7 @@ function getSupplierAccountStatusMeta(status: AlibabaSupplierAccount["status"]) 
   };
 }
 
-function getOauthFeedback(status?: string | null) {
+function getOauthFeedback(status?: string | null, message?: string | null) {
   if (status === "success") {
     return "Connexion AliExpress terminee. Le compte est pret si le jeton a bien ete recu.";
   }
@@ -91,6 +91,11 @@ function getOauthFeedback(status?: string | null) {
   }
 
   if (status === "failed") {
+    const detail = (message ?? "").trim();
+    if (detail) {
+      return `Connexion AliExpress echouee: ${detail}`;
+    }
+
     return "Connexion AliExpress echouee. Relance la connexion pour terminer l'autorisation.";
   }
 
@@ -221,7 +226,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     [importForm, seededQuery],
   );
   const activeFeedback = feedback
-    ?? getOauthFeedback(oauthStatus)
+    ?? getOauthFeedback(oauthStatus, oauthMessage)
     ?? (seededSource === "image-search" && seededQuery
       ? "Recherche image liee a l'import IA AliExpress. Verifie la requete puis lance l'import."
       : null);
@@ -243,7 +248,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(activeImportForm),
     });
-    const payload = await response.json().catch(() => null);
+    await response.json().catch(() => null);
     if (!response.ok) {
       setFeedback(payload?.message ?? "Import AliExpress impossible.");
       return;
@@ -297,7 +302,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       }),
     });
 
-    const payload = await response.json().catch(() => null);
+    await response.json().catch(() => null);
 
     if (!response.ok) {
       setFeedback(payload?.message ?? "Creation du lot d'achat impossible.");
@@ -415,7 +420,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     const payload = await response.json().catch(() => null);
 
     if (!response.ok) {
-      setFeedback(action === "refresh" ? "Actualisation paiement impossible." : "Action AliExpress impossible.");
+      setFeedback(payload?.message ?? (action === "refresh" ? "Actualisation paiement impossible." : "Action AliExpress impossible."));
       return;
     }
 
