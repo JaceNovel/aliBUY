@@ -91,7 +91,7 @@ async function fetchRemoteCatalogCategories() {
 
 export const getCatalogCategories = cache(async function getCatalogCategories(): Promise<CatalogCategoryRecord[]> {
   const remoteCategories = await fetchRemoteCatalogCategories();
-  if (remoteCategories) {
+  if (remoteCategories && remoteCategories.length > 0) {
     return remoteCategories;
   }
 
@@ -127,7 +127,7 @@ export const getCatalogCategories = cache(async function getCatalogCategories():
     });
   }
 
-  return [...categories.values()]
+  const localCategories = [...categories.values()]
     .map((category) => {
       const products = dedupeProducts(category.products);
       const count = products.length;
@@ -158,6 +158,12 @@ export const getCatalogCategories = cache(async function getCatalogCategories():
 
       return left.title.localeCompare(right.title, "fr");
     });
+
+  if (localCategories.length > 0) {
+    return localCategories;
+  }
+
+  return remoteCategories ?? [];
 });
 
 export const getCatalogCategoryBySlug = cache(async function getCatalogCategoryBySlug(slug: string): Promise<CatalogCategoryRecord | null> {

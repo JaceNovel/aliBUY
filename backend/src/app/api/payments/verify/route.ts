@@ -57,6 +57,13 @@ async function maybeProxy(request: Request, rawBody: string) {
       return null;
     }
 
+    if (upstreamResponse.status === 404) {
+      console.warn("[payments/verify] upstream order missing, fallback to local handler", {
+        upstreamUrl,
+      });
+      return null;
+    }
+
     const rawPayload = await upstreamResponse.text();
     let payload: unknown = null;
 

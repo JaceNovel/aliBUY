@@ -159,10 +159,23 @@ export function AdminFreeDealsClient({
         },
         body: JSON.stringify(importForm),
       });
-      const payload = await response.json().catch(() => null);
+      let payload: Record<string, unknown> | null = null;
+      const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+
+      if (contentType.includes("application/json")) {
+        payload = await response.json().catch(() => null);
+      } else {
+        const rawPayload = await response.text().catch(() => "");
+        if (rawPayload.trim()) {
+          payload = { message: rawPayload.slice(0, 240) };
+        }
+      }
 
       if (!response.ok || !payload?.config) {
-        setFeedback(payload?.message || "Import AliExpress impossible pour l'offre gratuite.");
+        const message = typeof payload?.message === "string" && payload.message.trim().length > 0
+          ? payload.message
+          : `Import AliExpress impossible pour l'offre gratuite (HTTP ${response.status}).`;
+        setFeedback(message);
         return;
       }
 
@@ -176,8 +189,8 @@ export function AdminFreeDealsClient({
           || `Import terminé: ${payload?.importedCount ?? 0}/${payload?.targetImportCount ?? importForm.limit} produits publiés et rattachés à la page gratuite.`,
       );
       router.refresh();
-    } catch {
-      setFeedback("Import AliExpress impossible pour l'offre gratuite.");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Import AliExpress impossible pour l'offre gratuite.");
     } finally {
       setIsImporting(false);
     }

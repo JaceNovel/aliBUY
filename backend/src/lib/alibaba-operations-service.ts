@@ -1327,11 +1327,28 @@ export async function createAlibabaPurchaseOrder(input: {
         rawPayload: liveProduct.rawPayload,
       }
     : product;
-  const supplierSkuId = resolveAlibabaImportedProductSkuId(productForOrder);
+
+  let resolvedProductForOrder = productForOrder;
+  let supplierSkuId = resolveAlibabaImportedProductSkuId(resolvedProductForOrder);
+  let supplierSkuAttr = supplierSkuId ? resolveAlibabaImportedProductSkuAttr(resolvedProductForOrder, supplierSkuId) : undefined;
+
+  if (!supplierSkuId || typeof supplierSkuAttr === "undefined") {
+    // Try one automatic refresh before failing: imported variants can become stale in storage.
+    const refreshedProduct = await reenrichImportedProduct(product.id).catch(() => null);
+    if (refreshedProduct) {
+      resolvedProductForOrder = {
+        ...resolvedProductForOrder,
+        ...refreshedProduct,
+      };
+      supplierSkuId = resolveAlibabaImportedProductSkuId(resolvedProductForOrder);
+      supplierSkuAttr = supplierSkuId ? resolveAlibabaImportedProductSkuAttr(resolvedProductForOrder, supplierSkuId) : undefined;
+    }
+  }
+
   if (!supplierSkuId) {
     throw new Error("SKU AliExpress introuvable pour cet article. Reimporte le produit puis relance le lot DS.");
   }
-  const supplierSkuAttr = resolveAlibabaImportedProductSkuAttr(productForOrder, supplierSkuId);
+
   if (typeof supplierSkuAttr === "undefined") {
     throw new Error("Attribut SKU AliExpress introuvable pour cet article. Reimporte le produit puis relance le lot DS.");
   }
