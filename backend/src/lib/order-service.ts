@@ -8,7 +8,7 @@ import { getUserSourcingOrders } from "@/lib/sourcing-store";
 
 const countryLabels: Record<string, string> = {
   CI: "Cote d'Ivoire",
-  CN: "Chine",
+  CN: "Hub AfriPay",
   FR: "France",
   GH: "Ghana",
   TG: "Togo",
@@ -81,13 +81,13 @@ function buildLogistics(order: SourcingOrder, status: OrderStatus) {
   const profile = meta.deliveryProfile;
   const usesInternalReceptionAddress = profile?.usesInternalReceptionAddress === true;
   const forwarderHubLabel = profile?.forwarder?.hub === "china" || order.countryCode === "CN"
-    ? "Chine"
+    ? "Hub AfriPay"
     : profile?.forwarder?.hub === "lome"
       ? "Lomé"
       : undefined;
   const destination = countryLabels[order.countryCode] ?? order.countryCode;
   const corridorLabel = workflow?.routeType === "customer-forwarder"
-    ? `Fournisseur -> votre agent ${forwarderHubLabel ?? destination}`
+    ? `Depart -> votre agent ${forwarderHubLabel ?? destination}`
     : usesInternalReceptionAddress
       ? `Hub AfriPay -> ${destination}`
       : `AliExpress -> ${destination}`;
@@ -98,14 +98,14 @@ function buildLogistics(order: SourcingOrder, status: OrderStatus) {
     : order.shippingMethod === "sea"
       ? "Groupage mer, dedouanement puis livraison finale"
       : order.shippingMethod === "freight"
-        ? "Fret local fournisseur vers hub interne"
+        ? "Fret local AfriPay vers hub interne"
       : "Acheminement express et remise locale";
   const lastUpdate =
     status === "Paiement en attente"
       ? "Paiement en attente de validation avant lancement logistique."
       : status === "Expedition en attente"
         ? !usesInternalReceptionAddress && workflow?.routeType !== "customer-forwarder"
-          ? "Commande confirmee. Le fournisseur prepare l'expedition directe vers votre adresse."
+          ? "Commande confirmee. La preparation d'expedition vers votre adresse est en cours."
           : "Commande confirmee. Le dossier est en preparation logistique."
         : workflow?.routeType === "customer-forwarder" && order.status === "delivered_to_agent"
           ? "Le colis a ete remis a votre agent. La commande est cloturee avec preuve de remise."
@@ -123,7 +123,7 @@ function buildLogistics(order: SourcingOrder, status: OrderStatus) {
       : order.shippingMethod === "sea"
         ? "Equipe logistique maritime"
         : order.shippingMethod === "freight"
-          ? "Equipe fret local Chine"
+          ? "Equipe logistique AfriPay"
         : "Equipe logistique express",
     corridorLabel,
     destinationCountry: destination,

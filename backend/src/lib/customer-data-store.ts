@@ -1,10 +1,16 @@
 import "server-only";
 
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { get, put } from "@vercel/blob";
+
 import type { CustomerAddressRecord } from "@/lib/customer-addresses";
 import { canonicalizeCountryCode } from "@/lib/country-utils";
 import { prisma } from "@/lib/prisma";
 
 const DATABASE_UNAVAILABLE_MESSAGE = "Le service de donnees n'est pas configure sur cette instance.";
+const CUSTOMER_ADDRESSES_PATH = path.join(process.cwd(), "data", "account", "customer-addresses.json");
+const CUSTOMER_ADDRESSES_BLOB_PATHNAME = "account/customer-addresses.json";
 
 export type FavoriteRecord = {
   id: string;
@@ -73,6 +79,58 @@ type CustomerAddressInput = {
   countryCode: string;
   isDefault?: boolean;
 };
+
+async function readCustomerAddressesFile() {
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    try {
+      const blob = await get(CUSTOMER_ADDRESSES_BLOB_PATHNAME, {
+        access: "private",
+        useCache: false,
+      });
+
+      if (blob?.stream) {
+        const raw = await new Response(blob.stream).text();
+        return JSON.parse(raw) as CustomerAddressRecord[];
+      }
+    } catch {
+      // Fall back to local JSON when Blob is unavailable.
+    }
+  }
+
+  try {
+    const raw = await readFile(CUSTOMER_ADDRESSES_PATH, "utf8");
+    return JSON.parse(raw) as CustomerAddressRecord[];
+  } catch {
+    await mkdir(path.dirname(CUSTOMER_ADDRESSES_PATH), { recursive: true });
+    await writeFile(CUSTOMER_ADDRESSES_PATH, "[]\n", "utf8");
+    return [] as CustomerAddressRecord[];
+  }
+}
+
+async function writeCustomerAddressesFile(addresses: CustomerAddressRecord[]) {
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    await put(CUSTOMER_ADDRESSES_BLOB_PATHNAME, `${JSON.stringify(addresses, null, 2)}\n`, {
+      access: "private",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: "application/json; charset=utf-8",
+    });
+    return;
+  }
+
+  await mkdir(path.dirname(CUSTOMER_ADDRESSES_PATH), { recursive: true });
+  await writeFile(CUSTOMER_ADDRESSES_PATH, `${JSON.stringify(addresses, null, 2)}\n`, "utf8");
+}
+
+function sortCustomerAddresses(addresses: CustomerAddressRecord[]) {
+  return [...addresses].sort((left, right) => {
+    if (left.isDefault === right.isDefault) {
+      return right.updatedAt.localeCompare(left.updatedAt);
+    }
+
+    return left.isDefault ? -1 : 1;
+  });
+}
 
 function toTimeLabel(isoDate: string) {
   return new Intl.DateTimeFormat("fr-FR", {
@@ -255,7 +313,8 @@ export async function getFavoriteRecords() {
 
 export async function getUserAddresses(userId: string) {
   if (!hasDatabase()) {
-    return [];
+    const addresses = await readCustomerAddressesFile();
+    return sortCustomerAddresses(addresses.filter((address) => address.userId === userId));
   }
 
   const addresses = await prisma.customerAddress.findMany({
@@ -268,7 +327,8 @@ export async function getUserAddresses(userId: string) {
 
 export async function getUserDefaultAddress(userId: string) {
   if (!hasDatabase()) {
-    return undefined;
+    const addresses = await getUserAddresses(userId);
+    return addresses.find((address) => address.isDefault);
   }
 
   const address = await prisma.customerAddress.findFirst({
@@ -281,7 +341,8 @@ export async function getUserDefaultAddress(userId: string) {
 
 export async function getUserAddressById(userId: string, addressId: string) {
   if (!hasDatabase()) {
-    return undefined;
+    const addresses = await readCustomerAddressesFile();
+    return addresses.find((address) => address.id === addressId && address.userId === userId);
   }
 
   const address = await prisma.customerAddress.findFirst({
@@ -293,7 +354,25 @@ export async function getUserAddressById(userId: string, addressId: string) {
 
 export async function createUserAddress(userId: string, input: CustomerAddressInput) {
   if (!hasDatabase()) {
-    throw createDatabaseUnavailableError();
+    const normalized = normalizeCustomerAddressInput(input);
+    const addresses = await readCustomerAddressesFile();
+    const userAddresses = addresses.filter((address) => address.userId === userId);
+    const shouldBeDefault = Boolean(input.isDefault) || userAddresses.length === 0;
+    const timestamp = new Date().toISOString();
+    const nextAddress: CustomerAddressRecord = {
+      id: crypto.randomUUID(),
+      userId,
+      ...normalized,
+      isDefault: shouldBeDefault,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    const nextAddresses = shouldBeDefault
+      ? addresses.map((address) => address.userId === userId ? { ...address, isDefault: false } : address)
+      : addresses;
+
+    await writeCustomerAddressesFile([nextAddress, ...nextAddresses]);
+    return nextAddress;
   }
 
   const normalized = normalizeCustomerAddressInput(input);
@@ -322,7 +401,36 @@ export async function createUserAddress(userId: string, input: CustomerAddressIn
 
 export async function updateUserAddress(userId: string, addressId: string, input: CustomerAddressInput) {
   if (!hasDatabase()) {
-    throw createDatabaseUnavailableError();
+    const addresses = await readCustomerAddressesFile();
+    const existing = addresses.find((address) => address.id === addressId && address.userId === userId);
+
+    if (!existing) {
+      throw new Error("Adresse introuvable.");
+    }
+
+    const normalized = normalizeCustomerAddressInput(input);
+    const userAddresses = addresses.filter((address) => address.userId === userId);
+    const shouldBeDefault = Boolean(input.isDefault) || (existing.isDefault && !input.isDefault) || userAddresses.length === 1;
+    const updatedAddress: CustomerAddressRecord = {
+      ...existing,
+      ...normalized,
+      isDefault: shouldBeDefault,
+      updatedAt: new Date().toISOString(),
+    };
+    const nextAddresses = addresses.map((address) => {
+      if (address.id === addressId && address.userId === userId) {
+        return updatedAddress;
+      }
+
+      if (shouldBeDefault && address.userId === userId) {
+        return { ...address, isDefault: false };
+      }
+
+      return address;
+    });
+
+    await writeCustomerAddressesFile(nextAddresses);
+    return updatedAddress;
   }
 
   const existing = await prisma.customerAddress.findFirst({
@@ -359,7 +467,33 @@ export async function updateUserAddress(userId: string, addressId: string, input
 
 export async function setUserDefaultAddress(userId: string, addressId: string) {
   if (!hasDatabase()) {
-    throw createDatabaseUnavailableError();
+    const addresses = await readCustomerAddressesFile();
+    const existing = addresses.find((address) => address.id === addressId && address.userId === userId);
+
+    if (!existing) {
+      throw new Error("Adresse introuvable.");
+    }
+
+    const timestamp = new Date().toISOString();
+    const nextAddresses = addresses.map((address) => {
+      if (address.userId !== userId) {
+        return address;
+      }
+
+      return {
+        ...address,
+        isDefault: address.id === addressId,
+        updatedAt: address.id === addressId ? timestamp : address.updatedAt,
+      };
+    });
+    const nextAddress = nextAddresses.find((address) => address.id === addressId && address.userId === userId);
+
+    await writeCustomerAddressesFile(nextAddresses);
+    if (!nextAddress) {
+      throw new Error("Adresse introuvable.");
+    }
+
+    return nextAddress;
   }
 
   const existing = await prisma.customerAddress.findFirst({
@@ -387,7 +521,28 @@ export async function setUserDefaultAddress(userId: string, addressId: string) {
 
 export async function deleteUserAddress(userId: string, addressId: string) {
   if (!hasDatabase()) {
-    throw createDatabaseUnavailableError();
+    const addresses = await readCustomerAddressesFile();
+    const existing = addresses.find((address) => address.id === addressId && address.userId === userId);
+
+    if (!existing) {
+      throw new Error("Adresse introuvable.");
+    }
+
+    const remainingAddresses = addresses.filter((address) => !(address.id === addressId && address.userId === userId));
+    if (existing.isDefault) {
+      const nextDefault = sortCustomerAddresses(remainingAddresses.filter((address) => address.userId === userId))[0];
+      if (nextDefault) {
+        for (const address of remainingAddresses) {
+          if (address.id === nextDefault.id && address.userId === userId) {
+            address.isDefault = true;
+            address.updatedAt = new Date().toISOString();
+          }
+        }
+      }
+    }
+
+    await writeCustomerAddressesFile(remainingAddresses);
+    return;
   }
 
   const existing = await prisma.customerAddress.findFirst({

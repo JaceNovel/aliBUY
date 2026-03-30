@@ -219,7 +219,7 @@ export function RemittanceProofClient({ currencyCode, orders, initialOrderId }: 
           </div>
           <h2 className="mt-5 text-[30px] font-bold tracking-[-0.05em]">Traitement securise du paiement</h2>
           <p className="mt-3 text-[15px] leading-7 text-white/82">
-            Nos equipes verifient la preuve de virement avant de mettre a jour l&apos;etat de la commande et d&apos;en informer le fournisseur.
+            Nos equipes verifient la preuve de virement avant de mettre a jour l&apos;etat de la commande et de lancer la suite du traitement.
           </p>
         </article>
 

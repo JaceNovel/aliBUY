@@ -4,7 +4,7 @@ import { Prisma } from "@prisma/client";
 import { cache } from "react";
 
 import { getCatalogCategoryBySlug, getCatalogCategories } from "@/lib/catalog-category-service";
-import { getCatalogProducts, searchCatalogProducts } from "@/lib/catalog-service";
+import { findSimilarCatalogProducts, getCatalogProducts, searchCatalogProducts } from "@/lib/catalog-service";
 import { prisma } from "@/lib/prisma";
 import { getRedisJsonCache, setRedisJsonCache } from "@/lib/redis-cache";
 
@@ -85,6 +85,7 @@ export type ProductFeedPage = {
   query?: string;
   category?: string;
   mode?: ProductFeaturedMode;
+  matchMode?: "exact" | "similar";
 };
 
 export type ProductFeedCategoryOption = {
@@ -282,6 +283,7 @@ function buildFallbackPage(options: {
   query?: string;
   category?: string;
   mode?: ProductFeaturedMode;
+  matchMode?: "exact" | "similar";
 }) {
   const mappedItems = options.items.slice(0, options.pageSize + 1).map(toProductFeedItem);
   const hasMore = mappedItems.length > options.pageSize;
@@ -296,6 +298,7 @@ function buildFallbackPage(options: {
     query: options.query,
     category: options.category,
     mode: options.mode,
+    matchMode: options.matchMode,
   } satisfies ProductFeedPage;
 }
 
@@ -424,42 +427,30 @@ export async function getSearchProductsFeedPage(input: {
       pageSize,
       source: "search",
       query: normalizedQuery,
+      matchMode: "exact",
     };
   }
 
-  if (canUseProductFeedDatabase()) {
-    try {
-      return await getTrigramSearchProductsFeedPage({
-        query: normalizedQuery,
-        page,
-        pageSize,
-        skip,
-      });
-    } catch (error) {
-      if (!isPrismaFallbackError(error)) {
-        logProductsFeedFallback("trigram search", error);
-
-        return getDatabaseFeedPage({
-          page,
-          pageSize,
-          skip,
-          where: buildSearchWhere(normalizedQuery),
-          source: "search",
-          query: normalizedQuery,
-        });
-      }
-
-      logProductsFeedFallback("search", error);
-    }
+  const products = await searchCatalogProducts(normalizedQuery);
+  if (products.length > 0) {
+    return buildFallbackPage({
+      items: products.slice(skip, skip + pageSize + 1),
+      page,
+      pageSize,
+      source: "search",
+      query: normalizedQuery,
+      matchMode: "exact",
+    });
   }
 
-  const products = await searchCatalogProducts(normalizedQuery);
+  const similarProducts = await findSimilarCatalogProducts(normalizedQuery);
   return buildFallbackPage({
-    items: products.slice(skip, skip + pageSize + 1),
+    items: similarProducts.slice(skip, skip + pageSize + 1),
     page,
     pageSize,
     source: "search",
     query: normalizedQuery,
+    matchMode: "similar",
   });
 }
 

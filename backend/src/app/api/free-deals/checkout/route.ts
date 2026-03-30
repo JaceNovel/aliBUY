@@ -5,6 +5,7 @@ import { createFreeDealOrder, resolveRequestIp, resolveRequestOrigin, type FreeD
 import { getFreeDealAccessState, getFreeDealConfig } from "@/lib/free-deal-store";
 import { initializeMonerooPayment } from "@/lib/moneroo";
 import { persistMonerooPaymentToOrder } from "@/lib/moneroo-sourcing";
+import { SITE_URL } from "@/lib/site-config";
 import { getCurrentUser } from "@/lib/user-auth";
 
 export const runtime = "nodejs";
@@ -97,13 +98,16 @@ export async function POST(request: Request) {
       visitor,
       user,
     });
-    const origin = resolveRequestOrigin(headerStore);
+    const requestOrigin = resolveRequestOrigin(headerStore);
+    const siteOrigin = requestOrigin.startsWith("http://localhost") || requestOrigin.startsWith("https://localhost")
+      ? requestOrigin
+      : new URL(SITE_URL).origin;
     const customerName = splitCustomerName(order.customerName);
     const payment = await initializeMonerooPayment({
       amount: order.totalPriceFcfa,
       currency: order.paymentCurrency || "XOF",
       description: `Paiement offre articles gratuits ${order.orderNumber}`,
-      return_url: `${origin}/articles-gratuits/paiement?orderId=${encodeURIComponent(order.id)}`,
+      return_url: `${siteOrigin}/articles-gratuits/paiement?orderId=${encodeURIComponent(order.id)}`,
       customer: {
         email: order.customerEmail,
         first_name: customerName.firstName,

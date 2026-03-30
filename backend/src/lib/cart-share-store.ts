@@ -5,6 +5,7 @@ import path from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
 
 import { Prisma } from "@prisma/client";
+import { get, put } from "@vercel/blob";
 
 import type { CartInputItem } from "@/lib/alibaba-sourcing";
 import { prisma } from "@/lib/prisma";
@@ -32,6 +33,7 @@ export type SharedCartRecord = {
 
 const SITE_DIR = path.join(process.cwd(), "data", "site");
 const SHARED_CARTS_PATH = path.join(SITE_DIR, "shared-carts.json");
+const SHARED_CARTS_BLOB_PATHNAME = "site/shared-carts.json";
 
 let databaseFallbackForced = false;
 
@@ -78,18 +80,41 @@ async function ensureSiteDir() {
 }
 
 async function readJsonFile<T>(filePath: string, fallback: T): Promise<T> {
-  await ensureSiteDir();
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    try {
+      const blob = await get(SHARED_CARTS_BLOB_PATHNAME, {
+        access: "private",
+        useCache: false,
+      });
+
+      if (blob?.stream) {
+        const raw = await new Response(blob.stream).text();
+        return JSON.parse(raw) as T;
+      }
+    } catch {
+      // Fall back to local JSON when Blob is unavailable.
+    }
+  }
 
   try {
     const raw = await readFile(filePath, "utf8");
     return JSON.parse(raw) as T;
   } catch {
-    await writeJsonFile(filePath, fallback);
     return fallback;
   }
 }
 
 async function writeJsonFile<T>(filePath: string, value: T) {
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    await put(SHARED_CARTS_BLOB_PATHNAME, `${JSON.stringify(value, null, 2)}\n`, {
+      access: "private",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: "application/json; charset=utf-8",
+    });
+    return;
+  }
+
   await ensureSiteDir();
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }

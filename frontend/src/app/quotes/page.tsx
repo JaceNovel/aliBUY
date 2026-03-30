@@ -19,9 +19,9 @@ export default async function QuotesPage() {
             <Sparkles className="h-4 w-4" />
             Demande de devis
           </div>
-          <h1 className="mt-4 text-[26px] font-bold tracking-[-0.05em] text-[#222] sm:mt-5 sm:text-[42px]">Decrivez votre besoin fournisseur</h1>
+          <h1 className="mt-4 text-[26px] font-bold tracking-[-0.05em] text-[#222] sm:mt-5 sm:text-[42px]">Decrivez votre besoin produit</h1>
           <p className="mt-2.5 max-w-[760px] text-[14px] leading-6 text-[#555] sm:mt-3 sm:text-[17px] sm:leading-8">
-            Envoyez une demande claire a plusieurs fournisseurs en une seule fois. AfriPay regroupe vos specifications, votre cible prix et votre fenetre logistique.
+            Envoyez une demande claire a plusieurs partenaires en une seule fois. AfriPay regroupe vos specifications, votre cible prix et votre fenetre logistique.
           </p>
           <QuoteRequestForm currencyCode={pricing.currency.code} shippingWindow={pricing.shippingWindow} />
         </section>

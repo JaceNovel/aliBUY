@@ -24,10 +24,10 @@ type AdminOrderDetailClientProps = {
 const statusOptions = [
   { value: "air_batch_pending", label: "En attente lot avion" },
   { value: "sea_batch_pending", label: "En attente lot maritime" },
-  { value: "supplier_payment_requested", label: "Paiement fournisseur lancé" },
-  { value: "supplier_payment_failed", label: "Paiement fournisseur à reprendre" },
-  { value: "supplier_paid_partial", label: "Paiement fournisseur partiel" },
-  { value: "supplier_paid", label: "Fournisseur payé" },
+  { value: "supplier_payment_requested", label: "Paiement achat lance" },
+  { value: "supplier_payment_failed", label: "Paiement achat a reprendre" },
+  { value: "supplier_paid_partial", label: "Paiement achat partiel" },
+  { value: "supplier_paid", label: "Achat regle" },
   { value: "shipment_triggered", label: "Transport lancé" },
   { value: "in_transit_to_agent", label: "En transit vers agent" },
   { value: "delivered_to_agent", label: "Livré à l'agent" },
@@ -182,7 +182,7 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
             <label className="text-[13px] font-semibold text-[#344054]">
               Rôle preuve
               <select value={proofForm.role} onChange={(event) => setProofForm((current) => ({ ...current, role: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a5b]">
-                <option value="supplier_to_agent">Fournisseur vers agent</option>
+                <option value="supplier_to_agent">Depart vers agent</option>
                 <option value="agent_to_forwarder">Agent vers transitaire</option>
                 <option value="arrival_scan">Scan arrivée</option>
                 <option value="relay_release">Remise point relais</option>
@@ -268,7 +268,7 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
               disabled={isPending}
               className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-70"
             >
-              Lancer le paiement fournisseur
+              Lancer le paiement achat
             </button>
           ) : null}
           {!canLaunchSupplierPayment && payUrls.length > 0 ? (
@@ -283,9 +283,9 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
         {!alibabaAutomation || alibabaAutomation.trades.length === 0 ? (
           <div className="mt-4 rounded-[16px] bg-[#fafbfd] px-4 py-4 text-[13px] text-[#667085] ring-1 ring-[#edf1f6]">
             {canLaunchSupplierPayment
-              ? "Aucune automatisation AliExpress n'a encore été lancée pour cette commande. Utilisez le bouton ci-dessus pour créer la demande fournisseur et démarrer le suivi automatique."
+              ? "Aucune automatisation AliExpress n'a encore été lancée pour cette commande. Utilisez le bouton ci-dessus pour creer la demande d'achat et demarrer le suivi automatique."
               : payUrls.length > 0
-                ? "La demande fournisseur a déjà produit un lien de paiement manuel. Ouvrez-le ci-dessus pour reprendre le paiement AliExpress."
+                ? "La demande d'achat a deja produit un lien de paiement manuel. Ouvrez-le ci-dessus pour reprendre le paiement AliExpress."
                 : "Aucun état automatique AliExpress enregistré pour cette commande pour le moment."}
           </div>
         ) : (

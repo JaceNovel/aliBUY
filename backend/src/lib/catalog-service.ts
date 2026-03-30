@@ -88,17 +88,118 @@ export const getCatalogRelatedProducts = cache(async function getCatalogRelatedP
   return products.filter((product) => product.slug !== currentSlug).slice(0, limit);
 });
 
-export async function searchCatalogProducts(query: string, limit?: number) {
-  const normalizedQuery = query.trim().toLowerCase();
+function normalizeSearchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function tokenizeSearchText(value: string) {
+  return normalizeSearchText(value).split(/\s+/).filter((token) => token.length >= 2);
+}
+
+function scoreCatalogProduct(
+  product: ProductCatalogItem,
+  normalizedQuery: string,
+  queryTokens: string[],
+  mode: "exact" | "similar",
+) {
+  const title = normalizeSearchText(product.title);
+  const shortTitle = normalizeSearchText(product.shortTitle);
+  const keywords = (product.keywords ?? []).map((keyword) => normalizeSearchText(keyword)).filter(Boolean);
+  const category = normalizeSearchText(product.specs.map((spec) => `${spec.label} ${spec.value}`).join(" "));
+  const haystacks = [title, shortTitle, ...keywords, category].filter(Boolean);
+
+  let score = 0;
+  let directMatch = false;
+  let matchedTokens = 0;
+
+  if (title === normalizedQuery) {
+    score += 220;
+    directMatch = true;
+  }
+
+  if (shortTitle === normalizedQuery) {
+    score += 200;
+    directMatch = true;
+  }
+
+  if (title.includes(normalizedQuery)) {
+    score += 120;
+    directMatch = true;
+  }
+
+  if (shortTitle.includes(normalizedQuery)) {
+    score += 90;
+    directMatch = true;
+  }
+
+  if (keywords.some((keyword) => keyword.includes(normalizedQuery))) {
+    score += 70;
+    directMatch = true;
+  }
+
+  for (const token of queryTokens) {
+    let tokenScore = 0;
+
+    if (title.includes(token)) {
+      tokenScore = 24;
+    } else if (shortTitle.includes(token)) {
+      tokenScore = 18;
+    } else if (keywords.some((keyword) => keyword.includes(token))) {
+      tokenScore = 14;
+    } else if (mode === "similar" && haystacks.some((entry) => entry.split(" ").some((word) => word.startsWith(token.slice(0, Math.min(token.length, 4)))))) {
+      tokenScore = 8;
+    }
+
+    if (tokenScore > 0) {
+      matchedTokens += 1;
+      score += tokenScore;
+    }
+  }
+
+  if (queryTokens.length > 0 && matchedTokens === queryTokens.length) {
+    score += mode === "exact" ? 50 : 20;
+    directMatch = true;
+  }
+
+  if (mode === "exact") {
+    if (!directMatch && matchedTokens < Math.max(1, queryTokens.length)) {
+      return 0;
+    }
+  } else if (matchedTokens === 0 && score < 40) {
+    return 0;
+  }
+
+  return score;
+}
+
+async function findCatalogProductsByMode(query: string, mode: "exact" | "similar", limit?: number) {
+  const normalizedQuery = normalizeSearchText(query);
   if (!normalizedQuery) {
     return [];
   }
 
-  const visible = (await getCatalogProducts()).filter((product) => {
-    const haystack = [product.title, product.shortTitle, ...(product.keywords ?? [])]
-      .join(" ")
-      .toLowerCase();
-    return haystack.includes(normalizedQuery);
-  });
-  return typeof limit === "number" ? visible.slice(0, limit) : visible;
+  const queryTokens = tokenizeSearchText(query);
+  const ranked = (await getCatalogProducts())
+    .map((product) => ({
+      product,
+      score: scoreCatalogProduct(product, normalizedQuery, queryTokens, mode),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => right.score - left.score || left.product.title.localeCompare(right.product.title));
+
+  const products = ranked.map((entry) => entry.product);
+  return typeof limit === "number" ? products.slice(0, limit) : products;
+}
+
+export async function searchCatalogProducts(query: string, limit?: number) {
+  return findCatalogProductsByMode(query, "exact", limit);
+}
+
+export async function findSimilarCatalogProducts(query: string, limit?: number) {
+  return findCatalogProductsByMode(query, "similar", limit);
 }

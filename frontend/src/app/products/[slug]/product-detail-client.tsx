@@ -143,7 +143,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     return Object.fromEntries((mixGroup?.values ?? []).map((value, index) => [value, index === 0 ? 0 : 0]));
   });
   const lowerTitle = product.title.toLowerCase();
-  const referenceCode = product.title.match(/\b[A-Z0-9]{3,}(?:[- ][A-Z0-9]{2,})?\b/)?.[0] ?? product.shortTitle.match(/\b[A-Z0-9]{3,}(?:[- ][A-Z0-9]{2,})?\b/)?.[0] ?? "Selon fournisseur";
+  const referenceCode = product.title.match(/\b[A-Z0-9]{3,}(?:[- ][A-Z0-9]{2,})?\b/)?.[0] ?? product.shortTitle.match(/\b[A-Z0-9]{3,}(?:[- ][A-Z0-9]{2,})?\b/)?.[0] ?? "Selon catalogue";
   const inferredType = /keyboard|clavier/.test(lowerTitle)
     ? /mouse|souris/.test(lowerTitle)
       ? "Combo clavier et souris"
@@ -159,8 +159,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
         ? "Sans fil"
         : /wired|usb/.test(lowerTitle)
           ? "Filaire"
-          : "Selon fournisseur";
-  const inferredSensor = product.title.match(/PAW\s?\d+/i)?.[0]?.toUpperCase() ?? product.title.match(/\d{4,5}\s?DPI/i)?.[0]?.toUpperCase() ?? "Selon fournisseur";
+            : "Selon catalogue";
+          const inferredSensor = product.title.match(/PAW\s?\d+/i)?.[0]?.toUpperCase() ?? product.title.match(/\d{4,5}\s?DPI/i)?.[0]?.toUpperCase() ?? "Selon catalogue";
   const inferredUse = /office/.test(lowerTitle) && /gaming/.test(lowerTitle)
     ? "Gaming et bureautique"
     : /gaming/.test(lowerTitle)
@@ -168,7 +168,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       : /office/.test(lowerTitle)
         ? "Bureautique"
         : "Usage polyvalent";
-    const weightLabel = product.itemWeightGrams > 0 ? `${product.itemWeightGrams} g` : "Selon fournisseur";
+    const weightLabel = product.itemWeightGrams > 0 ? `${product.itemWeightGrams} g` : "Selon catalogue";
+  const displayShippingLabel = /^(Expédition|Expedition)\s+[A-Z]{2,3}$/i.test(product.shippingLabel) ? "Expédition" : product.shippingLabel;
   const characteristicRows = [
     [
       { label: "Type", value: product.specs[0]?.value ?? inferredType },
@@ -184,7 +185,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     ],
     [
       { label: "Usage", value: product.specs[3]?.value ?? inferredUse },
-      { label: "Support", value: product.responseTime || "Selon disponibilite fournisseur" },
+      { label: "Support", value: product.responseTime || "Selon disponibilite" },
     ],
   ];
   const characteristics = characteristicRows.flat();
@@ -206,8 +207,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     },
   ];
   const mobileServices = [
-    product.shippingLabel,
-    product.overview[0] ?? "Support fournisseur dédié.",
+    displayShippingLabel,
+    product.overview[1] ?? "Assistance AfriPay dediee.",
     product.overview[1] ?? "Suivi de commande et assistance après-vente.",
   ];
   const formatMoney = (amount: number) => {
@@ -841,9 +842,9 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     <Store className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#d85a00]">Verified Fournisseur</div>
-                    <div className="mt-1 text-[18px] font-bold tracking-[-0.04em] text-[#222]">{product.supplierName}</div>
-                    <div className="mt-1 text-[13px] text-[#666]">{product.supplierLocation} · {product.yearsInBusiness} ans</div>
+                    <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#d85a00]">Selection verifiee</div>
+                    <div className="mt-1 text-[18px] font-bold tracking-[-0.04em] text-[#222]">AfriPay+</div>
+                    <div className="mt-1 text-[13px] text-[#666]">{product.transactionsLabel}</div>
                   </div>
                 </div>
               </div>
@@ -1033,7 +1034,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               </div>
               <div className="rounded-[18px] bg-[#fff7ef] px-4 py-4 ring-1 ring-[#ffe0c2]">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#cf6b16]">Livraison</div>
-                <div className="mt-2 text-[15px] font-semibold text-[#222]">{product.shippingLabel}</div>
+                <div className="mt-2 text-[15px] font-semibold text-[#222]">{displayShippingLabel}</div>
               </div>
             </div>
 
@@ -1042,7 +1043,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9a6a47]">Quantité</div>
-                    <div className="mt-1 text-[14px] text-[#5f5147]">{product.moqVerified ? `Minimum ${product.moq} ${product.moq > 1 ? "pieces" : "piece"}` : "Minimum fournisseur a confirmer"}</div>
+                    <div className="mt-1 text-[14px] text-[#5f5147]">{product.moqVerified ? `Minimum ${product.moq} ${product.moq > 1 ? "pieces" : "piece"}` : "Minimum a confirmer"}</div>
                   </div>
                   <div className="inline-flex items-center gap-2 rounded-full border border-[#e1ddd7] bg-white px-2 py-2 shadow-[0_6px_14px_rgba(17,24,39,0.04)]">
                     <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-40">
@@ -1079,15 +1080,13 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
           <div className="order-3 min-w-0 rounded-[28px] border border-[#ededed] bg-white px-5 py-5 xl:px-6 xl:py-6">
             <div className="flex flex-wrap items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85a00]">
               <ShieldCheck className="h-4 w-4" />
-              Fournisseur vérifié AfriPay
+              Selection verifiee AfriPay
             </div>
             <h1 className="mt-3 text-[24px] font-bold leading-[1.12] tracking-[-0.04em] text-[#222] lg:text-[34px]">
               {product.title}
             </h1>
 
             <div className="mt-4 flex flex-wrap items-center gap-3 text-[14px] text-[#666]">
-              <span>{product.supplierLocation}</span>
-              <span className="h-1 w-1 rounded-full bg-[#bbb]" />
               <span>{product.transactionsLabel}</span>
             </div>
 
@@ -1103,7 +1102,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                   <div key={tier.quantityLabel} className={["grid grid-cols-1 gap-1 px-4 py-3 text-[14px] sm:grid-cols-[1.1fr_0.8fr_1fr] sm:gap-3", index > 0 ? "border-t border-[#f4e2d5]" : ""].join(" ")}>
                     <div className="font-semibold text-[#222]">{tier.quantityLabel}</div>
                     <div className="font-bold text-[#f05a00]">{tier.formattedPrice}</div>
-                    <div className="text-left text-[#666] sm:text-right">{tier.note ?? "Tarif usine"}</div>
+                    <div className="text-left text-[#666] sm:text-right">{tier.note ?? "Tarif AfriPay"}</div>
                   </div>
                 ))}
               </div>
@@ -1141,7 +1140,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#a06f49]">Quantité de commande</div>
-                    <div className="mt-1 text-[14px] text-[#6b5a4c]">{product.moqVerified ? `Minimum ${product.moq} ${product.moq > 1 ? "pieces" : "piece"}` : "Minimum fournisseur a confirmer"}</div>
+                    <div className="mt-1 text-[14px] text-[#6b5a4c]">{product.moqVerified ? `Minimum ${product.moq} ${product.moq > 1 ? "pieces" : "piece"}` : "Minimum a confirmer"}</div>
                   </div>
                   <div className="inline-flex items-center gap-2 rounded-full border border-[#e1ddd7] bg-white px-2 py-2 shadow-[0_6px_14px_rgba(17,24,39,0.04)]">
                     <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-40">
@@ -1374,7 +1373,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 <div className="mt-2.5 flex items-center justify-between gap-3 sm:mt-3 sm:gap-4">
                   <div>
                     <div className="text-[13px] text-[#555] sm:text-[15px]">Commande minimale</div>
-                    <div className="mt-1 text-[12px] text-[#777] sm:text-[14px]">{product.moqVerified ? `${product.moq} ${product.moq > 1 ? "pieces" : "piece"}` : "A confirmer avec le fournisseur"}</div>
+                    <div className="mt-1 text-[12px] text-[#777] sm:text-[14px]">{product.moqVerified ? `${product.moq} ${product.moq > 1 ? "pieces" : "piece"}` : "A confirmer"}</div>
                   </div>
                   <div className="flex items-center gap-1.5 sm:gap-2">
                     <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-40 sm:h-10 sm:w-10">

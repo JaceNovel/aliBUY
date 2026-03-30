@@ -1,5 +1,6 @@
 import { initializeMonerooPayment } from "@/lib/moneroo";
 import { persistMonerooPaymentToOrder } from "@/lib/moneroo-sourcing";
+import { SITE_URL } from "@/lib/site-config";
 import { getSourcingOrderById } from "@/lib/sourcing-store";
 import { getCurrentUser } from "@/lib/user-auth";
 
@@ -56,13 +57,13 @@ export async function POST(request: Request) {
       });
     }
 
-    const origin = new URL(request.url).origin;
+    const siteOrigin = new URL(SITE_URL).origin;
     const customerName = splitCustomerName(order.customerName);
     const payment = await initializeMonerooPayment({
       amount: order.totalPriceFcfa,
       currency: order.paymentCurrency || "XOF",
       description: `Paiement commande sourcing ${order.orderNumber}`,
-      return_url: `${origin}/orders/payment?orderId=${encodeURIComponent(order.id)}`,
+      return_url: `${siteOrigin}/orders/payment?orderId=${encodeURIComponent(order.id)}`,
       customer: {
         email: order.customerEmail,
         first_name: customerName.firstName,

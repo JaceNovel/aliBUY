@@ -239,7 +239,7 @@ export function CartPageClient({ currencyCode, locale, isAuthenticated, initialS
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <div className="text-[17px] font-semibold text-[#1f2937]">{item.title}</div>
-                      <div className="mt-1 text-[13px] text-[#667085]">Prix fournisseur: {formatSourcingAmount(item.supplierPriceFcfa, { currencyCode, locale })} · Marge/unité: {formatSourcingAmount(item.marginAmountFcfa, { currencyCode, locale })}</div>
+                      <div className="mt-1 text-[13px] text-[#667085]">Tarif AfriPay pret a commander</div>
                       <div className="mt-1 text-[13px] text-[#667085]">{item.weightKg.toFixed(2)} kg/unité · {item.volumeCbm.toFixed(4)} CBM/unité</div>
                     </div>
                     <div className="text-[18px] font-black tracking-[-0.04em] text-[#1f2937]">{formatSourcingAmount(item.finalLinePriceFcfa, { currencyCode, locale })}</div>

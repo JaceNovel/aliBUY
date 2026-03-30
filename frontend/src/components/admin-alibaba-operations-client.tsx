@@ -44,7 +44,7 @@ type Props = {
 
 const panelLinks: Array<{ key: AlibabaPanelSlug; label: string; href: string }> = [
   { key: "dashboard", label: "Tableau de bord", href: "/admin/aliexpress-sourcing" },
-  { key: "accounts", label: "Comptes fournisseurs", href: "/admin/aliexpress-sourcing/accounts" },
+  { key: "accounts", label: "Comptes partenaires", href: "/admin/aliexpress-sourcing/accounts" },
   { key: "import-catalog", label: "Import catalogue", href: "/admin/aliexpress-sourcing/import-catalog" },
   { key: "countries", label: "Pays", href: "/admin/aliexpress-sourcing/countries" },
   { key: "addresses", label: "Adresses reception", href: "/admin/aliexpress-sourcing/addresses" },
@@ -282,8 +282,8 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     const payUrl = typeof payload?.order?.payUrl === "string" ? payload.order.payUrl : undefined;
     setFeedback(
       payUrl
-        ? "Lot fournisseur lance. Ouvre maintenant le lien de paiement si AliExpress en a renvoye un."
-        : "Lot fournisseur cree en brouillon ou lance sans lien de paiement. Utilise Actualiser pour relire le statut.",
+        ? "Lot d'achat lance. Ouvre maintenant le lien de paiement si AliExpress en a renvoye un."
+        : "Lot d'achat cree en brouillon ou lance sans lien de paiement. Utilise Actualiser pour relire le statut.",
     );
     refresh();
   };
@@ -327,7 +327,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       return;
     }
 
-    setFeedback("Article réenrichi avec les données fournisseur les plus récentes.");
+    setFeedback("Article reenrichi avec les donnees source les plus recentes.");
     refresh();
   };
 
@@ -405,11 +405,11 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     const payload = await response.json().catch(() => null);
 
     if (!response.ok) {
-      setFeedback("Compte fournisseur impossible a enregistrer.");
+      setFeedback("Compte partenaire impossible a enregistrer.");
       return;
     }
 
-    setFeedback("Compte fournisseur enregistre.");
+    setFeedback("Compte partenaire enregistre.");
       setAccountForm({
       id: "",
       name: "",
@@ -658,8 +658,8 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
               {activeSupplierAccount
                 ? `Import live via ${activeSupplierAccount.name} (${activeSupplierAccount.accountLogin ?? activeSupplierAccount.email}). Les references exactes interrogent d'abord AfriPay+ puis enrichissent la fiche detail avec variantes, attributs et medias.`
                 : selectedSupplierAccount
-                  ? `Le compte selectionne est ${selectedSupplierAccount.status === "connected" ? "connecte" : "en attente d'autorisation"}. Termine OAuth dans l'onglet Comptes fournisseurs avant l'import.`
-                  : "Aucun compte AliExpress configure. Ajoute et autorise un compte dans l'onglet Comptes fournisseurs avant l'import."}
+                  ? `Le compte selectionne est ${selectedSupplierAccount.status === "connected" ? "connecte" : "en attente d'autorisation"}. Termine OAuth dans l'onglet Comptes partenaires avant l'import.`
+                  : "Aucun compte AliExpress configure. Ajoute et autorise un compte dans l'onglet Comptes partenaires avant l'import."}
             </div>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">
@@ -671,7 +671,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                 <input value={activeImportForm.limit} onChange={(event) => setImportForm((current) => ({ ...current, limit: Number(event.target.value) }))} type="number" min={1} max={100} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
               </label>
               <label className="text-[13px] font-semibold text-[#344054]">
-                Flux fournisseur
+                Flux d'achat
                 <select value={activeImportForm.fulfillmentChannel} onChange={(event) => setImportForm((current) => ({ ...current, fulfillmentChannel: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]">
                   <option value="standard_us">Standard US</option>
                   <option value="crossborder">Crossborder</option>
@@ -800,7 +800,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
             <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Comptes relies</div>
             <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Buyer, seller et compte ISV</div>
             <div className="mt-4 space-y-3">
-              {initialDashboard.supplierAccounts.length === 0 ? <div className="rounded-[16px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Aucun compte fournisseur configure.</div> : initialDashboard.supplierAccounts.map((account) => (
+              {initialDashboard.supplierAccounts.length === 0 ? <div className="rounded-[16px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Aucun compte partenaire configure.</div> : initialDashboard.supplierAccounts.map((account) => (
                 <div key={account.id} className="rounded-[16px] border border-[#edf1f6] px-4 py-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -928,7 +928,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                     <td className="py-3.5 pr-4">{mapping.alibabaProductId ?? "-"}</td>
                     <td className="py-3.5 pr-4">{mapping.supplierCompanyId ?? "-"}</td>
                     <td className="py-3.5 pr-4">{mapping.skuId ?? "-"}</td>
-                    <td className="py-3.5 pr-4">{mapping.dispatchLocation ?? "CN"}</td>
+                    <td className="py-3.5 pr-4">{mapping.dispatchLocation === "CN" ? "Hub AfriPay" : mapping.dispatchLocation ?? "Hub AfriPay"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -942,7 +942,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
           <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Groupes prets</div>
           <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Lots internes, lancement DS et suivi manuel</div>
           <div className="mt-5 space-y-3">
-            {initialDashboard.purchaseOrders.length === 0 ? <div className="rounded-[16px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Aucun lot fournisseur AliExpress.</div> : initialDashboard.purchaseOrders.map((order) => (
+            {initialDashboard.purchaseOrders.length === 0 ? <div className="rounded-[16px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Aucun lot d'achat AliExpress.</div> : initialDashboard.purchaseOrders.map((order) => (
               <div key={order.id} className="rounded-[16px] border border-[#edf1f6] p-4">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                   <div>
@@ -996,7 +996,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       {panel === "dashboard" ? (
         <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
           {[
-            { title: "Comptes fournisseurs", value: formatCount(initialDashboard.supplierAccounts.length), icon: Building2, href: "/admin/aliexpress-sourcing/accounts" },
+            { title: "Comptes partenaires", value: formatCount(initialDashboard.supplierAccounts.length), icon: Building2, href: "/admin/aliexpress-sourcing/accounts" },
             { title: "Pays actifs", value: formatCount(initialDashboard.countries.filter((item) => item.enabled).length), icon: Globe2, href: "/admin/aliexpress-sourcing/countries" },
             { title: "Adresses reception", value: formatCount(initialDashboard.addresses.length), icon: MapPin, href: "/admin/aliexpress-sourcing/addresses" },
             { title: "Produits recents", value: formatCount(recentImports.length), icon: Package2, href: "/admin/aliexpress-sourcing/import-catalog" },

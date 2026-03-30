@@ -25,7 +25,7 @@ export default async function AdminOffersPage() {
             <thead className="text-[12px] uppercase tracking-[0.08em] text-[#667085]">
               <tr>
                 <th className="px-4 py-3 font-semibold">Offre</th>
-                <th className="px-4 py-3 font-semibold">Fournisseur</th>
+                <th className="px-4 py-3 font-semibold">Partenaire</th>
                 <th className="px-4 py-3 font-semibold">Catégorie</th>
                 <th className="px-4 py-3 font-semibold">MOQ</th>
                 <th className="px-4 py-3 font-semibold">Prix</th>

@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers";
 
 import { FreeDealPageClient } from "@/components/free-deal-page-client";
 import { InternalPageShell } from "@/components/internal-page-shell";
+import { buildApiUrl } from "@/lib/api";
 import { getUserDefaultAddress } from "@/lib/customer-data-store";
 import { FREE_DEAL_DEVICE_COOKIE } from "@/lib/free-deal-constants";
 import { resolveRequestIp, resolveRequestOrigin } from "@/lib/free-deal-service";
@@ -11,6 +12,7 @@ import { buildFreeDealShareUrl, getFreeDealAccessState, getFreeDealConfig, getFr
 import { getPricingContext } from "@/lib/pricing";
 import { CURRENCY_CONFIG } from "@/lib/pricing-options";
 import { getProductImageUrl } from "@/lib/product-image";
+import type { ProductCatalogItem } from "@/lib/products-data";
 import { getCurrentUser } from "@/lib/user-auth";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +29,53 @@ function convertCurrencyAmountToUsd(amount: number, currencyRateFromUsd: number)
   return amount / currencyRateFromUsd;
 }
 
+type FreeDealPageState = {
+  config: Awaited<ReturnType<typeof getFreeDealConfig>>;
+  products: ProductCatalogItem[];
+  access: {
+    status: "disabled" | "eligible" | "blocked" | "unlocked";
+    referralVisitCount: number;
+    referralGoal: number;
+    sharePath: string | null;
+    referralCode?: string;
+  };
+};
+
+function buildForwardHeaders(headerStore: Headers, cookieStore: Awaited<ReturnType<typeof cookies>>) {
+  const forwarded = new Headers();
+  const cookieHeader = cookieStore.toString();
+
+  if (cookieHeader) {
+    forwarded.set("cookie", cookieHeader);
+  }
+
+  for (const headerName of ["user-agent", "x-forwarded-for", "x-real-ip", "x-vercel-ip-country", "cf-ipcountry", "cloudfront-viewer-country", "x-country-code"]) {
+    const value = headerStore.get(headerName);
+    if (value) {
+      forwarded.set(headerName, value);
+    }
+  }
+
+  return forwarded;
+}
+
+async function loadFreeDealPageState(headerStore: Headers, cookieStore: Awaited<ReturnType<typeof cookies>>) {
+  try {
+    const response = await fetch(buildApiUrl("/api/free-deals/state"), {
+      cache: "no-store",
+      headers: buildForwardHeaders(headerStore, cookieStore),
+    });
+
+    if (response.ok) {
+      return await response.json() as FreeDealPageState;
+    }
+  } catch {
+    // Fall back to local stores when the API host is unreachable.
+  }
+
+  return null;
+}
+
 export default async function FreeDealPage() {
   const [pricing, config, user, cookieStore, headerStore] = await Promise.all([
     getPricingContext(),
@@ -39,19 +88,23 @@ export default async function FreeDealPage() {
   const deviceId = cookieStore.get(FREE_DEAL_DEVICE_COOKIE)?.value ?? undefined;
   const ip = resolveRequestIp(headerStore);
   const userAgent = headerStore.get("user-agent");
-  const [products, access] = await Promise.all([
-    getFreeDealProducts(config),
-    getFreeDealAccessState({
-      deviceId,
-      ip,
-      userAgent,
-      userId: user?.id,
-      customerEmail: user?.email,
-    }, config),
-  ]);
+  const remoteState = await loadFreeDealPageState(headerStore, cookieStore);
+  const [products, access, resolvedConfig] = remoteState
+    ? [remoteState.products, remoteState.access, remoteState.config]
+    : await Promise.all([
+        getFreeDealProducts(config),
+        getFreeDealAccessState({
+          deviceId,
+          ip,
+          userAgent,
+          userId: user?.id,
+          customerEmail: user?.email,
+        }, config),
+        Promise.resolve(config),
+      ]);
   const origin = resolveRequestOrigin(headerStore);
-  const compareAtBase = Number((config.fixedPriceEur * config.compareAtMultiplier + config.compareAtExtraEur).toFixed(2));
-  const fixedPriceLabel = pricing.formatPrice(convertCurrencyAmountToUsd(config.fixedPriceEur, CURRENCY_CONFIG.EUR.rateFromUsd));
+  const compareAtBase = Number((resolvedConfig.fixedPriceEur * resolvedConfig.compareAtMultiplier + resolvedConfig.compareAtExtraEur).toFixed(2));
+  const fixedPriceLabel = pricing.formatPrice(convertCurrencyAmountToUsd(resolvedConfig.fixedPriceEur, CURRENCY_CONFIG.EUR.rateFromUsd));
   const compareAtLabel = pricing.formatPrice(convertCurrencyAmountToUsd(compareAtBase, CURRENCY_CONFIG.EUR.rateFromUsd));
   const shippingFromLabel = pricing.formatPrice(convertCurrencyAmountToUsd(15000, CURRENCY_CONFIG.XOF.rateFromUsd));
   const initialCustomer = {
@@ -71,26 +124,26 @@ export default async function FreeDealPage() {
     <InternalPageShell pricing={pricing}>
       <FreeDealPageClient
         config={{
-          pageTitle: config.pageTitle,
-          heroBadge: config.heroBadge,
-          heroTitle: config.heroTitle,
-          heroSubtitle: config.heroSubtitle,
-          bannerText: config.bannerText,
-          ctaLabel: config.ctaLabel,
-          shareTitle: config.shareTitle,
-          shareDescription: config.shareDescription,
-          itemLimit: config.itemLimit,
+          pageTitle: resolvedConfig.pageTitle,
+          heroBadge: resolvedConfig.heroBadge,
+          heroTitle: resolvedConfig.heroTitle,
+          heroSubtitle: resolvedConfig.heroSubtitle,
+          bannerText: resolvedConfig.bannerText,
+          ctaLabel: resolvedConfig.ctaLabel,
+          shareTitle: resolvedConfig.shareTitle,
+          shareDescription: resolvedConfig.shareDescription,
+          itemLimit: resolvedConfig.itemLimit,
           fixedPriceLabel,
-          referralGoal: config.referralGoal,
-          dealTagText: config.dealTagText,
+          referralGoal: resolvedConfig.referralGoal,
+          dealTagText: resolvedConfig.dealTagText,
           shippingFromLabel,
         }}
         access={{
           status: access.status,
           referralVisitCount: access.referralVisitCount,
           referralGoal: access.referralGoal,
-          shareUrl: access.sharePath ? buildFreeDealShareUrl(origin, access.claim?.referralCode ?? "") : undefined,
-          referralCode: access.claim?.referralCode,
+          shareUrl: access.sharePath ? buildFreeDealShareUrl(origin, access.referralCode ?? "") : undefined,
+          referralCode: access.referralCode,
         }}
         initialCustomer={initialCustomer}
         products={products.map((product) => ({
@@ -101,8 +154,8 @@ export default async function FreeDealPage() {
           href: `/products/${product.slug}`,
           compareAtLabel,
           freeLabel: pricing.formatPrice(0),
-          tagText: config.dealTagText,
-          badgeText: config.productBadgeText,
+          tagText: resolvedConfig.dealTagText,
+          badgeText: resolvedConfig.productBadgeText,
         }))}
       />
     </InternalPageShell>

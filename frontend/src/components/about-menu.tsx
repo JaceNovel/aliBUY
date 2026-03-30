@@ -14,13 +14,13 @@ type AboutMenuProps = {
 const aboutHighlights = [
   {
     title: "Marketplace panafricain",
-    description: "AfriPay connecte acheteurs, fournisseurs et partenaires logistiques sur un meme espace B2B.",
+    description: "AfriPay connecte acheteurs, partenaires commerciaux et partenaires logistiques sur un meme espace B2B.",
     icon: Globe2,
-    eyebrow: "Reseau fournisseurs",
+    eyebrow: "Reseau partenaires",
   },
   {
     title: "Paiement protege",
-    description: "Suivi de commande, verification fournisseur et protection jusqu'a la livraison finale.",
+    description: "Suivi de commande, verification AfriPay et protection jusqu'a la livraison finale.",
     icon: ShieldCheck,
     eyebrow: "Transactions securisees",
   },

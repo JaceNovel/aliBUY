@@ -300,6 +300,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
 
       const paymentResponse = await fetch(buildApiUrl("/api/payments/init"), {
         method: "POST",
+        credentials: "include",
         headers: {
           "content-type": "application/json",
         },

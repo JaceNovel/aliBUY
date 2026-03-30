@@ -63,11 +63,11 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
     const meta = getSourcingOrderMeta(order);
     if (meta.workflow?.routeType === "customer-forwarder") {
       return meta.deliveryProfile?.forwarder?.hub === "china"
-        ? "votre hub transitaire Chine (CN)"
+        ? "votre hub transitaire AfriPay"
         : "votre hub transitaire Lome (TG)";
     }
 
-    return "votre hub Chine AfriPay (CN)";
+    return "votre hub AfriPay";
   };
 
   const hasCarrierUnavailableSignal = (message: string | null) => Boolean(
@@ -118,28 +118,28 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
 
     if ((order.supplierOrderStatus === "failed" || order.alibabaTradeIds.length === 0) && hasCarrierUnavailableSignal(providerMessage)) {
       return {
-        label: "Aucun transporteur AliExpress disponible pour ce fournisseur vers cette adresse",
+        label: "Aucun transporteur AliExpress disponible pour cette adresse",
         detail: `Destination actuelle: ${destination}.${providerMessage ? ` Detail AliExpress: ${providerMessage}` : ""}`,
       };
     }
 
     if (order.supplierOrderStatus === "failed") {
       return {
-        label: providerMessage || "Creation fournisseur echouee",
+        label: providerMessage || "Creation d'achat echouee",
         detail: `Destination actuelle: ${destination}`,
       };
     }
 
     if (order.supplierOrderStatus === "not_created") {
       return {
-        label: "Commande fournisseur non creee",
+        label: "Commande d'achat non creee",
         detail: `Destination actuelle: ${destination}`,
       };
     }
 
     if (order.supplierOrderStatus === "skipped") {
       return {
-        label: "Flux fournisseur ignore apres verification fret",
+        label: "Flux d'achat ignore apres verification fret",
         detail: `Destination actuelle: ${destination}`,
       };
     }
@@ -153,13 +153,13 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
 
     if (getSourcingAlibabaPaymentRollup(order) === "paid") {
       return {
-        label: "Deja paye cote fournisseur",
+        label: "Deja regle cote achat",
         detail: `Destination actuelle: ${destination}`,
       };
     }
 
     return {
-      label: "Bloquee avant lancement fournisseur",
+      label: "Bloquee avant lancement d'achat",
       detail: `Destination actuelle: ${destination}`,
     };
   };
@@ -181,7 +181,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
     const data = await response.json().catch(() => null);
 
     if (!response.ok) {
-      setFeedback(data?.message || "Impossible de lancer ce lot fournisseur.");
+      setFeedback(data?.message || "Impossible de lancer ce lot d'achat.");
       return;
     }
 
@@ -208,7 +208,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
       return;
     }
 
-    setFeedback(`Commande ${String(data?.order?.orderNumber ?? orderId)} resynchronisée. Si le fournisseur a été recréé, elle entre maintenant dans le lot.`);
+    setFeedback(`Commande ${String(data?.order?.orderNumber ?? orderId)} resynchronisee. Si le lot a ete recree, elle entre maintenant dans le traitement.`);
     startTransition(() => {
       router.refresh();
     });
@@ -227,11 +227,11 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
     const data = await response.json().catch(() => null);
 
     if (!response.ok) {
-      setFeedback(data?.message || "Impossible de lancer cette commande fournisseur.");
+      setFeedback(data?.message || "Impossible de lancer cette commande d'achat.");
       return;
     }
 
-    setFeedback(`Commande fournisseur lancée pour ${String(data?.order?.orderNumber ?? orderId)}.`);
+    setFeedback(`Commande d'achat lancee pour ${String(data?.order?.orderNumber ?? orderId)}.`);
     startTransition(() => {
       router.refresh();
     });
@@ -250,7 +250,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
     const data = await response.json().catch(() => null);
 
     if (!response.ok) {
-      setFeedback(data?.message || "Impossible de changer la route fournisseur de cette commande.");
+      setFeedback(data?.message || "Impossible de changer la route d'achat de cette commande.");
       return;
     }
 
@@ -263,7 +263,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
       ? ` ${data.relaunchMessage}`
       : "";
 
-    setFeedback(`Route fournisseur basculee vers ${targetLabel}.${relaunchMessage}`);
+    setFeedback(`Route d'achat basculee vers ${targetLabel}.${relaunchMessage}`);
     startTransition(() => {
       router.refresh();
     });
@@ -327,7 +327,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
           <div className="max-w-[860px]">
             <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a3d]">Admin sourcing</div>
             <h1 className="mt-2 text-[32px] font-black tracking-[-0.05em] text-[#1f2937]">AliExpress Sourcing</h1>
-            <p className="mt-3 text-[14px] leading-7 text-[#667085]">Les réglages de fret, de marge et de groupage sont maintenant persistés côté serveur. Le checkout client et la création de commande fournisseur AliExpress lisent cette même source.</p>
+            <p className="mt-3 text-[14px] leading-7 text-[#667085]">Les reglages de fret, de tarification et de groupage sont maintenant persistes cote serveur. Le checkout client et la creation de commande AliExpress lisent cette meme source.</p>
             {feedback ? <div className="mt-4 rounded-[16px] bg-white px-4 py-3 text-[13px] font-semibold text-[#1f2937] shadow-[0_8px_18px_rgba(17,24,39,0.05)]">{feedback}</div> : null}
           </div>
 
@@ -370,7 +370,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Batch avion</div>
-              <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Regroupement fournisseur à 2 kg</div>
+              <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Regroupement achat a 2 kg</div>
               <div className="mt-2 text-[13px] leading-6 text-[#667085]">Les commandes payées restent en file d&apos;attente jusqu&apos;au lancement admin. Le lot peut aussi être déclenché avant le seuil.</div>
               {blockedAirOrders.length > 0 ? <div className="mt-2 text-[12px] font-semibold text-[#b54708]">{blockedAirOrders.length} commande(s) payée(s) avion sont bloquées avant le lot.</div> : null}
             </div>
@@ -400,7 +400,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Batch maritime</div>
-              <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Regroupement fournisseur à 1 CBM</div>
+              <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Regroupement achat a 1 CBM</div>
               <div className="mt-2 text-[13px] leading-6 text-[#667085]">Inclut les commandes mer et toutes les commandes de la campagne articles gratuits, forcées en maritime.</div>
               {blockedSeaOrders.length > 0 ? <div className="mt-2 text-[12px] font-semibold text-[#b54708]">{blockedSeaOrders.length} commande(s) payée(s) mer sont bloquées avant le lot.</div> : null}
             </div>
@@ -431,9 +431,9 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
         <section className="rounded-[20px] border border-[#f3d7c2] bg-[#fffaf6] p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
           <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85300]">Blocages avant lot</div>
           <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Commandes payées non lançables</div>
-          <div className="mt-2 text-[13px] leading-6 text-[#667085]">Ces commandes sont deja payees par le client, mais elles ne peuvent pas encore entrer dans le lancement fournisseur AliExpress.</div>
+          <div className="mt-2 text-[13px] leading-6 text-[#667085]">Ces commandes sont deja payees par le client, mais elles ne peuvent pas encore entrer dans le lancement d'achat AliExpress.</div>
           <div className="mt-3 rounded-[16px] border border-[#f2d6c2] bg-white/80 px-4 py-3 text-[12px] leading-6 text-[#8a5a33]">
-            Dans ce flux admin, le fournisseur n&apos;expedie pas directement vers le pays final du client. Par defaut, il expedie vers votre hub Chine AfriPay (CN). Si besoin, vous pouvez basculer vers votre hub transitaire Chine ou Lome puis relancer la creation fournisseur.
+            Dans ce flux admin, l'expedition ne part pas directement vers le pays final du client. Par defaut, elle passe par votre hub AfriPay. Si besoin, vous pouvez basculer vers votre hub transitaire AfriPay ou Lome puis relancer la creation d'achat.
           </div>
           <div className="mt-5 overflow-x-auto">
             <table className="min-w-full text-left">
@@ -465,8 +465,8 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
                       <td className="py-3.5 pr-4">
                         <div className="flex flex-wrap gap-2">
                           <button type="button" onClick={() => repairOrder(order.id)} disabled={isPending} className="inline-flex h-9 items-center justify-center rounded-[12px] bg-[#111827] px-3 text-[12px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">Reprendre</button>
-                          <button type="button" onClick={() => overrideDeliveryRoute(order.id, "direct")} disabled={isPending || isRouteSelected(order, "direct")} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">Livrer vers mon hub Chine</button>
-                          <button type="button" onClick={() => overrideDeliveryRoute(order.id, "forwarder", "china")} disabled={isPending || isRouteSelected(order, "forwarder", "china")} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">Mon transitaire Chine</button>
+                          <button type="button" onClick={() => overrideDeliveryRoute(order.id, "direct")} disabled={isPending || isRouteSelected(order, "direct")} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">Livrer vers mon hub AfriPay</button>
+                          <button type="button" onClick={() => overrideDeliveryRoute(order.id, "forwarder", "china")} disabled={isPending || isRouteSelected(order, "forwarder", "china")} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">Mon transitaire AfriPay</button>
                           <button type="button" onClick={() => overrideDeliveryRoute(order.id, "forwarder", "lome")} disabled={isPending || isRouteSelected(order, "forwarder", "lome")} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">Mon transitaire Lome</button>
                           <Link href={`/admin/orders/${encodeURIComponent(order.id)}`} className="font-semibold text-[#ff6a00] transition hover:opacity-80">Ouvrir</Link>
                         </div>
@@ -546,8 +546,8 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
         </article>
 
         <article className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
-          <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Catalogue fournisseur</div>
-          <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Prix fournisseur et prix final site</div>
+          <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Catalogue source</div>
+          <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Prix final site</div>
 
           <div className="mt-5 overflow-x-auto">
             <table className="min-w-full text-left">
@@ -556,7 +556,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
                   <th className="py-3 pr-4 font-semibold">Produit</th>
                   <th className="py-3 pr-4 font-semibold">Poids</th>
                   <th className="py-3 pr-4 font-semibold">CBM</th>
-                  <th className="py-3 pr-4 font-semibold">Fournisseur</th>
+                  <th className="py-3 pr-4 font-semibold">Partenaire</th>
                   <th className="py-3 pr-4 font-semibold">Prix final</th>
                 </tr>
               </thead>

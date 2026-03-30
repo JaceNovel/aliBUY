@@ -208,7 +208,9 @@ export function PaymentClient({ order }: PaymentClientProps) {
   };
 
   if (order.kind === "sourcing") {
-    const shippingLabel = order.shippingLabel || (order.shippingMethod === "sea" ? "Fret maritime groupe" : order.shippingMethod === "freight" ? "Fret local Chine" : "Fret aerien");
+    const shippingLabel = /^(Expédition|Expedition)\s+[A-Z]{2,3}$/i.test(order.shippingLabel || "")
+      ? "Expédition"
+      : order.shippingLabel || (order.shippingMethod === "sea" ? "Fret maritime groupe" : order.shippingMethod === "freight" ? "Fret local AfriPay" : "Fret aerien");
     const statusLabel = getPaymentStatusLabel(paymentStatus);
     const heading = order.heading || "Finaliser la commande sourcing";
     const description = order.description || `AfriPay initialise un checkout Moneroo securise pour encaisser la commande en ${order.paymentCurrency}. Une verification serveur est relancee au retour pour confirmer le statut reel.`;

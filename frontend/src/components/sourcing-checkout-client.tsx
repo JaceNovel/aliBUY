@@ -560,7 +560,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
 
             {deliveryMode !== "forwarder" && usesInternalReceptionAddress ? (
               <div className="mt-4 rounded-[18px] border border-[#d8e5fb] bg-[#eef6ff] px-4 py-4 text-[13px] leading-6 text-[#1d4f91]">
-                Ce pays passe par le corridor AfriPay. Les adresses air et mer internes sont utilisées automatiquement côté fournisseur, sans être affichées au client. Choisissez simplement air ou mer ci-dessous.
+                Ce pays passe par le corridor AfriPay. Les adresses air et mer internes sont utilisées automatiquement côté plateforme, sans être affichées au client. Choisissez simplement air ou mer ci-dessous.
               </div>
             ) : null}
 

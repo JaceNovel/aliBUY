@@ -69,7 +69,7 @@ export async function AdminSectionContent({ slug, pricing }: { slug: string; pri
     }
     case "products": {
       summaryValue = `${catalogProducts.length} references catalogue`;
-      columns = ["Produit", "Fournisseur", "Prix", "MOQ", "Badge"];
+      columns = ["Produit", "Partenaire", "Prix", "MOQ", "Badge"];
       rows = catalogProducts.map((product) => ({
         key: product.slug,
         values: [product.shortTitle, product.supplierName, formatPriceRange(pricing.formatPrice, product.minUsd, product.maxUsd), `${product.moq} ${product.unit}`, product.badge ?? "Catalogue"],
@@ -113,7 +113,7 @@ export async function AdminSectionContent({ slug, pricing }: { slug: string; pri
     case "offers": {
       const offers = await getAdminOffers();
       summaryValue = `${offers.length} offres operationnelles`;
-      columns = ["Offre", "Fournisseur", "MOQ", "Prix"];
+      columns = ["Offre", "Partenaire", "MOQ", "Prix"];
       rows = offers.map((offer) => ({
         key: offer.name,
         values: [offer.name, offer.supplier, offer.moq, pricing.formatPrice(offer.priceMinUsd)],

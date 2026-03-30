@@ -160,7 +160,7 @@ export default async function PricingPage() {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#d85300] sm:text-[13px] sm:tracking-[0.16em]">Action rapide</div>
-              <h2 className="mt-2 text-[22px] font-bold tracking-[-0.04em] text-[#222] sm:mt-3 sm:text-[30px]">Passer du tarif affiche au devis fournisseur</h2>
+              <h2 className="mt-2 text-[22px] font-bold tracking-[-0.04em] text-[#222] sm:mt-3 sm:text-[30px]">Passer du tarif affiche au devis AfriPay</h2>
               <p className="mt-2 max-w-[760px] text-[13px] leading-5 text-[#555] sm:text-[16px] sm:leading-8">
                 Quand un prix vous convient, vous pouvez enchainer directement sur une demande de devis ou revenir vers les fiches produit pour comparer les MOQ et les paliers.
               </p>

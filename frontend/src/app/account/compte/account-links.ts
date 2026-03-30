@@ -50,7 +50,7 @@ export const accountPageMeta = {
   },
   "profil-de-membre": {
     title: "Profil de membre",
-    description: "Gérez votre statut membre, vos badges et les informations de confiance visibles côté fournisseur.",
+    description: "Gérez votre statut membre, vos badges et les informations de confiance visibles sur votre espace AfriPay.",
     bullets: ["Statut de membre", "Badge du compte", "Résumé de votre activité"],
     accent: "#ff6a00",
   },

@@ -48,6 +48,7 @@ export type ProductFeedPage = {
   query?: string;
   category?: string;
   mode?: string;
+  matchMode?: "exact" | "similar";
 };
 
 export type ProductFeedCategoryOption = {
@@ -240,6 +241,7 @@ async function apiFetch<T>(path: string, options: ApiRequestOptions = {}): Promi
   const { query, headers, ...init } = options;
   const response = await fetch(buildApiUrl(path, query), {
     ...init,
+    credentials: init.credentials ?? "include",
     headers: {
       ...headers,
     },

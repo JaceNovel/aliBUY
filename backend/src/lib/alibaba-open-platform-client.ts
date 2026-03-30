@@ -2840,7 +2840,7 @@ function mapAliExpressSearchItemFallbackToProduct(
     ?? getStringValue(searchItem.sellerName)
     ?? getStringValue(searchItem.seller_name)
     ?? getStringValue(searchItem.shop_name)
-    ?? "AliExpress supplier";
+    ?? "Selection AfriPay+";
   const supplierLocation = getStringValue(searchItem.storeCountryCode)
     ?? getStringValue(searchItem.store_country_code)
     ?? getStringValue(searchItem.ship_from)
@@ -2869,9 +2869,9 @@ function mapAliExpressSearchItemFallbackToProduct(
     transactionsLabel: "Selection AfriPay+",
     soldLabel: `${soldCount} ventes`,
     customizationLabel: "Fiche verifiee AfriPay+",
-    shippingLabel: `Expédition ${shipToCountry}`,
+    shippingLabel: "Expédition",
     overview: [
-      `${supplierName} · ${supplierLocation}`,
+      "Selection verifiee AfriPay+",
       `${soldCount} ventes`,
       "Version importee depuis la selection AfriPay+.",
     ],
@@ -3144,16 +3144,16 @@ function mapAliExpressProductDetailToProduct(
     unit: "piece",
     badge: "AfriPay+",
     supplierName: getStringValue(storeInfo.store_name) ?? "AfriPay+",
-    supplierLocation: getStringValue(storeInfo.store_country_code) ?? "CN",
+    supplierLocation: "AfriPay+",
     supplierCompanyId: getStringValue(storeInfo.store_id),
     responseTime: "AfriPay+",
     yearsInBusiness: 0,
     transactionsLabel: `${getStringValue(baseInfo.evaluation_count) ?? "0"} avis`,
     soldLabel: `${getStringValue(baseInfo.sales_count) ?? "0"} ventes`,
     customizationLabel: "Attributs et variantes synchronisés",
-    shippingLabel: `Expédition ${getStringValue(logisticsInfo.ship_to_country) ?? process.env.ALIEXPRESS_DEFAULT_SHIP_TO_COUNTRY ?? "CI"}`,
+    shippingLabel: "Expédition",
     overview: [
-      `${getStringValue(storeInfo.store_name) ?? "AfriPay+"} · ${getStringValue(storeInfo.store_country_code) ?? "CN"}`,
+      "Selection verifiee AfriPay+",
       `${getStringValue(baseInfo.sales_count) ?? "0"} ventes · note ${getStringValue(baseInfo.avg_evaluation_rating) ?? "n/a"}`,
       `Livraison estimée ${getStringValue(logisticsInfo.delivery_time) ?? "variable"} jour(s)`,
     ],

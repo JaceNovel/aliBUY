@@ -113,11 +113,12 @@ function getMobileSecondaryLabel(label: string) {
 
 function getMobileCorridorLabel(label: string) {
   return label
-    .replace("Chine", "CN")
-    .replace("France", "FR")
-    .replace("Togo", "TG")
-    .replace("Ghana", "GH")
-    .replace("Cote d'Ivoire", "CI")
+    .replace("Fournisseur", "Depart")
+    .replace("Chine", "Hub AfriPay")
+    .replace("France", "Destination")
+    .replace("Togo", "Destination")
+    .replace("Ghana", "Destination")
+    .replace("Cote d'Ivoire", "Destination")
     .replace(" -> ", " > ");
 }
 

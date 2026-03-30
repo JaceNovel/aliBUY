@@ -18,7 +18,7 @@ const protectionSections = [
     description:
       "Chaque commande passe par un circuit controle avec verification du montant, validation de la commande et confirmation avant la remise finale.",
     bullets: [
-      "Verification du paiement avant lancement fournisseur.",
+      "Verification du paiement avant lancement logistique.",
       "Historique clair des etapes de commande.",
       "Confirmation finale avant remise ou livraison.",
     ],
