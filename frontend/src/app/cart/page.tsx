@@ -24,6 +24,7 @@ export default async function CartPage() {
       <CartPageClient
         currencyCode={pricing.currency.code}
         locale={pricing.locale}
+        initialCountryCode={pricing.countryCode}
         isAuthenticated={Boolean(user)}
         initialSharedCartSummaries={sharedCartSummaries.map((entry: SharedCartSummary) => ({
           id: entry.id,

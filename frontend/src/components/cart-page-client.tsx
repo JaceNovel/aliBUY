@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useCart, useCartQuote } from "@/components/cart-provider";
-import { buildCartItemKey, formatShippingTradeLabel, formatSourcingAmount, type ShippingMethodKey } from "@/lib/alibaba-sourcing";
+import { buildCartItemKey, formatShippingTradeLabel, formatSourcingAmount, resolveSourcingDeliveryPlan, type ShippingMethodKey } from "@/lib/alibaba-sourcing";
 
 type SharedCartSummary = {
   id: string;
@@ -20,10 +20,17 @@ type SharedCartSummary = {
   updatedAt: string;
 };
 
-export function CartPageClient({ currencyCode, locale, isAuthenticated, initialSharedCartSummaries }: { currencyCode: string; locale: string; isAuthenticated: boolean; initialSharedCartSummaries: SharedCartSummary[] }) {
+export function CartPageClient({ currencyCode, locale, initialCountryCode, isAuthenticated, initialSharedCartSummaries }: { currencyCode: string; locale: string; initialCountryCode: string; isAuthenticated: boolean; initialSharedCartSummaries: SharedCartSummary[] }) {
   const router = useRouter();
   const { items, updateItem, removeItem, clearCart, sharedCartContext } = useCart();
-  const { quote, isLoading } = useCartQuote();
+  const deliveryPlan = useMemo(() => resolveSourcingDeliveryPlan({
+    countryCode: initialCountryCode,
+    deliveryProfile: { mode: "direct" },
+  }), [initialCountryCode]);
+  const { quote, isLoading } = useCartQuote({
+    disableFreeAir: !deliveryPlan.workflow.freeDeliveryEligible,
+    deliveryMode: "direct",
+  });
   const [selectedShipping, setSelectedShipping] = useState<ShippingMethodKey>("air");
   const [hasUserSelectedShipping, setHasUserSelectedShipping] = useState(false);
   const [shareMessage, setShareMessage] = useState("");

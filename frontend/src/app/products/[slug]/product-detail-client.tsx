@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
 import { isSupportedDirectDeliveryCountry } from "@/lib/alibaba-sourcing";
+import { CURRENCY_CONFIG, type CurrencyCode } from "@/lib/pricing-options";
 import { getApplicableVariantPricing, getDisplayPriceTiers, resolveProductPriceSummaryUsd, resolveProductUnitPriceUsd } from "@/lib/product-variant-pricing";
 
 type DetailVariantGroup = {
@@ -83,6 +84,7 @@ type ProductDetailClientProps = {
 };
 
 export function ProductDetailClient({ product, relatedProducts, initialIsFavorite }: ProductDetailClientProps) {
+    const selectedCurrency = CURRENCY_CONFIG[(product.currencyCode as CurrencyCode)] ?? CURRENCY_CONFIG.USD;
   const router = useRouter();
   const { addItem } = useCart();
   const [activeImage, setActiveImage] = useState(0);
@@ -212,12 +214,14 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     product.overview[1] ?? "Suivi de commande et assistance après-vente.",
   ];
   const formatMoney = (amount: number) => {
+    const localizedAmount = amount * selectedCurrency.rateFromUsd;
+
     return new Intl.NumberFormat(product.locale, {
       style: "currency",
-      currency: product.currencyCode,
-      minimumFractionDigits: amount >= 100 ? 0 : 2,
-      maximumFractionDigits: amount >= 100 ? 0 : 2,
-    }).format(amount);
+      currency: selectedCurrency.code,
+      minimumFractionDigits: localizedAmount >= 100 ? 0 : 2,
+      maximumFractionDigits: localizedAmount >= 100 ? 0 : 2,
+    }).format(localizedAmount);
   };
   const formatPriceSummary = (summary: { minUsd: number; maxUsd?: number; exact: boolean }) => {
     if (typeof summary.maxUsd === "number" && summary.maxUsd > summary.minUsd) {
