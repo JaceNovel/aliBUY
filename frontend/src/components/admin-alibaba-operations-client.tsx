@@ -302,7 +302,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       }),
     });
 
-    await response.json().catch(() => null);
+    const payload = await response.json().catch(() => null);
 
     if (!response.ok) {
       setFeedback(payload?.message ?? "Creation du lot d'achat impossible.");
