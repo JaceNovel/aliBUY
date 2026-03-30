@@ -86,6 +86,12 @@ export async function POST(request: Request) {
   try {
     const corsHeaders = buildCorsHeaders(request);
     const body = await readPayload(request);
+    const envAppKey = process.env.ALIEXPRESS_OPEN_PLATFORM_APP_KEY ?? process.env.ALIBABA_OPEN_PLATFORM_APP_KEY;
+    const envAppSecret = process.env.ALIEXPRESS_OPEN_PLATFORM_APP_SECRET ?? process.env.ALIBABA_OPEN_PLATFORM_APP_SECRET;
+    const envAuthorizeUrl = process.env.ALIEXPRESS_OAUTH_AUTHORIZE_URL ?? process.env.ALIBABA_OAUTH_AUTHORIZE_URL;
+    const envTokenUrl = process.env.ALIEXPRESS_OAUTH_TOKEN_URL ?? process.env.ALIBABA_OAUTH_TOKEN_URL;
+    const envRefreshUrl = process.env.ALIEXPRESS_OAUTH_REFRESH_URL ?? process.env.ALIBABA_OAUTH_REFRESH_URL;
+    const envApiBaseUrl = process.env.ALIEXPRESS_OPEN_PLATFORM_API_BASE_URL ?? process.env.ALIBABA_OPEN_PLATFORM_API_BASE_URL;
     const url = new URL(request.url);
     let backendOrigin: string | null = null;
     if (API_URL) {
@@ -111,12 +117,12 @@ export async function POST(request: Request) {
       status: "needs_auth",
       memberId: body?.memberId ? String(body.memberId) : existing?.memberId,
       resourceOwner: body?.resourceOwner ? String(body.resourceOwner) : existing?.resourceOwner,
-      appKey: body?.appKey ? String(body.appKey) : existing?.appKey,
-      appSecret: body?.appSecret ? String(body.appSecret) : existing?.appSecret,
-      authorizeUrl: body?.authorizeUrl ? String(body.authorizeUrl) : existing?.authorizeUrl,
-      tokenUrl: body?.tokenUrl ? String(body.tokenUrl) : existing?.tokenUrl,
-      refreshUrl: body?.refreshUrl ? String(body.refreshUrl) : existing?.refreshUrl,
-      apiBaseUrl: body?.apiBaseUrl ? String(body.apiBaseUrl) : existing?.apiBaseUrl,
+      appKey: body?.appKey ? String(body.appKey) : (existing?.appKey ?? envAppKey),
+      appSecret: body?.appSecret ? String(body.appSecret) : (existing?.appSecret ?? envAppSecret),
+      authorizeUrl: body?.authorizeUrl ? String(body.authorizeUrl) : (existing?.authorizeUrl ?? envAuthorizeUrl),
+      tokenUrl: body?.tokenUrl ? String(body.tokenUrl) : (existing?.tokenUrl ?? envTokenUrl),
+      refreshUrl: body?.refreshUrl ? String(body.refreshUrl) : (existing?.refreshUrl ?? envRefreshUrl),
+      apiBaseUrl: body?.apiBaseUrl ? String(body.apiBaseUrl) : (existing?.apiBaseUrl ?? envApiBaseUrl),
       isActive: typeof body?.isActive === "boolean" ? body.isActive : true,
       accessTokenHint: body?.accessTokenHint ? String(body.accessTokenHint) : existing?.accessTokenHint,
       lastError: undefined,

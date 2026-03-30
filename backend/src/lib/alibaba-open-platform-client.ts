@@ -4403,11 +4403,40 @@ export async function buildAlibabaAuthorizationUrl(input: {
 
 export async function exchangeAlibabaOAuthCode(input: { accountId: string; code: string; redirectUri?: string }) {
   const accounts = await getAlibabaSupplierAccounts();
-  const account = accounts.find((entry) => entry.id === input.accountId);
-  const credentials = getAccountCredentials(account);
+  const persistedAccount = accounts.find((entry) => entry.id === input.accountId);
+  const envCredentials = getEnvCredentials();
+  let account = persistedAccount;
+  let credentials = getAccountCredentials(account);
+
+  if ((!account || !credentials) && envCredentials) {
+    const timestamp = new Date().toISOString();
+    account = {
+      id: input.accountId,
+      name: "AliExpress OAuth",
+      email: "oauth@aliexpress.local",
+      accountPlatform: "seller",
+      countryCode: "CI",
+      defaultDispatchLocation: "CN",
+      status: "needs_auth",
+      appKey: envCredentials.appKey,
+      appSecret: envCredentials.appSecret,
+      authorizeUrl: envCredentials.authorizeUrl,
+      tokenUrl: envCredentials.tokenUrl,
+      refreshUrl: envCredentials.refreshUrl,
+      apiBaseUrl: envCredentials.apiBaseUrl,
+      isActive: true,
+      hasAppSecret: Boolean(envCredentials.appSecret),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    credentials = getAccountCredentials(account);
+    console.warn("[aliexpress/oauth] supplier account missing at callback; using env credential fallback", {
+      accountId: input.accountId,
+    });
+  }
 
   if (!account || !credentials) {
-    throw new Error("Compte Alibaba introuvable ou incomplet.");
+    throw new Error("Compte Alibaba introuvable ou incomplet. Verifie la persistance des comptes (DB ou Vercel Blob) et reconnecte le compte.");
   }
 
   const tokenUrl = account.tokenUrl || credentials.tokenUrl;
@@ -4491,12 +4520,14 @@ export async function exchangeAlibabaOAuthCode(input: { accountId: string; code:
   } catch (error) {
     const message = error instanceof Error ? error.message : "Generation du token d'acces AliExpress impossible.";
 
-    await saveAlibabaSupplierAccount({
-      ...account,
-      status: "needs_auth",
-      lastError: message,
-      updatedAt: new Date().toISOString(),
-    });
+    if (account) {
+      await saveAlibabaSupplierAccount({
+        ...account,
+        status: "needs_auth",
+        lastError: message,
+        updatedAt: new Date().toISOString(),
+      });
+    }
 
     throw error;
   }
