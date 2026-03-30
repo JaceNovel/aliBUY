@@ -1,6 +1,7 @@
 import "server-only";
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { get, put } from "@vercel/blob";
 
@@ -9,7 +10,8 @@ import { canonicalizeCountryCode } from "@/lib/country-utils";
 import { prisma } from "@/lib/prisma";
 
 const DATABASE_UNAVAILABLE_MESSAGE = "Le service de donnees n'est pas configure sur cette instance.";
-const CUSTOMER_ADDRESSES_PATH = path.join(process.cwd(), "data", "account", "customer-addresses.json");
+const CUSTOMER_ADDRESSES_RUNTIME_PATH = path.join(os.tmpdir(), "afripay", "data", "account", "customer-addresses.json");
+const CUSTOMER_ADDRESSES_SEED_PATH = path.join(process.cwd(), "data", "account", "customer-addresses.json");
 const CUSTOMER_ADDRESSES_BLOB_PATHNAME = "account/customer-addresses.json";
 
 export type FavoriteRecord = {
@@ -98,12 +100,15 @@ async function readCustomerAddressesFile() {
   }
 
   try {
-    const raw = await readFile(CUSTOMER_ADDRESSES_PATH, "utf8");
+    const raw = await readFile(CUSTOMER_ADDRESSES_RUNTIME_PATH, "utf8");
     return JSON.parse(raw) as CustomerAddressRecord[];
   } catch {
-    await mkdir(path.dirname(CUSTOMER_ADDRESSES_PATH), { recursive: true });
-    await writeFile(CUSTOMER_ADDRESSES_PATH, "[]\n", "utf8");
-    return [] as CustomerAddressRecord[];
+    try {
+      const raw = await readFile(CUSTOMER_ADDRESSES_SEED_PATH, "utf8");
+      return JSON.parse(raw) as CustomerAddressRecord[];
+    } catch {
+      return [] as CustomerAddressRecord[];
+    }
   }
 }
 
@@ -118,8 +123,8 @@ async function writeCustomerAddressesFile(addresses: CustomerAddressRecord[]) {
     return;
   }
 
-  await mkdir(path.dirname(CUSTOMER_ADDRESSES_PATH), { recursive: true });
-  await writeFile(CUSTOMER_ADDRESSES_PATH, `${JSON.stringify(addresses, null, 2)}\n`, "utf8");
+  await mkdir(path.dirname(CUSTOMER_ADDRESSES_RUNTIME_PATH), { recursive: true });
+  await writeFile(CUSTOMER_ADDRESSES_RUNTIME_PATH, `${JSON.stringify(addresses, null, 2)}\n`, "utf8");
 }
 
 function sortCustomerAddresses(addresses: CustomerAddressRecord[]) {

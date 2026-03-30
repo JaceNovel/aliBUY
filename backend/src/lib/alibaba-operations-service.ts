@@ -41,8 +41,10 @@ import {
   extractAlibabaOperationMessage,
   extractAlibabaTradeId,
   fetchAlibabaProductSnapshot,
+  normalizeAliExpressDsAddressOptions,
   normalizeAlibabaFreightOptions,
   queryAlibabaPaymentResult,
+  queryAliExpressDsAddress,
   resolveAlibabaIcbuCategoryInfo,
   searchAlibabaProducts,
 } from "@/lib/alibaba-open-platform-client";
@@ -242,6 +244,211 @@ function resolveAlibabaImportedProductSkuAttr(product: AlibabaImportedProduct, s
 function resolveAlibabaOrderCarrierCode(freightResponseBody: unknown) {
   const options = normalizeAlibabaFreightOptions(freightResponseBody);
   return options.find((entry) => typeof entry.vendorCode === "string" && entry.vendorCode.trim())?.vendorCode;
+}
+
+type AliExpressDsAddressNode = {
+  name: string;
+  code?: string;
+  id?: string;
+  children: AliExpressDsAddressNode[];
+};
+
+function normalizeComparableText(value: string | undefined) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function parseAliExpressDsAddressNodes(value: unknown): AliExpressDsAddressNode[] {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return [];
+    }
+
+    try {
+      return parseAliExpressDsAddressNodes(JSON.parse(trimmed));
+    } catch {
+      return [];
+    }
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => parseAliExpressDsAddressNodes(entry));
+  }
+
+  if (!value || typeof value !== "object") {
+    return [];
+  }
+
+  const record = value as Record<string, unknown>;
+  const name = getStringRecordValue(record, "name", "label", "areaName", "provinceName", "cityName", "displayName");
+  const code = getStringRecordValue(record, "code", "areaCode", "provinceCode", "cityCode", "countryCode");
+  const id = getStringRecordValue(record, "id", "areaId", "provinceId", "cityId");
+  const children = parseAliExpressDsAddressNodes(
+    record.children
+      ?? record.childList
+      ?? record.childs
+      ?? record.cityList
+      ?? record.provinceList
+      ?? record.areas,
+  );
+
+  if (!name && !code && !id) {
+    return [];
+  }
+
+  return [{
+    name: name ?? code ?? id ?? "",
+    code: code ?? undefined,
+    id: id ?? undefined,
+    children,
+  } satisfies AliExpressDsAddressNode];
+}
+
+function findAliExpressDsAddressNode(nodes: AliExpressDsAddressNode[], value: string | undefined): AliExpressDsAddressNode | undefined {
+  const normalizedTarget = normalizeComparableText(value);
+  if (!normalizedTarget) {
+    return undefined;
+  }
+
+  const queue = [...nodes];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) {
+      continue;
+    }
+
+    const matches = [current.name, current.code, current.id].some((entry) => normalizeComparableText(entry) === normalizedTarget);
+    if (matches) {
+      return current;
+    }
+
+    queue.push(...current.children);
+  }
+
+  return undefined;
+}
+
+async function resolveValidatedAliExpressAddress(address: AlibabaReceptionAddress) {
+  const addressQuery = await queryAliExpressDsAddress({
+    countryCode: address.countryCode,
+    language: process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "en_US",
+    isMultiLanguage: true,
+  }).catch(() => null);
+
+  const options = addressQuery ? normalizeAliExpressDsAddressOptions(addressQuery.responseBody) : [];
+  const typedNodes = options.map((entry) => ({
+    type: normalizeComparableText(entry.type),
+    nodes: parseAliExpressDsAddressNodes(entry.childrenJson),
+  }));
+  const allRoots = typedNodes.flatMap((entry) => entry.nodes);
+
+  if (allRoots.length === 0) {
+    return {
+      state: address.state,
+      stateCode: address.state,
+      city: address.city,
+      cityCode: address.city,
+    };
+  }
+
+  const provinceRoots = typedNodes
+    .filter((entry) => /(state|province|county|region)/.test(entry.type))
+    .flatMap((entry) => entry.nodes);
+  const provinceSearchRoots = provinceRoots.length > 0 ? provinceRoots : allRoots;
+  const provinceMatch = findAliExpressDsAddressNode(provinceSearchRoots, address.state);
+
+  if (address.state.trim() && provinceSearchRoots.length > 0 && !provinceMatch) {
+    throw new Error(`Adresse AliExpress invalide: la province ou l'etat "${address.state}" n'est pas reconnu pour ${address.countryCode}.`);
+  }
+
+  const explicitCityRoots = typedNodes
+    .filter((entry) => /(city|town)/.test(entry.type))
+    .flatMap((entry) => entry.nodes);
+  const citySearchRoots = provinceMatch?.children?.length
+    ? provinceMatch.children
+    : explicitCityRoots.length > 0
+      ? explicitCityRoots
+      : allRoots;
+  const cityMatch = findAliExpressDsAddressNode(citySearchRoots, address.city);
+
+  if (address.city.trim() && citySearchRoots.length > 0 && !cityMatch) {
+    throw new Error(`Adresse AliExpress invalide: la ville "${address.city}" n'est pas reconnue pour ${address.countryCode}.`);
+  }
+
+  return {
+    state: provinceMatch?.name ?? address.state,
+    stateCode: provinceMatch?.code ?? provinceMatch?.id ?? provinceMatch?.name ?? address.state,
+    city: cityMatch?.name ?? address.city,
+    cityCode: cityMatch?.code ?? cityMatch?.id ?? cityMatch?.name ?? address.city,
+  };
+}
+
+function extractAliExpressTradeOrderStatus(responseBody: unknown) {
+  if (!responseBody || typeof responseBody !== "object" || Array.isArray(responseBody)) {
+    return undefined;
+  }
+
+  const body = responseBody as Record<string, unknown>;
+  const wrapped = body.aliexpress_trade_ds_order_get_response;
+  const wrappedResult = wrapped && typeof wrapped === "object" && !Array.isArray(wrapped)
+    ? (wrapped as Record<string, unknown>).result
+    : undefined;
+  const result = body.result;
+  const value = body.value;
+
+  return getStringRecordValue(wrappedResult, "order_status", "status")
+    ?? getStringRecordValue(result, "order_status", "status")
+    ?? getStringRecordValue(value, "order_status", "status")
+    ?? getStringRecordValue(body, "order_status", "status");
+}
+
+function extractAliExpressTradePayUrl(responseBody: unknown) {
+  if (!responseBody || typeof responseBody !== "object" || Array.isArray(responseBody)) {
+    return undefined;
+  }
+
+  const body = responseBody as Record<string, unknown>;
+  const wrapped = body.aliexpress_trade_ds_order_get_response;
+  const wrappedResult = wrapped && typeof wrapped === "object" && !Array.isArray(wrapped)
+    ? (wrapped as Record<string, unknown>).result
+    : undefined;
+  const result = body.result;
+  const value = body.value;
+
+  return getStringRecordValue(wrappedResult, "pay_url", "payUrl", "cashier_url", "cashierUrl")
+    ?? getStringRecordValue(result, "pay_url", "payUrl", "cashier_url", "cashierUrl")
+    ?? getStringRecordValue(value, "pay_url", "payUrl", "cashier_url", "cashierUrl")
+    ?? getStringRecordValue(body, "pay_url", "payUrl", "cashier_url", "cashierUrl");
+}
+
+async function syncAlibabaPurchaseOrderState(order: AlibabaPurchaseOrder) {
+  if (!order.tradeId) {
+    return order;
+  }
+
+  const paymentResult = await queryAlibabaPaymentResult({ tradeId: order.tradeId });
+  const remoteStatus = String(extractAliExpressTradeOrderStatus(paymentResult.responseBody) ?? "").trim().toUpperCase();
+  const payUrl = extractAliExpressTradePayUrl(paymentResult.responseBody) ?? order.payUrl;
+  const payFailureReason = extractAlibabaOperationMessage(paymentResult.responseBody);
+  const isPaid = remoteStatus === "FINISH" || remoteStatus === "PAID";
+  const isFailed = remoteStatus.includes("CANCEL") || remoteStatus.includes("CLOSE") || remoteStatus.includes("FAIL");
+
+  const nextOrder: AlibabaPurchaseOrder = {
+    ...order,
+    payUrl,
+    paymentStatus: isPaid ? "paid" : isFailed ? "failed" : payUrl ? "pay_url_generated" : "pending",
+    payFailureReason: isFailed ? payFailureReason ?? "Paiement non complete" : undefined,
+    rawPaymentResponse: paymentResult.responseBody,
+    updatedAt: nowIso(),
+    orderStatus: isPaid ? "paid" : isFailed ? "failed" : "payment_pending",
+  };
+  await saveAlibabaPurchaseOrder(nextOrder);
+  return nextOrder;
 }
 
 function getAliExpressMarginRate() {
@@ -951,14 +1158,15 @@ export async function createAlibabaPurchaseOrder(input: {
   }
 
   const quantity = Math.max(1, input.quantity);
+  const validatedAddress = await resolveValidatedAliExpressAddress(address);
   const liveProduct = await fetchAlibabaProductSnapshot({
     sourceProductId: product.sourceProductId,
     query: product.query,
     shipToCountry: address.countryCode,
     targetCurrency: process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD",
     targetLanguage: process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "en_US",
-    provinceCode: address.state,
-    cityCode: address.city,
+    provinceCode: validatedAddress.stateCode,
+    cityCode: validatedAddress.cityCode,
   }).catch(() => null);
   const productForOrder = liveProduct
     ? {
@@ -981,8 +1189,8 @@ export async function createAlibabaPurchaseOrder(input: {
     productId: product.sourceProductId,
     quantity,
     selectedSkuId: supplierSkuId,
-    provinceCode: address.state,
-    cityCode: address.city,
+    provinceCode: validatedAddress.stateCode,
+    cityCode: validatedAddress.cityCode,
     language: process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "en_US",
     locale: process.env.ALIEXPRESS_DEFAULT_LOCALE ?? process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "en_US",
     currency: process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD",
@@ -1004,10 +1212,10 @@ export async function createAlibabaPurchaseOrder(input: {
       zip: address.postalCode ?? "",
       country: address.countryCode,
       address: address.addressLine1,
-      city: address.city,
+      city: validatedAddress.city,
       contact_person: address.contactName,
-      province: address.state,
-      province_code: address.state,
+      province: validatedAddress.state,
+      province_code: validatedAddress.stateCode,
       country_code: address.countryCode,
       alternate_address: address.addressLine2 ?? "",
       port: address.port ?? "",
@@ -1026,14 +1234,14 @@ export async function createAlibabaPurchaseOrder(input: {
     logistics_address: {
       address: address.addressLine1,
       address2: address.addressLine2 ?? "",
-      city: address.city,
+      city: validatedAddress.city,
       contact_person: address.contactName,
       country: address.countryCode,
       full_name: address.contactName,
       locale: "fr_FR",
       mobile_no: address.phone,
       phone_country: "+",
-      province: address.state,
+      province: validatedAddress.state,
       zip: address.postalCode ?? "",
     },
     product_items: [
@@ -1132,8 +1340,8 @@ export async function payAlibabaPurchaseOrder(orderId: string) {
   }
 
   const paymentResult = await createAlibabaDropshippingPayment({ tradeId: order.tradeId });
-  const paymentObject = paymentResult.responseBody as { pay_url?: string; value?: { pay_url?: string; status?: string; reason_message?: string }; status?: string; reason_message?: string };
-  const payUrl = paymentObject?.value?.pay_url ?? paymentObject?.pay_url ?? order.payUrl;
+  const paymentObject = paymentResult.responseBody as { value?: { reason_message?: string }; reason_message?: string };
+  const payUrl = extractAliExpressTradePayUrl(paymentResult.responseBody) ?? order.payUrl;
 
   const nextOrder: AlibabaPurchaseOrder = {
     ...order,
@@ -1147,6 +1355,53 @@ export async function payAlibabaPurchaseOrder(orderId: string) {
   return nextOrder;
 }
 
+export async function repayAlibabaPurchaseOrder(orderId: string) {
+  const orders = await getAlibabaPurchaseOrders();
+  const order = orders.find((entry) => entry.id === orderId);
+  if (!order) {
+    throw new Error("Ordre d'achat introuvable.");
+  }
+
+  if (!order.tradeId) {
+    return payAlibabaPurchaseOrder(orderId);
+  }
+
+  const paymentResult = await createAlibabaDropshippingPayment({ tradeId: order.tradeId });
+  const paymentObject = paymentResult.responseBody as { value?: { reason_message?: string }; reason_message?: string };
+  const payUrl = extractAliExpressTradePayUrl(paymentResult.responseBody) ?? order.payUrl;
+  const nextOrder: AlibabaPurchaseOrder = {
+    ...order,
+    paymentStatus: paymentResult.ok ? (payUrl ? "pay_url_generated" : "pending") : "failed",
+    payUrl,
+    payFailureReason: paymentResult.ok ? undefined : paymentObject?.value?.reason_message ?? paymentObject?.reason_message ?? "Repaiement AliExpress echoue",
+    rawPaymentResponse: paymentResult.responseBody,
+    updatedAt: nowIso(),
+    orderStatus: paymentResult.ok ? "payment_pending" : "failed",
+  };
+  await saveAlibabaPurchaseOrder(nextOrder);
+
+  if (!paymentResult.ok || payUrl) {
+    return nextOrder;
+  }
+
+  return syncAlibabaPurchaseOrderState(nextOrder).catch(() => nextOrder);
+}
+
+export async function syncAlibabaPurchaseOrderByTradeId(tradeId: string) {
+  const normalizedTradeId = String(tradeId).trim();
+  if (!normalizedTradeId) {
+    throw new Error("tradeId AliExpress introuvable.");
+  }
+
+  const orders = await getAlibabaPurchaseOrders();
+  const order = orders.find((entry) => String(entry.tradeId ?? "").trim() === normalizedTradeId);
+  if (!order) {
+    throw new Error(`Aucun lot AliExpress local ne correspond au trade ${normalizedTradeId}.`);
+  }
+
+  return syncAlibabaPurchaseOrderState(order);
+}
+
 export async function refreshAlibabaPaymentStatus(orderId: string) {
   const orders = await getAlibabaPurchaseOrders();
   const order = orders.find((entry) => entry.id === orderId);
@@ -1158,27 +1413,5 @@ export async function refreshAlibabaPaymentStatus(orderId: string) {
     return order;
   }
 
-  const paymentResult = await queryAlibabaPaymentResult({ tradeId: order.tradeId });
-  const body = paymentResult.responseBody as {
-    status?: string;
-    value?: { status?: string; reason_message?: string };
-    result?: { order_status?: string };
-    aliexpress_trade_ds_order_get_response?: { result?: { order_status?: string } };
-  };
-  const aliExpressOrderStatus = body?.result?.order_status ?? body?.aliexpress_trade_ds_order_get_response?.result?.order_status;
-  const status = aliExpressOrderStatus === "FINISH"
-    ? "paid"
-    : aliExpressOrderStatus === "IN_CANCEL"
-      ? "failed"
-      : body?.value?.status ?? body?.status ?? "pending";
-  const nextOrder: AlibabaPurchaseOrder = {
-    ...order,
-    paymentStatus: status === "paid" ? "paid" : status === "failed" ? "failed" : "pending",
-    payFailureReason: status === "failed" ? body?.value?.reason_message ?? "Paiement non complete" : undefined,
-    rawPaymentResponse: paymentResult.responseBody,
-    updatedAt: nowIso(),
-    orderStatus: status === "paid" ? "paid" : order.orderStatus,
-  };
-  await saveAlibabaPurchaseOrder(nextOrder);
-  return nextOrder;
+  return syncAlibabaPurchaseOrderState(order);
 }

@@ -81,7 +81,7 @@ function getSupplierAccountStatusMeta(status: AlibabaSupplierAccount["status"]) 
   };
 }
 
-function getOauthFeedback(status?: string | null, message?: string | null) {
+function getOauthFeedback(status?: string | null) {
   if (status === "success") {
     return "Connexion AliExpress terminee. Le compte est pret si le jeton a bien ete recu.";
   }
@@ -111,6 +111,10 @@ function formatUsd(value: unknown) {
 }
 
 function getPurchaseOrderActionLabel(order: AlibabaPurchaseOrder) {
+  if (order.tradeId && order.paymentStatus === "failed") {
+    return order.payUrl ? "Reouvrir le paiement AliExpress" : "Relancer le paiement DS";
+  }
+
   if (order.payUrl) {
     return "Payer sur AliExpress";
   }
@@ -120,6 +124,10 @@ function getPurchaseOrderActionLabel(order: AlibabaPurchaseOrder) {
   }
 
   return "Créer la commande DS";
+}
+
+function getPurchaseOrderPrimaryAction(order: AlibabaPurchaseOrder): "pay" | "repay" {
+  return order.tradeId && order.paymentStatus === "failed" ? "repay" : "pay";
 }
 
 function confirmAliExpressPaymentRedirect() {
@@ -375,8 +383,8 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     refresh();
   };
 
-  const payOrder = async (order: AlibabaPurchaseOrder, action: "pay" | "refresh") => {
-    if (action === "pay" && order.payUrl) {
+  const payOrder = async (order: AlibabaPurchaseOrder, action: "pay" | "refresh" | "repay") => {
+    if (action !== "refresh" && order.payUrl) {
       if (!confirmAliExpressPaymentRedirect()) {
         return;
       }
@@ -386,7 +394,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       return;
     }
 
-    if (action === "pay" && !confirmAliExpressPaymentRedirect()) {
+    if (action !== "refresh" && !confirmAliExpressPaymentRedirect()) {
       return;
     }
 
@@ -399,18 +407,23 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     const payload = await response.json().catch(() => null);
 
     if (!response.ok) {
-      setFeedback(action === "pay" ? "Action AliExpress impossible." : "Actualisation paiement impossible.");
+      setFeedback(action === "refresh" ? "Actualisation paiement impossible." : "Action AliExpress impossible.");
       return;
     }
 
     const payUrl = typeof payload?.order?.payUrl === "string" ? payload.order.payUrl : undefined;
-    if (action === "pay") {
+    if (action !== "refresh") {
       if (payUrl) {
         window.open(payUrl, "_blank", "noopener,noreferrer");
-        setFeedback("AliExpress a ete ouvert. Termine le paiement du lot dans l'onglet ouvert.");
+        setFeedback(action === "repay"
+          ? "AliExpress a ete rouvert. Termine le repaiement fournisseur dans l'onglet ouvert."
+          : "AliExpress a ete ouvert. Termine le paiement du lot dans l'onglet ouvert.");
       } else {
-        setFeedback(order.tradeId
-          ? `Commande DS creee. Aucun lien de paiement automatique n'a ete renvoye. Connecte-toi a AliExpress puis regle manuellement la commande ${order.tradeId} dans la liste des commandes.`
+        const tradeId = typeof payload?.order?.tradeId === "string" ? payload.order.tradeId : order.tradeId;
+        setFeedback(tradeId
+          ? action === "repay"
+            ? `Repaiement fournisseur relance. Aucun lien automatique n'a ete renvoye. Connecte-toi a AliExpress puis regle manuellement la commande ${tradeId} dans la liste des commandes.`
+            : `Commande DS creee. Aucun lien de paiement automatique n'a ete renvoye. Connecte-toi a AliExpress puis regle manuellement la commande ${tradeId} dans la liste des commandes.`
           : "Lot DS lance, mais aucun lien de paiement n'a ete renvoye. Utilise Actualiser pour relire le statut.");
       }
     } else {
@@ -695,7 +708,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                 <input value={activeImportForm.limit} onChange={(event) => setImportForm((current) => ({ ...current, limit: Number(event.target.value) }))} type="number" min={1} max={100} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
               </label>
               <label className="text-[13px] font-semibold text-[#344054]">
-                Flux d'achat
+                Flux d&apos;achat
                 <select value={activeImportForm.fulfillmentChannel} onChange={(event) => setImportForm((current) => ({ ...current, fulfillmentChannel: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]">
                   <option value="standard_us">Standard US</option>
                   <option value="crossborder">Crossborder</option>
@@ -793,7 +806,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
               <label className="text-[13px] font-semibold text-[#344054]">Resource owner<input value={accountForm.resourceOwner} onChange={(event) => setAccountForm((current) => ({ ...current, resourceOwner: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
               <label className="text-[13px] font-semibold text-[#344054]">App Key<input value={accountForm.appKey} onChange={(event) => setAccountForm((current) => ({ ...current, appKey: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
               <label className="text-[13px] font-semibold text-[#344054]">App Secret<input value={accountForm.appSecret} onChange={(event) => setAccountForm((current) => ({ ...current, appSecret: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
-              <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">URL d'autorisation<input value={accountForm.authorizeUrl} onChange={(event) => setAccountForm((current) => ({ ...current, authorizeUrl: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
+              <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">URL d&apos;autorisation<input value={accountForm.authorizeUrl} onChange={(event) => setAccountForm((current) => ({ ...current, authorizeUrl: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
               <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">URL du token<input value={accountForm.tokenUrl} onChange={(event) => setAccountForm((current) => ({ ...current, tokenUrl: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
               <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">URL de rafraîchissement<input value={accountForm.refreshUrl} onChange={(event) => setAccountForm((current) => ({ ...current, refreshUrl: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
               <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">URL racine API<input value={accountForm.apiBaseUrl} onChange={(event) => setAccountForm((current) => ({ ...current, apiBaseUrl: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
@@ -966,7 +979,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
           <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Groupes prets</div>
           <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Lots internes, lancement DS et suivi manuel</div>
           <div className="mt-5 space-y-3">
-            {initialDashboard.purchaseOrders.length === 0 ? <div className="rounded-[16px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Aucun lot d'achat AliExpress.</div> : initialDashboard.purchaseOrders.map((order) => (
+            {initialDashboard.purchaseOrders.length === 0 ? <div className="rounded-[16px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Aucun lot d&apos;achat AliExpress.</div> : initialDashboard.purchaseOrders.map((order) => (
               <div key={order.id} className="rounded-[16px] border border-[#edf1f6] p-4">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                   <div>
@@ -974,12 +987,12 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                     <div className="mt-1 text-[13px] text-[#667085]">trade_id: {order.tradeId ?? "non retourne"} · {formatCount(order.quantity)} unites · {order.supplierName}</div>
                     <div className="mt-1 text-[13px] text-[#667085]">Etat ordre: {order.orderStatus} · paiement: {order.paymentStatus}</div>
                     {order.payFailureReason ? <div className="mt-1 text-[12px] font-semibold text-[#b42318]">{order.payFailureReason}</div> : null}
-                    {order.tradeId && !order.payUrl && order.paymentStatus !== "paid" ? <div className="mt-1 text-[12px] font-semibold text-[#9a3412]">Paiement manuel possible dans AliExpress avec la commande {order.tradeId} si aucun lien automatique n'est renvoye.</div> : null}
+                    {order.tradeId && !order.payUrl && order.paymentStatus !== "paid" ? <div className="mt-1 text-[12px] font-semibold text-[#9a3412]">Paiement manuel possible dans AliExpress avec la commande {order.tradeId} si aucun lien automatique n&apos;est renvoye.</div> : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="rounded-[12px] bg-[#fff7ed] px-3 py-2 text-[13px] font-semibold text-[#c2410c]">{formatUsd(order.amountUsd)}</div>
                     {order.payUrl ? <a href={order.payUrl} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center rounded-[12px] border border-[#dbe2ea] px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">Lien paiement</a> : null}
-                    <button type="button" onClick={() => payOrder(order, "pay")} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]"><Wallet className="h-4 w-4" />{getPurchaseOrderActionLabel(order)}</button>
+                    <button type="button" onClick={() => payOrder(order, getPurchaseOrderPrimaryAction(order))} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]"><Wallet className="h-4 w-4" />{getPurchaseOrderActionLabel(order)}</button>
                     <button type="button" onClick={() => payOrder(order, "refresh")} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#dbe2ea] px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]"><RefreshCcw className="h-4 w-4" />Actualiser</button>
                   </div>
                 </div>

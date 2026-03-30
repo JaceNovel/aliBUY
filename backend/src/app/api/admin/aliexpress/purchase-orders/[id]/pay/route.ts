@@ -1,5 +1,5 @@
 import { buildApiUrl } from "@/lib/api";
-import { payAlibabaPurchaseOrder, refreshAlibabaPaymentStatus } from "@/lib/alibaba-operations-service";
+import { payAlibabaPurchaseOrder, refreshAlibabaPaymentStatus, repayAlibabaPurchaseOrder } from "@/lib/alibaba-operations-service";
 
 export async function POST(
   request: Request,
@@ -31,10 +31,16 @@ export async function POST(
     // Fall back to the local store when the upstream backend is unreachable.
   }
 
-  const action = body?.action === "refresh" ? "refresh" : "pay";
+  const action = body?.action === "refresh"
+    ? "refresh"
+    : body?.action === "repay"
+      ? "repay"
+      : "pay";
   const order = action === "refresh"
     ? await refreshAlibabaPaymentStatus(id)
-    : await payAlibabaPurchaseOrder(id);
+    : action === "repay"
+      ? await repayAlibabaPurchaseOrder(id)
+      : await payAlibabaPurchaseOrder(id);
 
   return Response.json({ order });
 }

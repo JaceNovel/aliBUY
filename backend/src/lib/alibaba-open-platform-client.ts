@@ -151,6 +151,12 @@ export type AlibabaFreightOption = {
   feeCurrency?: string;
 };
 
+export type AliExpressDsAddressOption = {
+  countryCode?: string;
+  type?: string;
+  childrenJson?: string;
+};
+
 export type AlibabaMergePayGroup = {
   groupCode?: string;
   canMergePay: boolean;
@@ -3817,6 +3823,50 @@ export async function queryAliExpressDsFreight(input: {
   }, {
     credentials: await resolveAlibabaCredentialsForLiveCall(),
     method: "POST",
+  });
+}
+
+export async function queryAliExpressDsAddress(input: {
+  countryCode: string;
+  language?: string;
+  isMultiLanguage?: boolean;
+}) {
+  if (!String(input.countryCode).trim()) {
+    throw new Error("countryCode est obligatoire pour interroger l'adresse DS AliExpress.");
+  }
+
+  return callAliExpressTopEndpoint("aliexpress.ds.address.get", {
+    countryCode: String(input.countryCode).trim().toUpperCase(),
+    ...(String(input.language ?? "").trim() ? { language: String(input.language).trim() } : {}),
+    ...(typeof input.isMultiLanguage === "boolean" ? { isMultiLanguage: String(input.isMultiLanguage) } : {}),
+  }, {
+    credentials: await resolveAlibabaCredentialsForLiveCall(),
+    method: "POST",
+  });
+}
+
+export function normalizeAliExpressDsAddressOptions(responseBody: unknown): AliExpressDsAddressOption[] {
+  const sellerPayload = getAliExpressSellerPayload(responseBody);
+  const data = sellerPayload && typeof sellerPayload === "object" && sellerPayload !== null
+    ? (sellerPayload as Record<string, unknown>).data
+    : undefined;
+
+  const entries = Array.isArray(data)
+    ? data
+    : data && typeof data === "object" && !Array.isArray(data)
+      ? [data]
+      : [];
+
+  return entries.flatMap((entry) => {
+    if (!isRecord(entry)) {
+      return [] as AliExpressDsAddressOption[];
+    }
+
+    return [{
+      countryCode: getStringValue(entry.country),
+      type: getStringValue(entry.type),
+      childrenJson: getStringValue(entry.children),
+    } satisfies AliExpressDsAddressOption];
   });
 }
 
