@@ -241,7 +241,7 @@ export async function getAlibabaOperationsDashboardData(panel?: string) {
   ] = await Promise.all([
     getAlibabaCatalogMappings(),
     getAlibabaImportJobs(),
-    getAlibabaImportedProducts(),
+    getAlibabaImportedProducts({ fresh: true }),
     getAlibabaPurchaseOrders(),
     getAlibabaSupplierAccounts(),
     getAlibabaCountryProfiles(),

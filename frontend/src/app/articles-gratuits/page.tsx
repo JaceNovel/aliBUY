@@ -142,8 +142,8 @@ export default async function FreeDealPage() {
           status: access.status,
           referralVisitCount: access.referralVisitCount,
           referralGoal: access.referralGoal,
-          shareUrl: access.sharePath ? buildFreeDealShareUrl(origin, access.referralCode ?? "") : undefined,
-          referralCode: access.referralCode,
+          shareUrl: access.sharePath && access.claim?.referralCode ? buildFreeDealShareUrl(origin, access.claim.referralCode) : undefined,
+          referralCode: access.claim?.referralCode,
         }}
         initialCustomer={initialCustomer}
         products={products.map((product) => ({
