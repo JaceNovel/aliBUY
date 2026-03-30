@@ -9,18 +9,7 @@ function inferServerFallbackApiUrl() {
     return API_URL;
   }
 
-  try {
-    const siteUrl = new URL(normalizedSiteUrl);
-    const hostname = siteUrl.hostname.toLowerCase();
-
-    if (hostname === "afripay.space" || hostname === "www.afripay.space") {
-      return `${siteUrl.protocol}//api.afripay.space`;
-    }
-
-    return normalizedSiteUrl;
-  } catch {
-    return normalizedSiteUrl;
-  }
+  return normalizedSiteUrl;
 }
 
 const SERVER_FALLBACK_API_URL = inferServerFallbackApiUrl();
@@ -189,16 +178,7 @@ function getApiBaseUrl() {
       return API_URL;
     }
 
-    const hostname = window.location.hostname.toLowerCase();
-    if (hostname === "api.afripay.space") {
-      return window.location.origin;
-    }
-
-    if (hostname === "afripay.space" || hostname === "www.afripay.space") {
-      return `${window.location.protocol}//api.afripay.space`;
-    }
-
-    return API_URL;
+    return window.location.origin;
   }
 
   return SERVER_FALLBACK_API_URL;

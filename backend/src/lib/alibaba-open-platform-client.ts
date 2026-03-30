@@ -14,7 +14,7 @@ import { resolveAlibabaMoq } from "@/lib/product-moq";
 import { resolveProductPriceSummaryUsd } from "@/lib/product-variant-pricing";
 import { resolveCoherentItemWeightGrams, sanitizeItemWeightGrams } from "@/lib/product-weight";
 import { getSourcingOrderMeta, type SourcingOrder, type AlibabaCatalogMapping } from "@/lib/alibaba-sourcing";
-import type { ProductCatalogItem } from "@/lib/products-data";
+import type { ProductCatalogItem, ProductVariantSku } from "@/lib/products-data";
 import { getAlibabaSupplierAccounts, saveAlibabaSupplierAccount } from "@/lib/alibaba-operations-store";
 import { createAlibabaIntegrationLog } from "@/lib/sourcing-store";
 
@@ -3180,6 +3180,25 @@ function mapAliExpressProductDetailToProduct(
     priceUsd: applyAliExpressMargin(getNumberValue(sku.offer_sale_price, sku.sku_price) ?? minRawPrice),
     note: getStringValue(sku.sku_attr) ?? `SKU ${index + 1}`,
   }));
+  const variantSkus = skuInfo.flatMap((sku) => {
+    const skuId = getStringValue(sku.sku_id) ?? getStringValue(sku.id);
+    if (!skuId) {
+      return [] as ProductVariantSku[];
+    }
+
+    const propertyDtos = Array.isArray(sku.ae_sku_property_dtos) ? sku.ae_sku_property_dtos as Array<Record<string, unknown>> : [];
+
+    return [{
+      skuId,
+      skuCode: getStringValue(sku.sku_code),
+      inventory: getNumberValue(sku.sku_available_stock) ?? undefined,
+      image: getStringValue(sku.sku_image) ?? getStringValue(sku.image_url),
+      selections: Object.fromEntries(propertyDtos.map((property, index) => [
+        getStringValue(property.sku_property_name) ?? `Option ${index + 1}`,
+        getStringValue(property.property_value_definition_name) ?? getStringValue(property.sku_property_value) ?? "Valeur",
+      ])),
+    } satisfies ProductVariantSku];
+  });
 
   return {
     sourceProductId,
@@ -3214,6 +3233,7 @@ function mapAliExpressProductDetailToProduct(
       `Livraison estimée ${getStringValue(logisticsInfo.delivery_time) ?? "variable"} jour(s)`,
     ],
     variantGroups,
+    variantSkus,
     tiers: tiers.length > 0 ? tiers : [{ quantityLabel: `${moq}+`, priceUsd: minUsd }],
     specs,
     inventory: stock > 0 ? stock : 50,

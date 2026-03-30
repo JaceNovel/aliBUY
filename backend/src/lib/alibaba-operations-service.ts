@@ -216,7 +216,7 @@ function extractSkuAttrFromAlibabaRawPayload(rawPayload: unknown, skuId: string)
       }
 
       for (const skuEntry of skuGroup) {
-        const candidateSkuId = getStringRecordValue(skuEntry, "sku_id", "skuId");
+        const candidateSkuId = getStringRecordValue(skuEntry, "sku_id", "skuId", "id");
         if (candidateSkuId !== skuId) {
           continue;
         }
