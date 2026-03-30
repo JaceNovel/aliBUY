@@ -678,7 +678,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
             <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a00]">Code promo</div>
             <div className="mt-3 flex flex-col gap-3 sm:flex-row">
               <input value={promoCodeInput} onChange={(event) => setPromoCodeInput(event.target.value.toUpperCase())} placeholder="Ex: WELCOME10" className="h-11 flex-1 rounded-[14px] border border-[#d7dce5] bg-white px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
-              <button type="button" onClick={applyPromoCode} disabled={isApplyingPromo || !selectedOption} className="inline-flex h-11 items-center justify-center rounded-full bg-[#143743] px-5 text-[13px] font-semibold text-white transition hover:bg-[#102d36] disabled:cursor-not-allowed disabled:opacity-70">
+              <button type="button" onClick={() => void applyPromoCode()} disabled={isApplyingPromo || !selectedOption} className="inline-flex h-11 items-center justify-center rounded-full bg-[#143743] px-5 text-[13px] font-semibold text-white transition hover:bg-[#102d36] disabled:cursor-not-allowed disabled:opacity-70">
                 {isApplyingPromo ? "Vérification..." : "Appliquer"}
               </button>
             </div>
