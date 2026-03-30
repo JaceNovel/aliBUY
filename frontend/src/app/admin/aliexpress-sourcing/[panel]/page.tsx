@@ -2,12 +2,16 @@ import { notFound } from "next/navigation";
 
 import { AdminSourcingDashboardClient } from "@/components/admin-sourcing-dashboard-client";
 import { AdminAliExpressOperationsClient } from "@/components/admin-alibaba-operations-client";
-import { buildApiUrl } from "@/lib/api";
+import { API_URL, buildApiUrl } from "@/lib/api";
 import { ALIBABA_PANEL_SLUGS, normalizePanelSlug } from "@/lib/alibaba-operations";
 import { getAlibabaOperationsDashboardData } from "@/lib/alibaba-operations-service";
 import { getSourcingDashboardData } from "@/lib/sourcing-service";
 
 async function getAliExpressDashboardData(panel: string) {
+  if (!API_URL) {
+    return getAlibabaOperationsDashboardData(panel);
+  }
+
   try {
     const response = await fetch(buildApiUrl("/api/admin/aliexpress/dashboard", { panel }), {
       cache: "no-store",

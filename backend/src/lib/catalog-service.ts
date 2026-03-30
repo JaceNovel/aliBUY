@@ -1,10 +1,14 @@
 import { cache } from "react";
 
-import { buildApiUrl } from "@/lib/api";
+import { API_URL, buildApiUrl } from "@/lib/api";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { type ProductCatalogItem } from "@/lib/products-data";
 
 async function fetchRemoteCatalogProducts() {
+  if (!API_URL) {
+    return null;
+  }
+
   try {
     const response = await fetch(buildApiUrl("/api/catalog/products"), {
       cache: "no-store",
@@ -23,7 +27,7 @@ async function fetchRemoteCatalogProducts() {
 
 export const getCatalogProducts = cache(async function getCatalogProducts(): Promise<ProductCatalogItem[]> {
   const remoteProducts = await fetchRemoteCatalogProducts();
-  if (remoteProducts) {
+  if (remoteProducts && remoteProducts.length > 0) {
     return remoteProducts;
   }
 

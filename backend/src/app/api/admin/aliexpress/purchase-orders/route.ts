@@ -1,9 +1,13 @@
-import { buildApiUrl } from "@/lib/api";
+import { API_URL, buildApiUrl } from "@/lib/api";
 import { getAlibabaPurchaseOrders } from "@/lib/alibaba-operations-store";
 import { createAlibabaPurchaseOrder } from "@/lib/alibaba-operations-service";
 
 export async function GET(request: Request) {
   try {
+    if (!API_URL) {
+      throw new Error("Local admin AliExpress execution.");
+    }
+
     const upstreamUrl = buildApiUrl("/api/admin/aliexpress/purchase-orders");
     const currentUrl = new URL(request.url);
     const upstreamHost = new URL(upstreamUrl).host;
@@ -32,6 +36,10 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     try {
+      if (!API_URL) {
+        throw new Error("Local admin AliExpress execution.");
+      }
+
       const upstreamUrl = buildApiUrl("/api/admin/aliexpress/purchase-orders");
       const currentUrl = new URL(request.url);
       const upstreamHost = new URL(upstreamUrl).host;

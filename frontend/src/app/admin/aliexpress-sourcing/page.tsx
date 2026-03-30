@@ -1,8 +1,12 @@
 import { AdminAliExpressOperationsClient } from "@/components/admin-alibaba-operations-client";
-import { buildApiUrl } from "@/lib/api";
+import { API_URL, buildApiUrl } from "@/lib/api";
 import { getAlibabaOperationsDashboardData } from "@/lib/alibaba-operations-service";
 
 async function getAliExpressDashboardData(panel: string) {
+  if (!API_URL) {
+    return getAlibabaOperationsDashboardData(panel);
+  }
+
   try {
     const response = await fetch(buildApiUrl("/api/admin/aliexpress/dashboard", { panel }), {
       cache: "no-store",

@@ -1,4 +1,4 @@
-import { buildApiUrl } from "@/lib/api";
+import { API_URL, buildApiUrl } from "@/lib/api";
 import { payAlibabaPurchaseOrder, refreshAlibabaPaymentStatus, repayAlibabaPurchaseOrder } from "@/lib/alibaba-operations-service";
 
 export async function POST(
@@ -9,6 +9,10 @@ export async function POST(
   const { id } = await params;
 
   try {
+    if (!API_URL) {
+      throw new Error("Local admin AliExpress execution.");
+    }
+
     const upstreamUrl = buildApiUrl(`/api/admin/aliexpress/purchase-orders/${id}/pay`);
     const currentUrl = new URL(request.url);
     const upstreamHost = new URL(upstreamUrl).host;
