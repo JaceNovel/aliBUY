@@ -1,4 +1,5 @@
 import { buildAlibabaAuthorizationUrl } from "@/lib/alibaba-open-platform-client";
+import { API_URL } from "@/lib/api";
 import { getAlibabaSupplierAccounts } from "@/lib/alibaba-operations-store";
 import { saveAlibabaSupplierAccountInput } from "@/lib/alibaba-operations-service";
 import { env } from "@/lib/env";
@@ -86,11 +87,19 @@ export async function POST(request: Request) {
     const corsHeaders = buildCorsHeaders(request);
     const body = await readPayload(request);
     const url = new URL(request.url);
-    const origin = body?.origin ? String(body.origin) : url.origin;
+    let backendOrigin: string | null = null;
+    if (API_URL) {
+      try {
+        backendOrigin = new URL(API_URL).origin;
+      } catch {
+        backendOrigin = null;
+      }
+    }
+    const origin = backendOrigin || (body?.origin ? String(body.origin) : url.origin);
     const configuredRedirectUri = process.env.ALIEXPRESS_SELLER_CALLBACK_URL?.trim();
     const redirectUriUsed = configuredRedirectUri && configuredRedirectUri.length > 0
       ? configuredRedirectUri
-      : `${origin}/api/admin/aliexpress/oauth/callback`;
+      : `${origin}/api/admin/aliexpress/supplier-accounts/oauth/callback`;
     const existing = body?.id ? (await getAlibabaSupplierAccounts()).find((account) => account.id === String(body.id)) : undefined;
     const account = await saveAlibabaSupplierAccountInput({
       id: body?.id ? String(body.id) : undefined,

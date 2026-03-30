@@ -5,6 +5,14 @@ import { SITE_URL } from "@/lib/site-config";
 import { getSourcingOrderById } from "@/lib/sourcing-store";
 import { getCurrentUser } from "@/lib/user-auth";
 
+async function resolveAuthenticatedUser() {
+  try {
+    return { user: await getCurrentUser(), hasAuthError: false };
+  } catch {
+    return { user: null, hasAuthError: true };
+  }
+}
+
 function splitCustomerName(fullName: string) {
   const trimmed = fullName.trim();
   if (!trimmed) {
@@ -94,7 +102,12 @@ export async function POST(request: Request) {
     return proxied;
   }
 
-  const user = await getCurrentUser();
+  const authState = await resolveAuthenticatedUser();
+  if (authState.hasAuthError) {
+    return Response.json({ message: "Impossible de valider la session utilisateur." }, { status: 503 });
+  }
+
+  const user = authState.user;
   if (!user) {
     return Response.json({ message: "Connexion requise." }, { status: 401 });
   }

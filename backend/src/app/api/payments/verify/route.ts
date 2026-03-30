@@ -5,6 +5,14 @@ import { syncSourcingOrderForDeferredSupplierPayment } from "@/lib/sourcing-batc
 import { getSourcingOrderById } from "@/lib/sourcing-store";
 import { getCurrentUser } from "@/lib/user-auth";
 
+async function resolveAuthenticatedUser() {
+  try {
+    return { user: await getCurrentUser(), hasAuthError: false };
+  } catch {
+    return { user: null, hasAuthError: true };
+  }
+}
+
 function buildProxyHeaders(request: Request) {
   const headers: Record<string, string> = {
     "content-type": "application/json",
@@ -73,7 +81,12 @@ export async function POST(request: Request) {
     return proxied;
   }
 
-  const user = await getCurrentUser();
+  const authState = await resolveAuthenticatedUser();
+  if (authState.hasAuthError) {
+    return Response.json({ message: "Impossible de valider la session utilisateur." }, { status: 503 });
+  }
+
+  const user = authState.user;
   if (!user) {
     return Response.json({ message: "Connexion requise." }, { status: 401 });
   }
