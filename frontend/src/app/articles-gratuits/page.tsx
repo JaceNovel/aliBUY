@@ -107,6 +107,7 @@ export default async function FreeDealPage() {
   const fixedPriceLabel = pricing.formatPrice(convertCurrencyAmountToUsd(resolvedConfig.fixedPriceEur, CURRENCY_CONFIG.EUR.rateFromUsd));
   const compareAtLabel = pricing.formatPrice(convertCurrencyAmountToUsd(compareAtBase, CURRENCY_CONFIG.EUR.rateFromUsd));
   const shippingFromLabel = pricing.formatPrice(convertCurrencyAmountToUsd(15000, CURRENCY_CONFIG.XOF.rateFromUsd));
+  const referralCode = "claim" in access ? access.claim?.referralCode : access.referralCode;
   const initialCustomer = {
     customerName: defaultAddress?.recipientName ?? user?.displayName ?? "",
     customerEmail: defaultAddress?.email ?? user?.email ?? "",
@@ -142,8 +143,8 @@ export default async function FreeDealPage() {
           status: access.status,
           referralVisitCount: access.referralVisitCount,
           referralGoal: access.referralGoal,
-          shareUrl: access.sharePath && access.claim?.referralCode ? buildFreeDealShareUrl(origin, access.claim.referralCode) : undefined,
-          referralCode: access.claim?.referralCode,
+          shareUrl: access.sharePath && referralCode ? buildFreeDealShareUrl(origin, referralCode) : undefined,
+          referralCode,
         }}
         initialCustomer={initialCustomer}
         products={products.map((product) => ({
