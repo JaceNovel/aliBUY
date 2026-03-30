@@ -515,6 +515,46 @@ export async function getSourcingOrderById(orderId: string) {
   return orders.find((entry) => entry.id === orderId) ?? null;
 }
 
+export async function getSourcingOrderByReference(reference: string) {
+  const normalizedReference = reference.trim();
+  if (!normalizedReference) {
+    return null;
+  }
+
+  const byId = await getSourcingOrderById(normalizedReference);
+  if (byId) {
+    return byId;
+  }
+
+  if (canUseDatabase("sourcingOrder")) {
+    try {
+      const orderModel = getSourcingModelDelegate("sourcingOrder");
+      const record = orderModel
+        ? await orderModel.findFirst({
+            where: {
+              OR: [
+                { orderNumber: normalizedReference },
+                { monerooPaymentId: normalizedReference },
+              ],
+            },
+            include: { items: true },
+          }) as Record<string, unknown> | null
+        : null;
+
+      return record ? normalizeOrder(record) : null;
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
+  }
+
+  const orders = await getSourcingOrders();
+  return orders.find((entry) => entry.orderNumber === normalizedReference || entry.monerooPaymentId === normalizedReference) ?? null;
+}
+
 export async function getSourcingOrderByMonerooPaymentId(paymentId: string) {
   if (!paymentId) {
     return null;

@@ -2,7 +2,7 @@ import { API_URL, buildApiUrl } from "@/lib/api";
 import { initializeMonerooPayment } from "@/lib/moneroo";
 import { persistMonerooPaymentToOrder } from "@/lib/moneroo-sourcing";
 import { SITE_URL } from "@/lib/site-config";
-import { getSourcingOrderById } from "@/lib/sourcing-store";
+import { getSourcingOrderByReference } from "@/lib/sourcing-store";
 import { getCurrentUser } from "@/lib/user-auth";
 
 async function resolveAuthenticatedUser() {
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
   try {
     const body = rawBody ? JSON.parse(rawBody) : {};
     const orderId = typeof body?.orderId === "string" ? body.orderId : "";
-    const order = await getSourcingOrderById(orderId);
+    const order = await getSourcingOrderByReference(orderId);
 
     if (!order) {
       return Response.json({ message: "Commande sourcing introuvable." }, { status: 404 });

@@ -1,6 +1,19 @@
 import { buildApiUrl } from "@/lib/api";
 import { deleteImportedProduct } from "@/lib/alibaba-operations-service";
 
+function buildProxyHeaders(request: Request) {
+  const headers = new Headers();
+
+  for (const headerName of ["cookie", "authorization", "user-agent", "x-forwarded-for", "x-real-ip", "x-forwarded-proto", "x-forwarded-host"]) {
+    const value = request.headers.get(headerName);
+    if (value) {
+      headers.set(headerName, value);
+    }
+  }
+
+  return headers;
+}
+
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
@@ -14,14 +27,29 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
       if (upstreamHost && upstreamHost !== currentUrl.host) {
         const upstreamResponse = await fetch(upstreamUrl, {
           method: "DELETE",
-          headers: request.headers.get("cookie")
-            ? { cookie: request.headers.get("cookie") ?? "" }
-            : undefined,
+          headers: buildProxyHeaders(request),
           cache: "no-store",
         });
 
-        const payload = await upstreamResponse.json().catch(() => null);
-        return Response.json(payload, { status: upstreamResponse.status });
+        if (upstreamResponse.status === 403 || upstreamResponse.status === 404 || upstreamResponse.status >= 500) {
+          console.warn("[admin/aliexpress/import/:id] upstream unavailable, fallback to local handler", {
+            upstreamUrl,
+            status: upstreamResponse.status,
+          });
+          throw new Error("fallback-to-local");
+        }
+
+        const rawPayload = await upstreamResponse.text();
+        if (!rawPayload.trim()) {
+          return Response.json({ ok: upstreamResponse.ok }, { status: upstreamResponse.status });
+        }
+
+        try {
+          const payload = JSON.parse(rawPayload) as unknown;
+          return Response.json(payload, { status: upstreamResponse.status });
+        } catch {
+          return Response.json({ message: rawPayload }, { status: upstreamResponse.status });
+        }
       }
     } catch {
       // Fall back to the local store when the upstream backend is unreachable.

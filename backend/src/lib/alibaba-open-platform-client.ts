@@ -2854,28 +2854,42 @@ function mapAliExpressSearchItemFallbackToProduct(
     return null;
   }
 
-  const priceBounds = getPriceBounds(
+  // Only use target-currency (USD) price fields here.
+  // Fields like originMinPrice / origin_min_price are in the seller's local currency (CNY)
+  // and would severely inflate the price if included. min_price / max_price are also ambiguous.
+  const targetPriceBounds = getPriceBounds(
     searchItem.targetSalePrice,
-    searchItem.salePrice,
-    searchItem.targetOriginalPrice,
-    searchItem.originalPrice,
-    searchItem.discountPrice,
-    searchItem.appSalePrice,
     searchItem.target_sale_price,
+    searchItem.salePrice,
     searchItem.sale_price,
-    searchItem.target_original_price,
-    searchItem.original_price,
+    searchItem.discountPrice,
     searchItem.discount_price,
+    searchItem.appSalePrice,
     searchItem.app_sale_price,
-    searchItem.min_price,
-    searchItem.max_price,
-    searchItem.originMinPrice,
-    searchItem.origin_min_price,
   );
-  const minRawPrice = priceBounds.min;
-  if (!minRawPrice) {
+  // Use targetOriginalPrice only as an upper-bound fallback when the sale price is missing,
+  // never as a source of the minimum price.
+  const minRawPrice = targetPriceBounds.min
+    ?? getPriceBounds(
+        searchItem.targetOriginalPrice,
+        searchItem.target_original_price,
+        searchItem.originalPrice,
+        searchItem.original_price,
+      ).min;
+  if (!minRawPrice || minRawPrice > 999) {
     return null;
   }
+
+  // For max, only include original-price fields when they are reasonably close to the sale price
+  // (i.e. ≤ 10× the min). This guards against stray large values from unrelated fields.
+  const rawMax = targetPriceBounds.max
+    ?? getPriceBounds(
+        searchItem.targetOriginalPrice,
+        searchItem.target_original_price,
+        searchItem.originalPrice,
+        searchItem.original_price,
+      ).max;
+  const sanitizedMax = typeof rawMax === "number" && rawMax <= minRawPrice * 10 ? rawMax : undefined;
 
   const title = getStringValue(searchItem.title)
     ?? getStringValue(searchItem.product_title)
@@ -2883,7 +2897,7 @@ function mapAliExpressSearchItemFallbackToProduct(
     ?? getStringValue(searchItem.subject)
     ?? query;
   const minUsd = applyAliExpressMargin(minRawPrice);
-  const maxUsd = typeof priceBounds.max === "number" ? applyAliExpressMargin(priceBounds.max) : undefined;
+  const maxUsd = typeof sanitizedMax === "number" ? applyAliExpressMargin(sanitizedMax) : undefined;
   const soldCount = getStringValue(searchItem.orders)
     ?? getStringValue(searchItem.latest_volume)
     ?? getStringValue(searchItem.tradeDesc)
@@ -3092,6 +3106,86 @@ function buildAliExpressQueryCandidates(query: string) {
   ]).filter((entry) => entry.length > 0);
 }
 
+const ALIEXPRESS_RELEVANCE_STOPWORDS = new Set([
+  "de",
+  "du",
+  "des",
+  "la",
+  "le",
+  "les",
+  "pour",
+  "avec",
+  "sur",
+  "and",
+  "the",
+  "for",
+  "with",
+  "from",
+  "of",
+]);
+
+const ALIEXPRESS_GAMING_TERMS = ["gaming", "game", "gamer", "jeu", "esport"];
+
+function normalizeAliExpressRelevanceText(value: string) {
+  return normalizeAliExpressHardwareTerms(normalizeAliExpressSearchTerm(value))
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenizeAliExpressRelevanceText(value: string) {
+  const normalized = normalizeAliExpressRelevanceText(value);
+  if (!normalized) {
+    return [] as string[];
+  }
+
+  const baseTokens = normalized.split(" ").filter(Boolean);
+  const translatedTokens = baseTokens.map((token) => ALIEXPRESS_SEARCH_TOKEN_TRANSLATIONS[token] ?? token);
+  return uniqueStrings([...baseTokens, ...translatedTokens]);
+}
+
+function scoreAliExpressSearchProductRelevance(product: AlibabaSearchProduct, query: string) {
+  const queryTokens = tokenizeAliExpressRelevanceText(query)
+    .filter((token) => token.length >= 3 && !ALIEXPRESS_RELEVANCE_STOPWORDS.has(token) && !/^\d+$/.test(token));
+  const normalizedQuery = normalizeAliExpressRelevanceText(query);
+  const productText = normalizeAliExpressRelevanceText([
+    product.title,
+    product.shortTitle,
+    ...(Array.isArray(product.keywords) ? product.keywords : []),
+    ...(Array.isArray(product.overview) ? product.overview : []),
+  ].join(" "));
+  const titleText = normalizeAliExpressRelevanceText([product.title, product.shortTitle].join(" "));
+  const productTokenSet = new Set(tokenizeAliExpressRelevanceText(productText));
+  const titleTokenSet = new Set(tokenizeAliExpressRelevanceText(titleText));
+
+  const matchCount = queryTokens.reduce((count, token) => (productTokenSet.has(token) ? count + 1 : count), 0);
+  const titleMatchCount = queryTokens.reduce((count, token) => (titleTokenSet.has(token) ? count + 1 : count), 0);
+  const phraseMatch = normalizedQuery.length >= 6 && productText.includes(normalizedQuery);
+  const hasGamingIntent = ALIEXPRESS_GAMING_TERMS.some((term) => normalizedQuery.includes(term));
+  const hasGamingToken = ALIEXPRESS_GAMING_TERMS.some((term) => productTokenSet.has(term));
+
+  let strictMatch = false;
+  if (queryTokens.length <= 1) {
+    strictMatch = matchCount >= 1 || phraseMatch;
+  } else {
+    strictMatch = matchCount >= 2 || phraseMatch;
+  }
+
+  if (hasGamingIntent && !hasGamingToken) {
+    strictMatch = false;
+  }
+
+  const score = (matchCount * 4)
+    + (titleMatchCount * 2)
+    + (phraseMatch ? 8 : 0)
+    + (hasGamingIntent && hasGamingToken ? 4 : 0);
+
+  return {
+    score,
+    strictMatch,
+  };
+}
+
 function mapAliExpressProductDetailToProduct(
   searchItem: Record<string, unknown>,
   detailResponseBody: unknown,
@@ -3125,13 +3219,17 @@ function mapAliExpressProductDetailToProduct(
     return null;
   }
 
+  // offer_sale_price is the dropshipper price in target currency (USD).
+  // sku_price is in the seller's local currency (CNY) and must NOT be used as a price source.
   const skuPrices = skuInfo
-    .map((sku) => getNumberValue(sku.offer_sale_price, sku.sku_price))
-    .filter((value): value is number => typeof value === "number" && value > 0);
+    .map((sku) => getNumberValue(sku.offer_sale_price))
+    .filter((value): value is number => typeof value === "number" && value > 0 && value < 1000);
+  // If the detail response does not contain offer_sale_price for any SKU, fall back to the
+  // target-currency fields from the search item (which are in USD, already validated).
   const minRawPrice = skuPrices.length > 0
     ? Math.min(...skuPrices)
-    : getNumberValue(searchItem.targetSalePrice, searchItem.salePrice, searchItem.targetOriginalPrice, searchItem.originalPrice);
-  if (!minRawPrice) {
+    : getNumberValue(searchItem.targetSalePrice, searchItem.target_sale_price, searchItem.salePrice, searchItem.sale_price);
+  if (!minRawPrice || minRawPrice > 999) {
     return null;
   }
 
@@ -3174,12 +3272,21 @@ function mapAliExpressProductDetailToProduct(
     value: getStringValue(property.attr_value) ?? getStringValue(property.attr_value_start) ?? "-",
   }));
   const minUsd = applyAliExpressMargin(minRawPrice);
-  const maxUsd = typeof maxRawPrice === "number" ? applyAliExpressMargin(maxRawPrice) : undefined;
-  const tiers = skuInfo.slice(0, 6).map((sku, index) => ({
-    quantityLabel: `${Math.max(1, Math.round(getNumberValue(sku.sku_bulk_order) ?? moq))}+`,
-    priceUsd: applyAliExpressMargin(getNumberValue(sku.offer_sale_price, sku.sku_price) ?? minRawPrice),
-    note: getStringValue(sku.sku_attr) ?? `SKU ${index + 1}`,
-  }));
+  const maxUsd = typeof maxRawPrice === "number" && maxRawPrice <= minRawPrice * 10 ? applyAliExpressMargin(maxRawPrice) : undefined;
+  // Use only offer_sale_price for tier prices (target currency = USD).
+  // sku_price is in the seller's local currency (CNY) and would inflate prices.
+  const tiers = skuInfo.slice(0, 6).flatMap((sku, index) => {
+    const rawTierPrice = getNumberValue(sku.offer_sale_price);
+    if (!rawTierPrice || rawTierPrice > 999) {
+      return [] as Array<{ quantityLabel: string; priceUsd: number; note?: string }>;
+    }
+
+    return [{
+      quantityLabel: `${Math.max(1, Math.round(getNumberValue(sku.sku_bulk_order) ?? moq))}+`,
+      priceUsd: applyAliExpressMargin(rawTierPrice),
+      note: getStringValue(sku.sku_attr) ?? `SKU ${index + 1}`,
+    }];
+  });
   const variantSkus = skuInfo.flatMap((sku) => {
     const skuId = getStringValue(sku.sku_id) ?? getStringValue(sku.id);
     if (!skuId) {
@@ -3269,12 +3376,26 @@ async function searchAliExpressProducts(input: {
   const desiredCount = Math.min(Math.max(input.limit, 1), 40);
   const pageSize = Math.min(20, desiredCount);
   const maxPages = Math.max(1, Math.ceil(desiredCount / pageSize));
-  const foundProducts: AlibabaSearchProduct[] = [];
-  const seenProductIds = new Set<string>();
+  const maxCollectedCandidates = Math.max(desiredCount * 4, 40);
+  const collectedByProductId = new Map<string, {
+    product: AlibabaSearchProduct;
+    score: number;
+    strictMatch: boolean;
+  }>();
   const queryCandidates = buildAliExpressQueryCandidates(input.query);
   const directProductId = extractAliExpressProductId(input.query);
   let lastResponse: unknown = null;
   let lastSearchError: AlibabaProductSearchResult | null = null;
+  const getStrictMatchCount = () => {
+    let count = 0;
+    for (const candidate of collectedByProductId.values()) {
+      if (candidate.strictMatch) {
+        count += 1;
+      }
+    }
+
+    return count;
+  };
 
   if (directProductId) {
     for (const context of searchContexts) {
@@ -3316,7 +3437,7 @@ async function searchAliExpressProducts(input: {
 
   for (const queryCandidate of queryCandidates) {
     for (const context of searchContexts) {
-      for (let pageIndex = 1; pageIndex <= maxPages && foundProducts.length < desiredCount; pageIndex += 1) {
+      for (let pageIndex = 1; pageIndex <= maxPages && collectedByProductId.size < maxCollectedCandidates; pageIndex += 1) {
         const searchResult = await callAliExpressTopEndpoint("aliexpress.ds.text.search", {
           keyWord: queryCandidate,
           local: context.local,
@@ -3331,7 +3452,7 @@ async function searchAliExpressProducts(input: {
         });
         lastResponse = searchResult.responseBody;
         if (!searchResult.ok) {
-          if (foundProducts.length > 0) {
+          if (collectedByProductId.size > 0) {
             break;
           }
 
@@ -3357,7 +3478,7 @@ async function searchAliExpressProducts(input: {
             ?? getStringValue(searchItem.item_id)
             ?? getStringValue(searchItem.product_id)
             ?? getStringValue(searchItem.productId);
-          if (!productId || seenProductIds.has(productId)) {
+          if (!productId) {
             continue;
           }
 
@@ -3385,23 +3506,46 @@ async function searchAliExpressProducts(input: {
             continue;
           }
 
-          seenProductIds.add(productId);
-          foundProducts.push(normalized);
-          if (foundProducts.length >= desiredCount) {
+          const relevance = scoreAliExpressSearchProductRelevance(normalized, input.query);
+          const existing = collectedByProductId.get(productId);
+
+          if (!existing || relevance.score > existing.score || (relevance.strictMatch && !existing.strictMatch)) {
+            collectedByProductId.set(productId, {
+              product: normalized,
+              score: relevance.score,
+              strictMatch: relevance.strictMatch,
+            });
+          }
+
+          if (collectedByProductId.size >= maxCollectedCandidates) {
             break;
           }
         }
+
+        if (getStrictMatchCount() >= desiredCount) {
+          break;
+        }
       }
 
-      if (foundProducts.length > 0) {
+      if (getStrictMatchCount() >= desiredCount) {
         break;
       }
     }
 
-    if (foundProducts.length > 0) {
+    if (getStrictMatchCount() >= desiredCount) {
       break;
     }
   }
+
+  const strictMatches = [...collectedByProductId.values()]
+    .filter((entry) => entry.strictMatch)
+    .sort((left, right) => right.score - left.score)
+    .map((entry) => entry.product);
+  const looseMatches = [...collectedByProductId.values()]
+    .filter((entry) => !entry.strictMatch)
+    .sort((left, right) => right.score - left.score)
+    .map((entry) => entry.product);
+  const foundProducts = [...strictMatches, ...looseMatches].slice(0, desiredCount);
 
   console.error("[aliexpress/import] no usable DS products", {
     query: input.query,
@@ -3409,6 +3553,8 @@ async function searchAliExpressProducts(input: {
     directProductId,
     searchContexts,
     lastResponse,
+    strictMatches: strictMatches.length,
+    looseMatches: looseMatches.length,
   });
 
   return {
