@@ -44,9 +44,12 @@ export type ProductCatalogItem = {
   maxUsd?: number;
   moq: number;
   moqVerified?: boolean;
+  weightVerified?: boolean;
+  priceVerified?: boolean;
   unit: string;
   badge?: string;
   supplierName: string;
+  supplierCompanyId?: string;
   supplierLocation: string;
   responseTime: string;
   yearsInBusiness: number;
@@ -62,4 +65,5 @@ export type ProductCatalogItem = {
   variantSkus?: ProductVariantSku[];
   tiers: ProductTier[];
   specs: Array<{ label: string; value: string }>;
+  rawPayload?: unknown;
 };

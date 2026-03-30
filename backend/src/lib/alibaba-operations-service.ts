@@ -137,6 +137,30 @@ function getStringRecordValue(value: unknown, ...keys: string[]) {
   return undefined;
 }
 
+function getBooleanRecordValue(value: unknown, ...keys: string[]) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  for (const key of keys) {
+    const candidate = record[key];
+    if (typeof candidate === "boolean") {
+      return candidate;
+    }
+  }
+
+  return undefined;
+}
+
+function getRecordValue(value: unknown, key: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  return (value as Record<string, unknown>)[key];
+}
+
 function extractSkuIdFromAlibabaRawPayload(rawPayload: unknown) {
   const queue: unknown[] = [rawPayload];
   const visited = new Set<object>();
@@ -628,16 +652,16 @@ function toImportedProduct(product: ProductCatalogItem, query: string, published
     tiers: product.tiers,
     specs: product.specs,
     moqVerified: product.moqVerified,
-    supplierCompanyId: "supplierCompanyId" in product ? product.supplierCompanyId : undefined,
-    weightVerified: "weightVerified" in product ? product.weightVerified : undefined,
-    priceVerified: "priceVerified" in product ? product.priceVerified : undefined,
+    supplierCompanyId: getStringRecordValue(product, "supplierCompanyId"),
+    weightVerified: getBooleanRecordValue(product, "weightVerified"),
+    priceVerified: getBooleanRecordValue(product, "priceVerified"),
     inventory: Math.max(product.moq * 5, 50),
     status: publishedToSite ? "published" : "imported",
     publishedToSite,
     createdAt: timestamp,
     updatedAt: timestamp,
     publishedAt: publishedToSite ? timestamp : undefined,
-    rawPayload: "rawPayload" in product ? product.rawPayload : { source: "fallback-catalog" },
+    rawPayload: getRecordValue(product, "rawPayload") ?? { source: "fallback-catalog" },
   };
 }
 
@@ -1039,9 +1063,9 @@ export async function reenrichImportedProduct(importedProductId: string) {
     variantSkus: effectiveSnapshot.variantSkus ?? product.variantSkus,
     tiers: nextTiers,
     specs: nextSpecs,
-    moqVerified: "moqVerified" in effectiveSnapshot ? effectiveSnapshot.moqVerified : product.moqVerified,
-    weightVerified: "weightVerified" in effectiveSnapshot ? effectiveSnapshot.weightVerified : product.weightVerified,
-    priceVerified: "priceVerified" in effectiveSnapshot ? effectiveSnapshot.priceVerified : product.priceVerified,
+    moqVerified: getBooleanRecordValue(effectiveSnapshot, "moqVerified") ?? product.moqVerified,
+    weightVerified: getBooleanRecordValue(effectiveSnapshot, "weightVerified") ?? product.weightVerified,
+    priceVerified: getBooleanRecordValue(effectiveSnapshot, "priceVerified") ?? product.priceVerified,
     inventory: Math.max(effectiveSnapshot.moq * 5, 50),
     updatedAt: timestamp,
     rawPayload: enrichedRawPayload,
