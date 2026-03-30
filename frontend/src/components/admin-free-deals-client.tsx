@@ -47,6 +47,15 @@ type FreeDealAdminConfig = {
   createdAt: string;
 };
 
+type FreeDealImportResponse = {
+  config?: FreeDealAdminConfig;
+  message?: string;
+  warningMessage?: string;
+  purgedCount?: number;
+  importedCount?: number;
+  targetImportCount?: number;
+};
+
 function formatSlugList(value: string[]) {
   return value.join(", ");
 }
@@ -159,11 +168,11 @@ export function AdminFreeDealsClient({
         },
         body: JSON.stringify(importForm),
       });
-      let payload: Record<string, unknown> | null = null;
+      let payload: FreeDealImportResponse | null = null;
       const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
 
       if (contentType.includes("application/json")) {
-        payload = await response.json().catch(() => null);
+        payload = await response.json().catch(() => null) as FreeDealImportResponse | null;
       } else {
         const rawPayload = await response.text().catch(() => "");
         if (rawPayload.trim()) {
@@ -179,8 +188,9 @@ export function AdminFreeDealsClient({
         return;
       }
 
-      setConfig(payload.config);
-      setProductSlugsText(formatSlugList(payload.config.productSlugs));
+      const nextConfig = payload.config;
+      setConfig(nextConfig);
+      setProductSlugsText(formatSlugList(nextConfig.productSlugs));
       setFeedback(
         payload?.warningMessage
           || (typeof payload?.purgedCount === "number" && payload.purgedCount > 0
