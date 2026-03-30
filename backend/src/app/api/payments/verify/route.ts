@@ -1,4 +1,4 @@
-import { buildApiUrl } from "@/lib/api";
+import { API_URL, buildApiUrl } from "@/lib/api";
 import { verifyMonerooPayment } from "@/lib/moneroo";
 import { persistMonerooPaymentToOrder } from "@/lib/moneroo-sourcing";
 import { syncSourcingOrderForDeferredSupplierPayment } from "@/lib/sourcing-batch-service";
@@ -21,23 +21,46 @@ function buildProxyHeaders(request: Request) {
 }
 
 async function maybeProxy(request: Request, rawBody: string) {
-  try {
-    const upstreamUrl = buildApiUrl("/api/payments/verify");
-    const currentUrl = new URL(request.url);
-    const upstreamHost = new URL(upstreamUrl).host;
+  if (!API_URL) {
+    return null;
+  }
 
-    if (upstreamHost && upstreamHost !== currentUrl.host) {
-      const upstreamResponse = await fetch(upstreamUrl, {
-        method: "POST",
-        headers: buildProxyHeaders(request),
-        body: rawBody || "{}",
-        cache: "no-store",
-      });
-      const payload = await upstreamResponse.json().catch(() => null);
+  const upstreamUrl = buildApiUrl("/api/payments/verify");
+  const currentUrl = new URL(request.url);
+  const upstreamHost = new URL(upstreamUrl).host;
+
+  if (!upstreamHost || upstreamHost === currentUrl.host) {
+    return null;
+  }
+
+  try {
+    const upstreamResponse = await fetch(upstreamUrl, {
+      method: "POST",
+      headers: buildProxyHeaders(request),
+      body: rawBody || "{}",
+      cache: "no-store",
+    });
+    const rawPayload = await upstreamResponse.text();
+    let payload: unknown = null;
+
+    if (rawPayload) {
+      try {
+        payload = JSON.parse(rawPayload) as unknown;
+      } catch {
+        payload = null;
+      }
+    }
+
+    if (payload && typeof payload === "object") {
       return Response.json(payload, { status: upstreamResponse.status });
     }
-  } catch {
-    return null;
+
+    return Response.json({
+      message: rawPayload.trim() || `Payment API request failed with status ${upstreamResponse.status}.`,
+    }, { status: upstreamResponse.status });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Payment API upstream request failed.";
+    return Response.json({ message }, { status: 502 });
   }
 
   return null;

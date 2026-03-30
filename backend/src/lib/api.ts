@@ -244,13 +244,22 @@ async function apiFetch<T>(path: string, options: ApiRequestOptions = {}): Promi
     cache: init.cache ?? "no-store",
   });
 
-  const payload = await response.json().catch(() => null);
+  const rawPayload = await response.text();
+  let payload: unknown = null;
+
+  if (rawPayload) {
+    try {
+      payload = JSON.parse(rawPayload) as unknown;
+    } catch {
+      payload = null;
+    }
+  }
   if (!response.ok) {
     const message = payload && typeof payload === "object" && "message" in payload && typeof payload.message === "string"
       ? payload.message
       : payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string"
         ? payload.error
-        : "API request failed.";
+        : rawPayload.trim() || `API request failed with status ${response.status}.`;
     throw new Error(message);
   }
 
