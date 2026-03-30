@@ -360,6 +360,7 @@ const COUNTRY_PROFILES_PATH = path.join(ROOT_DIR, "alibaba-country-profiles.json
 const COUNTRY_PROFILES_BLOB_PATHNAME = "sourcing/alibaba-country-profiles.json";
 const RECEPTION_ADDRESSES_PATH = path.join(ROOT_DIR, "alibaba-reception-addresses.json");
 const RECEPTION_ADDRESSES_BLOB_PATHNAME = "sourcing/alibaba-reception-addresses.json";
+const RECEPTION_ADDRESSES_SEED_PATH = path.join(process.cwd(), "data", "sourcing", "alibaba-reception-addresses.json");
 const PURCHASE_ORDERS_PATH = path.join(ROOT_DIR, "alibaba-purchase-orders.json");
 const PURCHASE_ORDERS_BLOB_PATHNAME = "sourcing/alibaba-purchase-orders.json";
 const RECEPTIONS_PATH = path.join(ROOT_DIR, "alibaba-receptions.json");
@@ -393,6 +394,15 @@ async function readJsonFile<T>(filePath: string, fallback: T): Promise<T> {
 async function writeJsonFile<T>(filePath: string, value: T) {
   await ensureDir();
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+async function readSeedJsonFile<T>(filePath: string, fallback: T): Promise<T> {
+  try {
+    const raw = await readFile(filePath, "utf8");
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
 }
 
 function canUseBlobStore() {
@@ -1099,8 +1109,21 @@ async function readAlibabaReceptionAddressesSource() {
       return blobAddresses;
     }
   }
+  const runtimeAddresses = await readJsonFile<AlibabaReceptionAddress[]>(RECEPTION_ADDRESSES_PATH, []);
+  if (runtimeAddresses.length > 0) {
+    return runtimeAddresses;
+  }
 
-  return readJsonFile<AlibabaReceptionAddress[]>(RECEPTION_ADDRESSES_PATH, []);
+  const seedAddresses = await readSeedJsonFile<AlibabaReceptionAddress[]>(RECEPTION_ADDRESSES_SEED_PATH, []);
+  if (seedAddresses.length > 0) {
+    if (canUseBlobStore()) {
+      await writeJsonBlob(RECEPTION_ADDRESSES_BLOB_PATHNAME, seedAddresses);
+    }
+    await writeJsonFile(RECEPTION_ADDRESSES_PATH, seedAddresses);
+    return seedAddresses;
+  }
+
+  return runtimeAddresses;
 }
 
 async function syncAlibabaReceptionAddressesJsonSnapshot(addresses: AlibabaReceptionAddress[]) {
