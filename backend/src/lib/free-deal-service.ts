@@ -15,6 +15,7 @@ import { createAlibabaSupplierOrders, verifyAlibabaSupplierFreight } from "@/lib
 import {
   getFreeDealConfig,
   getFreeDealFixedPriceFcfa,
+  getPurchasedFreeDealProductSlugs,
   getFreeDealProducts,
   isAllowedFreeDealProductSelection,
   resolveFreeDealIdentity,
@@ -83,6 +84,13 @@ export async function createFreeDealOrder(input: {
 
   const products = await getFreeDealProducts(config);
   const selectedProducts = normalizeSelectedProducts(config, input.selectedSlugs, products);
+  const purchasedSlugs = new Set(await getPurchasedFreeDealProductSlugs());
+  const alreadyPurchasedProducts = selectedProducts.filter((product) => purchasedSlugs.has(product.slug));
+
+  if (alreadyPurchasedProducts.length > 0) {
+    const names = alreadyPurchasedProducts.map((product) => product.shortTitle).slice(0, 3).join(", ");
+    throw new Error(`Certains articles sont deja achetes et indisponibles: ${names}.`);
+  }
 
   const timestamp = nowIso();
   const fixedPriceFcfa = getFreeDealFixedPriceFcfa(config);

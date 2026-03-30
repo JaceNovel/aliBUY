@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Check, Copy, Flame, Gift, LoaderCircle, MapPin, ShoppingCart, Sparkles, Trash2, Truck } from "lucide-react";
+import { Check, Copy, Gift, LoaderCircle, MapPin, ShoppingCart, Sparkles, Trash2, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
@@ -18,6 +18,7 @@ type FreeDealCard = {
   freeLabel: string;
   tagText: string;
   badgeText: string;
+  alreadyPurchased: boolean;
 };
 
 type FreeDealPageClientProps = {
@@ -88,6 +89,10 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
   const [showAddressForm, setShowAddressForm] = useState(false);
 
   const isSelectable = access.status === "eligible" || access.status === "unlocked";
+  const purchasedSlugSet = useMemo(
+    () => new Set(products.filter((product) => product.alreadyPurchased).map((product) => product.slug)),
+    [products],
+  );
   const isSelectionComplete = selectedSlugs.length === config.itemLimit;
   const remainingSelectionCount = Math.max(config.itemLimit - selectedSlugs.length, 0);
   const canSubmit = Boolean(isSelectable
@@ -128,12 +133,13 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
       const allowedSlugs = new Set(products.map((product) => product.slug));
       const nextSelection = parsed
         .filter((slug): slug is string => typeof slug === "string" && allowedSlugs.has(slug))
+        .filter((slug) => !purchasedSlugSet.has(slug))
         .slice(0, config.itemLimit);
       setSelectedSlugs(nextSelection);
     } catch {
       window.localStorage.removeItem(FREE_DEAL_CART_STORAGE_KEY);
     }
-  }, [config.itemLimit, products]);
+  }, [config.itemLimit, products, purchasedSlugSet]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -197,7 +203,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
   );
 
   const toggleSelection = (slug: string) => {
-    if (!isSelectable || isSubmitting || hasStandardCartConflict) {
+    if (!isSelectable || isSubmitting || hasStandardCartConflict || purchasedSlugSet.has(slug)) {
       return;
     }
 
@@ -338,7 +344,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
 
   return (
     <div className="space-y-6 pb-[calc(11rem+env(safe-area-inset-bottom))] md:pb-0">
-      <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen overflow-hidden bg-[#f4f5f7]">
+      <section className="relative -mx-4 overflow-hidden bg-[#f4f5f7] sm:-mx-6 lg:left-1/2 lg:right-1/2 lg:-mx-[50vw] lg:w-screen">
         <div className="relative overflow-hidden bg-[linear-gradient(90deg,#ef2026_0%,#ff1b1f_68%,#ef2026_100%)] text-white shadow-[0_24px_60px_rgba(239,32,38,0.18)]">
           <div className="pointer-events-none absolute -right-10 top-0 h-full w-[240px] bg-[linear-gradient(135deg,transparent_0%,transparent_38%,rgba(178,0,14,0.55)_38%,rgba(178,0,14,0.55)_62%,transparent_62%)]" />
           <div className="px-4 py-4 sm:px-6 lg:px-10">
@@ -359,13 +365,9 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 xl:gap-5">
-            {showcaseProducts.map((product, index) => {
+            {showcaseProducts.map((product) => {
               const isSelected = selectedSlugs.includes(product.slug);
-              const isDisabled = !isSelectable || (selectedSlugs.length >= config.itemLimit && !isSelected);
-              const discountValue = Math.min(80, 8 + ((index % 5) + 1) * 7);
-              const showDiscountRibbon = index % 2 === 0;
-              const showChoiceBadge = index % 3 === 1;
-              const showHotBadge = index % 4 === 0;
+              const isDisabled = product.alreadyPurchased || !isSelectable || (selectedSlugs.length >= config.itemLimit && !isSelected);
 
               return (
                 <article
@@ -391,20 +393,14 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
                       </div>
                       <div className="px-3 py-1 text-[9px] font-bold sm:text-[10px]">Free</div>
                     </div>
-                    {showDiscountRibbon ? (
+                    {product.tagText ? (
                       <div className="absolute bottom-2 left-0 rounded-r-full bg-[#ef2026] px-2.5 py-1 text-[9px] font-bold text-white shadow-[0_10px_20px_rgba(239,32,38,0.28)] sm:bottom-3 sm:text-[10px]">
-                        -{discountValue}%
+                        {product.tagText}
                       </div>
                     ) : null}
-                    {showChoiceBadge ? (
+                    {!product.alreadyPurchased ? (
                       <div className="absolute left-2 top-9 rounded-[6px] bg-[#ffe27a] px-1.5 py-0.5 text-[9px] font-bold text-[#3d2b00] shadow-[0_8px_18px_rgba(0,0,0,0.12)] sm:top-10 sm:text-[10px]">
                         Choice
-                      </div>
-                    ) : null}
-                    {showHotBadge ? (
-                      <div className="absolute right-14 top-9 inline-flex items-center gap-1 rounded-full bg-[#111827] px-2 py-0.5 text-[8px] font-bold text-white shadow-[0_8px_18px_rgba(0,0,0,0.16)] sm:right-16 sm:top-10 sm:text-[9px]">
-                        <Flame className="h-3 w-3 text-[#ff7a00]" />
-                        HOT
                       </div>
                     ) : null}
                     <button
@@ -426,7 +422,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
                       {product.title}
                     </div>
                     <div className="mt-1 text-[11px] font-semibold text-[#ff3b30] sm:text-[12px]">
-                      {isSelected ? "Ajouté au lot" : product.tagText}
+                      {product.alreadyPurchased ? "Deja achete" : isSelected ? "Ajoute au lot" : product.tagText}
                     </div>
                     <div className="mt-1 text-[12px] text-[#667085] sm:text-[13px]">{product.supplierName}</div>
                     <div className="mt-1 inline-flex max-w-full items-center gap-1 text-[10px] text-[#159a55] sm:text-[11px]">
@@ -502,7 +498,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
         <div className="hidden grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
         {products.map((product) => {
           const isSelected = selectedSlugs.includes(product.slug);
-          const isDisabled = !isSelectable || (selectedSlugs.length >= config.itemLimit && !isSelected);
+          const isDisabled = product.alreadyPurchased || !isSelectable || (selectedSlugs.length >= config.itemLimit && !isSelected);
 
           return (
             <article
@@ -542,7 +538,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
               <div className="space-y-2 px-3 py-3 sm:space-y-3 sm:px-4 sm:py-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-[9px] font-semibold uppercase tracking-[0.1em] text-[#15b86c] sm:text-[11px] sm:tracking-[0.14em]">Campagne acquisition</div>
-                  <div className="rounded-full bg-[#fff1f5] px-2 py-1 text-[9px] font-bold text-[#ff275f] sm:text-[10px]">{product.tagText}</div>
+                  <div className="rounded-full bg-[#fff1f5] px-2 py-1 text-[9px] font-bold text-[#ff275f] sm:text-[10px]">{product.alreadyPurchased ? "Deja achete" : product.tagText}</div>
                 </div>
                 <h2 className="line-clamp-2 min-h-[38px] text-[13px] font-black leading-5 tracking-[-0.03em] text-[#111827] sm:min-h-[48px] sm:text-[17px] sm:leading-6">
                   {product.title}
@@ -557,7 +553,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
                     Voir le produit
                   </Link>
                   <div className="text-[10px] font-semibold text-[#ff4f2a] sm:text-[12px]">
-                    {isSelected ? "Selectionne" : "Choisir"}
+                    {product.alreadyPurchased ? "Deja achete" : isSelected ? "Selectionne" : "Choisir"}
                   </div>
                 </div>
               </div>

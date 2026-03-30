@@ -162,7 +162,22 @@ export function AdminSupportClient({ serviceConversations }: { serviceConversati
   };
 
   if (!activeConversation) {
-    return null;
+    return (
+      <section className="rounded-[18px] border border-[#e7ebf1] bg-white px-6 py-10 text-center shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fff1f2] text-[#f84557]">
+          <MessageCircleMore className="h-5 w-5" />
+        </div>
+        <h2 className="mt-4 text-[20px] font-bold text-[#101828]">Aucune conversation support</h2>
+        <p className="mt-2 text-[14px] leading-6 text-[#667085]">
+          Cette page devient active dès qu&apos;un utilisateur envoie un premier message au support.
+        </p>
+        <div className="mt-5 flex justify-center">
+          <Link href="/messages?tab=service" className="inline-flex h-11 items-center justify-center rounded-full bg-[#f84557] px-5 text-[13px] font-semibold text-white transition hover:bg-[#ea3248]">
+            Ouvrir les messages
+          </Link>
+        </div>
+      </section>
+    );
   }
 
   return (

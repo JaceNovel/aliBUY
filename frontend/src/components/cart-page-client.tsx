@@ -56,6 +56,7 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
 
   const shipping = useMemo(() => quote.shippingOptions.find((option) => option.key === selectedShipping) ?? quote.shippingOptions[0], [quote.shippingOptions, selectedShipping]);
   const totalFcfa = quote.cartProductsTotalFcfa + (shipping?.priceFcfa ?? 0);
+  const freeAirThresholdLabel = formatSourcingAmount(15000, { currencyCode, locale });
 
   const triggerShareFeedback = (message: string) => {
     setSharePulse(true);
@@ -134,7 +135,7 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
           <ShoppingCart className="h-8 w-8" />
         </div>
         <h1 className="mt-5 text-[28px] font-black tracking-[-0.05em] text-[#1f2937]">Votre panier sourcing est vide</h1>
-        <p className="mt-3 text-[14px] leading-6 text-[#667085]">Ajoutez des produits pour calculer automatiquement le poids total, le volume CBM, les options avion/bateau et vos tarifs finaux en FCFA.</p>
+        <p className="mt-3 text-[14px] leading-6 text-[#667085]">Ajoutez des produits pour calculer automatiquement le poids total, le volume CBM, les options avion/bateau et vos tarifs finaux dans votre devise.</p>
         <Link href="/products" className="mt-6 inline-flex h-12 items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[15px] font-semibold text-white transition hover:bg-[#e55e00]">
           Retour au catalogue
         </Link>
@@ -165,7 +166,7 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
           <div>
             <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Sourcing AfriPay</div>
             <h1 className="mt-2 text-[30px] font-black tracking-[-0.05em] text-[#1f2937]">Panier, transport et prix finaux</h1>
-            <p className="mt-3 max-w-[760px] text-[14px] leading-6 text-[#667085]">Livraison avion offerte dès 15 000 FCFA, calcul du poids et du volume en direct, plus regroupement maritime vers un conteneur dès que le volume cumulé atteint 1 CBM.</p>
+            <p className="mt-3 max-w-[760px] text-[14px] leading-6 text-[#667085]">Livraison avion offerte dès {freeAirThresholdLabel}, calcul du poids et du volume en direct, plus regroupement maritime vers un conteneur dès que le volume cumulé atteint 1 CBM.</p>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-[18px] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">

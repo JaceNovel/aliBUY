@@ -8,7 +8,7 @@ import { buildApiUrl } from "@/lib/api";
 import { getUserDefaultAddress } from "@/lib/customer-data-store";
 import { FREE_DEAL_DEVICE_COOKIE } from "@/lib/free-deal-constants";
 import { resolveRequestIp, resolveRequestOrigin } from "@/lib/free-deal-service";
-import { buildFreeDealShareUrl, getFreeDealAccessState, getFreeDealConfig, getFreeDealProducts } from "@/lib/free-deal-store";
+import { buildFreeDealShareUrl, getFreeDealAccessState, getFreeDealConfig, getFreeDealProducts, getPurchasedFreeDealProductSlugs } from "@/lib/free-deal-store";
 import { getPricingContext } from "@/lib/pricing";
 import { CURRENCY_CONFIG } from "@/lib/pricing-options";
 import { getProductImageUrl } from "@/lib/product-image";
@@ -32,6 +32,7 @@ function convertCurrencyAmountToUsd(amount: number, currencyRateFromUsd: number)
 type FreeDealPageState = {
   config: Awaited<ReturnType<typeof getFreeDealConfig>>;
   products: ProductCatalogItem[];
+  claimedProductSlugs: string[];
   access: {
     status: "disabled" | "eligible" | "blocked" | "unlocked";
     referralVisitCount: number;
@@ -89,8 +90,8 @@ export default async function FreeDealPage() {
   const ip = resolveRequestIp(headerStore);
   const userAgent = headerStore.get("user-agent");
   const remoteState = await loadFreeDealPageState(headerStore, cookieStore);
-  const [products, access, resolvedConfig] = remoteState
-    ? [remoteState.products, remoteState.access, remoteState.config]
+  const [products, access, resolvedConfig, claimedProductSlugs] = remoteState
+    ? [remoteState.products, remoteState.access, remoteState.config, remoteState.claimedProductSlugs]
     : await Promise.all([
         getFreeDealProducts(config),
         getFreeDealAccessState({
@@ -101,7 +102,9 @@ export default async function FreeDealPage() {
           customerEmail: user?.email,
         }, config),
         Promise.resolve(config),
+        getPurchasedFreeDealProductSlugs(),
       ]);
+  const claimedSlugSet = new Set(claimedProductSlugs);
   const origin = resolveRequestOrigin(headerStore);
   const compareAtBase = Number((resolvedConfig.fixedPriceEur * resolvedConfig.compareAtMultiplier + resolvedConfig.compareAtExtraEur).toFixed(2));
   const fixedPriceLabel = pricing.formatPrice(convertCurrencyAmountToUsd(resolvedConfig.fixedPriceEur, CURRENCY_CONFIG.EUR.rateFromUsd));
@@ -157,6 +160,7 @@ export default async function FreeDealPage() {
           freeLabel: pricing.formatPrice(0),
           tagText: resolvedConfig.dealTagText,
           badgeText: resolvedConfig.productBadgeText,
+          alreadyPurchased: claimedSlugSet.has(product.slug),
         }))}
       />
     </InternalPageShell>

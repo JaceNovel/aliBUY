@@ -808,6 +808,11 @@ export async function getFreeDealAdminSummary() {
   };
 }
 
+export async function getPurchasedFreeDealProductSlugs() {
+  const claims = await getClaims();
+  return [...new Set(claims.flatMap((claim) => claim.selectedProductSlugs.filter(Boolean)))];
+}
+
 export async function registerFreeDealClaimFromPaidOrder(order: SourcingOrder) {
   if (order.paymentStatus !== "paid") {
     return null;

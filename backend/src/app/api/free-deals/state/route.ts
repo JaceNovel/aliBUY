@@ -2,7 +2,7 @@ import { cookies, headers } from "next/headers";
 
 import { FREE_DEAL_DEVICE_COOKIE } from "@/lib/free-deal-constants";
 import { resolveRequestIp } from "@/lib/free-deal-service";
-import { getFreeDealAccessState, getFreeDealConfig, getFreeDealProducts } from "@/lib/free-deal-store";
+import { getFreeDealAccessState, getFreeDealConfig, getFreeDealProducts, getPurchasedFreeDealProductSlugs } from "@/lib/free-deal-store";
 import { getCurrentUser } from "@/lib/user-auth";
 
 export const runtime = "nodejs";
@@ -15,7 +15,7 @@ export async function GET() {
     getCurrentUser(),
   ]);
 
-  const [products, access] = await Promise.all([
+  const [products, access, claimedProductSlugs] = await Promise.all([
     getFreeDealProducts(config),
     getFreeDealAccessState({
       deviceId: cookieStore.get(FREE_DEAL_DEVICE_COOKIE)?.value,
@@ -24,6 +24,7 @@ export async function GET() {
       userId: user?.id,
       customerEmail: user?.email,
     }, config),
+    getPurchasedFreeDealProductSlugs(),
   ]);
 
   return Response.json({
@@ -36,5 +37,6 @@ export async function GET() {
       sharePath: access.sharePath,
       referralCode: access.claim?.referralCode,
     },
+    claimedProductSlugs,
   });
 }
