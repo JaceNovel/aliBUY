@@ -25,6 +25,7 @@ type AdminDashboardPayload = {
     date: string;
     totalUsd: number;
     href: string;
+    parcelHref: string;
   }>;
 };
 
@@ -74,6 +75,7 @@ function normalizeDashboardPayload(payload: unknown): AdminDashboardPayload {
           date: typeof order?.date === "string" ? order.date : "",
           totalUsd: normalizeNumber(order?.totalUsd),
           href: typeof order?.href === "string" && order.href ? order.href : "/admin/orders",
+          parcelHref: typeof order?.parcelHref === "string" && order.parcelHref ? order.parcelHref : "/admin/orders",
         }))
       : [],
   };
@@ -246,7 +248,14 @@ export default async function AdminPage() {
               <tbody>
                 {recentOrders.length > 0 ? recentOrders.map((order) => (
                   <tr key={order.id} className="border-t border-[#edf1f6] align-top text-[13px] text-[#1f2937]">
-                    <td className="py-4 pr-4 font-semibold"><Link href={order.href} className="transition hover:text-[#ff6a5b]">{order.id}</Link></td>
+                    <td className="py-4 pr-4 font-semibold">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link href={order.href} className="transition hover:text-[#ff6a5b]">{order.id}</Link>
+                        <Link href={order.parcelHref} className="inline-flex h-7 items-center justify-center rounded-full border border-[#ffd6bf] bg-[#fff6f0] px-3 text-[11px] font-semibold text-[#d85300] transition hover:opacity-80">
+                          Voir colis
+                        </Link>
+                      </div>
+                    </td>
                     <td className="py-4 pr-4">{order.customer}</td>
                     <td className="py-4 pr-4 max-w-[220px]">{order.product}</td>
                     <td className="py-4 pr-4">{order.date}</td>

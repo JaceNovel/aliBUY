@@ -3,7 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { AdminOrderDetailClient } from "@/components/admin-order-detail-client";
-import { getAdminOrderById } from "@/lib/admin-data";
+import { getAdminOrderById, getAdminOrderParcelSnapshot } from "@/lib/admin-data";
 import { getPricingContext } from "@/lib/pricing";
 
 export default async function AdminOrderDetailPage({ params }: { params: Promise<{ orderId: string }> }) {
@@ -14,6 +14,8 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
   if (!order) {
     notFound();
   }
+
+  const parcelSnapshot = await getAdminOrderParcelSnapshot(order);
 
   return (
     <div className="space-y-5">
@@ -29,7 +31,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
         </Link>
       </div>
 
-      <AdminOrderDetailClient order={order} currencyCode={pricing.currency.code} locale={pricing.locale} />
+      <AdminOrderDetailClient order={order} parcelSnapshot={parcelSnapshot} currencyCode={pricing.currency.code} locale={pricing.locale} />
     </div>
   );
 }

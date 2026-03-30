@@ -24,6 +24,7 @@ export type AlibabaPurchaseOrderStatus = "draft" | "freight_verified" | "order_c
 export type AlibabaPaymentStatus = "not_started" | "pay_url_generated" | "pending" | "paid" | "failed" | "skipped";
 export type AlibabaAccountStatus = "connected" | "needs_auth" | "disabled";
 export type AlibabaFulfillmentChannel = "standard_us" | "crossborder" | "fast_us" | "mexico" | "best_seller_us" | "best_seller_mexico";
+export type AlibabaImportCampaignMode = "standard" | "trends-promo" | "trends-hot" | "mode-fashion" | "free-deal";
 
 export const ALIBABA_DEFAULT_AUTHORIZE_URL = "https://api-sg.aliexpress.com/oauth/authorize";
 export const ALIBABA_DEFAULT_TOKEN_URL = "https://api-sg.aliexpress.com/rest/auth/token/security/create";

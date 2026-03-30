@@ -8,9 +8,11 @@ import {
   CircleDollarSign,
   ClipboardList,
   CreditCard,
+  MapPin,
   MessageCircle,
   ReceiptText,
   Search,
+  ShieldCheck,
   Star,
   TicketPercent,
   Truck,
@@ -120,6 +122,19 @@ function getMobileCorridorLabel(label: string) {
     .replace("Ghana", "Destination")
     .replace("Cote d'Ivoire", "Destination")
     .replace(" -> ", " > ");
+}
+
+function formatDateTimeLabel(value?: string) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString("fr-FR");
 }
 
 export function OrdersClient({ orders }: OrdersClientProps) {
@@ -388,6 +403,47 @@ export function OrdersClient({ orders }: OrdersClientProps) {
                       <div className="mt-1.5 line-clamp-2 text-[11px] leading-4 text-[#6a6a6a] sm:mt-3 sm:text-[13px] sm:leading-6">
                         {order.logistics.lastUpdate}
                       </div>
+                      {order.logistics.manualFulfillmentEnabled ? (
+                        <div className="mt-3 rounded-[16px] bg-[#eef6ff] px-3 py-3 ring-1 ring-[#d8e5fb] sm:px-4">
+                          <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#1d4f91] sm:text-[12px]">
+                            <ShieldCheck className="h-4 w-4" />
+                            Livraison manuelle AfriPay
+                          </div>
+                          <div className="mt-2 grid gap-2 text-[11px] text-[#355d8e] sm:grid-cols-2 sm:text-[13px]">
+                            <div>
+                              <span className="font-semibold text-[#1d4f91]">Statut:</span> {order.logistics.manualFulfillmentStatusLabel || "Traitement en cours"}
+                            </div>
+                            <div>
+                              <span className="font-semibold text-[#1d4f91]">Checkpoint:</span> {order.logistics.manualFulfillmentCheckpointLabel || "Hub AfriPay"}
+                            </div>
+                            {order.logistics.manualFulfillmentEtaLabel ? (
+                              <div>
+                                <span className="font-semibold text-[#1d4f91]">Prevision:</span> {order.logistics.manualFulfillmentEtaLabel}
+                              </div>
+                            ) : null}
+                            {order.logistics.manualFulfillmentAgentPhone ? (
+                              <div>
+                                <span className="font-semibold text-[#1d4f91]">Contact:</span> {order.logistics.manualFulfillmentAgentPhone}
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
+                      {order.logistics.relayPointAddress ? (
+                        <div className="mt-3 rounded-[16px] bg-[#fff8ee] px-3 py-3 ring-1 ring-[#f5dfbe] sm:px-4">
+                          <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8a4b16] sm:text-[12px]">
+                            <MapPin className="h-4 w-4" />
+                            {order.logistics.relayPointLabel || "Point relais AfriPay"}
+                          </div>
+                          <div className="mt-2 text-[11px] leading-5 text-[#9d6434] sm:text-[13px] sm:leading-6">{order.logistics.relayPointAddress}</div>
+                          {order.logistics.availableForPickupAt ? <div className="mt-2 text-[11px] font-medium text-[#9d6434] sm:text-[12px]">Disponible depuis {formatDateTimeLabel(order.logistics.availableForPickupAt)}</div> : null}
+                        </div>
+                      ) : null}
+                      {order.logistics.proofs?.length ? (
+                        <div className="mt-3 inline-flex items-center rounded-full bg-[#f5f7fa] px-3 py-1 text-[10px] font-semibold text-[#526071] ring-1 ring-[#e4e8ee] sm:text-[12px]">
+                          {order.logistics.proofs.length} preuve(s) archivee(s)
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </div>

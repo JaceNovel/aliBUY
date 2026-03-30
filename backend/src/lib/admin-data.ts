@@ -1,5 +1,8 @@
 import "server-only";
 
+import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
+import { getSourcingOrderMeta, type SourcingOrder } from "@/lib/alibaba-sourcing";
+import type { AdminOrderParcelItem, AdminOrderParcelPhoto, AdminOrderParcelSnapshot } from "@/lib/admin-order-parcel";
 import { getCatalogCategories } from "@/lib/catalog-category-service";
 import { getCatalogProducts } from "@/lib/catalog-service";
 import { getQuoteRequests, getSupportConversations, getUserAddresses, getUserFavoriteSlugs, getUserSupportConversations } from "@/lib/customer-data-store";
@@ -38,6 +41,7 @@ export type AdminOrderRecord = {
   totalUsd: number;
   createdAt: string;
   href: string;
+  parcelHref: string;
 };
 
 export type AdminImportRequestStatus = "En attente" | "En traitement" | "Complété" | "Rejeté";
@@ -63,6 +67,149 @@ export type AdminImportRequest = {
   agent: string;
   href: string;
 };
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeMediaUrl(candidate: unknown) {
+  if (typeof candidate !== "string") {
+    return undefined;
+  }
+
+  const normalized = candidate.trim();
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (normalized.startsWith("//")) {
+    return `https:${normalized}`;
+  }
+
+  return /^https?:\/\//i.test(normalized) ? normalized : undefined;
+}
+
+function collectFirstStringByKeys(value: unknown, keys: Set<string>, depth = 0): string | undefined {
+  if (depth > 4 || !value) {
+    return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const nested = collectFirstStringByKeys(entry, keys, depth + 1);
+      if (nested) {
+        return nested;
+      }
+    }
+
+    return undefined;
+  }
+
+  if (!isObjectRecord(value)) {
+    return undefined;
+  }
+
+  for (const [key, nestedValue] of Object.entries(value)) {
+    if (keys.has(key) && typeof nestedValue === "string" && nestedValue.trim()) {
+      return nestedValue.trim();
+    }
+  }
+
+  for (const nestedValue of Object.values(value)) {
+    const nested = collectFirstStringByKeys(nestedValue, keys, depth + 1);
+    if (nested) {
+      return nested;
+    }
+  }
+
+  return undefined;
+}
+
+function buildAliExpressSourceUrl(sourceProductId?: string, rawPayload?: unknown) {
+  const discovered = normalizeMediaUrl(collectFirstStringByKeys(rawPayload, new Set([
+    "detail_url",
+    "detailUrl",
+    "productUrl",
+    "product_url",
+    "itemUrl",
+    "item_url",
+    "promotionLink",
+    "promotion_link",
+  ])));
+
+  if (discovered) {
+    return discovered;
+  }
+
+  if (typeof sourceProductId === "string" && /^\d+$/.test(sourceProductId.trim())) {
+    return `https://www.aliexpress.com/item/${sourceProductId.trim()}.html`;
+  }
+
+  return undefined;
+}
+
+function isImageUrl(candidate: string) {
+  return /\.(avif|bmp|gif|jpe?g|png|webp)(?:$|\?)/i.test(candidate);
+}
+
+function dedupeStrings(values: Array<string | undefined>) {
+  return Array.from(new Set(values.filter((value): value is string => typeof value === "string" && value.trim().length > 0)));
+}
+
+function dedupeParcelPhotos(photos: AdminOrderParcelPhoto[]) {
+  const seen = new Set<string>();
+  const nextPhotos: AdminOrderParcelPhoto[] = [];
+
+  for (const photo of photos) {
+    const key = `${photo.source}:${photo.url}`;
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    nextPhotos.push(photo);
+  }
+
+  return nextPhotos;
+}
+
+function buildClientAddressLines(order: SourcingOrder) {
+  return [
+    order.customerName,
+    order.addressLine1,
+    order.addressLine2,
+    `${order.city}, ${order.state}${order.postalCode ? ` ${order.postalCode}` : ""}`,
+    order.countryCode,
+  ].filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
+}
+
+function buildParcelRouting(order: SourcingOrder) {
+  const meta = getSourcingOrderMeta(order);
+  const workflow = meta.workflow;
+  const deliveryProfile = meta.deliveryProfile;
+  const clientAddressLines = buildClientAddressLines(order);
+
+  if (workflow?.routeType === "customer-forwarder") {
+    const hubLabel = deliveryProfile?.forwarder?.hub === "lome" ? "Hub transitaire Lome" : "Hub transitaire Chine";
+    return {
+      routeLabel: "Agent / transitaire client",
+      destinationLabel: hubLabel,
+      pickupLabel: deliveryProfile?.forwarder?.parcelMarking || "Remise au transitaire client",
+      pickupAddress: deliveryProfile?.forwarder?.addressBlock,
+      pickupReadyAt: workflow.deliveredToAgentAt,
+      clientAddressLines,
+    };
+  }
+
+  return {
+    routeLabel: deliveryProfile?.usesInternalReceptionAddress ? "Corridor AfriPay avec relais" : "Corridor AfriPay direct",
+    destinationLabel: workflow?.relayPointAddress ? "Point relais client" : "Adresse client finale",
+    pickupLabel: workflow?.relayPointLabel || (workflow?.relayPointAddress ? "Point relais AfriPay" : "Livraison client finale"),
+    pickupAddress: workflow?.relayPointAddress,
+    pickupReadyAt: workflow?.availableForPickupAt,
+    clientAddressLines,
+  };
+}
 
 
 function convertFcfaToUsd(amountFcfa: number) {
@@ -156,6 +303,7 @@ export async function getAdminRecentOrders(limit = 5) {
       totalUsd: convertFcfaToUsd(order.totalPriceFcfa),
       status: order.paymentStatus,
       href: `/admin/orders/${encodeURIComponent(order.id)}`,
+      parcelHref: `/admin/orders/${encodeURIComponent(order.id)}/parcel`,
     }));
 }
 
@@ -178,6 +326,7 @@ export async function getAdminOrders(): Promise<AdminOrderRecord[]> {
       totalUsd: convertFcfaToUsd(order.totalPriceFcfa),
       createdAt: order.createdAt,
       href: `/admin/orders/${encodeURIComponent(order.id)}`,
+      parcelHref: `/admin/orders/${encodeURIComponent(order.id)}/parcel`,
     }));
 }
 
@@ -240,6 +389,77 @@ export async function getAdminUserDetail(userId: string) {
 export async function getAdminOrderById(orderId: string) {
   const orders = await getSourcingOrders();
   return orders.find((order: AdminSourcingOrder) => order.id === orderId || order.orderNumber === orderId) ?? null;
+}
+
+export async function getAdminOrderParcelSnapshot(order: SourcingOrder): Promise<AdminOrderParcelSnapshot> {
+  const importedProducts = await getAlibabaImportedProducts();
+  const importedByKey = new Map(importedProducts.flatMap((product) => {
+    const keys = dedupeStrings([product.id, product.slug, product.sourceProductId]);
+    return keys.map((key) => [key, product] as const);
+  }));
+  const meta = getSourcingOrderMeta(order);
+  const manualPhotos = (meta.parcel?.photos ?? []).map((photo) => ({
+    id: photo.id,
+    url: photo.url,
+    label: photo.label,
+    createdAt: photo.createdAt,
+    source: "manual" as const,
+  }));
+  const proofMedia = dedupeStrings((meta.workflow?.proofs ?? []).map((proof) => normalizeMediaUrl(proof.mediaUrl)).filter((value): value is string => Boolean(value) && isImageUrl(value)));
+
+  const items: AdminOrderParcelItem[] = order.items.map((item) => {
+    const importedProduct = importedByKey.get(item.slug);
+    const gallery = dedupeStrings([
+      normalizeMediaUrl(importedProduct?.image),
+      ...(importedProduct?.gallery ?? []).map((entry) => normalizeMediaUrl(entry)),
+    ]);
+
+    return {
+      slug: item.slug,
+      title: item.title,
+      quantity: item.quantity,
+      selectionLabel: item.selectionLabel,
+      image: normalizeMediaUrl(importedProduct?.image) ?? item.image,
+      gallery,
+      sourceProductId: importedProduct?.sourceProductId,
+      sourceUrl: buildAliExpressSourceUrl(importedProduct?.sourceProductId, importedProduct?.rawPayload),
+      supplierName: importedProduct?.supplierName,
+      supplierLocation: importedProduct?.supplierLocation,
+      packaging: importedProduct?.packaging,
+      itemWeightGrams: importedProduct?.itemWeightGrams,
+      overview: importedProduct?.overview ?? [],
+      specs: importedProduct?.specs ?? [],
+    };
+  });
+
+  const sourcePhotos = items.flatMap((item) => item.gallery.map((url, index) => ({
+    id: `${item.slug}-source-${index}`,
+    url,
+    label: item.title,
+    source: "source" as const,
+  })));
+  const proofPhotos = proofMedia.map((url, index) => ({
+    id: `proof-${index}`,
+    url,
+    source: "proof" as const,
+  }));
+  const photoEntries = dedupeParcelPhotos([...manualPhotos, ...proofPhotos, ...sourcePhotos]);
+
+  return {
+    parcelHref: `/admin/orders/${encodeURIComponent(order.id)}/parcel`,
+    printHref: `/admin/orders/${encodeURIComponent(order.id)}/parcel`,
+    totalItems: items.length,
+    totalUnits: order.items.reduce((sum, item) => sum + item.quantity, 0),
+    supplierNames: dedupeStrings(items.map((item) => item.supplierName)),
+    manualNote: meta.parcel?.note,
+    manualPhotos,
+    proofMedia,
+    primaryGallery: dedupeStrings(photoEntries.map((entry) => entry.url)),
+    photoEntries,
+    sourceLinks: dedupeStrings(items.map((item) => item.sourceUrl)),
+    routing: buildParcelRouting(order),
+    items,
+  };
 }
 
 export async function getAdminPromotions() {

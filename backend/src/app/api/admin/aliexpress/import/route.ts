@@ -1,9 +1,30 @@
 import { API_URL, buildApiUrl } from "@/lib/api";
 import { deleteAllImportedProducts, runAlibabaCatalogImport } from "@/lib/alibaba-operations-service";
+import { getFreeDealConfig, saveFreeDealConfig } from "@/lib/free-deal-store";
+
+function normalizeCampaignMode(value: unknown) {
+  switch (value) {
+    case "trends-promo":
+    case "trends-hot":
+    case "mode-fashion":
+    case "free-deal":
+      return value;
+    default:
+      return "standard";
+  }
+}
+
+function selectFreeDealProductSlugs(products: Array<{ slug: string; minUsd: number; updatedAt: string }>, desiredCount: number) {
+  return [...products]
+    .sort((left, right) => left.minUsd - right.minUsd || right.updatedAt.localeCompare(left.updatedAt))
+    .slice(0, desiredCount)
+    .map((product) => product.slug);
+}
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const campaignMode = normalizeCampaignMode(body?.campaignMode);
 
     try {
       if (!API_URL) {
@@ -33,11 +54,23 @@ export async function POST(request: Request) {
       query: String(body?.query ?? ""),
       limit: Number(body?.limit ?? 12),
       fulfillmentChannel: body?.fulfillmentChannel ?? "crossborder",
-      autoPublish: Boolean(body?.autoPublish),
+      autoPublish: campaignMode === "free-deal" ? true : Boolean(body?.autoPublish),
+      campaignMode,
       resetImportedProducts: Boolean(body?.resetImportedProducts),
     });
 
-    return Response.json(result);
+    let freeDealProductSlugs: string[] | undefined;
+    if (campaignMode === "free-deal" && result.products.length > 0) {
+      const config = await getFreeDealConfig();
+      freeDealProductSlugs = selectFreeDealProductSlugs(result.products, Math.max(config.itemLimit * 3, config.itemLimit));
+      await saveFreeDealConfig({ productSlugs: freeDealProductSlugs });
+    }
+
+    return Response.json({
+      ...result,
+      campaignMode,
+      freeDealProductSlugs,
+    });
   } catch (error) {
     return Response.json({
       message: error instanceof Error ? error.message : "Import AliExpress impossible.",

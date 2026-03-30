@@ -7,7 +7,7 @@ import { getCatalogCategories } from "@/lib/catalog-category-service";
 import { getCatalogProducts } from "@/lib/catalog-service";
 import { getProductImageUrl } from "@/lib/product-image";
 import { getPricingContext } from "@/lib/pricing";
-import { normalizeStorefrontBadge, normalizeStorefrontText, shuffleStorefrontItems } from "@/lib/public-storefront";
+import { isModeStorefrontProduct, normalizeStorefrontBadge, normalizeStorefrontText, shuffleStorefrontItems } from "@/lib/public-storefront";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -24,10 +24,11 @@ export default async function ModePage() {
     getCatalogProducts(),
     getCatalogCategories(),
   ]);
+  const curatedModeProducts = catalogProducts.filter((product) => isModeStorefrontProduct(product));
   const spotlightCategory = categories[0] ?? null;
-  const randomizedCatalogProducts = shuffleStorefrontItems(catalogProducts);
+  const randomizedCatalogProducts = shuffleStorefrontItems(curatedModeProducts.length > 0 ? curatedModeProducts : catalogProducts);
   const stripCategories = categories.slice(0, 8);
-  const spotlightProducts = shuffleStorefrontItems(spotlightCategory?.products ?? randomizedCatalogProducts).slice(0, 8);
+  const spotlightProducts = shuffleStorefrontItems(curatedModeProducts.length > 0 ? curatedModeProducts : (spotlightCategory?.products ?? randomizedCatalogProducts)).slice(0, 8);
   const denseGridProducts = randomizedCatalogProducts;
 
   return (
@@ -48,6 +49,7 @@ export default async function ModePage() {
               <div className="flex flex-wrap items-center gap-4 text-[13px] font-semibold sm:gap-6">
                 <span className="inline-flex items-center gap-2"><Truck className="h-4 w-4" /> Livraison suivie</span>
                 <span className="inline-flex items-center gap-2"><Sparkles className="h-4 w-4" /> Nouveautes publiees</span>
+                <span className="inline-flex items-center gap-2"><BadgeCheck className="h-4 w-4" /> {curatedModeProducts.length || denseGridProducts.length} refs mode</span>
                 <span className="inline-flex items-center gap-2"><RefreshCcw className="h-4 w-4" /> Catalogue mis a jour</span>
               </div>
             </div>

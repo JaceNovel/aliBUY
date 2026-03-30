@@ -322,11 +322,6 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
       return;
     }
 
-    if (!deliveryPlan.supported) {
-      setErrorMessage(deliveryPlan.unsupportedMessage ?? "Cette adresse n'est pas prise en charge en livraison directe.");
-      return;
-    }
-
     if (deliveryMode === "forwarder" && !forwarderAddressBlock.trim()) {
       setErrorMessage("L'adresse bloc du transitaire est obligatoire.");
       return;
@@ -570,7 +565,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   <div>
                     <div className="font-semibold">{deliveryPlan.deliveryProfile.unsupportedMessage}</div>
-                    <div className="mt-1">Cette destination n&apos;est pas encore disponible en livraison directe.</div>
+                    <div className="mt-1">La commande sera créée avec réception sur hub AfriPay puis livraison manuelle locale jusqu&apos;au client.</div>
                   </div>
                 </div>
               </div>

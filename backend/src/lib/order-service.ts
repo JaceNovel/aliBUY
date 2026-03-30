@@ -79,6 +79,7 @@ function buildLogistics(order: SourcingOrder, status: OrderStatus) {
   const meta = getSourcingOrderMeta(order);
   const workflow = meta.workflow;
   const profile = meta.deliveryProfile;
+  const manualFulfillment = meta.manualFulfillment;
   const usesInternalReceptionAddress = profile?.usesInternalReceptionAddress === true;
   const forwarderHubLabel = profile?.forwarder?.hub === "china" || order.countryCode === "CN"
     ? "Hub AfriPay"
@@ -114,6 +115,9 @@ function buildLogistics(order: SourcingOrder, status: OrderStatus) {
             : status === "Livraison en attente"
               ? "Le transport est en cours. La remise finale est en attente de confirmation."
               : "Commande remise et archivee dans votre historique.";
+  const effectiveLastUpdate = manualFulfillment?.enabled && manualFulfillment.checkpointNote
+    ? manualFulfillment.checkpointNote
+    : lastUpdate;
 
   return {
     agentName: workflow?.routeType === "customer-forwarder"
@@ -130,13 +134,21 @@ function buildLogistics(order: SourcingOrder, status: OrderStatus) {
     transitMode,
     merchantPickupCompleted: order.paymentStatus !== "unpaid",
     trackingCode: buildTrackingNumber({ id: order.id, orderNumber: order.orderNumber }),
-    lastUpdate,
+    lastUpdate: effectiveLastUpdate,
     deliveryRouteType: workflow?.routeType,
     relayPointAddress: workflow?.relayPointAddress,
     relayPointLabel: workflow?.relayPointLabel,
     availableForPickupAt: workflow?.availableForPickupAt,
     deliveredToAgentAt: workflow?.deliveredToAgentAt,
     forwarderHubLabel,
+    manualFulfillmentEnabled: manualFulfillment?.enabled,
+    manualFulfillmentStatusLabel: manualFulfillment?.statusLabel,
+    manualFulfillmentCheckpointLabel: manualFulfillment?.checkpointLabel,
+    manualFulfillmentCheckpointNote: manualFulfillment?.checkpointNote,
+    manualFulfillmentAgentName: manualFulfillment?.agentName,
+    manualFulfillmentAgentPhone: manualFulfillment?.agentPhone,
+    manualFulfillmentEtaLabel: manualFulfillment?.etaLabel,
+    manualFulfillmentUpdatedAt: manualFulfillment?.lastUpdatedAt,
     proofs: workflow?.proofs,
   };
 }

@@ -130,6 +130,30 @@ export type SourcingDeliveryProof = {
   createdAt: string;
 };
 
+export type SourcingParcelPhoto = {
+  id: string;
+  url: string;
+  label?: string;
+  createdAt: string;
+};
+
+export type SourcingParcelMeta = {
+  note?: string;
+  photos: SourcingParcelPhoto[];
+  updatedAt?: string;
+};
+
+export type SourcingManualFulfillmentMeta = {
+  enabled: boolean;
+  statusLabel?: string;
+  checkpointLabel?: string;
+  checkpointNote?: string;
+  agentName?: string;
+  agentPhone?: string;
+  etaLabel?: string;
+  lastUpdatedAt?: string;
+};
+
 export type SourcingOrderWorkflow = {
   routeType: "afripay-final-mile" | "customer-forwarder";
   freeDeliveryEligible: boolean;
@@ -216,6 +240,8 @@ export type SourcingAlibabaPostPaymentAutomationState = {
 export type SourcingOrderMeta = {
   deliveryProfile?: SourcingDeliveryProfile;
   workflow?: SourcingOrderWorkflow;
+  parcel?: SourcingParcelMeta;
+  manualFulfillment?: SourcingManualFulfillmentMeta;
   promo?: SourcingPromoAdjustment;
   sharedCart?: SourcingSharedCartContext;
   paymentContext?: SourcingPaymentContext;
@@ -412,6 +438,64 @@ function normalizeDeliveryProof(value: unknown): SourcingDeliveryProof | null {
     mediaUrl: typeof value.mediaUrl === "string" ? value.mediaUrl : undefined,
     actorLabel: typeof value.actorLabel === "string" ? value.actorLabel : undefined,
     createdAt,
+  };
+}
+
+function normalizeParcelPhoto(value: unknown): SourcingParcelPhoto | null {
+  if (!isObjectRecord(value)) {
+    return null;
+  }
+
+  const id = typeof value.id === "string" ? value.id.trim() : "";
+  const url = typeof value.url === "string" ? value.url.trim() : "";
+  const createdAt = typeof value.createdAt === "string" ? value.createdAt : "";
+  if (!id || !url || !createdAt) {
+    return null;
+  }
+
+  return {
+    id,
+    url,
+    label: typeof value.label === "string" && value.label.trim().length > 0 ? value.label.trim() : undefined,
+    createdAt,
+  };
+}
+
+function normalizeParcelMeta(value: unknown): SourcingParcelMeta | undefined {
+  if (!isObjectRecord(value)) {
+    return undefined;
+  }
+
+  const note = typeof value.note === "string" && value.note.trim().length > 0 ? value.note.trim() : undefined;
+  const photos = Array.isArray(value.photos)
+    ? value.photos.map(normalizeParcelPhoto).filter((entry): entry is SourcingParcelPhoto => Boolean(entry))
+    : [];
+
+  if (!note && photos.length === 0 && typeof value.updatedAt !== "string") {
+    return undefined;
+  }
+
+  return {
+    note,
+    photos,
+    updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : undefined,
+  };
+}
+
+function normalizeManualFulfillmentMeta(value: unknown): SourcingManualFulfillmentMeta | undefined {
+  if (!isObjectRecord(value)) {
+    return undefined;
+  }
+
+  return {
+    enabled: value.enabled === true,
+    statusLabel: typeof value.statusLabel === "string" && value.statusLabel.trim().length > 0 ? value.statusLabel.trim() : undefined,
+    checkpointLabel: typeof value.checkpointLabel === "string" && value.checkpointLabel.trim().length > 0 ? value.checkpointLabel.trim() : undefined,
+    checkpointNote: typeof value.checkpointNote === "string" && value.checkpointNote.trim().length > 0 ? value.checkpointNote.trim() : undefined,
+    agentName: typeof value.agentName === "string" && value.agentName.trim().length > 0 ? value.agentName.trim() : undefined,
+    agentPhone: typeof value.agentPhone === "string" && value.agentPhone.trim().length > 0 ? value.agentPhone.trim() : undefined,
+    etaLabel: typeof value.etaLabel === "string" && value.etaLabel.trim().length > 0 ? value.etaLabel.trim() : undefined,
+    lastUpdatedAt: typeof value.lastUpdatedAt === "string" ? value.lastUpdatedAt : undefined,
   };
 }
 
@@ -654,6 +738,8 @@ export function getSourcingOrderMeta(order: Pick<SourcingOrder, "supplierOrderPa
   return {
     deliveryProfile: normalizeDeliveryProfile(meta.deliveryProfile),
     workflow: normalizeOrderWorkflow(meta.workflow),
+    parcel: normalizeParcelMeta(meta.parcel),
+    manualFulfillment: normalizeManualFulfillmentMeta(meta.manualFulfillment),
     promo: normalizePromoAdjustment(meta.promo),
     sharedCart: normalizeSharedCartContext(meta.sharedCart),
     paymentContext: normalizePaymentContext(meta.paymentContext),
@@ -800,6 +886,8 @@ export function withSourcingOrderMeta(order: SourcingOrder, metaUpdate: Sourcing
   const nextMeta: SourcingOrderMeta = {
     deliveryProfile: metaUpdate.deliveryProfile ?? currentMeta.deliveryProfile,
     workflow: metaUpdate.workflow ?? currentMeta.workflow,
+    parcel: metaUpdate.parcel ?? currentMeta.parcel,
+    manualFulfillment: metaUpdate.manualFulfillment ?? currentMeta.manualFulfillment,
     promo: metaUpdate.promo ?? currentMeta.promo,
     sharedCart: metaUpdate.sharedCart ?? currentMeta.sharedCart,
     paymentContext: metaUpdate.paymentContext ?? currentMeta.paymentContext,
@@ -835,18 +923,18 @@ export function resolveSourcingDeliveryPlan(input: {
 
   if (!forcedForwarder && !knownSupportedCountry) {
     return {
-      supported: false,
-      unsupportedMessage: "Ce pays n'est pas pris en charge par notre livraison directe. Utilisez votre agent en Chine.",
+      supported: true,
+      unsupportedMessage: "Ce pays passe en livraison manuelle AfriPay avec réception sur hub puis remise finale hors réseau direct AliExpress.",
       deliveryProfile: {
         mode: "direct",
         ...requestedProfile,
-        usesInternalReceptionAddress: false,
+        usesInternalReceptionAddress: true,
         unsupportedCountry: true,
-        unsupportedMessage: "Ce pays n'est pas pris en charge par notre livraison directe. Utilisez votre agent en Chine.",
+        unsupportedMessage: "Ce pays passe en livraison manuelle AfriPay avec réception sur hub puis remise finale hors réseau direct AliExpress.",
       },
       workflow: {
         routeType: "afripay-final-mile",
-        freeDeliveryEligible: true,
+        freeDeliveryEligible: false,
         supplierDeliveryAddressRole: "afripay-agent",
         proofs: [],
       },

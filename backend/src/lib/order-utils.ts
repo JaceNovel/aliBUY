@@ -37,6 +37,14 @@ export type OrderRecord = {
     availableForPickupAt?: string;
     deliveredToAgentAt?: string;
     forwarderHubLabel?: string;
+    manualFulfillmentEnabled?: boolean;
+    manualFulfillmentStatusLabel?: string;
+    manualFulfillmentCheckpointLabel?: string;
+    manualFulfillmentCheckpointNote?: string;
+    manualFulfillmentAgentName?: string;
+    manualFulfillmentAgentPhone?: string;
+    manualFulfillmentEtaLabel?: string;
+    manualFulfillmentUpdatedAt?: string;
     proofs?: Array<{
       id: string;
       role: string;

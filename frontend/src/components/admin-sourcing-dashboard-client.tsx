@@ -468,6 +468,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
                           <button type="button" onClick={() => overrideDeliveryRoute(order.id, "direct")} disabled={isPending || isRouteSelected(order, "direct")} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">Livrer vers mon hub AfriPay</button>
                           <button type="button" onClick={() => overrideDeliveryRoute(order.id, "forwarder", "china")} disabled={isPending || isRouteSelected(order, "forwarder", "china")} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">Mon transitaire AfriPay</button>
                           <button type="button" onClick={() => overrideDeliveryRoute(order.id, "forwarder", "lome")} disabled={isPending || isRouteSelected(order, "forwarder", "lome")} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">Mon transitaire Lome</button>
+                          <Link href={`/admin/orders/${encodeURIComponent(order.id)}/parcel`} className="font-semibold text-[#d85300] transition hover:opacity-80">Voir colis</Link>
                           <Link href={`/admin/orders/${encodeURIComponent(order.id)}`} className="font-semibold text-[#ff6a00] transition hover:opacity-80">Ouvrir</Link>
                         </div>
                       </td>
@@ -633,8 +634,8 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
                   ) : null}
                   <div className="mt-3 flex flex-wrap gap-2">
                     {containerOrders.map((order) => (
-                      <Link key={`${container.id}-${order.id}`} href={`/admin/orders/${encodeURIComponent(order.id)}`} className="inline-flex items-center rounded-full border border-[#e4e7ec] bg-[#fafbfd] px-3 py-1 text-[12px] font-semibold text-[#475467] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
-                        {order.orderNumber} · {order.status}
+                      <Link key={`${container.id}-${order.id}`} href={`/admin/orders/${encodeURIComponent(order.id)}/parcel`} className="inline-flex items-center rounded-full border border-[#e4e7ec] bg-[#fafbfd] px-3 py-1 text-[12px] font-semibold text-[#475467] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
+                        {order.orderNumber} · voir colis
                       </Link>
                     ))}
                     {containerOrders.length === 0 ? <div className="text-[12px] text-[#98a2b3]">Aucune commande liée visible dans ce chargement.</div> : null}
@@ -692,7 +693,12 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
                       <td className="py-3.5 pr-4">{payUrls.length > 0 ? <Link href={payUrls[0]} target="_blank" className="font-semibold text-[#ff6a00] transition hover:opacity-80">Ouvrir</Link> : "-"}</td>
                       <td className="py-3.5 pr-4">{automation ? `${trackingTrades}/${automation.trades.length} synchro` : "Pas encore"}</td>
                       <td className="py-3.5 pr-4">{formatFcfa(order.totalPriceFcfa)}</td>
-                      <td className="py-3.5 pr-4">{canLaunch ? <button type="button" onClick={() => launchOrder(order.id)} disabled={isPending} className="inline-flex h-9 items-center justify-center rounded-[12px] bg-[#111827] px-3 text-[12px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">Lancer</button> : payUrls.length > 0 ? <Link href={payUrls[0]} target="_blank" className="font-semibold text-[#ff6a00] transition hover:opacity-80">Pay URL</Link> : "-"}</td>
+                      <td className="py-3.5 pr-4">
+                        <div className="flex flex-wrap gap-2">
+                          <Link href={`/admin/orders/${encodeURIComponent(order.id)}/parcel`} className="font-semibold text-[#d85300] transition hover:opacity-80">Voir colis</Link>
+                          {canLaunch ? <button type="button" onClick={() => launchOrder(order.id)} disabled={isPending} className="inline-flex h-9 items-center justify-center rounded-[12px] bg-[#111827] px-3 text-[12px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">Lancer</button> : payUrls.length > 0 ? <Link href={payUrls[0]} target="_blank" className="font-semibold text-[#ff6a00] transition hover:opacity-80">Pay URL</Link> : "-"}
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}

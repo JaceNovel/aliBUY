@@ -70,6 +70,7 @@ export const getCatalogProducts = cache(async function getCatalogProducts(): Pro
       variantSkus: product.variantSkus,
       tiers: product.tiers,
       specs: product.specs,
+      rawPayload: product.rawPayload,
     }));
 });
 

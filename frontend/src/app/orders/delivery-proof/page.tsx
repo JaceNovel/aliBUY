@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { CheckCheck, ImageIcon, ShieldCheck } from "lucide-react";
+import { CheckCheck, ExternalLink, ImageIcon, MapPin, Phone, ShieldCheck } from "lucide-react";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { getOrderTrackingHref } from "@/lib/orders-data";
@@ -8,6 +8,21 @@ import { getUserOrderRecordById } from "@/lib/order-service";
 import { getPricingContext } from "@/lib/pricing";
 import { getCurrentUser } from "@/lib/user-auth";
 import { notFound, redirect } from "next/navigation";
+
+function getProofRoleLabel(role: string) {
+  switch (role) {
+    case "supplier_to_agent":
+      return "Depart fournisseur";
+    case "agent_to_forwarder":
+      return "Transfert agent";
+    case "arrival_scan":
+      return "Scan arrivee";
+    case "relay_release":
+      return "Remise relais";
+    default:
+      return "Archivage";
+  }
+}
 
 export default async function DeliveryProofPage({
   searchParams,
@@ -59,6 +74,30 @@ export default async function DeliveryProofPage({
               Retour aux commandes
             </Link>
           </div>
+
+          {order.logistics.proofs?.length ? (
+            <div className="mt-4 space-y-3 sm:mt-6">
+              {order.logistics.proofs.map((proof) => (
+                <article key={proof.id} className="rounded-[18px] bg-[#fafafa] px-4 py-4 ring-1 ring-black/5 sm:px-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[15px] font-semibold text-[#222]">{proof.title}</div>
+                      <div className="mt-1 inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-[#526071] ring-1 ring-[#e4e8ee]">{getProofRoleLabel(proof.role)}</div>
+                    </div>
+                    <div className="text-[12px] text-[#777]">{new Date(proof.createdAt).toLocaleString("fr-FR")}</div>
+                  </div>
+                  {proof.note ? <div className="mt-3 text-[13px] leading-6 text-[#555] sm:text-[14px]">{proof.note}</div> : null}
+                  {proof.actorLabel ? <div className="mt-2 text-[13px] font-medium text-[#555]">Acteur: {proof.actorLabel}</div> : null}
+                  {proof.mediaUrl ? (
+                    <a href={proof.mediaUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 text-[13px] font-semibold text-[#127a46] transition hover:opacity-80 sm:text-[14px]">
+                      Ouvrir le justificatif
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          ) : null}
         </section>
 
         <aside className="bg-transparent px-0 py-0 shadow-none ring-0 sm:rounded-[28px] sm:bg-white sm:px-7 sm:py-7 sm:shadow-[0_8px_30px_rgba(24,39,75,0.05)] sm:ring-1 sm:ring-black/5">
@@ -79,6 +118,18 @@ export default async function DeliveryProofPage({
               <div className="text-[12px] text-[#777]">Dernière mise à jour</div>
               <div className="mt-1 text-[13px] leading-5 text-[#555] sm:text-[14px] sm:leading-6">{order.logistics.lastUpdate}</div>
             </div>
+            {order.logistics.manualFulfillmentEnabled ? (
+              <div>
+                <div className="text-[12px] text-[#777]">Suivi manuel AfriPay</div>
+                <div className="mt-1 text-[13px] leading-5 text-[#555] sm:text-[14px] sm:leading-6">
+                  {order.logistics.manualFulfillmentStatusLabel || "Traitement AfriPay en cours"}
+                  {order.logistics.manualFulfillmentCheckpointLabel ? ` · ${order.logistics.manualFulfillmentCheckpointLabel}` : ""}
+                  {order.logistics.manualFulfillmentAgentName ? ` · ${order.logistics.manualFulfillmentAgentName}` : ""}
+                </div>
+                {order.logistics.manualFulfillmentEtaLabel ? <div className="mt-1 text-[13px] leading-5 text-[#555] sm:text-[14px] sm:leading-6">Prévision: {order.logistics.manualFulfillmentEtaLabel}</div> : null}
+                {order.logistics.manualFulfillmentUpdatedAt ? <div className="mt-1 text-[13px] leading-5 text-[#555] sm:text-[14px] sm:leading-6">Mise à jour: {new Date(order.logistics.manualFulfillmentUpdatedAt).toLocaleString("fr-FR")}</div> : null}
+              </div>
+            ) : null}
             {order.logistics.proofs?.[0] ? (
               <div>
                 <div className="text-[12px] text-[#777]">Preuve</div>
@@ -86,6 +137,29 @@ export default async function DeliveryProofPage({
               </div>
             ) : null}
           </div>
+
+          {order.logistics.relayPointAddress ? (
+            <div className="mt-4 rounded-[18px] bg-[#fff8ee] px-4 py-4 ring-1 ring-[#f5dfbe] sm:mt-5 sm:rounded-[20px]">
+              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8a4b16] sm:text-[12px] sm:tracking-[0.12em]">
+                <MapPin className="h-4 w-4" />
+                {order.logistics.relayPointLabel || "Point relais AfriPay"}
+              </div>
+              <div className="mt-2 text-[13px] leading-5 text-[#9d6434] sm:text-[14px] sm:leading-6">{order.logistics.relayPointAddress}</div>
+              {order.logistics.availableForPickupAt ? <div className="mt-2 text-[12px] text-[#9d6434]">Disponible depuis {new Date(order.logistics.availableForPickupAt).toLocaleString("fr-FR")}</div> : null}
+            </div>
+          ) : null}
+
+          {order.logistics.manualFulfillmentAgentPhone ? (
+            <div className="mt-4 rounded-[18px] bg-[#eef6ff] px-4 py-4 ring-1 ring-[#d8e5fb] sm:mt-5 sm:rounded-[20px]">
+              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#1d4f91] sm:text-[12px] sm:tracking-[0.12em]">
+                <Phone className="h-4 w-4" />
+                Contact livraison
+              </div>
+              <a href={`tel:${order.logistics.manualFulfillmentAgentPhone}`} className="mt-2 inline-flex text-[14px] font-semibold text-[#1d4f91] transition hover:opacity-80 sm:text-[15px]">
+                {order.logistics.manualFulfillmentAgentPhone}
+              </a>
+            </div>
+          ) : null}
 
           <div className="mt-4 rounded-[18px] bg-[#edf8f1] px-4 py-4 ring-1 ring-[#cfe7d7] sm:mt-5 sm:rounded-[20px]">
             <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#127a46] sm:text-[12px] sm:tracking-[0.12em]">

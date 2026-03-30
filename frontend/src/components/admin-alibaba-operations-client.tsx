@@ -8,6 +8,7 @@ import { useMemo, useState, useTransition } from "react";
 
 import type {
   AlibabaCountryProfile,
+  type AlibabaImportCampaignMode,
   AlibabaImportJob,
   AlibabaImportedProduct,
   AlibabaPanelSlug,
@@ -59,6 +60,14 @@ const ALIEXPRESS_DEFAULT_AUTHORIZE_URL = "https://api-sg.aliexpress.com/oauth/au
 const ALIEXPRESS_DEFAULT_TOKEN_URL = "https://api-sg.aliexpress.com/rest/auth/token/security/create";
 const ALIEXPRESS_DEFAULT_REFRESH_URL = "https://api-sg.aliexpress.com/rest/auth/token/security/refresh";
 const ALIEXPRESS_DEFAULT_API_BASE_URL = "https://api-sg.aliexpress.com";
+
+const IMPORT_CAMPAIGN_OPTIONS: Array<{ value: AlibabaImportCampaignMode; label: string; description: string }> = [
+  { value: "standard", label: "Catalogue standard", description: "Import classique sans routage storefront prioritaire." },
+  { value: "trends-promo", label: "Tendances promo", description: "Force la mise en avant promotionnelle sur la page Tendances." },
+  { value: "trends-hot", label: "Tendances hot", description: "Pousse les fiches vedettes sur la grille Tendances." },
+  { value: "mode-fashion", label: "Mode", description: "Réserve l'import pour la page Mode et ses sélections." },
+  { value: "free-deal", label: "Articles gratuits", description: "Publie la sélection et alimente automatiquement la campagne Articles gratuits." },
+];
 
 function getSupplierAccountStatusMeta(status: AlibabaSupplierAccount["status"]) {
   if (status === "connected") {
@@ -139,6 +148,30 @@ function hasRecoveredVideo(product: AlibabaImportedProduct) {
   return Boolean(product.videoUrl);
 }
 
+function getImportedCampaignLabel(product: AlibabaImportedProduct) {
+  if (!product.rawPayload || typeof product.rawPayload !== "object" || Array.isArray(product.rawPayload)) {
+    return null;
+  }
+
+  const campaign = (product.rawPayload as Record<string, unknown>).afripayCampaign;
+  if (!campaign || typeof campaign !== "object" || Array.isArray(campaign)) {
+    return null;
+  }
+
+  switch ((campaign as Record<string, unknown>).mode) {
+    case "trends-promo":
+      return "Tendances promo";
+    case "trends-hot":
+      return "Tendances hot";
+    case "mode-fashion":
+      return "Mode";
+    case "free-deal":
+      return "Articles gratuits";
+    default:
+      return null;
+  }
+}
+
 function submitOAuthAuthorizationForm(payload: Record<string, string>) {
   const form = document.createElement("form");
   form.method = "POST";
@@ -163,7 +196,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [importForm, setImportForm] = useState({ query: "", limit: 24, fulfillmentChannel: "crossborder", autoPublish: true, resetImportedProducts: false });
+  const [importForm, setImportForm] = useState<{ query: string; limit: number; fulfillmentChannel: string; campaignMode: AlibabaImportCampaignMode; autoPublish: boolean; resetImportedProducts: boolean }>({ query: "", limit: 24, fulfillmentChannel: "crossborder", campaignMode: "standard", autoPublish: true, resetImportedProducts: false });
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [quantityByProduct, setQuantityByProduct] = useState<Record<string, number>>({});
   const [accountForm, setAccountForm] = useState({
@@ -259,7 +292,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       return;
     }
 
-    setFeedback(`${typeof payload?.purgedCount === "number" && payload.purgedCount > 0 ? `Catalogue purge: ${payload.purgedCount} article(s). ` : ""}Import AliExpress live termine: ${Array.isArray(payload?.products) ? payload.products.length : 0}/${payload?.targetImportCount ?? activeImportForm.limit} importes.${typeof payload?.skippedExistingCount === "number" && payload.skippedExistingCount > 0 ? ` Deja importes ignores: ${payload.skippedExistingCount}.` : ""}`);
+    setFeedback(`${typeof payload?.purgedCount === "number" && payload.purgedCount > 0 ? `Catalogue purge: ${payload.purgedCount} article(s). ` : ""}Import AliExpress live termine: ${Array.isArray(payload?.products) ? payload.products.length : 0}/${payload?.targetImportCount ?? activeImportForm.limit} importes.${typeof payload?.skippedExistingCount === "number" && payload.skippedExistingCount > 0 ? ` Deja importes ignores: ${payload.skippedExistingCount}.` : ""}${Array.isArray(payload?.freeDealProductSlugs) && payload.freeDealProductSlugs.length > 0 ? ` Campagne gratuite mise a jour: ${payload.freeDealProductSlugs.length} slug(s).` : ""}`);
     refresh();
   };
 
@@ -720,11 +753,21 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                   <option value="best_seller_mexico">Best seller Mexique</option>
                 </select>
               </label>
+              <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">
+                Destination storefront
+                <select value={activeImportForm.campaignMode} onChange={(event) => setImportForm((current) => ({ ...current, campaignMode: event.target.value as AlibabaImportCampaignMode }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]">
+                  {IMPORT_CAMPAIGN_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="mt-3 rounded-[14px] bg-[#f8fafc] px-4 py-3 text-[13px] text-[#667085]">
+              {IMPORT_CAMPAIGN_OPTIONS.find((option) => option.value === activeImportForm.campaignMode)?.description}
             </div>
             <label className="mt-4 inline-flex items-center gap-3 text-[13px] font-semibold text-[#344054]">
               <input checked={activeImportForm.autoPublish} onChange={(event) => setImportForm((current) => ({ ...current, autoPublish: event.target.checked }))} type="checkbox" className="h-4 w-4 rounded border-[#d7dce5] text-[#ff6a00] focus:ring-[#ff6a00]" />
               Publier automatiquement les articles importes sur le site
             </label>
+            {activeImportForm.campaignMode === "free-deal" ? <div className="mt-2 text-[12px] font-medium text-[#1d4f91]">Le mode Articles gratuits force la publication afin d&apos;alimenter la page campagne.</div> : null}
             <label className="mt-3 inline-flex items-center gap-3 text-[13px] font-semibold text-[#344054]">
               <input checked={activeImportForm.resetImportedProducts} onChange={(event) => setImportForm((current) => ({ ...current, resetImportedProducts: event.target.checked }))} type="checkbox" className="h-4 w-4 rounded border-[#d7dce5] text-[#ff6a00] focus:ring-[#ff6a00]" />
               Vider le catalogue importe avant ce nouvel import
@@ -775,7 +818,10 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                             <div className="mt-1 text-[13px] text-[#667085]">{product.supplierName} · minimum {formatCount(product.moq)} {product.unit}</div>
                             <div className="mt-1 text-[12px] text-[#98a2b3]">{formatCount(product.gallery.length)} images · {hasRecoveredVideo(product) ? "video recuperee" : "pas de video"} · stock estime {formatCount(product.inventory)}</div>
                           </div>
-                          <div className="rounded-full bg-[#fff7ed] px-3 py-1 text-[12px] font-semibold text-[#c2410c]">{product.status}</div>
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            {getImportedCampaignLabel(product) ? <div className="rounded-full bg-[#eef6ff] px-3 py-1 text-[12px] font-semibold text-[#1d4f91]">{getImportedCampaignLabel(product)}</div> : null}
+                            <div className="rounded-full bg-[#fff7ed] px-3 py-1 text-[12px] font-semibold text-[#c2410c]">{product.status}</div>
+                          </div>
                         </div>
                         <div className="mt-3 flex flex-wrap items-center gap-3">
                           <div>

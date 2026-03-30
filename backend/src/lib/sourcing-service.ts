@@ -121,10 +121,6 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
     deliveryProfile: input.deliveryProfile,
   });
 
-  if (!deliveryPlan.supported) {
-    throw new Error(deliveryPlan.unsupportedMessage ?? "Cette destination n'est pas prise en charge en livraison directe.");
-  }
-
   const quote = await createAlibabaSourcingQuote(sanitizedItems, settings, {
     disableFreeAir: !deliveryPlan.workflow.freeDeliveryEligible,
   });

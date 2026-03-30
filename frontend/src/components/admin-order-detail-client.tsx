@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState, useTransition } from "react";
-import { CheckCheck, ExternalLink, PackageCheck, Save, ShieldCheck, Truck } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { CheckCheck, ExternalLink, PackageCheck, Save, ShieldCheck, Trash2, Truck } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+import type { AdminOrderParcelSnapshot } from "@/lib/admin-order-parcel";
 import {
   formatSourcingAmount,
   getSourcingAlibabaPayUrls,
@@ -17,6 +18,7 @@ import {
 
 type AdminOrderDetailClientProps = {
   order: SourcingOrder;
+  parcelSnapshot: AdminOrderParcelSnapshot;
   currencyCode: string;
   locale: string;
 };
@@ -35,18 +37,50 @@ const statusOptions = [
   { value: "completed", label: "Acheminement terminé" },
 ] as const;
 
-export function AdminOrderDetailClient({ order: initialOrder, currencyCode, locale }: AdminOrderDetailClientProps) {
+export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, currencyCode, locale }: AdminOrderDetailClientProps) {
   const router = useRouter();
+  const initialMeta = getSourcingOrderMeta(initialOrder);
+  const initialWorkflow = initialMeta.workflow;
   const [isPending, startTransition] = useTransition();
   const [order, setOrder] = useState(initialOrder);
+  const [parcelState, setParcelState] = useState(parcelSnapshot);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [proofForm, setProofForm] = useState({ role: "supplier_to_agent", title: "", note: "", actorLabel: "" });
-  const [relayPointAddress, setRelayPointAddress] = useState("");
-  const [relayPointLabel, setRelayPointLabel] = useState("");
+  const [parcelNote, setParcelNote] = useState(parcelSnapshot.manualNote ?? "");
+  const [parcelPhotoLabel, setParcelPhotoLabel] = useState("");
+  const [manualFulfillmentEnabled, setManualFulfillmentEnabled] = useState(initialMeta.manualFulfillment?.enabled === true || initialMeta.deliveryProfile?.unsupportedCountry === true);
+  const [manualFulfillmentStatusLabel, setManualFulfillmentStatusLabel] = useState(initialMeta.manualFulfillment?.statusLabel ?? "");
+  const [manualFulfillmentCheckpointLabel, setManualFulfillmentCheckpointLabel] = useState(initialMeta.manualFulfillment?.checkpointLabel ?? "");
+  const [manualFulfillmentCheckpointNote, setManualFulfillmentCheckpointNote] = useState(initialMeta.manualFulfillment?.checkpointNote ?? "");
+  const [manualFulfillmentAgentName, setManualFulfillmentAgentName] = useState(initialMeta.manualFulfillment?.agentName ?? "");
+  const [manualFulfillmentAgentPhone, setManualFulfillmentAgentPhone] = useState(initialMeta.manualFulfillment?.agentPhone ?? "");
+  const [manualFulfillmentEtaLabel, setManualFulfillmentEtaLabel] = useState(initialMeta.manualFulfillment?.etaLabel ?? "");
+  const [relayPointAddress, setRelayPointAddress] = useState(initialWorkflow?.relayPointAddress ?? "");
+  const [relayPointLabel, setRelayPointLabel] = useState(initialWorkflow?.relayPointLabel ?? "");
   const [selectedStatus, setSelectedStatus] = useState<SourcingOrderStatus>(order.status);
   const [proofFile, setProofFile] = useState<File | null>(null);
+  const [parcelPhotoFile, setParcelPhotoFile] = useState<File | null>(null);
   const [isUploadingProof, setIsUploadingProof] = useState(false);
+  const [isUploadingParcelPhoto, setIsUploadingParcelPhoto] = useState(false);
   const proofInputRef = useRef<HTMLInputElement | null>(null);
+  const parcelPhotoInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setParcelState(parcelSnapshot);
+    setParcelNote(parcelSnapshot.manualNote ?? "");
+  }, [parcelSnapshot]);
+
+  useEffect(() => {
+    setManualFulfillmentEnabled(meta.manualFulfillment?.enabled === true || meta.deliveryProfile?.unsupportedCountry === true);
+    setManualFulfillmentStatusLabel(meta.manualFulfillment?.statusLabel ?? "");
+    setManualFulfillmentCheckpointLabel(meta.manualFulfillment?.checkpointLabel ?? "");
+    setManualFulfillmentCheckpointNote(meta.manualFulfillment?.checkpointNote ?? "");
+    setManualFulfillmentAgentName(meta.manualFulfillment?.agentName ?? "");
+    setManualFulfillmentAgentPhone(meta.manualFulfillment?.agentPhone ?? "");
+    setManualFulfillmentEtaLabel(meta.manualFulfillment?.etaLabel ?? "");
+    setRelayPointAddress(meta.workflow?.relayPointAddress ?? "");
+    setRelayPointLabel(meta.workflow?.relayPointLabel ?? "");
+  }, [meta]);
 
   const meta = useMemo(() => getSourcingOrderMeta(order), [order]);
   const alibabaAutomation = useMemo(() => getSourcingAlibabaPostPaymentAutomationState(order), [order]);
@@ -71,9 +105,30 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
     }
 
     setOrder(data.order as SourcingOrder);
+    if (data?.parcelSnapshot) {
+      setParcelState(data.parcelSnapshot as AdminOrderParcelSnapshot);
+      setParcelNote(typeof data.parcelSnapshot.manualNote === "string" ? data.parcelSnapshot.manualNote : "");
+    }
     startTransition(() => {
       router.refresh();
     });
+  };
+
+  const uploadAdminFile = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const uploadResponse = await fetch("/api/admin/uploads/proofs", {
+      method: "POST",
+      body: formData,
+    });
+    const uploadPayload = await uploadResponse.json().catch(() => null);
+
+    if (!uploadResponse.ok || !uploadPayload?.url) {
+      throw new Error(uploadPayload?.message || "Impossible d'envoyer le fichier.");
+    }
+
+    return String(uploadPayload.url);
   };
 
   const submitProof = async () => {
@@ -85,22 +140,20 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
     let mediaUrl: string | undefined;
     if (proofFile) {
       setIsUploadingProof(true);
-      const formData = new FormData();
-      formData.append("file", proofFile);
+      let uploadError: string | null = null;
 
-      const uploadResponse = await fetch("/api/admin/uploads/proofs", {
-        method: "POST",
-        body: formData,
-      });
-      const uploadPayload = await uploadResponse.json().catch(() => null);
-      setIsUploadingProof(false);
-
-      if (!uploadResponse.ok || !uploadPayload?.url) {
-        setFeedback(uploadPayload?.message || "Impossible d'envoyer le fichier de preuve.");
-        return;
+      try {
+        mediaUrl = await uploadAdminFile(proofFile);
+      } catch (error) {
+        uploadError = error instanceof Error ? error.message : "Impossible d'envoyer le fichier de preuve.";
       }
 
-      mediaUrl = String(uploadPayload.url);
+      setIsUploadingProof(false);
+
+      if (uploadError) {
+        setFeedback(uploadError);
+        return;
+      }
     }
 
     await submitPatch({ action: "add-proof", ...proofForm, mediaUrl });
@@ -109,6 +162,53 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
     if (proofInputRef.current) {
       proofInputRef.current.value = "";
     }
+  };
+
+  const saveParcelNote = async () => {
+    await submitPatch({ action: "update-parcel-manual", note: parcelNote });
+  };
+
+  const addParcelPhoto = async () => {
+    if (!parcelPhotoFile) {
+      setFeedback("Choisissez une photo colis avant l'envoi.");
+      return;
+    }
+
+    setIsUploadingParcelPhoto(true);
+    let photoUrl: string;
+
+    try {
+      photoUrl = await uploadAdminFile(parcelPhotoFile);
+    } catch (error) {
+      setIsUploadingParcelPhoto(false);
+      setFeedback(error instanceof Error ? error.message : "Impossible d'envoyer la photo colis.");
+      return;
+    }
+
+    setIsUploadingParcelPhoto(false);
+    await submitPatch({ action: "update-parcel-manual", note: parcelNote, photoUrl, photoLabel: parcelPhotoLabel });
+    setParcelPhotoFile(null);
+    setParcelPhotoLabel("");
+    if (parcelPhotoInputRef.current) {
+      parcelPhotoInputRef.current.value = "";
+    }
+  };
+
+  const removeParcelPhoto = async (photoId: string) => {
+    await submitPatch({ action: "remove-parcel-photo", photoId });
+  };
+
+  const saveManualFulfillment = async () => {
+    await submitPatch({
+      action: "update-manual-fulfillment",
+      enabled: manualFulfillmentEnabled,
+      statusLabel: manualFulfillmentStatusLabel,
+      checkpointLabel: manualFulfillmentCheckpointLabel,
+      checkpointNote: manualFulfillmentCheckpointNote,
+      agentName: manualFulfillmentAgentName,
+      agentPhone: manualFulfillmentAgentPhone,
+      etaLabel: manualFulfillmentEtaLabel,
+    });
   };
 
   return (
@@ -253,6 +353,45 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
             Pour les commandes vers transitaire, utilisez `Livré à l&apos;agent` dès remise à l&apos;agent. Pour vos propres flux AfriPay, utilisez `Point relais disponible` quand l&apos;acheminement est terminé et que le client doit venir retirer son colis.
           </div>
         </article>
+
+        <article className="rounded-[20px] border border-[#e6eaf0] bg-white px-5 py-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
+          <div className="text-[18px] font-bold text-[#1f2937]">Livraison manuelle AfriPay</div>
+          <div className="mt-2 text-[13px] leading-6 text-[#667085]">Pilotez ici les pays hors réseau direct AliExpress avec suivi opérateur, checkpoint et prévision client.</div>
+          <label className="mt-4 inline-flex items-center gap-3 text-[13px] font-semibold text-[#344054]">
+            <input checked={manualFulfillmentEnabled} onChange={(event) => setManualFulfillmentEnabled(event.target.checked)} type="checkbox" className="h-4 w-4 rounded border-[#d7dce5] text-[#ff6a00] focus:ring-[#ff6a00]" />
+            Activer le workflow manuel AfriPay
+          </label>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="text-[13px] font-semibold text-[#344054]">
+              Statut visible client
+              <input value={manualFulfillmentStatusLabel} onChange={(event) => setManualFulfillmentStatusLabel(event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a5b]" placeholder="Ex: Colis reçu au hub AfriPay" />
+            </label>
+            <label className="text-[13px] font-semibold text-[#344054]">
+              Prévision
+              <input value={manualFulfillmentEtaLabel} onChange={(event) => setManualFulfillmentEtaLabel(event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a5b]" placeholder="Ex: Remise locale sous 3 à 5 jours" />
+            </label>
+            <label className="text-[13px] font-semibold text-[#344054]">
+              Checkpoint
+              <input value={manualFulfillmentCheckpointLabel} onChange={(event) => setManualFulfillmentCheckpointLabel(event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a5b]" placeholder="Ex: En transit vers l'agence finale" />
+            </label>
+            <label className="text-[13px] font-semibold text-[#344054]">
+              Agent / responsable
+              <input value={manualFulfillmentAgentName} onChange={(event) => setManualFulfillmentAgentName(event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a5b]" placeholder="Ex: Equipe Abidjan" />
+            </label>
+            <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">
+              Téléphone agent
+              <input value={manualFulfillmentAgentPhone} onChange={(event) => setManualFulfillmentAgentPhone(event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a5b]" placeholder="Ex: +225 ..." />
+            </label>
+            <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">
+              Note checkpoint
+              <textarea value={manualFulfillmentCheckpointNote} onChange={(event) => setManualFulfillmentCheckpointNote(event.target.value)} className="mt-2 min-h-[110px] w-full rounded-[18px] border border-[#d7dce5] px-4 py-3 text-[14px] outline-none focus:border-[#ff6a5b]" placeholder="Ex: Colis réceptionné au hub, tri en cours avant remise au partenaire local." />
+            </label>
+          </div>
+          <button type="button" onClick={() => void saveManualFulfillment()} disabled={isPending} className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-70">
+            <Save className="h-4 w-4" />
+            Enregistrer le suivi manuel
+          </button>
+        </article>
       </section>
 
       <section className="rounded-[20px] border border-[#e6eaf0] bg-white px-5 py-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
@@ -342,6 +481,166 @@ export function AdminOrderDetailClient({ order: initialOrder, currencyCode, loca
             ))}
           </div>
         )}
+      </section>
+
+      <section className="rounded-[20px] border border-[#e6eaf0] bg-white px-5 py-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-[18px] font-bold text-[#1f2937]">Fiche colis & source AliExpress</div>
+            <div className="mt-1 text-[13px] text-[#667085]">Vue rapide du produit source, des photos disponibles et des informations de conditionnement pour cette commande.</div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {parcelState.parcelHref ? (
+              <Link href={parcelState.parcelHref} className="inline-flex h-11 items-center justify-center rounded-[14px] border border-[#d7dce5] bg-white px-5 text-[14px] font-semibold text-[#1f2937] transition hover:border-[#ff6a5b] hover:text-[#ff6a5b]">
+                Voir colis
+              </Link>
+            ) : null}
+            <Link href={parcelState.printHref} target="_blank" className="inline-flex h-11 items-center justify-center rounded-[14px] border border-[#d7dce5] bg-white px-5 text-[14px] font-semibold text-[#1f2937] transition hover:border-[#ff6a5b] hover:text-[#ff6a5b]">
+              Bon imprimable
+            </Link>
+            {parcelState.sourceLinks[0] ? (
+              <Link href={parcelState.sourceLinks[0]} target="_blank" className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] border border-[#ffd6bf] bg-[#fff6f0] px-5 text-[14px] font-semibold text-[#d85300] transition hover:opacity-80">
+              Ouvrir la source AliExpress
+              <ExternalLink className="h-4 w-4" />
+              </Link>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Articles</div>
+            <div className="mt-1 text-[18px] font-semibold text-[#1f2937]">{parcelState.totalItems}</div>
+          </div>
+          <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Unités</div>
+            <div className="mt-1 text-[18px] font-semibold text-[#1f2937]">{parcelState.totalUnits}</div>
+          </div>
+          <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Fournisseurs</div>
+            <div className="mt-1 text-[18px] font-semibold text-[#1f2937]">{parcelState.supplierNames.length}</div>
+          </div>
+          <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Photos utiles</div>
+            <div className="mt-1 text-[18px] font-semibold text-[#1f2937]">{parcelState.primaryGallery.length}</div>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
+          <article className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
+            <div className="text-[13px] font-semibold text-[#1f2937]">Routage pickup</div>
+            <div className="mt-3 grid gap-3 md:grid-cols-3">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Route</div>
+                <div className="mt-1 text-[14px] font-semibold text-[#1f2937]">{parcelState.routing.routeLabel}</div>
+              </div>
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Destination</div>
+                <div className="mt-1 text-[14px] font-semibold text-[#1f2937]">{parcelState.routing.destinationLabel}</div>
+              </div>
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Retrait</div>
+                <div className="mt-1 text-[14px] font-semibold text-[#1f2937]">{parcelState.routing.pickupLabel}</div>
+              </div>
+            </div>
+            {parcelState.routing.pickupAddress ? <div className="mt-3 whitespace-pre-wrap text-[13px] leading-6 text-[#667085]">{parcelState.routing.pickupAddress}</div> : null}
+            {parcelState.routing.pickupReadyAt ? <div className="mt-2 text-[12px] text-[#667085]">Disponible depuis {new Date(parcelState.routing.pickupReadyAt).toLocaleString("fr-FR")}</div> : null}
+          </article>
+
+          <article className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
+            <div className="text-[13px] font-semibold text-[#1f2937]">Edition manuelle colis</div>
+            <label className="mt-3 block text-[13px] font-semibold text-[#344054]">
+              Note colis / pickup
+              <textarea value={parcelNote} onChange={(event) => setParcelNote(event.target.value)} className="mt-2 min-h-[120px] w-full rounded-[18px] border border-[#d7dce5] px-4 py-3 text-[14px] outline-none focus:border-[#ff6a5b]" placeholder="Ajoutez les consignes colis, état du package, anomalies, point de retrait ou consignes agent." />
+            </label>
+            <button type="button" onClick={() => void saveParcelNote()} disabled={isPending} className="mt-3 inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-70">
+              <Save className="h-4 w-4" />
+              Enregistrer la note colis
+            </button>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">
+                Libellé photo optionnel
+                <input value={parcelPhotoLabel} onChange={(event) => setParcelPhotoLabel(event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a5b]" placeholder="Ex: colis reçu, angle gauche, étiquette transitaire" />
+              </label>
+              <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">
+                Photo colis
+                <input ref={parcelPhotoInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => setParcelPhotoFile(event.target.files?.[0] ?? null)} className="mt-2 block w-full rounded-[14px] border border-[#d7dce5] bg-white px-4 py-3 text-[14px] outline-none file:mr-4 file:rounded-full file:border-0 file:bg-[#fff2e9] file:px-4 file:py-2 file:font-semibold file:text-[#d85300] focus:border-[#ff6a5b]" />
+                <div className="mt-2 text-[12px] text-[#667085]">{parcelPhotoFile ? `Selection: ${parcelPhotoFile.name}` : "Formats acceptes: JPG, PNG, WEBP ou GIF."}</div>
+              </label>
+            </div>
+            <button type="button" onClick={() => void addParcelPhoto()} disabled={isPending || isUploadingParcelPhoto} className="mt-3 inline-flex h-11 items-center justify-center gap-2 rounded-[14px] border border-[#d7dce5] bg-white px-5 text-[14px] font-semibold text-[#1f2937] transition hover:border-[#ff6a5b] hover:text-[#ff6a5b] disabled:cursor-not-allowed disabled:opacity-70">
+              {isUploadingParcelPhoto ? "Envoi photo colis..." : "Ajouter la photo colis"}
+            </button>
+          </article>
+        </div>
+
+        {parcelState.photoEntries.length > 0 ? (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {parcelState.photoEntries.slice(0, 12).map((photo, index) => (
+              <div key={photo.id} className="overflow-hidden rounded-[18px] bg-[#fafbfd] ring-1 ring-[#edf1f6]">
+                <a href={photo.url} target="_blank" rel="noreferrer" className="group block transition hover:opacity-90">
+                  <img src={photo.url} alt={`Photo colis ${index + 1}`} className="h-44 w-full object-cover" />
+                </a>
+                <div className="flex items-center justify-between gap-2 px-3 py-3 text-[12px] text-[#475467]">
+                  <div className="font-semibold">{photo.source === "manual" ? (photo.label || "Photo colis manuelle") : photo.source === "proof" ? "Photo/preuve colis" : (photo.label || "Photo fiche source")}</div>
+                  {photo.source === "manual" ? (
+                    <button type="button" onClick={() => void removeParcelPhoto(photo.id)} disabled={isPending} className="inline-flex items-center gap-1 font-semibold text-[#d85300] transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60">
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Retirer
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-4 rounded-[16px] bg-[#fafbfd] px-4 py-4 text-[13px] text-[#667085] ring-1 ring-[#edf1f6]">Aucune photo colis ou photo source n'est disponible pour cette commande.</div>
+        )}
+
+        <div className="mt-4 space-y-3">
+          {parcelState.items.map((item, index) => (
+            <article key={`${item.slug}-${index}`} className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
+              <div className="grid gap-4 lg:grid-cols-[132px_1fr]">
+                <div className="overflow-hidden rounded-[16px] bg-white ring-1 ring-[#edf1f6]">
+                  <img src={item.image} alt={item.title} className="h-32 w-full object-cover" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[15px] font-semibold text-[#1f2937]">{item.title}</div>
+                      <div className="mt-1 text-[13px] leading-6 text-[#667085]">Quantité {item.quantity}{item.selectionLabel ? ` · ${item.selectionLabel}` : ""}{item.sourceProductId ? ` · Source ${item.sourceProductId}` : ""}</div>
+                    </div>
+                    {item.sourceUrl ? (
+                      <Link href={item.sourceUrl} target="_blank" className="inline-flex items-center gap-1 text-[13px] font-semibold text-[#ff6a5b] transition hover:opacity-80">
+                        Voir sur AliExpress
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Link>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-3 grid gap-3 md:grid-cols-3">
+                    <div className="rounded-[14px] bg-white px-3 py-3 ring-1 ring-[#edf1f6]">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Fournisseur</div>
+                      <div className="mt-1 text-[14px] font-semibold text-[#1f2937]">{item.supplierName || "Non relié"}</div>
+                      <div className="mt-1 text-[12px] leading-5 text-[#667085]">{item.supplierLocation || "Aucune localisation fournisseur"}</div>
+                    </div>
+                    <div className="rounded-[14px] bg-white px-3 py-3 ring-1 ring-[#edf1f6]">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Conditionnement</div>
+                      <div className="mt-1 text-[14px] font-semibold text-[#1f2937]">{item.packaging || "Non renseigné"}</div>
+                    </div>
+                    <div className="rounded-[14px] bg-white px-3 py-3 ring-1 ring-[#edf1f6]">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Poids unitaire</div>
+                      <div className="mt-1 text-[14px] font-semibold text-[#1f2937]">{typeof item.itemWeightGrams === "number" && item.itemWeightGrams > 0 ? `${(item.itemWeightGrams / 1000).toFixed(3)} kg` : "Non renseigné"}</div>
+                    </div>
+                  </div>
+
+                  {item.overview.length > 0 ? <div className="mt-3 text-[13px] leading-6 text-[#667085]">{item.overview.slice(0, 3).join(" · ")}</div> : null}
+                  {item.specs.length > 0 ? <div className="mt-2 text-[12px] leading-6 text-[#667085]">{item.specs.slice(0, 3).map((spec) => `${spec.label}: ${spec.value}`).join(" · ")}</div> : null}
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
       </section>
 
       <section className="rounded-[20px] border border-[#e6eaf0] bg-white px-5 py-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">

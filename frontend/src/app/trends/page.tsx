@@ -5,7 +5,7 @@ import { Flame, PackageCheck, Sparkles } from "lucide-react";
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { getCatalogProducts } from "@/lib/catalog-service";
 import { getPricingContext } from "@/lib/pricing";
-import { normalizeStorefrontBadge, shuffleStorefrontItems } from "@/lib/public-storefront";
+import { getStorefrontCampaign, isTrendStorefrontProduct, normalizeStorefrontBadge, shuffleStorefrontItems } from "@/lib/public-storefront";
 
 function formatPriceRange(
   formatPrice: (amountUsd: number) => string,
@@ -21,10 +21,15 @@ function formatPriceRange(
 
 export default async function TrendsPage() {
   const [pricing, products] = await Promise.all([getPricingContext(), getCatalogProducts()]);
-  const trendProducts = shuffleStorefrontItems(products
-    .filter((product) => product.badge === "En stock" || product.badge === "Promo" || product.badge === "Livraison rapide" || product.badge === "Offre mise en avant")
-    .concat(products.filter((product) => !(product.badge === "En stock" || product.badge === "Promo" || product.badge === "Livraison rapide" || product.badge === "Offre mise en avant"))));
-  const promoProducts = trendProducts.filter((product) => product.badge === "Promo");
+  const curatedTrendProducts = products.filter((product) => isTrendStorefrontProduct(product));
+  const highlightedProducts = products.filter((product) => !curatedTrendProducts.some((entry) => entry.slug === product.slug) && (product.badge === "En stock" || product.badge === "Promo" || product.badge === "Livraison rapide" || product.badge === "Offre mise en avant"));
+  const remainingProducts = products.filter((product) => !curatedTrendProducts.some((entry) => entry.slug === product.slug) && !highlightedProducts.some((entry) => entry.slug === product.slug));
+  const trendProducts = shuffleStorefrontItems([...curatedTrendProducts, ...highlightedProducts, ...remainingProducts]);
+  const promoProducts = trendProducts.filter((product) => {
+    const campaign = getStorefrontCampaign(product);
+    return campaign.mode === "trends-promo" || product.badge === "Promo";
+  });
+  const hotProducts = trendProducts.filter((product) => getStorefrontCampaign(product).mode === "trends-hot");
   const stockProducts = trendProducts.filter((product) => product.badge === "En stock" || product.badge === "Livraison rapide");
 
   return (
@@ -54,6 +59,10 @@ export default async function TrendsPage() {
                 <Flame className="h-4 w-4" />
                 {promoProducts.length} en promotion
               </div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-[#fff0ef] px-3 py-2 text-[#ff5a36] sm:px-4">
+                <Sparkles className="h-4 w-4" />
+                {hotProducts.length} imports vedettes
+              </div>
               <div className="inline-flex items-center gap-2 rounded-full bg-[#edf8f1] px-3 py-2 text-[#127a46] sm:px-4">
                 <PackageCheck className="h-4 w-4" />
                 {stockProducts.length} en stock
@@ -63,7 +72,9 @@ export default async function TrendsPage() {
           {trendProducts.length > 0 ? (
           <div className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-5 sm:gap-3 lg:grid-cols-4 xl:grid-cols-6">
             {trendProducts.map((product) => {
-              const isPromo = product.badge === "Promo" || product.badge === "Offre mise en avant";
+              const campaign = getStorefrontCampaign(product);
+              const isPromo = campaign.mode === "trends-promo" || product.badge === "Promo" || product.badge === "Offre mise en avant";
+              const isHot = campaign.mode === "trends-hot";
               const isStock = product.badge === "En stock" || product.badge === "Livraison rapide";
 
               return (
@@ -81,7 +92,7 @@ export default async function TrendsPage() {
                       className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                     />
                     <div className="absolute bottom-2 left-2 flex h-7 w-7 items-center justify-center rounded-full bg-white text-[#444] shadow-[0_8px_18px_rgba(0,0,0,0.14)] ring-1 ring-black/5 sm:bottom-3 sm:left-3 sm:h-10 sm:w-10">
-                      <Sparkles className="h-4 w-4" />
+                      {isHot ? <Flame className="h-4 w-4 text-[#ff5a36]" /> : <Sparkles className="h-4 w-4" />}
                     </div>
                   </div>
 
@@ -103,6 +114,8 @@ export default async function TrendsPage() {
 
                     {isStock ? (
                       <div className="mt-1 text-[10px] font-semibold text-[#1f8f45] sm:text-[12px]">Expédition en 5 jours</div>
+                    ) : isHot ? (
+                      <div className="mt-1 text-[10px] font-semibold text-[#ff5a36] sm:text-[12px]">Import vedette</div>
                     ) : isPromo ? (
                       <div className="mt-1 text-[10px] font-semibold text-[#ff5a36] sm:text-[12px]">Prix les plus bas</div>
                     ) : (

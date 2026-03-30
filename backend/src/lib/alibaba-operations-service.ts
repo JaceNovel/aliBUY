@@ -25,6 +25,7 @@ import {
   extractAlibabaCategoryInfo,
   normalizePanelSlug,
   slugifyImportedTitle,
+  type AlibabaImportCampaignMode,
   type AlibabaCountryProfile,
   type AlibabaFulfillmentChannel,
   type AlibabaImportJob,
@@ -684,13 +685,86 @@ function buildOverview(product: ProductCatalogItem) {
   ];
 }
 
-function toImportedProduct(product: ProductCatalogItem, query: string, publishedToSite: boolean): AlibabaImportedProduct {
+function resolveImportCampaignBadge(badge: string | undefined, campaignMode: AlibabaImportCampaignMode) {
+  if (campaignMode === "trends-promo") {
+    return "Promo";
+  }
+
+  if (campaignMode === "trends-hot") {
+    return "Offre mise en avant";
+  }
+
+  if (campaignMode === "mode-fashion") {
+    return badge || "Mode";
+  }
+
+  if (campaignMode === "free-deal") {
+    return "Free";
+  }
+
+  return badge;
+}
+
+function resolveImportCampaignKeywords(keywords: string[] | undefined, campaignMode: AlibabaImportCampaignMode) {
+  const additions = campaignMode === "trends-promo"
+    ? ["promo", "promotion", "tendance"]
+    : campaignMode === "trends-hot"
+      ? ["hot", "tendance", "vedette"]
+      : campaignMode === "mode-fashion"
+        ? ["mode", "fashion", "style"]
+        : campaignMode === "free-deal"
+          ? ["gratuit", "free", "offre"]
+          : [];
+
+  return Array.from(new Set([...(keywords ?? []), ...additions]));
+}
+
+function resolveImportCampaignStorefront(campaignMode: AlibabaImportCampaignMode) {
+  if (campaignMode === "trends-promo" || campaignMode === "trends-hot") {
+    return "trends";
+  }
+
+  if (campaignMode === "mode-fashion") {
+    return "mode";
+  }
+
+  if (campaignMode === "free-deal") {
+    return "free-deal";
+  }
+
+  return "catalog";
+}
+
+function buildImportCampaignRawPayload(rawPayload: unknown, campaignMode: AlibabaImportCampaignMode, query: string, importedAt: string) {
+  const campaign = {
+    mode: campaignMode,
+    storefront: resolveImportCampaignStorefront(campaignMode),
+    query,
+    importedAt,
+  };
+
+  if (rawPayload && typeof rawPayload === "object" && !Array.isArray(rawPayload)) {
+    return {
+      ...(rawPayload as Record<string, unknown>),
+      afripayCampaign: campaign,
+    };
+  }
+
+  return {
+    source: "fallback-catalog",
+    ...(typeof rawPayload === "undefined" ? {} : { sourcePayload: rawPayload }),
+    afripayCampaign: campaign,
+  };
+}
+
+function toImportedProduct(product: ProductCatalogItem, query: string, publishedToSite: boolean, campaignMode: AlibabaImportCampaignMode): AlibabaImportedProduct {
   const timestamp = nowIso();
   const categoryInfo = extractAlibabaCategoryInfo({
     query,
     title: product.title,
     keywords: product.keywords,
   });
+  const keywords = resolveImportCampaignKeywords(product.keywords, campaignMode);
 
   return {
     id: createSourcingIds(),
@@ -703,7 +777,7 @@ function toImportedProduct(product: ProductCatalogItem, query: string, published
     shortTitle: product.shortTitle,
     description: product.overview.join(" "),
     query,
-    keywords: product.keywords ?? [],
+    keywords,
     image: product.image,
     gallery: product.gallery,
     videoUrl: product.videoUrl,
@@ -715,7 +789,7 @@ function toImportedProduct(product: ProductCatalogItem, query: string, published
     maxUsd: product.maxUsd,
     moq: product.moq,
     unit: product.unit,
-    badge: product.badge,
+    badge: resolveImportCampaignBadge(product.badge, campaignMode),
     supplierName: product.supplierName,
     supplierLocation: product.supplierLocation,
     responseTime: product.responseTime,
@@ -742,7 +816,7 @@ function toImportedProduct(product: ProductCatalogItem, query: string, published
     createdAt: timestamp,
     updatedAt: timestamp,
     publishedAt: publishedToSite ? timestamp : undefined,
-    rawPayload: getRecordValue(product, "rawPayload") ?? { source: "fallback-catalog" },
+    rawPayload: buildImportCampaignRawPayload(getRecordValue(product, "rawPayload"), campaignMode, query, timestamp),
   };
 }
 
@@ -799,6 +873,7 @@ export async function runAlibabaCatalogImport(input: {
   limit: number;
   fulfillmentChannel: AlibabaFulfillmentChannel;
   autoPublish: boolean;
+  campaignMode?: AlibabaImportCampaignMode;
   resetImportedProducts?: boolean;
 }) {
   const timestamp = nowIso();
@@ -891,7 +966,7 @@ export async function runAlibabaCatalogImport(input: {
       });
 
       return {
-        ...toImportedProduct(product, job.query, input.autoPublish),
+        ...toImportedProduct(product, job.query, input.autoPublish, input.campaignMode ?? "standard"),
         categorySlug: categoryInfo.slug,
         categoryTitle: categoryInfo.title,
         categoryPath: categoryInfo.path,
