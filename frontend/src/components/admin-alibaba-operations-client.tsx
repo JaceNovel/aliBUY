@@ -112,15 +112,11 @@ function formatUsd(value: unknown) {
 
 function getPurchaseOrderActionLabel(order: AlibabaPurchaseOrder) {
   if (order.tradeId && order.paymentStatus === "failed") {
-    return order.payUrl ? "Reouvrir le paiement AliExpress" : "Relancer le paiement DS";
-  }
-
-  if (order.payUrl) {
-    return "Payer sur AliExpress";
+    return "Relancer le paiement DS";
   }
 
   if (order.tradeId) {
-    return "Payer ou ouvrir AliExpress";
+    return "Lancer auto-paiement DS";
   }
 
   return "Créer la commande DS";
@@ -131,7 +127,7 @@ function getPurchaseOrderPrimaryAction(order: AlibabaPurchaseOrder): "pay" | "re
 }
 
 function confirmAliExpressPaymentRedirect() {
-  return window.confirm("Cette action va ouvrir AliExpress dans un nouvel onglet pour finaliser le paiement du lot. Continuer ?");
+  return window.confirm("Cette action va lancer l'auto-paiement DS avec ton compte acheteur AliExpress. Continuer ?");
 }
 
 function hasRecoveredVideo(product: AlibabaImportedProduct) {
@@ -406,16 +402,6 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   };
 
   const payOrder = async (order: AlibabaPurchaseOrder, action: "pay" | "refresh" | "repay") => {
-    if (action !== "refresh" && order.payUrl) {
-      if (!confirmAliExpressPaymentRedirect()) {
-        return;
-      }
-
-      const payWindow = window.open(order.payUrl, "_blank", "noopener,noreferrer");
-      setFeedback(payWindow ? "AliExpress a ete ouvert dans un nouvel onglet pour finaliser le paiement du lot." : "Le lien de paiement AliExpress est pret, mais le navigateur a bloque l'ouverture automatique.");
-      return;
-    }
-
     if (action !== "refresh" && !confirmAliExpressPaymentRedirect()) {
       return;
     }
@@ -433,21 +419,10 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       return;
     }
 
-    const payUrl = typeof payload?.order?.payUrl === "string" ? payload.order.payUrl : undefined;
     if (action !== "refresh") {
-      if (payUrl) {
-        window.open(payUrl, "_blank", "noopener,noreferrer");
-        setFeedback(action === "repay"
-          ? "AliExpress a ete rouvert. Termine le repaiement fournisseur dans l'onglet ouvert."
-          : "AliExpress a ete ouvert. Termine le paiement du lot dans l'onglet ouvert.");
-      } else {
-        const tradeId = typeof payload?.order?.tradeId === "string" ? payload.order.tradeId : order.tradeId;
-        setFeedback(tradeId
-          ? action === "repay"
-            ? `Repaiement fournisseur relance. Aucun lien automatique n'a ete renvoye. Connecte-toi a AliExpress puis regle manuellement la commande ${tradeId} dans la liste des commandes.`
-            : `Commande DS creee. Aucun lien de paiement automatique n'a ete renvoye. Connecte-toi a AliExpress puis regle manuellement la commande ${tradeId} dans la liste des commandes.`
-          : "Lot DS lance, mais aucun lien de paiement n'a ete renvoye. Utilise Actualiser pour relire le statut.");
-      }
+      setFeedback(action === "repay"
+        ? "Repaiement DS relance. Le compte acheteur AliExpress tente un auto-paiement immediat; actualise le statut dans quelques secondes."
+        : "Commande DS lancee. Le compte acheteur AliExpress tente un auto-paiement immediat; actualise le statut dans quelques secondes.");
     } else {
       setFeedback("Statut paiement actualise.");
     }
@@ -1017,11 +992,10 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                     <div className="mt-1 text-[13px] text-[#667085]">trade_id: {order.tradeId ?? "non retourne"} · {formatCount(order.quantity)} unites · {order.supplierName}</div>
                     <div className="mt-1 text-[13px] text-[#667085]">Etat ordre: {order.orderStatus} · paiement: {order.paymentStatus}</div>
                     {order.payFailureReason ? <div className="mt-1 text-[12px] font-semibold text-[#b42318]">{order.payFailureReason}</div> : null}
-                    {order.tradeId && !order.payUrl && order.paymentStatus !== "paid" ? <div className="mt-1 text-[12px] font-semibold text-[#9a3412]">Paiement manuel possible dans AliExpress avec la commande {order.tradeId} si aucun lien automatique n&apos;est renvoye.</div> : null}
+                    {order.tradeId && !order.payUrl && order.paymentStatus !== "paid" ? <div className="mt-1 text-[12px] font-semibold text-[#9a3412]">Auto-paiement DS en attente de confirmation. Utilise Actualiser pour synchroniser le statut.</div> : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="rounded-[12px] bg-[#fff7ed] px-3 py-2 text-[13px] font-semibold text-[#c2410c]">{formatUsd(order.amountUsd)}</div>
-                    {order.payUrl ? <a href={order.payUrl} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center rounded-[12px] border border-[#dbe2ea] px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">Lien paiement</a> : null}
                     <button type="button" onClick={() => payOrder(order, getPurchaseOrderPrimaryAction(order))} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]"><Wallet className="h-4 w-4" />{getPurchaseOrderActionLabel(order)}</button>
                     <button type="button" onClick={() => payOrder(order, "refresh")} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#dbe2ea] px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]"><RefreshCcw className="h-4 w-4" />Actualiser</button>
                   </div>

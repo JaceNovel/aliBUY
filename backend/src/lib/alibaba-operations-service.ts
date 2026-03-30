@@ -447,7 +447,65 @@ function extractAliExpressTradePayUrl(responseBody: unknown) {
   return getStringRecordValue(wrappedResult, "pay_url", "payUrl", "cashier_url", "cashierUrl")
     ?? getStringRecordValue(result, "pay_url", "payUrl", "cashier_url", "cashierUrl")
     ?? getStringRecordValue(value, "pay_url", "payUrl", "cashier_url", "cashierUrl")
+    ?? getStringRecordValue(wrappedResult, "payment_url", "paymentUrl", "pay_url_https", "pay_url_http")
+    ?? getStringRecordValue(result, "payment_url", "paymentUrl", "pay_url_https", "pay_url_http")
+    ?? getStringRecordValue(value, "payment_url", "paymentUrl", "pay_url_https", "pay_url_http")
     ?? getStringRecordValue(body, "pay_url", "payUrl", "cashier_url", "cashierUrl");
+}
+
+function extractAliExpressTradeError(responseBody: unknown) {
+  if (!responseBody || typeof responseBody !== "object" || Array.isArray(responseBody)) {
+    return null;
+  }
+
+  const body = responseBody as Record<string, unknown>;
+  const errorResponse = getRecordValue(body, "error_response");
+
+  if (!errorResponse || typeof errorResponse !== "object" || Array.isArray(errorResponse)) {
+    return null;
+  }
+
+  return {
+    code: getStringRecordValue(errorResponse, "code"),
+    subCode: getStringRecordValue(errorResponse, "sub_code"),
+    message: getStringRecordValue(errorResponse, "msg", "message"),
+    subMessage: getStringRecordValue(errorResponse, "sub_msg"),
+  };
+}
+
+function isAliExpressPermissionError(code?: string, subCode?: string, message?: string) {
+  const haystack = [code, subCode, message]
+    .map((entry) => String(entry ?? "").trim().toLowerCase())
+    .filter(Boolean)
+    .join("|");
+
+  return haystack.includes("isv.insuffisance-permission")
+    || haystack.includes("isv.insufficient-permission")
+    || haystack.includes("permission insuffisante")
+    || haystack.includes("insufficient permission");
+}
+
+async function waitMilliseconds(durationMs: number) {
+  await new Promise((resolve) => {
+    setTimeout(resolve, durationMs);
+  });
+}
+
+async function syncAlibabaPurchaseOrderStateWithRetry(order: AlibabaPurchaseOrder, attempts = 3, waitMs = 2000) {
+  let latest = order;
+
+  for (let attempt = 0; attempt < Math.max(1, attempts); attempt += 1) {
+    latest = await syncAlibabaPurchaseOrderState(latest);
+    if (latest.paymentStatus === "paid" || latest.paymentStatus === "failed" || latest.payUrl) {
+      return latest;
+    }
+
+    if (attempt < attempts - 1) {
+      await waitMilliseconds(waitMs);
+    }
+  }
+
+  return latest;
 }
 
 async function syncAlibabaPurchaseOrderState(order: AlibabaPurchaseOrder) {
@@ -456,9 +514,14 @@ async function syncAlibabaPurchaseOrderState(order: AlibabaPurchaseOrder) {
   }
 
   const paymentResult = await queryAlibabaPaymentResult({ tradeId: order.tradeId });
+  const remoteError = extractAliExpressTradeError(paymentResult.responseBody);
   const remoteStatus = String(extractAliExpressTradeOrderStatus(paymentResult.responseBody) ?? "").trim().toUpperCase();
-  const payUrl = extractAliExpressTradePayUrl(paymentResult.responseBody) ?? order.payUrl;
-  const payFailureReason = extractAlibabaOperationMessage(paymentResult.responseBody);
+  const payUrl = extractAliExpressTradePayUrl(paymentResult.responseBody)
+    ?? order.payUrl;
+  const payFailureReason = remoteError?.subMessage
+    ?? remoteError?.message
+    ?? extractAlibabaOperationMessage(paymentResult.responseBody);
+  const permissionDenied = isAliExpressPermissionError(remoteError?.code, remoteError?.subCode, payFailureReason);
   const isPaid = remoteStatus === "FINISH" || remoteStatus === "PAID";
   const isFailed = remoteStatus.includes("CANCEL") || remoteStatus.includes("CLOSE") || remoteStatus.includes("FAIL");
 
@@ -466,7 +529,11 @@ async function syncAlibabaPurchaseOrderState(order: AlibabaPurchaseOrder) {
     ...order,
     payUrl,
     paymentStatus: isPaid ? "paid" : isFailed ? "failed" : payUrl ? "pay_url_generated" : "pending",
-    payFailureReason: isFailed ? payFailureReason ?? "Paiement non complete" : undefined,
+    payFailureReason: isFailed
+      ? payFailureReason ?? "Paiement non complete"
+      : permissionDenied
+        ? payFailureReason ?? "Permission API insuffisante pour lire le statut detaille du paiement DS."
+        : undefined,
     rawPaymentResponse: paymentResult.responseBody,
     updatedAt: nowIso(),
     orderStatus: isPaid ? "paid" : isFailed ? "failed" : "payment_pending",
@@ -1407,22 +1474,49 @@ export async function payAlibabaPurchaseOrder(orderId: string) {
       updatedAt: nowIso(),
     };
     await saveAlibabaPurchaseOrder(nextOrder);
-    return nextOrder;
+
+    if (!nextOrder.tradeId || nextOrder.orderStatus === "failed") {
+      return nextOrder;
+    }
+
+    return syncAlibabaPurchaseOrderStateWithRetry(nextOrder, 3, 2000).catch(() => nextOrder);
   }
 
   const paymentResult = await createAlibabaDropshippingPayment({ tradeId: order.tradeId });
+  const paymentError = extractAliExpressTradeError(paymentResult.responseBody);
   const paymentObject = paymentResult.responseBody as { value?: { reason_message?: string }; reason_message?: string };
-  const payUrl = extractAliExpressTradePayUrl(paymentResult.responseBody) ?? order.payUrl;
+  const paymentMessage = paymentError?.subMessage
+    ?? paymentError?.message
+    ?? paymentObject?.value?.reason_message
+    ?? paymentObject?.reason_message
+    ?? extractAlibabaOperationMessage(paymentResult.responseBody);
+  const payUrl = extractAliExpressTradePayUrl(paymentResult.responseBody)
+    ?? order.payUrl;
+  const permissionDenied = isAliExpressPermissionError(paymentError?.code, paymentError?.subCode, paymentMessage);
+  const hasBusinessError = Boolean(paymentError?.subCode || paymentError?.code);
+  const paymentSucceeded = paymentResult.ok && !hasBusinessError;
 
   const nextOrder: AlibabaPurchaseOrder = {
     ...order,
-    paymentStatus: paymentResult.ok ? (payUrl ? "pay_url_generated" : "pending") : "failed",
+    paymentStatus: paymentSucceeded
+      ? (payUrl ? "pay_url_generated" : "pending")
+      : permissionDenied
+        ? (payUrl ? "pay_url_generated" : "pending")
+        : "failed",
     payUrl,
-    payFailureReason: paymentResult.ok ? undefined : paymentObject?.value?.reason_message ?? paymentObject?.reason_message ?? "Paiement AliExpress echoue",
+    payFailureReason: paymentSucceeded
+      ? undefined
+      : permissionDenied
+        ? paymentMessage ?? "Permission API insuffisante pour lire le statut detaille du paiement DS."
+        : paymentMessage ?? "Paiement AliExpress echoue",
     rawPaymentResponse: paymentResult.responseBody,
     updatedAt: nowIso(),
   };
   await saveAlibabaPurchaseOrder(nextOrder);
+  if (nextOrder.paymentStatus === "pending" && !nextOrder.payUrl) {
+    return syncAlibabaPurchaseOrderStateWithRetry(nextOrder, 3, 2000).catch(() => nextOrder);
+  }
+
   return nextOrder;
 }
 
@@ -1438,16 +1532,34 @@ export async function repayAlibabaPurchaseOrder(orderId: string) {
   }
 
   const paymentResult = await createAlibabaDropshippingPayment({ tradeId: order.tradeId });
+  const paymentError = extractAliExpressTradeError(paymentResult.responseBody);
   const paymentObject = paymentResult.responseBody as { value?: { reason_message?: string }; reason_message?: string };
-  const payUrl = extractAliExpressTradePayUrl(paymentResult.responseBody) ?? order.payUrl;
+  const paymentMessage = paymentError?.subMessage
+    ?? paymentError?.message
+    ?? paymentObject?.value?.reason_message
+    ?? paymentObject?.reason_message
+    ?? extractAlibabaOperationMessage(paymentResult.responseBody);
+  const payUrl = extractAliExpressTradePayUrl(paymentResult.responseBody)
+    ?? order.payUrl;
+  const permissionDenied = isAliExpressPermissionError(paymentError?.code, paymentError?.subCode, paymentMessage);
+  const hasBusinessError = Boolean(paymentError?.subCode || paymentError?.code);
+  const paymentSucceeded = paymentResult.ok && !hasBusinessError;
   const nextOrder: AlibabaPurchaseOrder = {
     ...order,
-    paymentStatus: paymentResult.ok ? (payUrl ? "pay_url_generated" : "pending") : "failed",
+    paymentStatus: paymentSucceeded
+      ? (payUrl ? "pay_url_generated" : "pending")
+      : permissionDenied
+        ? (payUrl ? "pay_url_generated" : "pending")
+        : "failed",
     payUrl,
-    payFailureReason: paymentResult.ok ? undefined : paymentObject?.value?.reason_message ?? paymentObject?.reason_message ?? "Repaiement AliExpress echoue",
+    payFailureReason: paymentSucceeded
+      ? undefined
+      : permissionDenied
+        ? paymentMessage ?? "Permission API insuffisante pour lire le statut detaille du paiement DS."
+        : paymentMessage ?? "Repaiement AliExpress echoue",
     rawPaymentResponse: paymentResult.responseBody,
     updatedAt: nowIso(),
-    orderStatus: paymentResult.ok ? "payment_pending" : "failed",
+    orderStatus: paymentSucceeded || permissionDenied ? "payment_pending" : "failed",
   };
   await saveAlibabaPurchaseOrder(nextOrder);
 
@@ -1455,7 +1567,7 @@ export async function repayAlibabaPurchaseOrder(orderId: string) {
     return nextOrder;
   }
 
-  return syncAlibabaPurchaseOrderState(nextOrder).catch(() => nextOrder);
+  return syncAlibabaPurchaseOrderStateWithRetry(nextOrder, 3, 2000).catch(() => nextOrder);
 }
 
 export async function syncAlibabaPurchaseOrderByTradeId(tradeId: string) {
