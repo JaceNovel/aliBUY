@@ -5,7 +5,7 @@ import { getUserOrderRecordById } from "@/lib/order-service";
 import { getPricingContext } from "@/lib/pricing";
 import { getSourcingOrderById } from "@/lib/sourcing-store";
 import { getCurrentUser } from "@/lib/user-auth";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 
 export default async function OrderPaymentPage({
   searchParams,
@@ -64,7 +64,12 @@ export default async function OrderPaymentPage({
   const order = await getUserOrderRecordById(user, resolvedSearchParams.orderId);
 
   if (!order) {
-    notFound();
+    const ordersUrl = new URL("/orders", "https://afripay.local");
+    if (resolvedSearchParams.orderId) {
+      ordersUrl.searchParams.set("payment", "order_not_found");
+      ordersUrl.searchParams.set("orderId", resolvedSearchParams.orderId);
+    }
+    redirect(`${ordersUrl.pathname}${ordersUrl.search}`);
   }
 
   return (

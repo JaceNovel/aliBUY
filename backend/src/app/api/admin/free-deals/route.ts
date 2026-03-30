@@ -1,5 +1,6 @@
 import { buildApiUrl } from "@/lib/api";
 import { getFreeDealAdminSummary, saveFreeDealConfig, type FreeDealConfig } from "@/lib/free-deal-store";
+import { POST as importFreeDealsPost } from "./import/route";
 
 function parseString(value: unknown, fallback: string) {
   return typeof value === "string" ? value : fallback;
@@ -91,4 +92,9 @@ export async function PUT(request: Request) {
     const message = error instanceof Error ? error.message : "Impossible d'enregistrer l'offre gratuite.";
     return Response.json({ message }, { status: 400 });
   }
+}
+
+export async function POST(request: Request) {
+  // Use the root free-deals endpoint as a stable import fallback.
+  return importFreeDealsPost(request);
 }

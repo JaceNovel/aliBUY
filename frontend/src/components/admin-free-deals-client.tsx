@@ -152,7 +152,7 @@ export function AdminFreeDealsClient({
     setFeedback(null);
 
     try {
-      const response = await fetch("/api/admin/free-deals/import", {
+      const response = await fetch("/api/admin/free-deals", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -314,7 +314,7 @@ export function AdminFreeDealsClient({
               type="checkbox"
               className="h-4 w-4 rounded border-[#dfe3ea] text-[#ff6a00]"
             />
-            Vider les anciens imports avant de recharger l'offre gratuite
+            Vider les anciens imports avant de recharger l&apos;offre gratuite
           </label>
 
           <div className="mt-5 grid gap-3 md:grid-cols-3">
