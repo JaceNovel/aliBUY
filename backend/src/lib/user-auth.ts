@@ -202,30 +202,40 @@ export async function createAuthenticatedUserSession(user: AuthenticatedUser) {
 }
 
 export const getCurrentUser = cache(async function getCurrentUser() {
-  const { userId } = await auth();
+  let userId: string | null = null;
+  try {
+    ({ userId } = await auth());
+  } catch {
+    userId = null;
+  }
+
   if (userId) {
-    const client = await clerkClient();
-    const clerkUser = await client.users.getUser(userId).catch(() => null);
-    if (clerkUser) {
-      const email = getPrimaryEmailAddress(clerkUser);
-      if (email) {
-        const displayName = getClerkDisplayName(clerkUser);
-        const syncedUser = await upsertStoredUserFromClerk({
-          clerkUserId: clerkUser.id,
-          email,
-          displayName,
-        }).catch(() => null);
+    try {
+      const client = await clerkClient();
+      const clerkUser = await client.users.getUser(userId).catch(() => null);
+      if (clerkUser) {
+        const email = getPrimaryEmailAddress(clerkUser);
+        if (email) {
+          const displayName = getClerkDisplayName(clerkUser);
+          const syncedUser = await upsertStoredUserFromClerk({
+            clerkUserId: clerkUser.id,
+            email,
+            displayName,
+          }).catch(() => null);
 
-        if (syncedUser) {
-          return toAuthenticatedUser(syncedUser);
+          if (syncedUser) {
+            return toAuthenticatedUser(syncedUser);
+          }
+
+          return buildTransientClerkUser({
+            clerkUserId: clerkUser.id,
+            email,
+            displayName,
+          });
         }
-
-        return buildTransientClerkUser({
-          clerkUserId: clerkUser.id,
-          email,
-          displayName,
-        });
       }
+    } catch {
+      // Ignore Clerk runtime errors and fall back to cookie-based session.
     }
   }
 

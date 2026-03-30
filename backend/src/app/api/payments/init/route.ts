@@ -69,6 +69,15 @@ async function maybeProxy(request: Request, rawBody: string) {
       body: rawBody || "{}",
       cache: "no-store",
     });
+
+    if (upstreamResponse.status >= 500) {
+      console.warn("[payments/init] upstream unavailable, fallback to local handler", {
+        upstreamUrl,
+        status: upstreamResponse.status,
+      });
+      return null;
+    }
+
     const rawPayload = await upstreamResponse.text();
     let payload: unknown = null;
 
@@ -88,8 +97,11 @@ async function maybeProxy(request: Request, rawBody: string) {
       message: rawPayload.trim() || `Payment API request failed with status ${upstreamResponse.status}.`,
     }, { status: upstreamResponse.status });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Payment API upstream request failed.";
-    return Response.json({ message }, { status: 502 });
+    console.warn("[payments/init] upstream request failed, fallback to local handler", {
+      upstreamUrl,
+      reason: error instanceof Error ? error.message : "unknown",
+    });
+    return null;
   }
 
   return null;

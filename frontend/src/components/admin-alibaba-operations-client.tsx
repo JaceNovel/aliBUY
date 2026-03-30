@@ -248,7 +248,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(activeImportForm),
     });
-    await response.json().catch(() => null);
+    const payload = await response.json().catch(() => null);
     if (!response.ok) {
       setFeedback(payload?.message ?? "Import AliExpress impossible.");
       return;
