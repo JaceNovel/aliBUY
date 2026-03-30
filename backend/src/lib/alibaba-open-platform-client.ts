@@ -2821,8 +2821,14 @@ function resolveDropshippingPoolId(channel: AlibabaFulfillmentChannel) {
 
 function applyAliExpressMargin(priceUsd: number) {
   const marginRate = Number(process.env.ALIEXPRESS_MARGIN_RATE ?? "0.1");
-  const safeMargin = Number.isFinite(marginRate) && marginRate >= 0 ? marginRate : 0.1;
-  return Number((priceUsd * (1 + safeMargin)).toFixed(2));
+  const configuredMargin = Number.isFinite(marginRate) && marginRate >= 0 ? marginRate : 0.1;
+  const boundedMargin = Math.min(configuredMargin, 0.2);
+  const dynamicMargin = priceUsd <= 5
+    ? Math.min(boundedMargin, 0.05)
+    : priceUsd <= 20
+      ? Math.min(boundedMargin, 0.08)
+      : boundedMargin;
+  return Number((priceUsd * (1 + dynamicMargin)).toFixed(2));
 }
 
 function mapAliExpressSearchItemFallbackToProduct(
@@ -2854,42 +2860,30 @@ function mapAliExpressSearchItemFallbackToProduct(
     return null;
   }
 
-  // Only use target-currency (USD) price fields here.
-  // Fields like originMinPrice / origin_min_price are in the seller's local currency (CNY)
-  // and would severely inflate the price if included. min_price / max_price are also ambiguous.
-  const targetPriceBounds = getPriceBounds(
+  const salePriceBounds = getPriceBounds(
     searchItem.targetSalePrice,
-    searchItem.target_sale_price,
     searchItem.salePrice,
-    searchItem.sale_price,
     searchItem.discountPrice,
-    searchItem.discount_price,
     searchItem.appSalePrice,
+    searchItem.target_sale_price,
+    searchItem.sale_price,
+    searchItem.discount_price,
     searchItem.app_sale_price,
+    searchItem.min_price,
+    searchItem.max_price,
   );
-  // Use targetOriginalPrice only as an upper-bound fallback when the sale price is missing,
-  // never as a source of the minimum price.
-  const minRawPrice = targetPriceBounds.min
-    ?? getPriceBounds(
-        searchItem.targetOriginalPrice,
-        searchItem.target_original_price,
-        searchItem.originalPrice,
-        searchItem.original_price,
-      ).min;
-  if (!minRawPrice || minRawPrice > 999) {
+  const fallbackPriceBounds = getPriceBounds(
+    searchItem.targetOriginalPrice,
+    searchItem.originalPrice,
+    searchItem.target_original_price,
+    searchItem.original_price,
+    searchItem.originMinPrice,
+    searchItem.origin_min_price,
+  );
+  const minRawPrice = salePriceBounds.min ?? fallbackPriceBounds.min;
+  if (!minRawPrice) {
     return null;
   }
-
-  // For max, only include original-price fields when they are reasonably close to the sale price
-  // (i.e. ≤ 10× the min). This guards against stray large values from unrelated fields.
-  const rawMax = targetPriceBounds.max
-    ?? getPriceBounds(
-        searchItem.targetOriginalPrice,
-        searchItem.target_original_price,
-        searchItem.originalPrice,
-        searchItem.original_price,
-      ).max;
-  const sanitizedMax = typeof rawMax === "number" && rawMax <= minRawPrice * 10 ? rawMax : undefined;
 
   const title = getStringValue(searchItem.title)
     ?? getStringValue(searchItem.product_title)
@@ -2897,7 +2891,8 @@ function mapAliExpressSearchItemFallbackToProduct(
     ?? getStringValue(searchItem.subject)
     ?? query;
   const minUsd = applyAliExpressMargin(minRawPrice);
-  const maxUsd = typeof sanitizedMax === "number" ? applyAliExpressMargin(sanitizedMax) : undefined;
+  const maxCandidate = salePriceBounds.max ?? fallbackPriceBounds.max;
+  const maxUsd = typeof maxCandidate === "number" ? applyAliExpressMargin(maxCandidate) : undefined;
   const soldCount = getStringValue(searchItem.orders)
     ?? getStringValue(searchItem.latest_volume)
     ?? getStringValue(searchItem.tradeDesc)
@@ -3219,21 +3214,37 @@ function mapAliExpressProductDetailToProduct(
     return null;
   }
 
-  // offer_sale_price is the dropshipper price in target currency (USD).
-  // sku_price is in the seller's local currency (CNY) and must NOT be used as a price source.
   const skuPrices = skuInfo
-    .map((sku) => getNumberValue(sku.offer_sale_price))
-    .filter((value): value is number => typeof value === "number" && value > 0 && value < 1000);
-  // If the detail response does not contain offer_sale_price for any SKU, fall back to the
-  // target-currency fields from the search item (which are in USD, already validated).
+    .map((sku) => getNumberValue(sku.offer_sale_price, sku.sku_price))
+    .filter((value): value is number => typeof value === "number" && value > 0);
+  const searchSalePriceBounds = getPriceBounds(
+    searchItem.targetSalePrice,
+    searchItem.salePrice,
+    searchItem.discountPrice,
+    searchItem.appSalePrice,
+    searchItem.target_sale_price,
+    searchItem.sale_price,
+    searchItem.discount_price,
+    searchItem.app_sale_price,
+    searchItem.min_price,
+    searchItem.max_price,
+  );
+  const searchFallbackPriceBounds = getPriceBounds(
+    searchItem.targetOriginalPrice,
+    searchItem.originalPrice,
+    searchItem.target_original_price,
+    searchItem.original_price,
+  );
   const minRawPrice = skuPrices.length > 0
     ? Math.min(...skuPrices)
-    : getNumberValue(searchItem.targetSalePrice, searchItem.target_sale_price, searchItem.salePrice, searchItem.sale_price);
-  if (!minRawPrice || minRawPrice > 999) {
+    : (searchSalePriceBounds.min ?? searchFallbackPriceBounds.min);
+  if (!minRawPrice) {
     return null;
   }
 
-  const maxRawPrice = skuPrices.length > 1 ? Math.max(...skuPrices) : undefined;
+  const maxRawPrice = skuPrices.length > 1
+    ? Math.max(...skuPrices)
+    : (searchSalePriceBounds.max ?? searchFallbackPriceBounds.max);
   const moq = skuInfo
     .map((sku) => getNumberValue(sku.sku_bulk_order))
     .filter((value): value is number => typeof value === "number" && value > 0)[0] ?? 1;
@@ -3272,21 +3283,12 @@ function mapAliExpressProductDetailToProduct(
     value: getStringValue(property.attr_value) ?? getStringValue(property.attr_value_start) ?? "-",
   }));
   const minUsd = applyAliExpressMargin(minRawPrice);
-  const maxUsd = typeof maxRawPrice === "number" && maxRawPrice <= minRawPrice * 10 ? applyAliExpressMargin(maxRawPrice) : undefined;
-  // Use only offer_sale_price for tier prices (target currency = USD).
-  // sku_price is in the seller's local currency (CNY) and would inflate prices.
-  const tiers = skuInfo.slice(0, 6).flatMap((sku, index) => {
-    const rawTierPrice = getNumberValue(sku.offer_sale_price);
-    if (!rawTierPrice || rawTierPrice > 999) {
-      return [] as Array<{ quantityLabel: string; priceUsd: number; note?: string }>;
-    }
-
-    return [{
-      quantityLabel: `${Math.max(1, Math.round(getNumberValue(sku.sku_bulk_order) ?? moq))}+`,
-      priceUsd: applyAliExpressMargin(rawTierPrice),
-      note: getStringValue(sku.sku_attr) ?? `SKU ${index + 1}`,
-    }];
-  });
+  const maxUsd = typeof maxRawPrice === "number" ? applyAliExpressMargin(maxRawPrice) : undefined;
+  const tiers = skuInfo.slice(0, 6).map((sku, index) => ({
+    quantityLabel: `${Math.max(1, Math.round(getNumberValue(sku.sku_bulk_order) ?? moq))}+`,
+    priceUsd: applyAliExpressMargin(getNumberValue(sku.offer_sale_price, sku.sku_price) ?? minRawPrice),
+    note: getStringValue(sku.sku_attr) ?? `SKU ${index + 1}`,
+  }));
   const variantSkus = skuInfo.flatMap((sku) => {
     const skuId = getStringValue(sku.sku_id) ?? getStringValue(sku.id);
     if (!skuId) {
