@@ -110,6 +110,22 @@ function formatUsd(value: unknown) {
   return `$${amount.toFixed(2)}`;
 }
 
+function getPurchaseOrderActionLabel(order: AlibabaPurchaseOrder) {
+  if (order.payUrl) {
+    return "Payer sur AliExpress";
+  }
+
+  if (order.tradeId) {
+    return "Demander le lien de paiement";
+  }
+
+  return "Créer la commande DS";
+}
+
+function confirmAliExpressPaymentRedirect() {
+  return window.confirm("Cette action va ouvrir AliExpress dans un nouvel onglet pour finaliser le paiement du lot. Continuer ?");
+}
+
 function hasRecoveredVideo(product: AlibabaImportedProduct) {
   return Boolean(product.videoUrl);
 }
@@ -361,8 +377,16 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
 
   const payOrder = async (order: AlibabaPurchaseOrder, action: "pay" | "refresh") => {
     if (action === "pay" && order.payUrl) {
+      if (!confirmAliExpressPaymentRedirect()) {
+        return;
+      }
+
       const payWindow = window.open(order.payUrl, "_blank", "noopener,noreferrer");
-      setFeedback(payWindow ? "Lien de paiement AliExpress ouvert dans un nouvel onglet." : "Le lien de paiement AliExpress est pret, mais le navigateur a bloque l'ouverture automatique.");
+      setFeedback(payWindow ? "AliExpress a ete ouvert dans un nouvel onglet pour finaliser le paiement du lot." : "Le lien de paiement AliExpress est pret, mais le navigateur a bloque l'ouverture automatique.");
+      return;
+    }
+
+    if (action === "pay" && !confirmAliExpressPaymentRedirect()) {
       return;
     }
 
@@ -389,7 +413,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
         } else {
           window.open(payUrl, "_blank", "noopener,noreferrer");
         }
-        setFeedback("Lien de paiement AliExpress ouvert. Termine le paiement dans l'onglet ouvert.");
+        setFeedback("AliExpress a ete ouvert. Termine le paiement du lot dans l'onglet ouvert.");
       } else {
         pendingWindow?.close();
         setFeedback("Lot DS lance, mais aucun lien de paiement n'a été renvoye. Utilise Actualiser pour relire le statut.");
@@ -959,7 +983,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="rounded-[12px] bg-[#fff7ed] px-3 py-2 text-[13px] font-semibold text-[#c2410c]">{formatUsd(order.amountUsd)}</div>
                     {order.payUrl ? <a href={order.payUrl} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center rounded-[12px] border border-[#dbe2ea] px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">Lien paiement</a> : null}
-                    <button type="button" onClick={() => payOrder(order, "pay")} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]"><Wallet className="h-4 w-4" />Lancer DS</button>
+                    <button type="button" onClick={() => payOrder(order, "pay")} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]"><Wallet className="h-4 w-4" />{getPurchaseOrderActionLabel(order)}</button>
                     <button type="button" onClick={() => payOrder(order, "refresh")} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#dbe2ea] px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]"><RefreshCcw className="h-4 w-4" />Actualiser</button>
                   </div>
                 </div>

@@ -1618,7 +1618,8 @@ function hasUsefulAlibabaPayload(responseBody: unknown) {
 
     if (isRecord(sellerPayload.data)) {
       const data = sellerPayload.data as Record<string, unknown>;
-      if (Array.isArray(data.tracking_detail_line_list) && data.tracking_detail_line_list.length > 0) {
+      const trackingLines = extractAliExpressTrackingLines(data.tracking_detail_line_list);
+      if (trackingLines.length > 0) {
         return true;
       }
     }
@@ -4068,35 +4069,83 @@ export async function uploadAlibabaOrderAttachment(input: {
   });
 }
 
+function extractAliExpressTrackingLines(value: unknown) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (!isRecord(value)) {
+    return [] as unknown[];
+  }
+
+  if (Array.isArray(value.tracking_detail)) {
+    return value.tracking_detail;
+  }
+
+  if (Array.isArray(value.tracking_detail_line_list)) {
+    return value.tracking_detail_line_list;
+  }
+
+  return [] as unknown[];
+}
+
+function extractAliExpressTrackingDetailNodes(value: unknown) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (!isRecord(value)) {
+    return [] as unknown[];
+  }
+
+  if (Array.isArray(value.detail_node)) {
+    return value.detail_node;
+  }
+
+  if (Array.isArray(value.detail_node_list)) {
+    return value.detail_node_list;
+  }
+
+  return [] as unknown[];
+}
+
+function normalizeAliExpressTrackingEventTime(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return new Date(value).toISOString();
+  }
+
+  return getStringValue(value);
+}
+
 export function normalizeAlibabaLogisticsTracking(responseBody: unknown): AlibabaLogisticsTracking[] {
   const sellerPayload = getAliExpressSellerPayload(responseBody);
   const trackingData = sellerPayload && isRecord(sellerPayload.data) ? sellerPayload.data : null;
-  const trackingLines = Array.isArray(trackingData?.tracking_detail_line_list)
-    ? trackingData.tracking_detail_line_list
-    : [];
+  const trackingLines = extractAliExpressTrackingLines(trackingData?.tracking_detail_line_list);
   if (trackingLines.length > 0) {
     return trackingLines.flatMap((entry) => {
       if (!isRecord(entry)) {
         return [] as AlibabaLogisticsTracking[];
       }
 
-      const detailNodes = Array.isArray(entry.detail_node_list) ? entry.detail_node_list : [];
+      const detailNodes = extractAliExpressTrackingDetailNodes(entry.detail_node_list);
+      const normalizedEvents = detailNodes.flatMap((event) => {
+        if (!isRecord(event)) {
+          return [] as AlibabaLogisticsTrackingEvent[];
+        }
+
+        return [{
+          eventCode: getStringValue(event.tracking_name),
+          eventLocation: getStringValue(event.location),
+          eventName: getStringValue(event.tracking_detail_desc) ?? getStringValue(event.tracking_name),
+          eventTime: normalizeAliExpressTrackingEventTime(event.time_stamp),
+        } satisfies AlibabaLogisticsTrackingEvent];
+      });
+
       return [{
         carrier: getStringValue(entry.carrier_name),
         trackingNumber: getStringValue(entry.mail_no),
-        currentEventCode: getStringValue(sellerPayload?.code),
-        eventList: detailNodes.flatMap((event) => {
-          if (!isRecord(event)) {
-            return [] as AlibabaLogisticsTrackingEvent[];
-          }
-
-          return [{
-            eventCode: getStringValue(event.tracking_name),
-            eventLocation: undefined,
-            eventName: getStringValue(event.tracking_detail_desc),
-            eventTime: getStringValue(event.time_stamp),
-          } satisfies AlibabaLogisticsTrackingEvent];
-        }),
+        currentEventCode: normalizedEvents[0]?.eventCode,
+        eventList: normalizedEvents,
       } satisfies AlibabaLogisticsTracking];
     });
   }

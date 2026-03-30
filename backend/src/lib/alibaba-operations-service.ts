@@ -46,6 +46,58 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function formatAliExpressDsOrderCreateFailure(errorCode?: string, errorMessage?: string) {
+  const code = String(errorCode ?? "").trim();
+  const message = String(errorMessage ?? "").trim();
+  const normalizedMessage = message.toLowerCase();
+
+  if (code === "B_DROPSHIPPER_DELIVERY_ADDRESS_VALIDATE_FAIL") {
+    if (normalizedMessage.includes("city")) {
+      return "Adresse AliExpress invalide: la ville est obligatoire ou non reconnue.";
+    }
+
+    if (normalizedMessage.includes("state") || normalizedMessage.includes("province") || normalizedMessage.includes("county")) {
+      return "Adresse AliExpress invalide: l'etat ou la province est obligatoire.";
+    }
+
+    if (normalizedMessage.includes("phone") || normalizedMessage.includes("country code")) {
+      return "Adresse AliExpress invalide: verifie le numero de telephone et l'indicatif pays.";
+    }
+
+    if (normalizedMessage.includes("2 and 32") || normalizedMessage.includes("2 to 32") || normalizedMessage.includes("2-32")) {
+      return "Adresse AliExpress invalide: le nom du contact doit contenir entre 2 et 32 caracteres.";
+    }
+
+    return message ? `Adresse AliExpress invalide: ${message}` : "Adresse AliExpress invalide. Verifie les champs ville, province, telephone et contact.";
+  }
+
+  if (code === "DELIVERY_METHOD_NOT_EXIST") {
+    return "Aucune methode de livraison AliExpress valide n'est disponible pour cette adresse.";
+  }
+
+  if (code === "PRICE_PAY_CURRENCY_ERROR") {
+    return "La devise de paiement AliExpress ne correspond pas a la devise du produit.";
+  }
+
+  if (code === "INVENTORY_HOLD_ERROR") {
+    return "AliExpress a refuse la commande: stock insuffisant ou erreur de reservation d'inventaire.";
+  }
+
+  if (code === "REPEATED_ORDER_ERROR") {
+    return "AliExpress signale une commande dupliquee pour ce lot.";
+  }
+
+  if (code === "USER_ACCOUNT_DISABLED") {
+    return "Le compte AliExpress utilise pour le dropshipping est desactive.";
+  }
+
+  if (code === "BLACKLIST_BUYER_IN_LIST") {
+    return "Le compte acheteur AliExpress est temporairement bloque pour cette commande.";
+  }
+
+  return [code, message].filter(Boolean).join(" - ") || "Lancement DS impossible";
+}
+
 function getAliExpressMarginRate() {
   const configuredMargin = Number(process.env.ALIEXPRESS_MARGIN_RATE ?? "0.1");
   if (!Number.isFinite(configuredMargin) || configuredMargin < 0) {
@@ -875,7 +927,7 @@ export async function payAlibabaPurchaseOrder(orderId: string) {
       tradeId: typeof tradeId !== "undefined" ? String(tradeId) : undefined,
       orderStatus: orderResult.ok && dsResult?.is_success !== false ? "order_created" : "failed",
       paymentStatus: orderResult.ok && dsResult?.is_success !== false ? "pending" : "failed",
-      payFailureReason: orderResult.ok && dsResult?.is_success !== false ? undefined : dsResult?.error_msg ?? "Lancement DS impossible",
+      payFailureReason: orderResult.ok && dsResult?.is_success !== false ? undefined : formatAliExpressDsOrderCreateFailure(dsResult?.error_code, dsResult?.error_msg),
       rawOrderResponse: orderResult.responseBody,
       updatedAt: nowIso(),
     };
