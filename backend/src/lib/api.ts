@@ -184,8 +184,24 @@ function getApiBaseUrl() {
   return SERVER_FALLBACK_API_URL;
 }
 
+function shouldUseBrowserCurrentOrigin(path: string) {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  if (!path.startsWith("/api/")) {
+    return false;
+  }
+
+  const hostname = window.location.hostname.toLowerCase();
+  return hostname === "afripay.space"
+    || hostname === "www.afripay.space"
+    || hostname === "localhost"
+    || hostname === "127.0.0.1";
+}
+
 export function buildApiUrl(path: string, query?: Record<string, string | number | boolean | null | undefined>) {
-  const baseUrl = getApiBaseUrl();
+  const baseUrl = shouldUseBrowserCurrentOrigin(path) ? window.location.origin : getApiBaseUrl();
   const target = path.startsWith("http://") || path.startsWith("https://")
     ? new URL(path)
     : baseUrl
