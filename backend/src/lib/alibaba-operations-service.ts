@@ -34,12 +34,14 @@ import {
   type AlibabaSupplierAccount,
 } from "@/lib/alibaba-operations";
 import {
+  calculateAlibabaBasicFreight,
   createAlibabaBuyNowOrder,
   createAlibabaDropshippingPayment,
   extractAlibabaOperationCode,
   extractAlibabaOperationMessage,
   extractAlibabaTradeId,
   fetchAlibabaProductSnapshot,
+  normalizeAlibabaFreightOptions,
   queryAlibabaPaymentResult,
   resolveAlibabaIcbuCategoryInfo,
   searchAlibabaProducts,
@@ -53,6 +55,14 @@ function formatAliExpressDsOrderCreateFailure(errorCode?: string, errorMessage?:
   const code = String(errorCode ?? "").trim();
   const message = String(errorMessage ?? "").trim();
   const normalizedMessage = message.toLowerCase();
+
+  if (code === "ITEM_ID_NOT_FOUND") {
+    return "L'article AliExpress n'existe plus ou l'identifiant produit est invalide.";
+  }
+
+  if (code === "Item is not allowed to this country") {
+    return "Ce produit AliExpress n'est pas autorise a la vente pour le pays de destination choisi.";
+  }
 
   if (code === "SKU_NOT_EXIST") {
     return "Le SKU AliExpress de ce produit n'existe plus ou n'a pas ete transmis. Reimporte l'article pour resynchroniser ses variantes avant de relancer le lot DS.";
@@ -172,6 +182,66 @@ function resolveAlibabaImportedProductSkuId(product: AlibabaImportedProduct) {
   }
 
   return extractSkuIdFromAlibabaRawPayload(product.rawPayload);
+}
+
+function extractSkuAttrFromAlibabaRawPayload(rawPayload: unknown, skuId: string) {
+  const queue: unknown[] = [rawPayload];
+  const visited = new Set<object>();
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || typeof current !== "object") {
+      continue;
+    }
+
+    if (visited.has(current as object)) {
+      continue;
+    }
+
+    visited.add(current as object);
+
+    if (Array.isArray(current)) {
+      queue.push(...current);
+      continue;
+    }
+
+    const record = current as Record<string, unknown>;
+    const skuGroups = [record.ae_item_sku_info_dtos, record.sku_info, record.skus, record.items];
+
+    for (const skuGroup of skuGroups) {
+      if (!Array.isArray(skuGroup)) {
+        continue;
+      }
+
+      for (const skuEntry of skuGroup) {
+        const candidateSkuId = getStringRecordValue(skuEntry, "sku_id", "skuId");
+        if (candidateSkuId !== skuId) {
+          continue;
+        }
+
+        return getStringRecordValue(skuEntry, "sku_attr", "id") ?? "";
+      }
+    }
+
+    queue.push(...Object.values(record));
+  }
+
+  return undefined;
+}
+
+function resolveAlibabaImportedProductSkuAttr(product: AlibabaImportedProduct, skuId: string) {
+  const skuAttr = extractSkuAttrFromAlibabaRawPayload(product.rawPayload, skuId);
+  if (typeof skuAttr === "string") {
+    return skuAttr;
+  }
+
+  const variantSkuCount = Array.isArray(product.variantSkus) ? product.variantSkus.length : 0;
+  return variantSkuCount <= 1 ? "" : undefined;
+}
+
+function resolveAlibabaOrderCarrierCode(freightResponseBody: unknown) {
+  const options = normalizeAlibabaFreightOptions(freightResponseBody);
+  return options.find((entry) => typeof entry.vendorCode === "string" && entry.vendorCode.trim())?.vendorCode;
 }
 
 function getAliExpressMarginRate() {
@@ -881,7 +951,53 @@ export async function createAlibabaPurchaseOrder(input: {
   }
 
   const quantity = Math.max(1, input.quantity);
-  const supplierSkuId = resolveAlibabaImportedProductSkuId(product);
+  const liveProduct = await fetchAlibabaProductSnapshot({
+    sourceProductId: product.sourceProductId,
+    query: product.query,
+    shipToCountry: address.countryCode,
+    targetCurrency: process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD",
+    targetLanguage: process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "en_US",
+    provinceCode: address.state,
+    cityCode: address.city,
+  }).catch(() => null);
+  const productForOrder = liveProduct
+    ? {
+        ...product,
+        variantSkus: liveProduct.variantSkus,
+        rawPayload: liveProduct.rawPayload,
+      }
+    : product;
+  const supplierSkuId = resolveAlibabaImportedProductSkuId(productForOrder);
+  if (!supplierSkuId) {
+    throw new Error("SKU AliExpress introuvable pour cet article. Reimporte le produit puis relance le lot DS.");
+  }
+  const supplierSkuAttr = resolveAlibabaImportedProductSkuAttr(productForOrder, supplierSkuId);
+  if (typeof supplierSkuAttr === "undefined") {
+    throw new Error("Attribut SKU AliExpress introuvable pour cet article. Reimporte le produit puis relance le lot DS.");
+  }
+
+  const freightResult = await calculateAlibabaBasicFreight({
+    destinationCountry: address.countryCode,
+    productId: product.sourceProductId,
+    quantity,
+    selectedSkuId: supplierSkuId,
+    provinceCode: address.state,
+    cityCode: address.city,
+    language: process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "en_US",
+    locale: process.env.ALIEXPRESS_DEFAULT_LOCALE ?? process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "en_US",
+    currency: process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD",
+  });
+  const carrierCode = resolveAlibabaOrderCarrierCode(freightResult.responseBody);
+  if (!carrierCode) {
+    const freightMessage = extractAlibabaOperationMessage(freightResult.responseBody);
+    throw new Error(freightMessage === "DELIVERY_NOT_AVAILABLE_TO_YOUR_ADDRESS"
+      ? "Aucune livraison AliExpress n'est disponible pour cette adresse avec ce SKU."
+      : freightMessage === "DELIVERY_INFO_EMPTY"
+        ? "AliExpress n'a retourne aucune information de livraison pour ce produit. Verifie l'identifiant produit et le SKU utilises."
+      : freightMessage
+        ? `Verification livraison DS impossible: ${freightMessage}`
+        : "Aucune option de livraison AliExpress n'a ete retournee pour ce lot.");
+  }
   const supplierUnitPrice = Math.max(0, Number(product.minUsd) / (1 + getAliExpressMarginRate()));
   const logisticsPayload = {
     shipment_address: {
@@ -903,7 +1019,7 @@ export async function createAlibabaPurchaseOrder(input: {
       },
     },
     dispatch_location: "CN",
-    carrier_code: "CAINIAO_STANDARD",
+    carrier_code: carrierCode,
   };
   const buyNowPayload = {
     out_order_id: `AFRIPAY-${Date.now()}`,
@@ -925,8 +1041,8 @@ export async function createAlibabaPurchaseOrder(input: {
         product_id: product.sourceProductId,
         product_count: quantity,
         ...(supplierSkuId ? { sku_id: supplierSkuId } : {}),
-        sku_attr: "",
-        logistics_service_name: "",
+        sku_attr: supplierSkuAttr,
+        logistics_service_name: carrierCode,
         order_memo: `Batch AfriPay ${product.shortTitle}`,
       },
     ],

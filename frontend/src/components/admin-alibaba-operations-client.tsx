@@ -116,7 +116,7 @@ function getPurchaseOrderActionLabel(order: AlibabaPurchaseOrder) {
   }
 
   if (order.tradeId) {
-    return "Demander le lien de paiement";
+    return "Payer ou ouvrir AliExpress";
   }
 
   return "Créer la commande DS";
@@ -390,7 +390,6 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       return;
     }
 
-    const pendingWindow = action === "pay" ? window.open("", "_blank", "noopener,noreferrer") : null;
     const response = await fetch(`/api/admin/aliexpress/purchase-orders/${order.id}/pay`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -400,7 +399,6 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     const payload = await response.json().catch(() => null);
 
     if (!response.ok) {
-      pendingWindow?.close();
       setFeedback(action === "pay" ? "Action AliExpress impossible." : "Actualisation paiement impossible.");
       return;
     }
@@ -408,15 +406,12 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     const payUrl = typeof payload?.order?.payUrl === "string" ? payload.order.payUrl : undefined;
     if (action === "pay") {
       if (payUrl) {
-        if (pendingWindow) {
-          pendingWindow.location.href = payUrl;
-        } else {
-          window.open(payUrl, "_blank", "noopener,noreferrer");
-        }
+        window.open(payUrl, "_blank", "noopener,noreferrer");
         setFeedback("AliExpress a ete ouvert. Termine le paiement du lot dans l'onglet ouvert.");
       } else {
-        pendingWindow?.close();
-        setFeedback("Lot DS lance, mais aucun lien de paiement n'a été renvoye. Utilise Actualiser pour relire le statut.");
+        setFeedback(order.tradeId
+          ? `Commande DS creee. Aucun lien de paiement automatique n'a ete renvoye. Connecte-toi a AliExpress puis regle manuellement la commande ${order.tradeId} dans la liste des commandes.`
+          : "Lot DS lance, mais aucun lien de paiement n'a ete renvoye. Utilise Actualiser pour relire le statut.");
       }
     } else {
       setFeedback("Statut paiement actualise.");
@@ -979,6 +974,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                     <div className="mt-1 text-[13px] text-[#667085]">trade_id: {order.tradeId ?? "non retourne"} · {formatCount(order.quantity)} unites · {order.supplierName}</div>
                     <div className="mt-1 text-[13px] text-[#667085]">Etat ordre: {order.orderStatus} · paiement: {order.paymentStatus}</div>
                     {order.payFailureReason ? <div className="mt-1 text-[12px] font-semibold text-[#b42318]">{order.payFailureReason}</div> : null}
+                    {order.tradeId && !order.payUrl && order.paymentStatus !== "paid" ? <div className="mt-1 text-[12px] font-semibold text-[#9a3412]">Paiement manuel possible dans AliExpress avec la commande {order.tradeId} si aucun lien automatique n'est renvoye.</div> : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="rounded-[12px] bg-[#fff7ed] px-3 py-2 text-[13px] font-semibold text-[#c2410c]">{formatUsd(order.amountUsd)}</div>

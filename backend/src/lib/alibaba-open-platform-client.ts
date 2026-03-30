@@ -1810,9 +1810,34 @@ async function fetchAlibabaProductDetail(sourceProductId: string, credentials?: 
 export async function fetchAlibabaProductSnapshot(input: {
   sourceProductId: string;
   query?: string;
+  shipToCountry?: string;
+  targetCurrency?: string;
+  targetLanguage?: string;
+  provinceCode?: string;
+  cityCode?: string;
 }): Promise<AlibabaSearchProduct | null> {
   const query = input.query?.trim() || input.sourceProductId;
-  const detailRecord = await fetchAlibabaProductDetail(input.sourceProductId);
+  const detailResult = await getAlibabaIcbuProduct({
+    productId: input.sourceProductId,
+    shipToCountry: input.shipToCountry,
+    targetCurrency: input.targetCurrency,
+    targetLanguage: input.targetLanguage,
+    provinceCode: input.provinceCode,
+    cityCode: input.cityCode,
+  });
+
+  if (detailResult.ok) {
+    const aliExpressMapped = mapAliExpressProductDetailToProduct({
+      itemId: input.sourceProductId,
+      product_id: input.sourceProductId,
+    }, detailResult.responseBody, query);
+    if (aliExpressMapped) {
+      return aliExpressMapped;
+    }
+  }
+
+  const response = detailResult.responseBody as Record<string, unknown> | null;
+  const detailRecord = response ? extractAlibabaProductDetailRecord(response) : null;
 
   if (!detailRecord) {
     return null;
@@ -1831,16 +1856,40 @@ export async function fetchAlibabaProductSnapshot(input: {
 export async function getAlibabaIcbuProduct(input: {
   productId?: string | number;
   skuId?: string | number;
+  shipToCountry?: string;
+  targetCurrency?: string;
+  targetLanguage?: string;
+  removePersonalBenefit?: boolean;
+  provinceCode?: string;
+  cityCode?: string;
+  bizModel?: string;
 }) {
   if (!input.productId && !input.skuId) {
     throw new Error("product_id ou sku_id est obligatoire pour lire un produit Alibaba.");
+  }
+
+  const credentials = await resolveAlibabaCredentialsForLiveCall();
+  if (isAliExpressCredentials(credentials) && input.productId) {
+    return callAliExpressTopEndpoint("aliexpress.ds.product.get", {
+      ship_to_country: String(input.shipToCountry ?? process.env.ALIEXPRESS_DEFAULT_SHIP_TO_COUNTRY ?? "US").trim().toUpperCase(),
+      product_id: String(input.productId),
+      target_currency: String(input.targetCurrency ?? process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD").trim().toUpperCase(),
+      target_language: String(input.targetLanguage ?? process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "en_US").trim(),
+      remove_personal_benefit: String(input.removePersonalBenefit ?? false),
+      ...(String(input.provinceCode ?? "").trim() ? { province_code: String(input.provinceCode).trim() } : {}),
+      ...(String(input.cityCode ?? "").trim() ? { city_code: String(input.cityCode).trim() } : {}),
+      ...(String(input.bizModel ?? process.env.ALIEXPRESS_DS_BIZ_MODEL ?? "").trim() ? { biz_model: String(input.bizModel ?? process.env.ALIEXPRESS_DS_BIZ_MODEL).trim() } : {}),
+    }, {
+      credentials,
+      method: "POST",
+    });
   }
 
   return callAlibabaEndpoint("/alibaba/icbu/product/get/v2", {
     ...(input.productId ? { product_id: String(input.productId) } : {}),
     ...(input.skuId ? { sku_id: String(input.skuId) } : {}),
   }, {
-    credentials: await resolveAlibabaCredentialsForLiveCall(),
+    credentials,
     method: "GET",
   });
 }
@@ -3904,7 +3953,11 @@ export async function calculateAlibabaAdvancedFreight(input: AlibabaAdvancedFrei
 export function normalizeAlibabaFreightOptions(responseBody: unknown): AlibabaFreightOption[] {
   const response = isRecord(responseBody) ? responseBody : null;
   const sellerPayload = getAliExpressSellerPayload(responseBody);
-  const deliveryOptions = Array.isArray(sellerPayload?.delivery_options) ? sellerPayload.delivery_options : [];
+  const deliveryOptions = Array.isArray(sellerPayload?.delivery_options)
+    ? sellerPayload.delivery_options
+    : isRecord(sellerPayload?.delivery_options) && Array.isArray(sellerPayload.delivery_options.delivery_option_d_t_o)
+      ? sellerPayload.delivery_options.delivery_option_d_t_o
+      : [];
   if (deliveryOptions.length > 0) {
     return deliveryOptions.flatMap((entry) => {
       if (!isRecord(entry)) {
