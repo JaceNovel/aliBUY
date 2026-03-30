@@ -76,7 +76,7 @@ function getPaymentStatusLabel(paymentStatus: SourcingPaymentOrder["paymentStatu
 
 export function PaymentClient({ order }: PaymentClientProps) {
   const [selectedMethod, setSelectedMethod] = useState(methods[0].key);
-  const [isPaid, setIsPaid] = useState(false);
+  const [legacyNotice, setLegacyNotice] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState(order.kind === "sourcing" ? order.paymentStatus : "unpaid");
   const [promoCode, setPromoCode] = useState(order.kind === "sourcing" ? order.promoCode ?? "" : "");
   const [promoDiscountLabel, setPromoDiscountLabel] = useState(order.kind === "sourcing" ? order.promoDiscountLabel : undefined);
@@ -121,7 +121,7 @@ export function PaymentClient({ order }: PaymentClientProps) {
 
   const initializeMonerooCheckout = async () => {
     if (order.kind !== "sourcing") {
-      setIsPaid(true);
+      setLegacyNotice("Le paiement Moneroo n'est pas disponible pour cette ancienne commande depuis cet ecran.");
       return;
     }
 
@@ -387,9 +387,9 @@ export function PaymentClient({ order }: PaymentClientProps) {
           Choisissez votre moyen de paiement pour valider la commande et lancer le traitement AfriPay.
         </p>
 
-        {isPaid ? (
-          <div className="mt-5 rounded-[18px] border border-[#c8ead1] bg-[#effbf2] px-4 py-4 text-[14px] font-medium text-[#1f7a39]">
-            Paiement initié avec succès pour {order.id}. La commande sera mise à jour après validation.
+        {legacyNotice ? (
+          <div className="mt-5 rounded-[18px] border border-[#f3d7bf] bg-[#fff7f1] px-4 py-4 text-[14px] font-medium text-[#8a4b16]">
+            {legacyNotice}
           </div>
         ) : null}
 
@@ -423,10 +423,10 @@ export function PaymentClient({ order }: PaymentClientProps) {
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           <button
             type="button"
-            onClick={() => setIsPaid(true)}
+            onClick={() => setLegacyNotice("Cette commande ancienne ne peut pas etre marquee comme payee ici. Utilisez une commande sourcing pour ouvrir Moneroo.")}
             className="inline-flex h-12 items-center justify-center rounded-full bg-[#ea5c00] px-6 text-[15px] font-semibold text-white transition hover:bg-[#d85400]"
           >
-            Confirmer le paiement
+            Paiement en ligne indisponible
           </button>
           <Link href="/orders" className="inline-flex h-12 items-center justify-center rounded-full border border-[#222] px-6 text-[15px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
             Retour aux commandes

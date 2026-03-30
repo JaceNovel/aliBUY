@@ -1,9 +1,9 @@
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { PaymentClient } from "@/app/orders/payment/payment-client";
-import { formatFcfa } from "@/lib/alibaba-sourcing";
-import { getOrderById } from "@/lib/api";
+import { formatFcfa, getSourcingOrderMeta } from "@/lib/alibaba-sourcing";
 import { getUserOrderRecordById } from "@/lib/order-service";
 import { getPricingContext } from "@/lib/pricing";
+import { getSourcingOrderById } from "@/lib/sourcing-store";
 import { getCurrentUser } from "@/lib/user-auth";
 import { notFound, redirect } from "next/navigation";
 
@@ -21,11 +21,12 @@ export default async function OrderPaymentPage({
 
   const resolvedSearchParams = await searchParams;
   const sourcingOrder = resolvedSearchParams.orderId
-    ? await getOrderById(resolvedSearchParams.orderId).catch(() => null)
+    ? await getSourcingOrderById(resolvedSearchParams.orderId)
     : null;
 
-  if (sourcingOrder && sourcingOrder.customerEmail.toLowerCase() === user.email.toLowerCase()) {
+  if (sourcingOrder && (sourcingOrder.userId === user.id || sourcingOrder.customerEmail.toLowerCase() === user.email.toLowerCase())) {
     const firstItem = sourcingOrder.items[0];
+    const meta = getSourcingOrderMeta(sourcingOrder);
 
     return (
       <InternalPageShell pricing={pricing}>
@@ -34,7 +35,7 @@ export default async function OrderPaymentPage({
             kind: "sourcing",
             id: sourcingOrder.id,
             orderNumber: sourcingOrder.orderNumber,
-            title: firstItem?.title || firstItem?.productName || `Commande sourcing ${sourcingOrder.orderNumber}`,
+            title: firstItem?.title || `Commande sourcing ${sourcingOrder.orderNumber}`,
             seller: "AfriPay sourcing",
             total: formatFcfa(sourcingOrder.totalPriceFcfa),
             image: firstItem?.image || "/globe.svg",
@@ -45,12 +46,12 @@ export default async function OrderPaymentPage({
             monerooCheckoutUrl: sourcingOrder.monerooCheckoutUrl,
             monerooPaymentStatus: sourcingOrder.monerooPaymentStatus,
             paymentCurrency: sourcingOrder.paymentCurrency,
-            promoCode: sourcingOrder.meta?.promo?.code,
-            promoDiscountLabel: sourcingOrder.meta?.promo ? formatFcfa(sourcingOrder.meta.promo.discountFcfa) : undefined,
-            originalTotal: sourcingOrder.meta?.promo ? formatFcfa(sourcingOrder.meta.promo.baseTotalFcfa) : undefined,
-            thirdPartyCartCreatorName: sourcingOrder.meta?.paymentContext?.thirdPartyCreatorName,
-            thirdPartyCartNotice: sourcingOrder.meta?.paymentContext?.createdFromSharedCart && sourcingOrder.meta.paymentContext.thirdPartyCreatorName
-              ? `Commande issue d'un panier tiers créé par ${sourcingOrder.meta.paymentContext.thirdPartyCreatorName}`
+            promoCode: meta.promo?.code,
+            promoDiscountLabel: meta.promo ? formatFcfa(meta.promo.discountFcfa) : undefined,
+            originalTotal: meta.promo ? formatFcfa(meta.promo.baseTotalFcfa) : undefined,
+            thirdPartyCartCreatorName: meta.paymentContext?.thirdPartyCreatorName,
+            thirdPartyCartNotice: meta.paymentContext?.createdFromSharedCart && meta.paymentContext.thirdPartyCreatorName
+              ? `Commande issue d'un panier tiers créé par ${meta.paymentContext.thirdPartyCreatorName}`
               : undefined,
             returnPaymentId: resolvedSearchParams.paymentId,
             returnPaymentStatus: resolvedSearchParams.paymentStatus || resolvedSearchParams.status,
