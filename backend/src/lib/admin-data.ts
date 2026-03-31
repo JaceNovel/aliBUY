@@ -405,7 +405,7 @@ export async function getAdminOrderParcelSnapshot(order: SourcingOrder): Promise
     createdAt: photo.createdAt,
     source: "manual" as const,
   }));
-  const proofMedia = dedupeStrings((meta.workflow?.proofs ?? []).map((proof) => normalizeMediaUrl(proof.mediaUrl)).filter((value): value is string => Boolean(value) && isImageUrl(value)));
+  const proofMedia = dedupeStrings((meta.workflow?.proofs ?? []).map((proof) => normalizeMediaUrl(proof.mediaUrl)).filter((value): value is string => typeof value === "string" && isImageUrl(value)));
 
   const items: AdminOrderParcelItem[] = order.items.map((item) => {
     const importedProduct = importedByKey.get(item.slug);

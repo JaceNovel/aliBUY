@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site-config";
+import { SITE_DESCRIPTION, SITE_LOGO_PATH, SITE_NAME, SITE_SHARE_IMAGE_PATH } from "@/lib/site-config";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -13,12 +13,12 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#000000",
     icons: [
       {
-        src: "/icon",
+        src: SITE_LOGO_PATH,
         sizes: "512x512",
         type: "image/png",
       },
       {
-        src: "/apple-icon",
+        src: SITE_SHARE_IMAGE_PATH,
         sizes: "512x512",
         type: "image/png",
       },

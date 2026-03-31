@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { Search } from "lucide-react";
 import Link from "next/link";
 
@@ -14,6 +15,7 @@ import { SupportMenu } from "@/components/support-menu";
 import { UnavailableLink } from "@/components/unavailable-link";
 import { getCatalogCategories } from "@/lib/catalog-category-service";
 import { getMessages } from "@/lib/messages";
+import { SITE_LOGO_PATH, SITE_NAME } from "@/lib/site-config";
 import { getCurrentUser } from "@/lib/user-auth";
 
 type InternalPageShellProps = {
@@ -78,8 +80,9 @@ export async function InternalPageShell({ pricing, children }: InternalPageShell
             </div>
 
             <div className="py-3.5">
-              <Link href="/" className="text-[26px] font-bold tracking-[-0.06em] text-[#111827]">
-                AfriPay
+              <Link href="/" className="inline-flex items-center gap-3 text-[#111827]">
+                <Image src={SITE_LOGO_PATH} alt={`${SITE_NAME} logo`} width={44} height={44} className="h-11 w-11 object-contain" priority />
+                <span className="text-[26px] font-bold tracking-[-0.06em]">AfriPay</span>
               </Link>
             </div>
 
@@ -116,8 +119,9 @@ export async function InternalPageShell({ pricing, children }: InternalPageShell
           </div>
 
           <div className="hidden min-h-[74px] flex-col gap-3 py-3 xl:flex xl:flex-row xl:items-center xl:justify-between">
-            <Link href="/" className="text-[24px] font-bold tracking-[-0.05em] text-[#ff6a00] sm:text-[30px]">
-              AfriPay
+            <Link href="/" className="inline-flex items-center gap-3 text-[#ff6a00]">
+              <Image src={SITE_LOGO_PATH} alt={`${SITE_NAME} logo`} width={52} height={52} className="h-12 w-12 object-contain" priority />
+              <span className="text-[24px] font-bold tracking-[-0.05em] sm:text-[30px]">AfriPay</span>
             </Link>
 
             <form action="/search" className="order-last w-full xl:order-none xl:max-w-[860px] xl:flex-1 xl:px-4">

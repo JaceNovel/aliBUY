@@ -9,7 +9,9 @@ import {
   isSourcingOrderClientPaid,
   resolveSourcingDeliveryPlan,
   withSourcingOrderMeta,
+  type SourcingDeliveryProfile,
   type SourcingDeliveryProofRole,
+  type SourcingForwarderHub,
   type SourcingOrder,
   type SourcingOrderStatus,
 } from "@/lib/alibaba-sourcing";
@@ -262,10 +264,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     if (action === "override-delivery-route") {
       const mode = body?.mode === "forwarder" ? "forwarder" : "direct";
-      const hub = body?.hub === "lome" ? "lome" : "china";
+      const hub: SourcingForwarderHub = body?.hub === "lome" ? "lome" : "china";
       const relaunch = body?.relaunch === true;
       const meta = getSourcingOrderMeta(order);
-      const requestedProfile = mode === "forwarder"
+      const requestedProfile: SourcingDeliveryProfile = mode === "forwarder"
         ? {
             ...meta.deliveryProfile,
             mode: "forwarder" as const,
@@ -287,7 +289,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         deliveryProfile: requestedProfile,
       });
       const currentWorkflow = meta.workflow;
-      let nextOrder = await saveOrderWithMeta(order, {
+      let nextOrder: SourcingOrder = await saveOrderWithMeta(order, {
         deliveryProfile: deliveryPlan.deliveryProfile,
         workflow: {
           ...deliveryPlan.workflow,

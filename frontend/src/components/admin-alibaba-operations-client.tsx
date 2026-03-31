@@ -8,7 +8,7 @@ import { useMemo, useState, useTransition } from "react";
 
 import type {
   AlibabaCountryProfile,
-  type AlibabaImportCampaignMode,
+  AlibabaImportCampaignMode,
   AlibabaImportJob,
   AlibabaImportedProduct,
   AlibabaPanelSlug,

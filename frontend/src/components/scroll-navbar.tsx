@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -11,6 +12,7 @@ import { OrderProtectionMenu } from "@/components/order-protection-menu";
 import { SupportMenu } from "@/components/support-menu";
 import { UnavailableLink } from "@/components/unavailable-link";
 import { getMessages } from "@/lib/messages";
+import { SITE_LOGO_PATH, SITE_NAME } from "@/lib/site-config";
 
 type ScrollNavbarProps = {
   countryCode: string;
@@ -51,8 +53,9 @@ export function ScrollNavbar({ countryCode, countryLabel, currencyCode, flagEmoj
       <div className="mx-auto max-w-[1880px] px-5 lg:px-8">
         <div className="flex min-h-[64px] items-center justify-between gap-4 border-b border-[#dadada] sm:min-h-[78px] sm:gap-6">
           <div className="flex min-w-0 items-center gap-4 sm:gap-10">
-            <Link href="/" className="shrink-0 text-[20px] font-bold tracking-[-0.05em] text-[#ff6a00] sm:text-[28px]">
-              AfriPay
+            <Link href="/" className="inline-flex shrink-0 items-center gap-3 text-[#ff6a00]">
+              <Image src={SITE_LOGO_PATH} alt={`${SITE_NAME} logo`} width={44} height={44} className="h-10 w-10 object-contain sm:h-11 sm:w-11" priority />
+              <span className="text-[20px] font-bold tracking-[-0.05em] sm:text-[28px]">AfriPay</span>
             </Link>
             <nav className="hidden items-center gap-10 text-[16px] font-medium text-[#222] xl:flex">
               <CategoryMegaMenu categories={categories} languageCode={languageCode} triggerClassName="inline-flex h-[78px] items-center gap-3 border-b-2 border-transparent pr-2 hover:border-[#222]" />

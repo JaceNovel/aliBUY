@@ -5,7 +5,7 @@ import { CartProvider } from "@/components/cart-provider";
 import { RouteWarmup } from "@/components/route-warmup";
 import { SiteChatWidget } from "@/components/site-chat-widget";
 import { clerkAppearance } from "@/lib/clerk-theme";
-import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_LOGO_PATH, SITE_NAME, SITE_URL } from "@/lib/site-config";
+import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_LOGO_PATH, SITE_NAME, SITE_SHARE_IMAGE_PATH, SITE_URL } from "@/lib/site-config";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -22,6 +22,11 @@ export const metadata: Metadata = {
   },
   description: SITE_DESCRIPTION,
   keywords: SITE_KEYWORDS,
+  icons: {
+    icon: [{ url: SITE_LOGO_PATH, type: "image/png" }],
+    shortcut: [{ url: SITE_LOGO_PATH, type: "image/png" }],
+    apple: [{ url: SITE_LOGO_PATH, type: "image/png" }],
+  },
   alternates: {
     canonical: "/",
   },
@@ -31,11 +36,20 @@ export const metadata: Metadata = {
     title: SITE_NAME,
     description: SITE_DESCRIPTION,
     url: SITE_URL,
+    images: [
+      {
+        url: SITE_SHARE_IMAGE_PATH,
+        width: 1200,
+        height: 630,
+        alt: `${SITE_NAME} logo`,
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: SITE_NAME,
     description: SITE_DESCRIPTION,
+    images: [SITE_SHARE_IMAGE_PATH],
   },
   manifest: "/manifest.webmanifest",
   robots: {

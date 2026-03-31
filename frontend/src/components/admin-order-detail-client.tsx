@@ -64,6 +64,7 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
   const [isUploadingParcelPhoto, setIsUploadingParcelPhoto] = useState(false);
   const proofInputRef = useRef<HTMLInputElement | null>(null);
   const parcelPhotoInputRef = useRef<HTMLInputElement | null>(null);
+  const meta = useMemo(() => getSourcingOrderMeta(order), [order]);
 
   useEffect(() => {
     setParcelState(parcelSnapshot);
@@ -82,7 +83,6 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
     setRelayPointLabel(meta.workflow?.relayPointLabel ?? "");
   }, [meta]);
 
-  const meta = useMemo(() => getSourcingOrderMeta(order), [order]);
   const alibabaAutomation = useMemo(() => getSourcingAlibabaPostPaymentAutomationState(order), [order]);
   const payUrls = useMemo(() => getSourcingAlibabaPayUrls(order), [order]);
   const canLaunchSupplierPayment = useMemo(() => isSourcingOrderEligibleForSupplierPayment(order), [order]);
