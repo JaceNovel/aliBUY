@@ -3579,6 +3579,271 @@ async function searchAliExpressProducts(input: {
   };
 }
 
+function affiliateLanguageCode(local: string) {
+  const mapping: Record<string, string> = {
+    "fr_fr": "FR",
+    "en_us": "EN",
+    "ar_ma": "AR",
+    "pt_br": "PT",
+    "es_es": "ES",
+    "de_de": "DE",
+    "it_it": "IT",
+    "tr_tr": "TR",
+    "nl_nl": "NL",
+    "pl_pl": "PL",
+    "ru_ru": "RU",
+    "id_id": "ID",
+    "th_th": "TH",
+    "vi_vn": "VI",
+  };
+  return mapping[local.toLowerCase()] ?? local.slice(0, 2).toUpperCase();
+}
+
+function extractAliExpressAffiliateItems(responseBody: unknown): Array<Record<string, unknown>> {
+  const payload = getAliExpressSellerPayload(responseBody);
+  if (!isRecord(payload)) {
+    return [];
+  }
+
+  const productsNode = isRecord(payload.products) ? payload.products as Record<string, unknown> : null;
+  if (productsNode) {
+    if (Array.isArray(productsNode.product)) {
+      return (productsNode.product as unknown[]).filter(isRecord) as Array<Record<string, unknown>>;
+    }
+    if (Array.isArray(productsNode.string)) {
+      return (productsNode.string as unknown[]).filter(isRecord) as Array<Record<string, unknown>>;
+    }
+  }
+
+  if (Array.isArray(payload.products)) {
+    return (payload.products as unknown[]).filter(isRecord) as Array<Record<string, unknown>>;
+  }
+
+  return extractAliExpressSearchItems(payload);
+}
+
+function mapAliExpressAffiliateItemToProduct(
+  item: Record<string, unknown>,
+  query: string,
+  shipToCountry: string,
+): AlibabaSearchProduct | null {
+  const productId = getStringValue(item.product_id) ?? getStringValue(item.productId);
+  if (!productId) {
+    return null;
+  }
+
+  const mainImage = getStringValue(item.product_main_image_url) ?? getStringValue(item.productMainImageUrl) ?? getStringValue(item.image_url);
+  if (!mainImage) {
+    return null;
+  }
+
+  const smallImages: string[] = [];
+  if (isRecord(item.product_small_image_urls)) {
+    const container = item.product_small_image_urls as Record<string, unknown>;
+    const list = Array.isArray(container.string) ? container.string : Array.isArray(container.url) ? container.url : [];
+    smallImages.push(...(list as unknown[]).filter((entry): entry is string => typeof entry === "string").filter(Boolean));
+  }
+  const gallery = uniqueStrings([mainImage, ...smallImages]);
+
+  const rawPrice = getStringValue(item.target_sale_price)
+    ?? getStringValue(item.sale_price)
+    ?? getStringValue(item.app_sale_price)
+    ?? getStringValue(item.sale_price_min);
+  const minRawPrice = rawPrice ? Number(rawPrice.replace(/[^0-9.]/g, "")) : null;
+  if (!minRawPrice || !Number.isFinite(minRawPrice) || minRawPrice <= 0) {
+    return null;
+  }
+
+  const rawOriginal = getStringValue(item.target_original_price) ?? getStringValue(item.original_price);
+  const maxCandidate = rawOriginal ? Number(rawOriginal.replace(/[^0-9.]/g, "")) : undefined;
+  const maxRawPrice = maxCandidate && Number.isFinite(maxCandidate) && maxCandidate > minRawPrice ? maxCandidate : undefined;
+
+  const title = getStringValue(item.product_title)
+    ?? getStringValue(item.title)
+    ?? getStringValue(item.item_title)
+    ?? query;
+  const soldLabel = getStringValue(item.lastest_volume)
+    ?? getStringValue(item.latest_volume)
+    ?? getStringValue(item.orders)
+    ?? "0";
+  const minUsd = applyAliExpressMargin(minRawPrice);
+  const maxUsd = maxRawPrice ? applyAliExpressMargin(maxRawPrice) : undefined;
+  const commissionRate = getStringValue(item.commission_rate) ?? getStringValue(item.hot_product_commission_rate);
+  const shopId = getStringValue(item.shop_id) ?? getStringValue(item.shopId) ?? "AliExpress";
+  const promotionLink = getStringValue(item.promotion_link) ?? getStringValue(item.product_detail_url);
+
+  return {
+    sourceProductId: productId,
+    slug: productId,
+    title,
+    shortTitle: title.slice(0, 96),
+    keywords: title.toLowerCase().split(/[^a-z0-9]+/i).filter((t) => t.length > 2).slice(0, 12),
+    image: mainImage,
+    gallery,
+    packaging: "20 x 15 x 8 cm",
+    itemWeightGrams: 250,
+    lotCbm: "0.0024",
+    minUsd,
+    maxUsd,
+    moq: 1,
+    unit: "piece",
+    badge: "AfriPay+",
+    supplierName: `Boutique ${shopId}`,
+    supplierLocation: "CN",
+    responseTime: "AfriPay+",
+    yearsInBusiness: 0,
+    transactionsLabel: "Selection AfriPay+",
+    soldLabel: `${soldLabel} ventes`,
+    customizationLabel: "Fiche verifiee AfriPay+",
+    shippingLabel: "Expédition",
+    overview: [
+      "Selection verifiee AfriPay+",
+      `${soldLabel} ventes`,
+      commissionRate ? `Commission: ${commissionRate}` : "Via catalogue AfriPay+",
+    ],
+    variantGroups: [],
+    tiers: [{ quantityLabel: "1+", priceUsd: minUsd }],
+    specs: [
+      { label: "Source", value: "AliExpress Affiliate" },
+      { label: "Destination", value: shipToCountry },
+      ...(commissionRate ? [{ label: "Commission", value: commissionRate }] : []),
+    ],
+    inventory: 50,
+    rawPayload: {
+      provider: "aliexpress-affiliate",
+      item,
+      supplier_price_usd: minRawPrice,
+      margin_rate: Number(process.env.ALIEXPRESS_MARGIN_RATE ?? "0.1"),
+      promotion_link: promotionLink,
+      affiliate: true,
+    },
+    moqVerified: false,
+    weightVerified: false,
+    priceVerified: true,
+  };
+}
+
+async function searchAliExpressAffiliateProducts(input: {
+  query: string;
+  limit: number;
+  credentials: AlibabaCredentials;
+}): Promise<AlibabaProductSearchResult> {
+  const desiredCount = Math.min(Math.max(input.limit, 1), 40);
+  const pageSize = Math.min(50, desiredCount);
+  const maxPages = Math.max(1, Math.ceil(desiredCount / pageSize));
+  const maxCollectedCandidates = Math.max(desiredCount * 4, 40);
+  const queryCandidates = buildAliExpressQueryCandidates(input.query);
+  const searchContexts = buildAliExpressSearchContexts();
+  const collectedByProductId = new Map<string, {
+    product: AlibabaSearchProduct;
+    score: number;
+    strictMatch: boolean;
+  }>();
+  let lastResponse: unknown = null;
+  let lastSearchError: AlibabaProductSearchResult | null = null;
+
+  for (const queryCandidate of queryCandidates) {
+    for (const context of searchContexts) {
+      for (let pageNo = 1; pageNo <= maxPages && collectedByProductId.size < maxCollectedCandidates; pageNo += 1) {
+        const searchResult = await callAliExpressTopEndpoint("aliexpress.affiliate.product.query", {
+          keywords: queryCandidate,
+          target_language: affiliateLanguageCode(context.local),
+          target_currency: context.currency,
+          ship_to_country: context.shipToCountry,
+          page_no: pageNo,
+          page_size: pageSize,
+          tracking_id: process.env.ALIEXPRESS_AFFILIATE_TRACKING_ID ?? "",
+          fields: "product_id,product_title,product_main_image_url,product_small_image_urls,target_sale_price,target_original_price,sale_price,original_price,app_sale_price,lastest_volume,evaluate_rate,first_level_category_name,second_level_category_name,shop_id,promotion_link,commission_rate,discount",
+        }, {
+          credentials: input.credentials,
+          includeAccessToken: Boolean(input.credentials.accessToken),
+        });
+
+        lastResponse = searchResult.responseBody;
+
+        if (!searchResult.ok) {
+          if (collectedByProductId.size > 0) {
+            break;
+          }
+
+          const apiError = isRecord(searchResult.responseBody) && isRecord((searchResult.responseBody as Record<string, unknown>).error_response)
+            ? (searchResult.responseBody as Record<string, unknown>).error_response as Record<string, unknown>
+            : null;
+          const apiErrorMsg = apiError
+            ? (getStringValue(apiError.en_desc) ?? getStringValue(apiError.sub_msg) ?? getStringValue(apiError.zh_desc))
+            : undefined;
+          lastSearchError = {
+            ok: false,
+            endpoint: "aliexpress.affiliate.product.query",
+            responseBody: searchResult.responseBody,
+            products: [],
+            errorMessage: apiErrorMsg
+              ? `AliExpress Affiliate: ${apiErrorMsg}`
+              : "Recherche AliExpress Affiliate impossible.",
+          };
+          continue;
+        }
+
+        const items = extractAliExpressAffiliateItems(searchResult.responseBody);
+        if (items.length === 0) {
+          break;
+        }
+
+        for (const item of items) {
+          const productId = getStringValue(item.product_id) ?? getStringValue(item.productId);
+          if (!productId || collectedByProductId.has(productId)) {
+            continue;
+          }
+
+          const normalized = mapAliExpressAffiliateItemToProduct(item, input.query, context.shipToCountry);
+          if (!normalized) {
+            continue;
+          }
+
+          const relevance = scoreAliExpressSearchProductRelevance(normalized, input.query);
+          collectedByProductId.set(productId, {
+            product: normalized,
+            score: relevance.score,
+            strictMatch: relevance.strictMatch,
+          });
+
+          if (collectedByProductId.size >= maxCollectedCandidates) {
+            break;
+          }
+        }
+      }
+
+      if (collectedByProductId.size >= desiredCount) {
+        break;
+      }
+    }
+
+    if (collectedByProductId.size >= desiredCount) {
+      break;
+    }
+  }
+
+  const strictMatches = [...collectedByProductId.values()]
+    .filter((entry) => entry.strictMatch)
+    .sort((left, right) => right.score - left.score)
+    .map((entry) => entry.product);
+  const looseMatches = [...collectedByProductId.values()]
+    .filter((entry) => !entry.strictMatch)
+    .sort((left, right) => right.score - left.score)
+    .map((entry) => entry.product);
+  const foundProducts = [...strictMatches, ...looseMatches].slice(0, desiredCount);
+
+  return {
+    ok: foundProducts.length > 0,
+    endpoint: "aliexpress.affiliate.product.query",
+    responseBody: foundProducts.length > 0 ? lastResponse : (lastSearchError?.responseBody ?? lastResponse),
+    products: foundProducts,
+    errorMessage: foundProducts.length > 0
+      ? undefined
+      : lastSearchError?.errorMessage ?? "Aucun produit AliExpress Affiliate trouvé. Essaie un mot-clé plus simple.",
+  };
+}
+
 export async function searchAlibabaProducts(input: {
   query: string;
   limit: number;
@@ -3597,10 +3862,34 @@ export async function searchAlibabaProducts(input: {
     };
   }
 
-  return searchAliExpressProducts({
+  const dsResult = await searchAliExpressProducts({
     query: input.query,
     limit: input.limit,
   });
+
+  if (dsResult.ok || dsResult.products.length > 0) {
+    return dsResult;
+  }
+
+  // DS failed — try affiliate API as fallback (account may have affiliate access instead of DS)
+  if (credentials) {
+    const affiliateResult = await searchAliExpressAffiliateProducts({
+      query: input.query,
+      limit: input.limit,
+      credentials,
+    });
+
+    if (affiliateResult.ok || affiliateResult.products.length > 0) {
+      return affiliateResult;
+    }
+
+    // Return the more informative error between the two
+    if (!dsResult.errorMessage || dsResult.errorMessage.includes("Essaie un mot-cle")) {
+      return affiliateResult;
+    }
+  }
+
+  return dsResult;
 
   const desiredCount = Math.min(Math.max(input.limit, 1), 100);
   const pageSize = Math.min(20, desiredCount);
