@@ -2603,8 +2603,9 @@ async function callAliExpressTopEndpoint(apiMethod: string, payload: Record<stri
     // keep raw response
   }
 
+  const apiLevelError = response.ok && isRecord(parsed) && isRecord((parsed as Record<string, unknown>).error_response);
   return {
-    ok: response.ok,
+    ok: response.ok && !apiLevelError,
     endpoint: apiMethod,
     requestBody: payload,
     responseBody: parsed,
@@ -3458,12 +3459,20 @@ async function searchAliExpressProducts(input: {
             break;
           }
 
+          const apiError = isRecord(searchResult.responseBody) && isRecord((searchResult.responseBody as Record<string, unknown>).error_response)
+            ? searchResult.responseBody.error_response as Record<string, unknown>
+            : null;
+          const apiErrorMsg = apiError
+            ? (getStringValue(apiError.en_desc) ?? getStringValue(apiError.sub_msg) ?? getStringValue(apiError.zh_desc))
+            : undefined;
           lastSearchError = {
             ok: false,
             endpoint: "aliexpress.ds.text.search",
             responseBody: searchResult.responseBody,
             products: [],
-            errorMessage: "Recherche AliExpress DS impossible.",
+            errorMessage: apiErrorMsg
+              ? `AliExpress DS: ${apiErrorMsg}`
+              : "Recherche AliExpress DS impossible.",
           };
 
           continue;
