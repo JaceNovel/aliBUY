@@ -1,9 +1,11 @@
 import "server-only";
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
+import { get, put } from "@vercel/blob";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
@@ -35,8 +37,10 @@ export type PromoCodeValidationResult = {
   finalTotalFcfa: number;
 };
 
-const SITE_DIR = path.join(process.cwd(), "data", "site");
+const SITE_DIR = path.join(os.tmpdir(), "afripay", "data", "site");
 const PROMO_CODES_PATH = path.join(SITE_DIR, "promo-codes.json");
+const PROMO_CODES_SEED_PATH = path.join(process.cwd(), "data", "site", "promo-codes.json");
+const PROMO_CODES_BLOB_PATHNAME = "site/promo-codes.json";
 
 const DEFAULT_PROMO_CODES: PromoCodeRecord[] = [
   {
@@ -61,6 +65,10 @@ const DEFAULT_PROMO_CODES: PromoCodeRecord[] = [
 
 let databaseFallbackForced = false;
 
+function canUseBlobStore() {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+}
+
 function hasDatabase() {
   return Boolean(process.env.DATABASE_URL);
 }
@@ -77,8 +85,11 @@ function isPrismaDatabaseUnavailable(error: unknown) {
   const candidate = error as { code?: unknown; message?: unknown };
   const message = typeof candidate.message === "string" ? candidate.message : "";
   return candidate.code === "P1001"
+    || candidate.code === "P2021"
+    || candidate.code === "P2022"
     || message.includes("Can't reach database server")
-    || message.includes("db.prisma.io:5432");
+    || message.includes("db.prisma.io:5432")
+    || message.includes("does not exist in the current database");
 }
 
 function enableDatabaseFallback(error: unknown) {
@@ -93,18 +104,47 @@ async function ensureSiteDir() {
 }
 
 async function readJsonFile<T>(filePath: string, fallback: T): Promise<T> {
-  await ensureSiteDir();
+  if (canUseBlobStore()) {
+    try {
+      const blob = await get(PROMO_CODES_BLOB_PATHNAME, {
+        access: "private",
+        useCache: false,
+      });
+
+      if (blob?.stream) {
+        const raw = await new Response(blob.stream).text();
+        return JSON.parse(raw) as T;
+      }
+    } catch {
+      // Fall back to runtime JSON when Blob is unavailable.
+    }
+  }
 
   try {
     const raw = await readFile(filePath, "utf8");
     return JSON.parse(raw) as T;
   } catch {
-    await writeJsonFile(filePath, fallback);
-    return fallback;
+    try {
+      const raw = await readFile(PROMO_CODES_SEED_PATH, "utf8");
+      return JSON.parse(raw) as T;
+    } catch {
+      await writeJsonFile(filePath, fallback);
+      return fallback;
+    }
   }
 }
 
 async function writeJsonFile<T>(filePath: string, value: T) {
+  if (canUseBlobStore()) {
+    await put(PROMO_CODES_BLOB_PATHNAME, `${JSON.stringify(value, null, 2)}\n`, {
+      access: "private",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: "application/json; charset=utf-8",
+    });
+    return;
+  }
+
   await ensureSiteDir();
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }

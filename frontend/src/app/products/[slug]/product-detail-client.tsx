@@ -90,6 +90,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const { addItem } = useCart();
   const [activeImage, setActiveImage] = useState(0);
   const [activeMedia, setActiveMedia] = useState<"photo" | "video">("photo");
+  const [isImageLightboxOpen, setIsImageLightboxOpen] = useState(false);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<"overview" | "details" | "related">("overview");
   const [isFavorite, setIsFavorite] = useState(initialIsFavorite ?? false);
@@ -496,9 +497,6 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     setActiveMedia("photo");
     setActiveImage((current) => (current - 1 + product.gallery.length) % product.gallery.length);
   };
-  const handleImageTouchStart = (clientX: number) => {
-    touchStartXRef.current = clientX;
-  };
   const handleImageTouchEnd = (clientX: number) => {
     if (touchStartXRef.current === null || activeMedia !== "photo" || product.gallery.length < 2) {
       touchStartXRef.current = null;
@@ -564,6 +562,43 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       triggerShareFeedback("Partage annulé");
     }
   };
+
+  const openImageLightbox = () => {
+    if (activeMedia !== "photo" || product.gallery.length === 0) {
+      return;
+    }
+
+    setIsImageLightboxOpen(true);
+  };
+
+  useEffect(() => {
+    if (!isImageLightboxOpen) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsImageLightboxOpen(false);
+        return;
+      }
+
+      if (event.key === "ArrowRight" && product.gallery.length > 1) {
+        event.preventDefault();
+        setActiveMedia("photo");
+        setActiveImage((current) => (current + 1) % product.gallery.length);
+        return;
+      }
+
+      if (event.key === "ArrowLeft" && product.gallery.length > 1) {
+        event.preventDefault();
+        setActiveMedia("photo");
+        setActiveImage((current) => (current - 1 + product.gallery.length) % product.gallery.length);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isImageLightboxOpen, product.gallery.length]);
 
   return (
     <>
@@ -653,13 +688,15 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 <source src={product.videoUrl} type="video/mp4" />
               </video>
             ) : (
-              <Image
-                src={product.gallery[activeImage] ?? product.gallery[0]}
-                alt={product.title}
-                fill
-                sizes="100vw"
-                className="object-cover"
-              />
+              <button type="button" onClick={openImageLightbox} className="relative block h-full w-full cursor-zoom-in">
+                <Image
+                  src={product.gallery[activeImage] ?? product.gallery[0]}
+                  alt={product.title}
+                  fill
+                  sizes="100vw"
+                  className="object-cover"
+                />
+              </button>
             )}
 
             <div className="absolute inset-x-0 bottom-3 z-10 flex justify-center px-3">
@@ -1037,7 +1074,9 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     <source src={product.videoUrl} type="video/mp4" />
                   </video>
                 ) : (
-                  <Image src={product.gallery[activeImage] ?? product.gallery[0]} alt={product.title} fill priority sizes="(min-width: 1280px) 34vw, 88vw" className="object-cover" />
+                  <button type="button" onClick={openImageLightbox} className="relative block h-full w-full cursor-zoom-in">
+                    <Image src={product.gallery[activeImage] ?? product.gallery[0]} alt={product.title} fill priority sizes="(min-width: 1280px) 34vw, 88vw" className="object-cover" />
+                  </button>
                 )}
               </div>
             </div>
@@ -1271,6 +1310,57 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
         </div>
       </div>
     </div>
+
+    {isImageLightboxOpen ? (
+      <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/88 p-3 sm:p-6">
+        <button type="button" onClick={() => setIsImageLightboxOpen(false)} className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/35 text-white transition hover:border-white/50 sm:right-6 sm:top-6" aria-label="Fermer l'image agrandie">
+          <X className="h-5 w-5" />
+        </button>
+
+        {product.gallery.length > 1 ? (
+          <button type="button" onClick={goToPreviousImage} className="absolute left-3 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/35 text-white transition hover:border-white/50 sm:left-6" aria-label="Image précédente">
+            <ChevronRight className="h-5 w-5 rotate-180" />
+          </button>
+        ) : null}
+
+        <div className="flex max-h-full w-full max-w-[1280px] flex-col items-center gap-4">
+          <div className="relative h-[70vh] w-full overflow-hidden rounded-[22px] bg-[#111] sm:h-[78vh]">
+            <Image
+              src={product.gallery[activeImage] ?? product.gallery[0]}
+              alt={`${product.title} - vue agrandie`}
+              fill
+              sizes="100vw"
+              className="object-contain"
+              priority
+            />
+          </div>
+
+          {product.gallery.length > 1 ? (
+            <div className="flex max-w-full gap-2 overflow-x-auto rounded-full bg-black/35 px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {product.gallery.map((image, index) => (
+                <button
+                  key={`${image}-lightbox-${index}`}
+                  type="button"
+                  onClick={() => setActiveImage(index)}
+                  className={[
+                    "relative h-[62px] min-w-[62px] overflow-hidden rounded-[14px] ring-2 transition",
+                    activeImage === index ? "ring-[#ff6a00]" : "ring-transparent hover:ring-white/40",
+                  ].join(" ")}
+                >
+                  <Image src={image} alt={`${product.shortTitle} aperçu ${index + 1}`} fill sizes="62px" className="object-cover" />
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        {product.gallery.length > 1 ? (
+          <button type="button" onClick={goToNextImage} className="absolute right-3 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/35 text-white transition hover:border-white/50 sm:right-6" aria-label="Image suivante">
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        ) : null}
+      </div>
+    ) : null}
 
     {isOrderModalOpen ? (
       <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/35 p-2.5 sm:p-4">

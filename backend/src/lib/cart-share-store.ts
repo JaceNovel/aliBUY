@@ -34,8 +34,13 @@ export type SharedCartRecord = {
 const SITE_DIR = path.join(process.cwd(), "data", "site");
 const SHARED_CARTS_PATH = path.join(SITE_DIR, "shared-carts.json");
 const SHARED_CARTS_BLOB_PATHNAME = "site/shared-carts.json";
+const PRODUCTION_PERSISTENCE_ERROR = "Partage du panier indisponible: configure DATABASE_URL ou BLOB_READ_WRITE_TOKEN sur cette instance.";
 
 let databaseFallbackForced = false;
+
+function canUseLocalFileStore() {
+  return process.env.NODE_ENV !== "production";
+}
 
 function getSharedCartLinkDelegate() {
   const delegate = (prisma as unknown as Record<string, unknown>).sharedCartLink;
@@ -62,6 +67,7 @@ function isPrismaDatabaseUnavailable(error: unknown) {
   const candidate = error as { code?: unknown; message?: unknown };
   const message = typeof candidate.message === "string" ? candidate.message : "";
   return candidate.code === "P1001"
+    || candidate.code === "P2021"
     || candidate.code === "P2022"
     || message.includes("Can't reach database server")
     || message.includes("db.prisma.io:5432")
@@ -113,6 +119,10 @@ async function writeJsonFile<T>(filePath: string, value: T) {
       contentType: "application/json; charset=utf-8",
     });
     return;
+  }
+
+  if (!canUseLocalFileStore()) {
+    throw new Error(PRODUCTION_PERSISTENCE_ERROR);
   }
 
   await ensureSiteDir();

@@ -5,6 +5,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { get, put } from "@vercel/blob";
 import { Prisma } from "@prisma/client";
 
 import type { SourcingOrder } from "@/lib/alibaba-sourcing";
@@ -120,6 +121,10 @@ const SITE_DIR = resolveSiteDir();
 const CONFIG_PATH = path.join(SITE_DIR, "free-deal-config.json");
 const CLAIMS_PATH = path.join(SITE_DIR, "free-deal-claims.json");
 const VISITS_PATH = path.join(SITE_DIR, "free-deal-referral-visits.json");
+const CONFIG_BLOB_PATHNAME = "site/free-deal-config.json";
+const CLAIMS_BLOB_PATHNAME = "site/free-deal-claims.json";
+const VISITS_BLOB_PATHNAME = "site/free-deal-referral-visits.json";
+const CONFIG_SEED_PATH = path.join(process.cwd(), "data", "site", "free-deal-config.json");
 const DEFAULT_CONFIG_ID = "free-deal-default";
 
 const DEFAULT_FREE_DEAL_CONFIG: FreeDealConfig = {
@@ -147,6 +152,10 @@ const DEFAULT_FREE_DEAL_CONFIG: FreeDealConfig = {
 
 function hasDatabase() {
   return Boolean(process.env.DATABASE_URL);
+}
+
+function canUseBlobStore() {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
 
 let databaseFallbackForced = false;
@@ -207,14 +216,63 @@ async function ensureSiteDir() {
   await mkdir(SITE_DIR, { recursive: true });
 }
 
-async function readJsonFile<T>(filePath: string, fallback: T): Promise<T> {
+async function readJsonBlob<T>(pathname: string): Promise<T | null> {
+  if (!canUseBlobStore()) {
+    return null;
+  }
+
+  try {
+    const blob = await get(pathname, {
+      access: "private",
+      useCache: false,
+    });
+
+    if (!blob?.stream) {
+      return null;
+    }
+
+    const raw = await new Response(blob.stream).text();
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+async function writeJsonBlob<T>(pathname: string, value: T) {
+  if (!canUseBlobStore()) {
+    return;
+  }
+
+  await put(pathname, `${JSON.stringify(value, null, 2)}\n`, {
+    access: "private",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: "application/json; charset=utf-8",
+  });
+}
+
+async function readJsonFile<T>(filePath: string, fallback: T, options?: { blobPathname?: string; seedPath?: string }): Promise<T> {
+  const blobValue = options?.blobPathname ? await readJsonBlob<T>(options.blobPathname) : null;
+  if (blobValue !== null) {
+    return blobValue;
+  }
+
   try {
     await ensureSiteDir();
     const raw = await readFile(filePath, "utf8");
     return JSON.parse(raw) as T;
   } catch {
+    if (options?.seedPath) {
+      try {
+        const raw = await readFile(options.seedPath, "utf8");
+        return JSON.parse(raw) as T;
+      } catch {
+        // Fall through to fallback writer below.
+      }
+    }
+
     try {
-      await writeJsonFile(filePath, fallback);
+      await writeJsonFile(filePath, fallback, options);
     } catch {
       return fallback;
     }
@@ -223,13 +281,13 @@ async function readJsonFile<T>(filePath: string, fallback: T): Promise<T> {
   }
 }
 
-async function writeJsonFile<T>(filePath: string, value: T) {
-  await ensureSiteDir();
-  try {
-    await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-  } catch {
-    // On serverless platforms this storage can be ephemeral or unavailable.
+async function writeJsonFile<T>(filePath: string, value: T, options?: { blobPathname?: string }) {
+  if (options?.blobPathname) {
+    await writeJsonBlob(options.blobPathname, value);
   }
+
+  await ensureSiteDir();
+  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
 function toPrismaJson(value: unknown): Prisma.InputJsonValue {
@@ -393,12 +451,12 @@ async function getClaims() {
     }
   }
 
-  const records = await readJsonFile<Record<string, unknown>[]>(CLAIMS_PATH, []);
+  const records = await readJsonFile<Record<string, unknown>[]>(CLAIMS_PATH, [], { blobPathname: CLAIMS_BLOB_PATHNAME });
   return records.map(normalizeClaimRecord).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
 async function saveClaims(claims: FreeDealClaim[]) {
-  await writeJsonFile(CLAIMS_PATH, claims);
+  await writeJsonFile(CLAIMS_PATH, claims, { blobPathname: CLAIMS_BLOB_PATHNAME });
 }
 
 async function getReferralVisits() {
@@ -416,12 +474,12 @@ async function getReferralVisits() {
     }
   }
 
-  const records = await readJsonFile<Record<string, unknown>[]>(VISITS_PATH, []);
+  const records = await readJsonFile<Record<string, unknown>[]>(VISITS_PATH, [], { blobPathname: VISITS_BLOB_PATHNAME });
   return records.map(normalizeReferralVisitRecord).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
 async function saveReferralVisits(visits: FreeDealReferralVisit[]) {
-  await writeJsonFile(VISITS_PATH, visits);
+  await writeJsonFile(VISITS_PATH, visits, { blobPathname: VISITS_BLOB_PATHNAME });
 }
 
 async function referralCodeExists(referralCode: string) {
@@ -626,10 +684,13 @@ export async function getFreeDealConfig() {
     }
   }
 
-  const record = await readJsonFile<Record<string, unknown>>(CONFIG_PATH, DEFAULT_FREE_DEAL_CONFIG as unknown as Record<string, unknown>);
+  const record = await readJsonFile<Record<string, unknown>>(CONFIG_PATH, DEFAULT_FREE_DEAL_CONFIG as unknown as Record<string, unknown>, {
+    blobPathname: CONFIG_BLOB_PATHNAME,
+    seedPath: CONFIG_SEED_PATH,
+  });
   const normalized = normalizeConfigRecord(record);
   if (normalized.itemLimit !== toNumber(record.itemLimit, DEFAULT_FREE_DEAL_CONFIG.itemLimit)) {
-    await writeJsonFile(CONFIG_PATH, normalized);
+    await writeJsonFile(CONFIG_PATH, normalized, { blobPathname: CONFIG_BLOB_PATHNAME });
   }
 
   return normalized;
@@ -710,7 +771,7 @@ export async function saveFreeDealConfig(input: Partial<FreeDealConfig>) {
     }
   }
 
-  await writeJsonFile(CONFIG_PATH, nextConfig);
+  await writeJsonFile(CONFIG_PATH, nextConfig, { blobPathname: CONFIG_BLOB_PATHNAME });
   invalidateCatalogRuntimeCache();
   return nextConfig;
 }

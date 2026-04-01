@@ -13,6 +13,13 @@ const DATABASE_UNAVAILABLE_MESSAGE = "Le service de donnees n'est pas configure 
 const CUSTOMER_ADDRESSES_RUNTIME_PATH = path.join(os.tmpdir(), "afripay", "data", "account", "customer-addresses.json");
 const CUSTOMER_ADDRESSES_SEED_PATH = path.join(process.cwd(), "data", "account", "customer-addresses.json");
 const CUSTOMER_ADDRESSES_BLOB_PATHNAME = "account/customer-addresses.json";
+const CUSTOMER_DATA_DIR = path.join(os.tmpdir(), "afripay", "data", "customer");
+const QUOTE_REQUESTS_RUNTIME_PATH = path.join(CUSTOMER_DATA_DIR, "quote-requests.json");
+const QUOTE_REQUESTS_SEED_PATH = path.join(process.cwd(), "data", "customer", "quote-requests.json");
+const QUOTE_REQUESTS_BLOB_PATHNAME = "customer/quote-requests.json";
+const SUPPORT_CONVERSATIONS_RUNTIME_PATH = path.join(CUSTOMER_DATA_DIR, "support-conversations.json");
+const SUPPORT_CONVERSATIONS_SEED_PATH = path.join(process.cwd(), "data", "customer", "support-conversations.json");
+const SUPPORT_CONVERSATIONS_BLOB_PATHNAME = "customer/support-conversations.json";
 
 export type FavoriteRecord = {
   id: string;
@@ -82,49 +89,116 @@ type CustomerAddressInput = {
   isDefault?: boolean;
 };
 
-async function readCustomerAddressesFile() {
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
-    try {
-      const blob = await get(CUSTOMER_ADDRESSES_BLOB_PATHNAME, {
-        access: "private",
-        useCache: false,
-      });
+function canUseBlobStore() {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+}
 
-      if (blob?.stream) {
-        const raw = await new Response(blob.stream).text();
-        return JSON.parse(raw) as CustomerAddressRecord[];
-      }
-    } catch {
-      // Fall back to local JSON when Blob is unavailable.
-    }
+async function readJsonBlob<T>(pathname: string): Promise<T | null> {
+  if (!canUseBlobStore()) {
+    return null;
   }
 
   try {
-    const raw = await readFile(CUSTOMER_ADDRESSES_RUNTIME_PATH, "utf8");
-    return JSON.parse(raw) as CustomerAddressRecord[];
+    const blob = await get(pathname, {
+      access: "private",
+      useCache: false,
+    });
+
+    if (!blob?.stream) {
+      return null;
+    }
+
+    const raw = await new Response(blob.stream).text();
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+async function writeJsonBlob<T>(pathname: string, value: T) {
+  if (!canUseBlobStore()) {
+    return;
+  }
+
+  await put(pathname, `${JSON.stringify(value, null, 2)}\n`, {
+    access: "private",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: "application/json; charset=utf-8",
+  });
+}
+
+async function readJsonRuntimeFile<T>(runtimePath: string, seedPath: string, fallback: T): Promise<T> {
+  try {
+    const raw = await readFile(runtimePath, "utf8");
+    return JSON.parse(raw) as T;
   } catch {
     try {
-      const raw = await readFile(CUSTOMER_ADDRESSES_SEED_PATH, "utf8");
-      return JSON.parse(raw) as CustomerAddressRecord[];
+      const raw = await readFile(seedPath, "utf8");
+      return JSON.parse(raw) as T;
     } catch {
-      return [] as CustomerAddressRecord[];
+      return fallback;
     }
   }
 }
 
+async function writeJsonRuntimeFile<T>(runtimePath: string, value: T) {
+  await mkdir(path.dirname(runtimePath), { recursive: true });
+  await writeFile(runtimePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+async function readCustomerAddressesFile() {
+  const blobValue = await readJsonBlob<CustomerAddressRecord[]>(CUSTOMER_ADDRESSES_BLOB_PATHNAME);
+  if (blobValue) {
+    return blobValue;
+  }
+
+  return readJsonRuntimeFile<CustomerAddressRecord[]>(CUSTOMER_ADDRESSES_RUNTIME_PATH, CUSTOMER_ADDRESSES_SEED_PATH, []);
+}
+
 async function writeCustomerAddressesFile(addresses: CustomerAddressRecord[]) {
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
-    await put(CUSTOMER_ADDRESSES_BLOB_PATHNAME, `${JSON.stringify(addresses, null, 2)}\n`, {
-      access: "private",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: "application/json; charset=utf-8",
-    });
+  if (canUseBlobStore()) {
+    await writeJsonBlob(CUSTOMER_ADDRESSES_BLOB_PATHNAME, addresses);
     return;
   }
 
-  await mkdir(path.dirname(CUSTOMER_ADDRESSES_RUNTIME_PATH), { recursive: true });
-  await writeFile(CUSTOMER_ADDRESSES_RUNTIME_PATH, `${JSON.stringify(addresses, null, 2)}\n`, "utf8");
+  await writeJsonRuntimeFile(CUSTOMER_ADDRESSES_RUNTIME_PATH, addresses);
+}
+
+async function readQuoteRequestsFile() {
+  const blobValue = await readJsonBlob<QuoteRequestRecord[]>(QUOTE_REQUESTS_BLOB_PATHNAME);
+  if (blobValue) {
+    return blobValue;
+  }
+
+  return readJsonRuntimeFile<QuoteRequestRecord[]>(QUOTE_REQUESTS_RUNTIME_PATH, QUOTE_REQUESTS_SEED_PATH, []);
+}
+
+async function writeQuoteRequestsFile(requests: QuoteRequestRecord[]) {
+  if (canUseBlobStore()) {
+    await writeJsonBlob(QUOTE_REQUESTS_BLOB_PATHNAME, requests);
+    return;
+  }
+
+  await writeJsonRuntimeFile(QUOTE_REQUESTS_RUNTIME_PATH, requests);
+}
+
+async function readSupportConversationsFile() {
+  const blobValue = await readJsonBlob<SupportConversationRecord[]>(SUPPORT_CONVERSATIONS_BLOB_PATHNAME);
+  if (blobValue) {
+    return blobValue;
+  }
+
+  return readJsonRuntimeFile<SupportConversationRecord[]>(SUPPORT_CONVERSATIONS_RUNTIME_PATH, SUPPORT_CONVERSATIONS_SEED_PATH, []);
+}
+
+async function writeSupportConversationsFile(conversations: SupportConversationRecord[]) {
+  if (canUseBlobStore()) {
+    await writeJsonBlob(SUPPORT_CONVERSATIONS_BLOB_PATHNAME, conversations);
+    return;
+  }
+
+  await writeJsonRuntimeFile(SUPPORT_CONVERSATIONS_RUNTIME_PATH, conversations);
 }
 
 function sortCustomerAddresses(addresses: CustomerAddressRecord[]) {
@@ -264,41 +338,6 @@ function hasDatabase() {
 
 function createDatabaseUnavailableError() {
   return new Error(DATABASE_UNAVAILABLE_MESSAGE);
-}
-
-function createPlaceholderConversation(input: {
-  userId: string;
-  userEmail: string;
-  tab?: SupportConversationTab;
-  orderId?: string;
-  orderLabel?: string;
-}): SupportConversationRecord {
-  const createdAt = new Date().toISOString();
-
-  return {
-    id: input.orderId ? `support-${input.orderId}` : `support-${input.userId}`,
-    userId: input.userId,
-    userEmail: input.userEmail,
-    tab: input.tab ?? "service",
-    name: input.orderId ? "Support commande" : "Support AfriPay",
-    email: undefined,
-    role: input.orderId ? `Suivi de ${input.orderLabel ?? "commande"}` : "Support client AfriPay",
-    preview: "Le support sera disponible une fois la base de donnees configuree.",
-    time: toTimeLabel(createdAt),
-    status: "en ligne",
-    aiEnabled: false,
-    orderId: input.orderId,
-    messages: [
-      {
-        id: `${input.orderId ?? input.userId}-welcome`,
-        side: "left",
-        text: "Le support client est temporairement indisponible sur cette instance.",
-        createdAt,
-      },
-    ],
-    createdAt,
-    updatedAt: createdAt,
-  };
 }
 
 export async function getFavoriteRecords() {
@@ -651,7 +690,8 @@ export async function toggleUserFavorite(input: { userId: string; userEmail: str
 
 export async function getQuoteRequests() {
   if (!hasDatabase()) {
-    return [];
+    const requests = await readQuoteRequestsFile();
+    return [...requests].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }
 
   const requests = await prisma.quoteRequest.findMany({ include: { user: true }, orderBy: { createdAt: "desc" } });
@@ -689,7 +729,26 @@ export async function createQuoteRequest(input: {
   notes?: string;
 }) {
   if (!hasDatabase()) {
-    throw createDatabaseUnavailableError();
+    const requests = await readQuoteRequestsFile();
+    const timestamp = new Date().toISOString();
+    const request: QuoteRequestRecord = {
+      id: crypto.randomUUID(),
+      userId: input.userId,
+      userEmail: input.userEmail,
+      userDisplayName: input.userDisplayName,
+      productName: input.productName.trim(),
+      quantity: input.quantity.trim(),
+      specifications: input.specifications.trim(),
+      budget: input.budget.trim(),
+      shippingWindow: input.shippingWindow.trim(),
+      notes: input.notes?.trim() || undefined,
+      status: "En attente",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    await writeQuoteRequestsFile([request, ...requests]);
+    return request;
   }
 
   const request = await prisma.quoteRequest.create({
@@ -725,7 +784,8 @@ export async function createQuoteRequest(input: {
 
 export async function getSupportConversations() {
   if (!hasDatabase()) {
-    return [];
+    const conversations = await readSupportConversationsFile();
+    return [...conversations].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   }
 
   const conversations = await prisma.supportConversation.findMany({
@@ -747,7 +807,40 @@ export async function ensureDefaultSupportConversation(input: {
   userDisplayName: string;
 }) {
   if (!hasDatabase()) {
-    return createPlaceholderConversation({ userId: input.userId, userEmail: input.userEmail });
+    const conversations = await readSupportConversationsFile();
+    const existing = conversations.find((conversation) => conversation.userId === input.userId && conversation.tab === "service" && !conversation.orderId);
+
+    if (existing) {
+      return existing;
+    }
+
+    const createdAt = new Date().toISOString();
+    const conversation: SupportConversationRecord = {
+      id: crypto.randomUUID(),
+      userId: input.userId,
+      userEmail: input.userEmail,
+      tab: "service",
+      name: "Support AfriPay",
+      email: input.userEmail,
+      role: `Support client pour ${input.userDisplayName}`,
+      preview: "Bienvenue. Posez votre question et notre equipe prendra le relais.",
+      time: toTimeLabel(createdAt),
+      status: "en ligne",
+      aiEnabled: false,
+      messages: [
+        {
+          id: crypto.randomUUID(),
+          side: "left",
+          text: "Bienvenue sur votre espace support AfriPay. Vous pouvez poser ici vos questions sur vos commandes, devis, paiements et favoris.",
+          createdAt,
+        },
+      ],
+      createdAt,
+      updatedAt: createdAt,
+    };
+
+    await writeSupportConversationsFile([conversation, ...conversations]);
+    return conversation;
   }
 
   const conversations = await getSupportConversations();
@@ -789,12 +882,41 @@ export async function ensureOrderSupportConversation(input: {
   orderLabel: string;
 }) {
   if (!hasDatabase()) {
-    return createPlaceholderConversation({
+    const conversations = await readSupportConversationsFile();
+    const existing = conversations.find((conversation) => conversation.userId === input.userId && conversation.orderId === input.orderId && conversation.tab === "service");
+
+    if (existing) {
+      return existing;
+    }
+
+    const createdAt = new Date().toISOString();
+    const conversation: SupportConversationRecord = {
+      id: crypto.randomUUID(),
       userId: input.userId,
       userEmail: input.userEmail,
+      tab: "service",
+      name: "Support commande",
+      email: input.userEmail,
+      role: `Suivi de ${input.orderLabel}`,
+      preview: `Conversation ouverte pour ${input.orderLabel}.`,
+      time: toTimeLabel(createdAt),
+      status: "en ligne",
+      aiEnabled: false,
       orderId: input.orderId,
-      orderLabel: input.orderLabel,
-    });
+      messages: [
+        {
+          id: crypto.randomUUID(),
+          side: "left",
+          text: `Votre conversation de suivi pour ${input.orderLabel} est ouverte. Notre equipe peut vous repondre ici.`,
+          createdAt,
+        },
+      ],
+      createdAt,
+      updatedAt: createdAt,
+    };
+
+    await writeSupportConversationsFile([conversation, ...conversations]);
+    return conversation;
   }
 
   const existing = await prisma.supportConversation.findFirst({
@@ -841,7 +963,38 @@ export async function appendSupportConversationMessage(input: {
   text: string;
 }) {
   if (!hasDatabase()) {
-    throw createDatabaseUnavailableError();
+    const conversations = await readSupportConversationsFile();
+    const conversation = conversations.find((entry) => entry.id === input.conversationId && entry.userId === input.userId);
+
+    if (!conversation) {
+      throw new Error("Conversation introuvable.");
+    }
+
+    const trimmedText = input.text.trim();
+    if (!trimmedText) {
+      throw new Error("Message vide.");
+    }
+
+    const now = new Date().toISOString();
+    const nextConversation: SupportConversationRecord = {
+      ...conversation,
+      preview: trimmedText,
+      time: toTimeLabel(now),
+      updatedAt: now,
+      messages: [
+        ...conversation.messages,
+        {
+          id: crypto.randomUUID(),
+          side: "right",
+          text: trimmedText,
+          createdAt: now,
+        },
+      ],
+    };
+
+    const nextConversations = conversations.map((entry) => entry.id === conversation.id ? nextConversation : entry);
+    await writeSupportConversationsFile(nextConversations);
+    return nextConversation;
   }
 
   const conversation = await prisma.supportConversation.findFirst({
@@ -887,7 +1040,39 @@ export async function appendAdminSupportConversationMessage(input: {
   text: string;
 }) {
   if (!hasDatabase()) {
-    throw createDatabaseUnavailableError();
+    const conversations = await readSupportConversationsFile();
+    const conversation = conversations.find((entry) => entry.id === input.conversationId);
+
+    if (!conversation) {
+      throw new Error("Conversation introuvable.");
+    }
+
+    const trimmedText = input.text.trim();
+    if (!trimmedText) {
+      throw new Error("Message vide.");
+    }
+
+    const now = new Date().toISOString();
+    const nextConversation: SupportConversationRecord = {
+      ...conversation,
+      preview: trimmedText,
+      time: toTimeLabel(now),
+      status: "en ligne",
+      updatedAt: now,
+      messages: [
+        ...conversation.messages,
+        {
+          id: crypto.randomUUID(),
+          side: "left",
+          text: trimmedText,
+          createdAt: now,
+        },
+      ],
+    };
+
+    const nextConversations = conversations.map((entry) => entry.id === conversation.id ? nextConversation : entry);
+    await writeSupportConversationsFile(nextConversations);
+    return nextConversation;
   }
 
   const conversation = await prisma.supportConversation.findUnique({
@@ -937,12 +1122,23 @@ export async function appendOrderAutomationNotification(input: {
   orderLabel: string;
   text: string;
 }) {
-  if (!hasDatabase()) {
+  if (!input.userId) {
     return null;
   }
 
-  if (!input.userId) {
-    return null;
+  if (!hasDatabase()) {
+    const conversation = await ensureOrderSupportConversation({
+      userId: input.userId,
+      userEmail: "support@afripay.local",
+      userDisplayName: input.orderLabel,
+      orderId: input.orderId,
+      orderLabel: input.orderLabel,
+    });
+
+    return appendAdminSupportConversationMessage({
+      conversationId: conversation.id,
+      text: input.text,
+    });
   }
 
   const user = await prisma.user.findUnique({
