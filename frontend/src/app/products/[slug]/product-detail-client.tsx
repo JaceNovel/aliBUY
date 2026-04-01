@@ -985,8 +985,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
         <span className="font-medium text-[#222]">{product.shortTitle}</span>
       </div>
 
-      <section className="pt-4 sm:pt-5 lg:pt-6">
-        <div className="grid items-start gap-6 xl:grid-cols-[88px_580px_minmax(0,1fr)]">
+      <section className="rounded-[30px] bg-white px-4 py-4 shadow-[0_18px_48px_rgba(24,39,75,0.06)] ring-1 ring-black/5 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
+        <div className="grid gap-6 xl:grid-cols-[88px_580px_minmax(0,1fr)]">
           <div className="order-2 flex gap-3 overflow-x-auto xl:order-1 xl:flex-col xl:overflow-visible">
             {product.videoUrl ? (
               <button
