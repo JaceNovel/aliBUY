@@ -3010,6 +3010,9 @@ const ALIEXPRESS_SEARCH_TOKEN_TRANSLATIONS: Record<string, string> = {
   cremes: "creams",
   solaire: "sun",
   soleil: "sun",
+  friteuse: "fryer",
+  friteuses: "fryers",
+  air: "air",
   gaming: "gaming",
   ordinateur: "computer",
   informatique: "computer",
@@ -3026,6 +3029,8 @@ const ALIEXPRESS_SEARCH_PHRASE_TRANSLATIONS: Array<[string, string[]]> = [
   ["creme solaire", ["sunscreen", "sun cream"]],
   ["ecran gaming", ["gaming monitor", "gaming screen"]],
   ["ecran pc", ["computer monitor", "pc monitor"]],
+  ["friteuse a air", ["air fryer", "airfryer"]],
+  ["friteuse air", ["air fryer", "airfryer"]],
   ["case computer", ["computer case", "pc case"]],
 ];
 
@@ -3182,6 +3187,13 @@ function scoreAliExpressSearchProductRelevance(product: AlibabaSearchProduct, qu
   };
 }
 
+function shouldAllowLooseAliExpressMatches(query: string) {
+  const queryTokens = tokenizeAliExpressRelevanceText(query)
+    .filter((token) => token.length >= 3 && !ALIEXPRESS_RELEVANCE_STOPWORDS.has(token) && !/^\d+$/.test(token));
+
+  return queryTokens.length <= 1;
+}
+
 function mapAliExpressProductDetailToProduct(
   searchItem: Record<string, unknown>,
   detailResponseBody: unknown,
@@ -3253,13 +3265,32 @@ function mapAliExpressProductDetailToProduct(
     const value = getNumberValue(sku.sku_available_stock);
     return typeof value === "number" ? Math.max(max, value) : max;
   }, 0);
-  const weightKg = getNumberValue(packageInfo.gross_weight) ?? 0.25;
-  const weightGrams = sanitizeItemWeightGrams(Math.max(50, Math.round(weightKg * 1000))) ?? 250;
+  const title = getStringValue(baseInfo.subject) ?? getStringValue(searchItem.title) ?? query;
+  const keywords = title.toLowerCase().split(/[^a-z0-9]+/i).filter((entry) => entry.length > 2).slice(0, 12);
+  const extractedWeightGrams = extractWeightGrams(detailResult)
+    ?? extractWeightGrams(detailResponseBody)
+    ?? sanitizeItemWeightGrams(
+      (() => {
+        const weightKg = getNumberValue(packageInfo.gross_weight);
+        if (typeof weightKg !== "number") {
+          return undefined;
+        }
+
+        return Math.round(weightKg * (weightKg < 10 ? 1000 : 1));
+      })(),
+    );
   const packageLength = getNumberValue(packageInfo.package_length) ?? 20;
   const packageWidth = getNumberValue(packageInfo.package_width) ?? 15;
   const packageHeight = getNumberValue(packageInfo.package_height) ?? 8;
   const lotCbm = ((packageLength * packageWidth * packageHeight) / 1_000_000).toFixed(4);
-  const title = getStringValue(baseInfo.subject) ?? getStringValue(searchItem.title) ?? query;
+  const weightGrams = resolveCoherentItemWeightGrams(extractedWeightGrams, {
+    title,
+    shortTitle: title.slice(0, 96),
+    query,
+    keywords,
+    lotCbm,
+    moq,
+  });
   const variantGroups = [...new Map(
     skuInfo.flatMap((sku) => {
       const propertyDtos = Array.isArray(sku.ae_sku_property_dtos) ? sku.ae_sku_property_dtos as Array<Record<string, unknown>> : [];
@@ -3315,13 +3346,13 @@ function mapAliExpressProductDetailToProduct(
     slug: sourceProductId,
     title,
     shortTitle: title.slice(0, 96),
-    keywords: title.toLowerCase().split(/[^a-z0-9]+/i).filter((entry) => entry.length > 2).slice(0, 12),
+    keywords,
     image: primaryImage,
     gallery,
     videoUrl: getStringValue(videoDtos[0]?.media_url),
     videoPoster: getStringValue(videoDtos[0]?.poster_url) ?? primaryImage,
     packaging: `${packageLength} x ${packageWidth} x ${packageHeight} cm`,
-    itemWeightGrams: weightGrams,
+    itemWeightGrams: weightGrams ?? 0,
     lotCbm,
     minUsd,
     maxUsd,
@@ -3355,7 +3386,7 @@ function mapAliExpressProductDetailToProduct(
       margin_rate: Number(process.env.ALIEXPRESS_MARGIN_RATE ?? "0.1"),
     },
     moqVerified: true,
-    weightVerified: weightGrams > 0,
+    weightVerified: typeof weightGrams === "number" && weightGrams > 0,
     priceVerified: minUsd > 0,
   };
 }
@@ -3556,7 +3587,9 @@ async function searchAliExpressProducts(input: {
     .filter((entry) => !entry.strictMatch)
     .sort((left, right) => right.score - left.score)
     .map((entry) => entry.product);
-  const foundProducts = [...strictMatches, ...looseMatches].slice(0, desiredCount);
+  const foundProducts = shouldAllowLooseAliExpressMatches(input.query)
+    ? [...strictMatches, ...looseMatches].slice(0, desiredCount)
+    : strictMatches.slice(0, desiredCount);
 
   console.error("[aliexpress/import] no usable DS products", {
     query: input.query,
@@ -3662,6 +3695,7 @@ function mapAliExpressAffiliateItemToProduct(
     ?? getStringValue(item.title)
     ?? getStringValue(item.item_title)
     ?? query;
+  const keywords = title.toLowerCase().split(/[^a-z0-9]+/i).filter((t) => t.length > 2).slice(0, 12);
   const soldLabel = getStringValue(item.lastest_volume)
     ?? getStringValue(item.latest_volume)
     ?? getStringValue(item.orders)
@@ -3671,17 +3705,25 @@ function mapAliExpressAffiliateItemToProduct(
   const commissionRate = getStringValue(item.commission_rate) ?? getStringValue(item.hot_product_commission_rate);
   const shopId = getStringValue(item.shop_id) ?? getStringValue(item.shopId) ?? "AliExpress";
   const promotionLink = getStringValue(item.promotion_link) ?? getStringValue(item.product_detail_url);
+  const inferredWeightGrams = resolveCoherentItemWeightGrams(undefined, {
+    title,
+    shortTitle: title.slice(0, 96),
+    query,
+    keywords,
+    lotCbm: "0.0024",
+    moq: 1,
+  });
 
   return {
     sourceProductId: productId,
     slug: productId,
     title,
     shortTitle: title.slice(0, 96),
-    keywords: title.toLowerCase().split(/[^a-z0-9]+/i).filter((t) => t.length > 2).slice(0, 12),
+    keywords,
     image: mainImage,
     gallery,
     packaging: "20 x 15 x 8 cm",
-    itemWeightGrams: 250,
+    itemWeightGrams: inferredWeightGrams ?? 0,
     lotCbm: "0.0024",
     minUsd,
     maxUsd,
@@ -3831,7 +3873,9 @@ async function searchAliExpressAffiliateProducts(input: {
     .filter((entry) => !entry.strictMatch)
     .sort((left, right) => right.score - left.score)
     .map((entry) => entry.product);
-  const foundProducts = [...strictMatches, ...looseMatches].slice(0, desiredCount);
+  const foundProducts = shouldAllowLooseAliExpressMatches(input.query)
+    ? [...strictMatches, ...looseMatches].slice(0, desiredCount)
+    : strictMatches.slice(0, desiredCount);
 
   return {
     ok: foundProducts.length > 0,
