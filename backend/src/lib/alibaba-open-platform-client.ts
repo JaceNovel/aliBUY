@@ -3264,6 +3264,27 @@ function buildAliExpressQueryCandidates(query: string) {
   ]).filter((entry) => entry.length > 0);
 }
 
+function buildAliExpressAffiliateQueryCandidates(query: string) {
+  const trimmed = query.trim();
+  const normalized = normalizeAliExpressHardwareTerms(normalizeAliExpressSearchTerm(trimmed));
+  const normalizedTokens = normalized.split(/\s+/g).map((token) => token.trim()).filter(Boolean);
+  const translatedTokens = normalizedTokens.map((token) => ALIEXPRESS_SEARCH_TOKEN_TRANSLATIONS[token] ?? token);
+  const translated = translatedTokens.join(" ").trim();
+  const phraseTranslations = ALIEXPRESS_SEARCH_PHRASE_TRANSLATIONS
+    .filter(([phrase]) => normalized.includes(phrase))
+    .flatMap(([, translations]) => translations);
+  const filteredTokens = uniqueStrings(translatedTokens)
+    .filter((token) => token.length >= 3 && token !== "women" && token !== "men" && token !== "kids" && !/^\d+$/.test(token));
+
+  return uniqueStrings([
+    trimmed,
+    normalized && normalized !== trimmed.toLowerCase() ? normalized : "",
+    translated && translated !== normalized ? translated : "",
+    ...phraseTranslations,
+    ...(filteredTokens.length <= 1 ? filteredTokens : []),
+  ]).filter((entry) => entry.length > 0);
+}
+
 const ALIEXPRESS_RELEVANCE_STOPWORDS = new Set([
   "de",
   "du",
@@ -3896,7 +3917,14 @@ function mapAliExpressAffiliateItemToProduct(
     ?? getStringValue(item.title)
     ?? getStringValue(item.item_title)
     ?? query;
-  const keywords = title.toLowerCase().split(/[^a-z0-9]+/i).filter((t) => t.length > 2).slice(0, 12);
+  const firstCategoryName = getStringValue(item.first_level_category_name) ?? getStringValue(item.firstLevelCategoryName);
+  const secondCategoryName = getStringValue(item.second_level_category_name) ?? getStringValue(item.secondLevelCategoryName);
+  const categoryNames = [firstCategoryName, secondCategoryName].filter((value): value is string => typeof value === "string" && value.length > 0);
+  const keywords = uniqueStrings([
+    ...title.toLowerCase().split(/[^a-z0-9]+/i).filter((t) => t.length > 2),
+    ...categoryNames
+      .flatMap((value) => value.toLowerCase().split(/[^a-z0-9]+/i).filter((token) => token.length > 2)),
+  ]).slice(0, 16);
   const soldLabel = getStringValue(item.lastest_volume)
     ?? getStringValue(item.latest_volume)
     ?? getStringValue(item.orders)
@@ -3906,14 +3934,16 @@ function mapAliExpressAffiliateItemToProduct(
   const commissionRate = getStringValue(item.commission_rate) ?? getStringValue(item.hot_product_commission_rate);
   const shopId = getStringValue(item.shop_id) ?? getStringValue(item.shopId) ?? "AliExpress";
   const promotionLink = getStringValue(item.promotion_link) ?? getStringValue(item.product_detail_url);
-  const inferredWeightGrams = resolveCoherentItemWeightGrams(undefined, {
-    title,
-    shortTitle: title.slice(0, 96),
-    query,
-    keywords,
-    lotCbm: "0.0024",
-    moq: 1,
-  });
+  const evaluateRate = getStringValue(item.evaluate_rate) ?? getStringValue(item.evaluateRate);
+  const supplierLocation = getStringValue(item.shop_country_code)
+    ?? getStringValue(item.shopCountryCode)
+    ?? getStringValue(item.ship_from)
+    ?? "Non fourni";
+  const affiliateOverview = [
+    secondCategoryName,
+    firstCategoryName,
+    soldLabel !== "0" ? `${soldLabel} ventes` : "",
+  ].filter((value): value is string => typeof value === "string" && value.length > 0);
 
   return {
     sourceProductId: productId,
@@ -3923,35 +3953,32 @@ function mapAliExpressAffiliateItemToProduct(
     keywords,
     image: mainImage,
     gallery,
-    packaging: "20 x 15 x 8 cm",
-    itemWeightGrams: inferredWeightGrams ?? 0,
-    lotCbm: "0.0024",
+    packaging: "Non fourni par affiliation",
+    itemWeightGrams: 0,
+    lotCbm: "0.0000",
     minUsd,
     maxUsd,
     moq: 1,
     unit: "piece",
-    badge: "AfriPay+",
+    badge: "AliExpress Affiliate",
     supplierName: `Boutique ${shopId}`,
-    supplierLocation: "CN",
-    responseTime: "AfriPay+",
+    supplierLocation,
+    responseTime: "AliExpress Affiliate",
     yearsInBusiness: 0,
-    transactionsLabel: "Selection AfriPay+",
+    transactionsLabel: evaluateRate ? `Note ${evaluateRate}` : `Boutique ${shopId}`,
     soldLabel: `${soldLabel} ventes`,
-    customizationLabel: "Fiche verifiee AfriPay+",
+    customizationLabel: "Import affiliation",
     shippingLabel: "Expédition",
-    overview: [
-      "Selection verifiee AfriPay+",
-      `${soldLabel} ventes`,
-      commissionRate ? `Commission: ${commissionRate}` : "Via catalogue AfriPay+",
-    ],
+    overview: affiliateOverview.length > 0 ? affiliateOverview : [title],
     variantGroups: [],
     tiers: [{ quantityLabel: "1+", priceUsd: minUsd }],
     specs: [
       { label: "Source", value: "AliExpress Affiliate" },
       { label: "Destination", value: shipToCountry },
+      ...(secondCategoryName ? [{ label: "Categorie", value: secondCategoryName }] : []),
       ...(commissionRate ? [{ label: "Commission", value: commissionRate }] : []),
     ],
-    inventory: 50,
+    inventory: 1,
     rawPayload: {
       provider: "aliexpress-affiliate",
       item,
@@ -3976,8 +4003,9 @@ async function searchAliExpressAffiliateProducts(input: {
   const pageSize = Math.min(50, desiredCount);
   const maxPages = Math.max(1, Math.ceil(desiredCount / pageSize));
   const maxCollectedCandidates = Math.max(desiredCount * 4, 40);
-  const queryCandidates = buildAliExpressQueryCandidates(input.query);
+  const queryCandidates = buildAliExpressAffiliateQueryCandidates(input.query);
   const searchContexts = buildAliExpressSearchContexts(input.preferredShipToCountry);
+  const allowLooseMatches = shouldAllowLooseAliExpressMatches(input.query);
   const collectedByProductId = new Map<string, {
     product: AlibabaSearchProduct;
     score: number;
@@ -4045,6 +4073,10 @@ async function searchAliExpressAffiliateProducts(input: {
           }
 
           const relevance = scoreAliExpressSearchProductRelevance(normalized, input.query);
+          if (!relevance.strictMatch && !allowLooseMatches) {
+            continue;
+          }
+
           collectedByProductId.set(productId, {
             product: normalized,
             score: relevance.score,
