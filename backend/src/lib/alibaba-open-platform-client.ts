@@ -4073,6 +4073,7 @@ function mapAliExpressAffiliateItemToProduct(
   const shopId = getStringValue(item.shop_id) ?? getStringValue(item.shopId) ?? "AliExpress";
   const promotionLink = getStringValue(item.promotion_link) ?? getStringValue(item.product_detail_url);
   const evaluateRate = getStringValue(item.evaluate_rate) ?? getStringValue(item.evaluateRate);
+  const sourceWeightGrams = extractWeightGrams(item);
   const supplierLocation = getStringValue(item.shop_country_code)
     ?? getStringValue(item.shopCountryCode)
     ?? getStringValue(item.ship_from)
@@ -4092,7 +4093,7 @@ function mapAliExpressAffiliateItemToProduct(
     image: mainImage,
     gallery,
     packaging: "Non fourni par affiliation",
-    itemWeightGrams: 0,
+    itemWeightGrams: sourceWeightGrams ?? 0,
     lotCbm: "0.0000",
     minUsd,
     maxUsd,
@@ -4120,13 +4121,14 @@ function mapAliExpressAffiliateItemToProduct(
     rawPayload: {
       provider: "aliexpress-affiliate",
       item,
+      source_weight_grams: sourceWeightGrams ?? null,
       supplier_price_usd: minRawPrice,
       margin_rate: Number(process.env.ALIEXPRESS_MARGIN_RATE ?? "0.1"),
       promotion_link: promotionLink,
       affiliate: true,
     },
     moqVerified: false,
-    weightVerified: false,
+    weightVerified: typeof sourceWeightGrams === "number" && sourceWeightGrams > 0,
     priceVerified: true,
   };
 }

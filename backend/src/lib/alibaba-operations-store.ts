@@ -848,6 +848,15 @@ function extractRawWeightGrams(value: unknown, depth = 0, keyHint?: string): num
   return undefined;
 }
 
+function isAffiliateRawPayload(rawPayload: Prisma.JsonValue | null) {
+  if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) {
+    return false;
+  }
+
+  const record = rawPayload as Record<string, unknown>;
+  return record.affiliate === true || record.provider === "aliexpress-affiliate";
+}
+
 function toSafeInt(value: number, fallback = 0) {
   if (!Number.isFinite(value)) {
     return fallback;
@@ -1367,19 +1376,22 @@ function mapImportedProductRecord(record: {
   const effectiveGallery = normalizedGallery.length > 0 ? normalizedGallery : rawMediaGallery;
   const rawPriceBounds = extractRawPriceBounds(record.rawPayload ?? null);
   const rawWeightGrams = extractRawWeightGrams(record.rawPayload);
+  const isAffiliateImport = isAffiliateRawPayload(record.rawPayload ?? null);
   const storedWeightGrams = sanitizeItemWeightGrams(record.itemWeightGrams > 0 ? record.itemWeightGrams : undefined);
   const storedTiers = toUnknownArray<{ quantityLabel: string; priceUsd: number; note?: string }>(record.tiers);
-  const normalizedWeightGrams = resolveCoherentItemWeightGrams(storedWeightGrams ?? rawWeightGrams, {
-    title: record.title,
-    shortTitle: record.shortTitle,
-    query: record.query,
-    keywords: toStringArray(record.keywords),
-    categorySlug: record.categorySlug ?? undefined,
-    categoryTitle: record.categoryTitle ?? undefined,
-    categoryPath: toStringArray(record.categoryPath ?? undefined),
-    lotCbm: record.lotCbm,
-    moq: record.moq,
-  });
+  const normalizedWeightGrams = isAffiliateImport
+    ? rawWeightGrams
+    : resolveCoherentItemWeightGrams(storedWeightGrams ?? rawWeightGrams, {
+      title: record.title,
+      shortTitle: record.shortTitle,
+      query: record.query,
+      keywords: toStringArray(record.keywords),
+      categorySlug: record.categorySlug ?? undefined,
+      categoryTitle: record.categoryTitle ?? undefined,
+      categoryPath: toStringArray(record.categoryPath ?? undefined),
+      lotCbm: record.lotCbm,
+      moq: record.moq,
+    });
   const normalizedPriceSummary = resolveProductPriceSummaryUsd({
     tiers: storedTiers,
     minUsd: rawPriceBounds.minUsd ?? record.minUsd,
