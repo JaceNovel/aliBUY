@@ -283,7 +283,7 @@ function isAliExpressAccount(account?: AlibabaSupplierAccount | null) {
   return isAliExpressUrl(account?.apiBaseUrl) || isAliExpressUrl(account?.authorizeUrl) || isAliExpressUrl(account?.tokenUrl);
 }
 
-function isAliExpressCredentials(credentials?: AlibabaCredentials | null) {
+function isAliExpressCredentials(credentials?: AlibabaCredentials | null): credentials is AlibabaCredentials {
   return isAliExpressUrl(credentials?.apiBaseUrl) || isAliExpressUrl(credentials?.authorizeUrl) || isAliExpressUrl(credentials?.tokenUrl);
 }
 
@@ -4100,7 +4100,7 @@ export async function searchAlibabaProducts(input: {
   if (!isAliExpressCredentials(credentials)) {
     return {
       ok: false,
-      endpoint: "aliexpress.ds.text.search",
+      endpoint: "aliexpress.affiliate.product.query",
       responseBody: {
         message: "AliExpress credentials are missing",
       },
@@ -4109,36 +4109,21 @@ export async function searchAlibabaProducts(input: {
     };
   }
 
-  const dsResult = await searchAliExpressProducts({
-    query: input.query,
-    limit: input.limit,
-    preferredShipToCountry: input.preferredShipToCountry,
-  });
-
-  if (dsResult.ok || dsResult.products.length > 0) {
-    return dsResult;
-  }
-
-  // DS failed — try affiliate API as fallback (account may have affiliate access instead of DS)
-  if (credentials) {
-    const affiliateResult = await searchAliExpressAffiliateProducts({
+  const importProvider = String(process.env.ALIEXPRESS_IMPORT_PROVIDER ?? "affiliate").trim().toLowerCase();
+  if (importProvider === "ds") {
+    return searchAliExpressProducts({
       query: input.query,
       limit: input.limit,
-      credentials,
       preferredShipToCountry: input.preferredShipToCountry,
     });
-
-    if (affiliateResult.ok || affiliateResult.products.length > 0) {
-      return affiliateResult;
-    }
-
-    // Return the more informative error between the two
-    if (!dsResult.errorMessage || dsResult.errorMessage.includes("Essaie un mot-cle")) {
-      return affiliateResult;
-    }
   }
 
-  return dsResult;
+  return searchAliExpressAffiliateProducts({
+    query: input.query,
+    limit: input.limit,
+    credentials,
+    preferredShipToCountry: input.preferredShipToCountry,
+  });
 
   const desiredCount = Math.min(Math.max(input.limit, 1), 100);
   const pageSize = Math.min(20, desiredCount);

@@ -1009,7 +1009,7 @@ export async function runAlibabaCatalogImport(input: {
     }
 
     const warningMessage = importedProducts.length < job.limit
-      ? `Import partiel: ${importedProducts.length}/${job.limit} importes.${productsWithRequiredData.length === 0 && fallbackEligibleProducts.length > 0 ? ` Mode secours AliExpress utilise: ${Math.min(fallbackEligibleProducts.length, job.limit)} fiche(s).` : ""}${skippedMissingRequiredDataCount > 0 ? ` Rejets donnees fournisseur: ${skippedMissingRequiredDataCount}.` : ""}${rejectedReasonCounts.price > 0 ? ` Prix incoherent: ${rejectedReasonCounts.price}.` : ""}${rejectedReasonCounts.moq > 0 ? ` MOQ non verifie: ${rejectedReasonCounts.moq}.` : ""}${rejectedReasonCounts.weight > 0 ? ` Poids non exploitable: ${rejectedReasonCounts.weight}.` : ""}${skippedExistingCount > 0 ? ` Deja importes ignores: ${skippedExistingCount}.` : ""}`
+      ? `Import partiel: ${importedProducts.length}/${job.limit} importes.${productsWithRequiredData.length === 0 && fallbackEligibleProducts.length > 0 ? ` Import affiliation partiel utilise: ${Math.min(fallbackEligibleProducts.length, job.limit)} fiche(s).` : ""}${skippedMissingRequiredDataCount > 0 ? ` Rejets donnees fournisseur: ${skippedMissingRequiredDataCount}.` : ""}${rejectedReasonCounts.price > 0 ? ` Prix incoherent: ${rejectedReasonCounts.price}.` : ""}${rejectedReasonCounts.moq > 0 ? ` MOQ non verifie: ${rejectedReasonCounts.moq}.` : ""}${rejectedReasonCounts.weight > 0 ? ` Poids non exploitable: ${rejectedReasonCounts.weight}.` : ""}${skippedExistingCount > 0 ? ` Deja importes ignores: ${skippedExistingCount}.` : ""}`
       : undefined;
 
     const completedJob: AlibabaImportJob = {
