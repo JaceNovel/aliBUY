@@ -8,6 +8,7 @@ import { get, put } from "@vercel/blob";
 import type { CustomerAddressRecord } from "@/lib/customer-addresses";
 import { canonicalizeCountryCode } from "@/lib/country-utils";
 import { prisma } from "@/lib/prisma";
+import { getVercelBlobAccessMode } from "@/lib/vercel-blob-access";
 
 const DATABASE_UNAVAILABLE_MESSAGE = "Le service de donnees n'est pas configure sur cette instance.";
 const CUSTOMER_ADDRESSES_RUNTIME_PATH = path.join(os.tmpdir(), "afripay", "data", "account", "customer-addresses.json");
@@ -20,6 +21,7 @@ const QUOTE_REQUESTS_BLOB_PATHNAME = "customer/quote-requests.json";
 const SUPPORT_CONVERSATIONS_RUNTIME_PATH = path.join(CUSTOMER_DATA_DIR, "support-conversations.json");
 const SUPPORT_CONVERSATIONS_SEED_PATH = path.join(process.cwd(), "data", "customer", "support-conversations.json");
 const SUPPORT_CONVERSATIONS_BLOB_PATHNAME = "customer/support-conversations.json";
+const BLOB_ACCESS_MODE = getVercelBlobAccessMode();
 
 export type FavoriteRecord = {
   id: string;
@@ -100,7 +102,7 @@ async function readJsonBlob<T>(pathname: string): Promise<T | null> {
 
   try {
     const blob = await get(pathname, {
-      access: "private",
+      access: BLOB_ACCESS_MODE,
       useCache: false,
     });
 
@@ -121,7 +123,7 @@ async function writeJsonBlob<T>(pathname: string, value: T) {
   }
 
   await put(pathname, `${JSON.stringify(value, null, 2)}\n`, {
-    access: "private",
+    access: BLOB_ACCESS_MODE,
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: "application/json; charset=utf-8",

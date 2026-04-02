@@ -9,6 +9,7 @@ import { get, put } from "@vercel/blob";
 
 import type { CartInputItem } from "@/lib/alibaba-sourcing";
 import { prisma } from "@/lib/prisma";
+import { getVercelBlobAccessMode } from "@/lib/vercel-blob-access";
 
 export type SharedCartStatus = "active" | "claimed" | "ordered" | "expired";
 
@@ -35,6 +36,7 @@ const SITE_DIR = path.join(process.cwd(), "data", "site");
 const SHARED_CARTS_PATH = path.join(SITE_DIR, "shared-carts.json");
 const SHARED_CARTS_BLOB_PATHNAME = "site/shared-carts.json";
 const PRODUCTION_PERSISTENCE_ERROR = "Partage du panier indisponible: configure DATABASE_URL ou BLOB_READ_WRITE_TOKEN sur cette instance.";
+const BLOB_ACCESS_MODE = getVercelBlobAccessMode();
 
 let databaseFallbackForced = false;
 
@@ -89,7 +91,7 @@ async function readJsonFile<T>(filePath: string, fallback: T): Promise<T> {
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     try {
       const blob = await get(SHARED_CARTS_BLOB_PATHNAME, {
-        access: "private",
+        access: BLOB_ACCESS_MODE,
         useCache: false,
       });
 
@@ -113,7 +115,7 @@ async function readJsonFile<T>(filePath: string, fallback: T): Promise<T> {
 async function writeJsonFile<T>(filePath: string, value: T) {
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     await put(SHARED_CARTS_BLOB_PATHNAME, `${JSON.stringify(value, null, 2)}\n`, {
-      access: "private",
+      access: BLOB_ACCESS_MODE,
       addRandomSuffix: false,
       allowOverwrite: true,
       contentType: "application/json; charset=utf-8",

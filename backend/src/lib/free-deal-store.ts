@@ -16,6 +16,7 @@ import { convertEurToFcfa } from "@/lib/free-deal";
 import { FREE_DEAL_ROUTE, FREE_DEAL_SHARE_ROUTE_PREFIX } from "@/lib/free-deal-constants";
 import type { ProductCatalogItem } from "@/lib/products-data";
 import { prisma } from "@/lib/prisma";
+import { getVercelBlobAccessMode } from "@/lib/vercel-blob-access";
 
 export type FreeDealConfig = {
   id: string;
@@ -126,6 +127,7 @@ const CLAIMS_BLOB_PATHNAME = "site/free-deal-claims.json";
 const VISITS_BLOB_PATHNAME = "site/free-deal-referral-visits.json";
 const CONFIG_SEED_PATH = path.join(process.cwd(), "data", "site", "free-deal-config.json");
 const DEFAULT_CONFIG_ID = "free-deal-default";
+const BLOB_ACCESS_MODE = getVercelBlobAccessMode();
 
 const DEFAULT_FREE_DEAL_CONFIG: FreeDealConfig = {
   id: DEFAULT_CONFIG_ID,
@@ -223,7 +225,7 @@ async function readJsonBlob<T>(pathname: string): Promise<T | null> {
 
   try {
     const blob = await get(pathname, {
-      access: "private",
+      access: BLOB_ACCESS_MODE,
       useCache: false,
     });
 
@@ -244,7 +246,7 @@ async function writeJsonBlob<T>(pathname: string, value: T) {
   }
 
   await put(pathname, `${JSON.stringify(value, null, 2)}\n`, {
-    access: "private",
+    access: BLOB_ACCESS_MODE,
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: "application/json; charset=utf-8",

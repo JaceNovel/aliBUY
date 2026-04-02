@@ -9,6 +9,7 @@ import { get, put } from "@vercel/blob";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { getVercelBlobAccessMode } from "@/lib/vercel-blob-access";
 
 export type PromoCodeAmountType = "fixed_fcfa" | "percent";
 
@@ -41,6 +42,7 @@ const SITE_DIR = path.join(os.tmpdir(), "afripay", "data", "site");
 const PROMO_CODES_PATH = path.join(SITE_DIR, "promo-codes.json");
 const PROMO_CODES_SEED_PATH = path.join(process.cwd(), "data", "site", "promo-codes.json");
 const PROMO_CODES_BLOB_PATHNAME = "site/promo-codes.json";
+const BLOB_ACCESS_MODE = getVercelBlobAccessMode();
 
 const DEFAULT_PROMO_CODES: PromoCodeRecord[] = [
   {
@@ -107,7 +109,7 @@ async function readJsonFile<T>(filePath: string, fallback: T): Promise<T> {
   if (canUseBlobStore()) {
     try {
       const blob = await get(PROMO_CODES_BLOB_PATHNAME, {
-        access: "private",
+        access: BLOB_ACCESS_MODE,
         useCache: false,
       });
 
@@ -137,7 +139,7 @@ async function readJsonFile<T>(filePath: string, fallback: T): Promise<T> {
 async function writeJsonFile<T>(filePath: string, value: T) {
   if (canUseBlobStore()) {
     await put(PROMO_CODES_BLOB_PATHNAME, `${JSON.stringify(value, null, 2)}\n`, {
-      access: "private",
+      access: BLOB_ACCESS_MODE,
       addRandomSuffix: false,
       allowOverwrite: true,
       contentType: "application/json; charset=utf-8",
