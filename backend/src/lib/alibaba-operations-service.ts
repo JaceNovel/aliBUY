@@ -41,6 +41,7 @@ import {
   extractAlibabaOperationCode,
   extractAlibabaOperationMessage,
   extractAlibabaTradeId,
+  fetchAliExpressAffiliateProductSnapshot,
   fetchAlibabaProductSnapshot,
   normalizeAliExpressDsAddressOptions,
   normalizeAlibabaFreightOptions,
@@ -166,6 +167,34 @@ function getBooleanRecordValue(value: unknown, ...keys: string[]) {
   }
 
   return undefined;
+}
+
+function isAffiliateImportedPayload(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  return record.affiliate === true || record.provider === "aliexpress-affiliate";
+}
+
+function isLikelyAffiliateImportedProduct(product: AlibabaImportedProduct) {
+  if (isAffiliateImportedPayload(product.rawPayload)) {
+    return true;
+  }
+
+  const haystack = [
+    product.badge,
+    product.packaging,
+    product.customizationLabel,
+    product.responseTime,
+    product.supplierName,
+  ]
+    .filter((value): value is string => typeof value === "string" && value.length > 0)
+    .join(" ")
+    .toLowerCase();
+
+  return /affiliate|affiliation/.test(haystack) || product.packaging === "Non fourni par affiliation";
 }
 
 function getRecordValue(value: unknown, key: string) {
@@ -1171,10 +1200,16 @@ export async function reenrichImportedProduct(importedProductId: string) {
     throw new Error("Produit importe introuvable.");
   }
 
-  const snapshot = await fetchAlibabaProductSnapshot({
-    sourceProductId: product.sourceProductId,
-    query: product.query,
-  }).catch(() => null);
+  const isAffiliateProduct = isLikelyAffiliateImportedProduct(product);
+  const snapshot = await (isAffiliateProduct
+    ? fetchAliExpressAffiliateProductSnapshot({
+      sourceProductId: product.sourceProductId,
+      query: product.query,
+    })
+    : fetchAlibabaProductSnapshot({
+      sourceProductId: product.sourceProductId,
+      query: product.query,
+    })).catch(() => null);
   const effectiveSnapshot = snapshot ?? {
     ...product,
     sourceProductId: product.sourceProductId,
@@ -1182,9 +1217,11 @@ export async function reenrichImportedProduct(importedProductId: string) {
     rawPayload: product.rawPayload,
   };
 
-  const liveCategoryInfo = await resolveAlibabaIcbuCategoryInfo({
-    rawPayload: effectiveSnapshot.rawPayload,
-  }).catch(() => null);
+  const liveCategoryInfo = isAffiliateProduct
+    ? null
+    : await resolveAlibabaIcbuCategoryInfo({
+      rawPayload: effectiveSnapshot.rawPayload,
+    }).catch(() => null);
   const enrichedRawPayload = effectiveSnapshot.rawPayload && typeof effectiveSnapshot.rawPayload === "object" && !Array.isArray(effectiveSnapshot.rawPayload)
     ? {
         ...(effectiveSnapshot.rawPayload as Record<string, unknown>),
@@ -1219,6 +1256,11 @@ export async function reenrichImportedProduct(importedProductId: string) {
           priceUsd: effectiveSnapshot.minUsd,
           note: typeof effectiveSnapshot.maxUsd === "number" ? `Jusqu'à ${effectiveSnapshot.maxUsd.toFixed(2)} USD` : undefined,
         }];
+  const isAffiliateSnapshot = isAffiliateImportedPayload(enrichedRawPayload) || isAffiliateImportedPayload(product.rawPayload);
+  const snapshotWeightVerified = getBooleanRecordValue(effectiveSnapshot, "weightVerified") ?? false;
+  const nextItemWeightGrams = isAffiliateSnapshot
+    ? (snapshotWeightVerified && effectiveSnapshot.itemWeightGrams > 0 ? effectiveSnapshot.itemWeightGrams : 0)
+    : (effectiveSnapshot.itemWeightGrams > 0 ? effectiveSnapshot.itemWeightGrams : product.itemWeightGrams);
   const nextProduct: AlibabaImportedProduct = {
     ...product,
     categorySlug: categoryInfo.slug,
@@ -1233,7 +1275,7 @@ export async function reenrichImportedProduct(importedProductId: string) {
     videoUrl: nextVideoUrl,
     videoPoster: nextVideoPoster,
     packaging: effectiveSnapshot.packaging,
-    itemWeightGrams: effectiveSnapshot.itemWeightGrams > 0 ? effectiveSnapshot.itemWeightGrams : product.itemWeightGrams,
+    itemWeightGrams: nextItemWeightGrams,
     lotCbm: effectiveSnapshot.lotCbm,
     minUsd: effectiveSnapshot.minUsd,
     maxUsd: effectiveSnapshot.maxUsd,
@@ -1258,7 +1300,7 @@ export async function reenrichImportedProduct(importedProductId: string) {
     tiers: nextTiers,
     specs: nextSpecs,
     moqVerified: getBooleanRecordValue(effectiveSnapshot, "moqVerified") ?? product.moqVerified,
-    weightVerified: getBooleanRecordValue(effectiveSnapshot, "weightVerified") ?? product.weightVerified,
+    weightVerified: isAffiliateSnapshot ? snapshotWeightVerified : (getBooleanRecordValue(effectiveSnapshot, "weightVerified") ?? product.weightVerified),
     priceVerified: getBooleanRecordValue(effectiveSnapshot, "priceVerified") ?? product.priceVerified,
     inventory: Math.max(effectiveSnapshot.moq * 5, 50),
     updatedAt: timestamp,

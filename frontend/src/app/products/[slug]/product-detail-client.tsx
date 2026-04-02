@@ -287,7 +287,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     ? Object.values(mixQuantities).reduce((sum, quantity) => sum + quantity, 0)
     : orderQuantity;
   const totalWeightKg = (product.itemWeightGrams * totalSelectedQuantity) / 1000;
-  const exceedsSeaThreshold = totalWeightKg > 5;
+  const totalWeightLabel = product.itemWeightGrams > 0 ? `${totalWeightKg.toFixed(totalWeightKg >= 10 ? 0 : 2)} kg` : "Selon catalogue";
+  const exceedsSeaThreshold = product.itemWeightGrams > 0 && totalWeightKg > 5;
   const modalSelections = Object.fromEntries(
     modalGroups.flatMap((group) => {
       const value = resolveVariantGroupSelection(group);
@@ -1463,7 +1464,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 ))}
               </div>
               <div className="mt-2.5 rounded-[14px] border border-[#ececec] bg-[#fafafa] px-3 py-2.5 text-[12px] text-[#555] sm:mt-3 sm:rounded-[16px] sm:px-4 sm:py-3 sm:text-[14px]">
-                Poids estime du colis: <span className="font-semibold text-[#222]">{totalWeightKg.toFixed(totalWeightKg >= 10 ? 0 : 2)} kg</span>
+                Poids estime du colis: <span className="font-semibold text-[#222]">{totalWeightLabel}</span>
               </div>
               {exceedsSeaThreshold && !supportsDirectAliExpressDelivery ? (
                 <div className="mt-2.5 rounded-[14px] border border-[#ffd4b5] bg-[#fff4ea] px-3 py-2.5 text-[12px] font-medium text-[#c85a11] sm:mt-3 sm:rounded-[16px] sm:px-4 sm:py-3 sm:text-[14px]">

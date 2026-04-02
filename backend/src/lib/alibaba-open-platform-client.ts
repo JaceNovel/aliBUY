@@ -4015,6 +4015,314 @@ function resolveAliExpressAffiliateCategoryIds(query: string, categories: AliExp
   return ranked.slice(0, 3).map((entry) => entry.category.categoryId).join(",");
 }
 
+function normalizeAliExpressAffiliatePropertyLabel(label: string) {
+  const normalized = label.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return "Option";
+  }
+
+  if (normalized.length <= 5 && normalized === normalized.toUpperCase()) {
+    return normalized;
+  }
+
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function collectAliExpressAffiliatePropertyPairs(value: unknown): Array<{ label: string; value: string }> {
+  if (!value) {
+    return [];
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return [];
+    }
+
+    try {
+      return collectAliExpressAffiliatePropertyPairs(JSON.parse(trimmed) as unknown);
+    } catch {
+      return [];
+    }
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => collectAliExpressAffiliatePropertyPairs(entry));
+  }
+
+  if (!isRecord(value)) {
+    return [];
+  }
+
+  return Object.entries(value).flatMap(([label, entryValue]) => {
+    const parsedValue = getStringValue(entryValue);
+    if (!parsedValue) {
+      return [];
+    }
+
+    return [{ label: normalizeAliExpressAffiliatePropertyLabel(label), value: parsedValue }];
+  });
+}
+
+function extractAliExpressAffiliateSkuSelections(sku: Record<string, unknown>) {
+  const selections = new Map<string, string>();
+
+  for (const pair of collectAliExpressAffiliatePropertyPairs(sku.sku_properties)) {
+    if (!selections.has(pair.label)) {
+      selections.set(pair.label, pair.value);
+    }
+  }
+
+  const explicitPairs = [
+    ["Color", getStringValue(sku.color)],
+    ["Size", getStringValue(sku.size)],
+    ["Model", getStringValue(sku.model)],
+    ["Bundle", getStringValue(sku.bundle)],
+    ["Material", getStringValue(sku.material)],
+    ["Style", getStringValue(sku.style)],
+    ["Plug Type", getStringValue(sku.plug_type)],
+  ] as const;
+
+  for (const [label, value] of explicitPairs) {
+    if (value && !selections.has(label)) {
+      selections.set(label, value);
+    }
+  }
+
+  return Object.fromEntries(selections);
+}
+
+function extractAliExpressAffiliateSkuDetailProjection(
+  responseBody: unknown,
+  fallback: {
+    productId: string;
+    query: string;
+    shipToCountry: string;
+    fallbackTitle?: string;
+    fallbackImage?: string;
+    fallbackGallery?: string[];
+    fallbackSupplierName?: string;
+    fallbackSupplierLocation?: string;
+    fallbackMinRawPrice?: number;
+    fallbackMaxRawPrice?: number;
+  },
+) {
+  const payload = getAliExpressSellerPayload(responseBody);
+  const detailResult = isRecord(payload?.result) ? payload.result as Record<string, unknown> : payload;
+  if (!isRecord(detailResult)) {
+    return null;
+  }
+
+  const itemInfo = isRecord(detailResult.ae_item_info) ? detailResult.ae_item_info as Record<string, unknown> : {};
+  const skuInfo = Array.isArray(detailResult.ae_item_sku_info)
+    ? detailResult.ae_item_sku_info as Array<Record<string, unknown>>
+    : Array.isArray(detailResult.ae_item_sku_info_dtos)
+      ? detailResult.ae_item_sku_info_dtos as Array<Record<string, unknown>>
+      : [];
+  const title = getStringValue(itemInfo.en_title)
+    ?? getStringValue(itemInfo.title)
+    ?? fallback.fallbackTitle
+    ?? fallback.query;
+  const gallery = uniqueStrings([
+    getStringValue(itemInfo.image_link) ?? "",
+    getStringValue(itemInfo.image_white) ?? "",
+    ...collectStrings(itemInfo.additional_image_links),
+    ...skuInfo.map((sku) => getStringValue(sku.sku_image_link) ?? ""),
+    ...(fallback.fallbackGallery ?? []),
+    fallback.fallbackImage ?? "",
+  ].filter(Boolean));
+  const image = gallery[0];
+  const rawPrices = skuInfo
+    .map((sku) => getNumberValue(sku.sale_price_with_tax, sku.sale_price, sku.price_with_tax, sku.offer_sale_price, sku.sku_price))
+    .filter((value): value is number => typeof value === "number" && value > 0);
+  const minRawPrice = rawPrices.length > 0 ? Math.min(...rawPrices) : fallback.fallbackMinRawPrice;
+  if (!image || typeof minRawPrice !== "number" || minRawPrice <= 0) {
+    return null;
+  }
+
+  const maxRawPrice = rawPrices.length > 1 ? Math.max(...rawPrices) : fallback.fallbackMaxRawPrice;
+  const variantGroups = [...new Map(
+    skuInfo.flatMap((sku) => {
+      const selections = extractAliExpressAffiliateSkuSelections(sku);
+      return Object.entries(selections).map(([label, value]) => ({ label, value }));
+    }).map((entry) => [`${entry.label}:${entry.value}`, entry]),
+  ).values()].reduce<Array<{ label: string; values: string[] }>>((groups, entry) => {
+    const existing = groups.find((group) => group.label === entry.label);
+    if (existing) {
+      if (!existing.values.includes(entry.value)) {
+        existing.values.push(entry.value);
+      }
+      return groups;
+    }
+
+    return [...groups, { label: entry.label, values: [entry.value] }];
+  }, []);
+  const variantPricing = skuInfo.flatMap((sku, index) => {
+    const selections = extractAliExpressAffiliateSkuSelections(sku);
+    if (Object.keys(selections).length === 0) {
+      return [];
+    }
+
+    const rawSkuPrice = getNumberValue(sku.sale_price_with_tax, sku.sale_price, sku.price_with_tax, sku.offer_sale_price, sku.sku_price) ?? minRawPrice;
+    const priceUsd = applyAliExpressMargin(rawSkuPrice);
+    if (!Number.isFinite(priceUsd) || priceUsd <= 0) {
+      return [];
+    }
+
+    return [{
+      selections,
+      priceUsd,
+      minPriceUsd: priceUsd,
+      minimumQuantity: 1,
+      quantityLabel: "1+",
+      note: getStringValue(sku.ean_code) ?? `SKU ${index + 1}`,
+    }];
+  });
+  const variantSkus = skuInfo.flatMap((sku) => {
+    const skuId = getStringValue(sku.sku_id);
+    if (!skuId) {
+      return [] as ProductVariantSku[];
+    }
+
+    const selections = extractAliExpressAffiliateSkuSelections(sku);
+    if (Object.keys(selections).length === 0) {
+      return [] as ProductVariantSku[];
+    }
+
+    return [{
+      skuId,
+      skuCode: getStringValue(sku.ean_code),
+      image: getStringValue(sku.sku_image_link),
+      selections,
+    } satisfies ProductVariantSku];
+  });
+  const minDeliveryDays = skuInfo
+    .map((sku) => getNumberValue(sku.min_delivery_days, sku.delivery_days))
+    .filter((value): value is number => typeof value === "number" && value > 0);
+  const maxDeliveryDays = skuInfo
+    .map((sku) => getNumberValue(sku.max_delivery_days, sku.delivery_days))
+    .filter((value): value is number => typeof value === "number" && value > 0);
+  const shippingLabel = minDeliveryDays.length > 0
+    ? `Livraison ${Math.min(...minDeliveryDays)}-${Math.max(...(maxDeliveryDays.length > 0 ? maxDeliveryDays : minDeliveryDays))} j`
+    : "Expédition";
+  const orderNumber = getStringValue(itemInfo.order_number) ?? "0";
+  const reviewNumber = getStringValue(itemInfo.review_number);
+  const productScore = getStringValue(itemInfo.product_score);
+  const overview = uniqueStrings([
+    orderNumber !== "0" ? `${orderNumber} ventes` : "",
+    reviewNumber ? `${reviewNumber} avis clients` : "",
+    productScore ? `Note ${productScore}` : "",
+    getStringValue(itemInfo.display_category_name_l3) ?? getStringValue(itemInfo.display_category_name_l2) ?? getStringValue(itemInfo.product_category) ?? "",
+  ]).slice(0, 4);
+  const specs = [
+    { label: "Source", value: "AliExpress Affiliate" },
+    { label: "Destination", value: fallback.shipToCountry },
+    { label: "Categorie", value: getStringValue(itemInfo.display_category_name_l3) ?? getStringValue(itemInfo.display_category_name_l2) ?? getStringValue(itemInfo.display_category_name_l1) ?? getStringValue(itemInfo.product_category) ?? "Selon catalogue" },
+    { label: "Marque", value: getStringValue(itemInfo.brand) ?? "Selon catalogue" },
+    { label: "Etat", value: getStringValue(itemInfo.condition) ?? "Selon catalogue" },
+  ];
+  const keywords = uniqueStrings([
+    ...title.toLowerCase().split(/[^a-z0-9]+/i).filter((entry) => entry.length > 2),
+    ...variantGroups.flatMap((group) => [group.label.toLowerCase(), ...group.values.map((value) => value.toLowerCase())]),
+  ]).slice(0, 24);
+  const extractedWeightGrams = extractWeightGrams(detailResult) ?? extractWeightGrams(responseBody);
+  const itemWeightGrams = sanitizeItemWeightGrams(extractedWeightGrams) ?? 0;
+
+  return {
+    title,
+    shortTitle: title.slice(0, 96),
+    keywords,
+    image,
+    gallery,
+    minUsd: applyAliExpressMargin(minRawPrice),
+    maxUsd: typeof maxRawPrice === "number" ? applyAliExpressMargin(maxRawPrice) : undefined,
+    supplierName: getStringValue(itemInfo.store_name) ?? fallback.fallbackSupplierName ?? "Boutique AliExpress",
+    supplierLocation: getStringValue(skuInfo[0]?.ship_from_country) ?? fallback.fallbackSupplierLocation ?? "Non fourni",
+    transactionsLabel: productScore ? `Note ${productScore}` : (reviewNumber ? `${reviewNumber} avis` : "Boutique AliExpress"),
+    soldLabel: `${orderNumber} ventes`,
+    shippingLabel,
+    overview: overview.length > 0 ? overview : [title],
+    variantGroups,
+    variantPricing,
+    variantSkus,
+    tiers: variantPricing.slice(0, 6).map((entry, index) => ({ quantityLabel: entry.quantityLabel ?? "1+", priceUsd: entry.priceUsd, note: entry.note ?? `SKU ${index + 1}` })),
+    specs,
+    itemWeightGrams,
+    weightVerified: itemWeightGrams > 0,
+    sourceUrl: getStringValue(itemInfo.original_link),
+    rawResponse: responseBody,
+  };
+}
+
+async function enrichAliExpressAffiliateProduct(
+  product: AlibabaSearchProduct,
+  searchItem: Record<string, unknown>,
+  context: { shipToCountry: string; local: string; currency: string },
+  credentials: AlibabaCredentials,
+) {
+  const response = await callAliExpressTopEndpoint("aliexpress.affiliate.product.sku.detail.get", {
+    ship_to_country: context.shipToCountry,
+    product_id: product.sourceProductId,
+    target_currency: context.currency,
+    target_language: affiliateLanguageCode(context.local),
+    need_deliver_info: "No",
+  }, {
+    credentials,
+    includeAccessToken: Boolean(credentials.accessToken),
+  }).catch(() => null);
+  if (!response?.ok) {
+    return product;
+  }
+
+  const projection = extractAliExpressAffiliateSkuDetailProjection(response.responseBody, {
+    productId: product.sourceProductId,
+    query: product.title,
+    shipToCountry: context.shipToCountry,
+    fallbackTitle: product.title,
+    fallbackImage: product.image,
+    fallbackGallery: product.gallery,
+    fallbackSupplierName: product.supplierName,
+    fallbackSupplierLocation: product.supplierLocation,
+    fallbackMinRawPrice: product.minUsd,
+    fallbackMaxRawPrice: product.maxUsd,
+  });
+  if (!projection) {
+    return product;
+  }
+
+  return {
+    ...product,
+    title: projection.title,
+    shortTitle: projection.shortTitle,
+    keywords: projection.keywords,
+    image: projection.image,
+    gallery: projection.gallery,
+    itemWeightGrams: projection.itemWeightGrams,
+    minUsd: projection.minUsd,
+    maxUsd: projection.maxUsd,
+    supplierName: projection.supplierName,
+    supplierLocation: projection.supplierLocation,
+    transactionsLabel: projection.transactionsLabel,
+    soldLabel: projection.soldLabel,
+    customizationLabel: projection.variantGroups.length > 0 ? "Variantes synchronisées" : product.customizationLabel,
+    shippingLabel: projection.shippingLabel,
+    overview: projection.overview,
+    variantGroups: projection.variantGroups,
+    variantPricing: projection.variantPricing,
+    variantSkus: projection.variantSkus,
+    tiers: projection.tiers.length > 0 ? projection.tiers : product.tiers,
+    specs: projection.specs,
+    weightVerified: projection.weightVerified,
+    rawPayload: {
+      ...(isRecord(product.rawPayload) ? product.rawPayload as Record<string, unknown> : { item: searchItem }),
+      provider: "aliexpress-affiliate",
+      affiliate: true,
+      promotion_link: projection.sourceUrl ?? getStringValue(searchItem.promotion_link) ?? getStringValue(searchItem.product_detail_url),
+      affiliate_sku_detail: projection.rawResponse,
+    },
+  };
+}
+
 function mapAliExpressAffiliateItemToProduct(
   item: Record<string, unknown>,
   query: string,
@@ -4152,6 +4460,8 @@ async function searchAliExpressAffiliateProducts(input: {
     product: AlibabaSearchProduct;
     score: number;
     strictMatch: boolean;
+    item: Record<string, unknown>;
+    context: { shipToCountry: string; local: string; currency: string };
   }>();
   let lastResponse: unknown = null;
   let lastSearchError: AlibabaProductSearchResult | null = null;
@@ -4226,6 +4536,8 @@ async function searchAliExpressAffiliateProducts(input: {
             product: normalized,
             score: relevance.score,
             strictMatch: relevance.strictMatch,
+            item,
+            context,
           });
 
           if (collectedByProductId.size >= maxCollectedCandidates) {
@@ -4246,15 +4558,14 @@ async function searchAliExpressAffiliateProducts(input: {
 
   const strictMatches = [...collectedByProductId.values()]
     .filter((entry) => entry.strictMatch)
-    .sort((left, right) => right.score - left.score)
-    .map((entry) => entry.product);
+    .sort((left, right) => right.score - left.score);
   const looseMatches = [...collectedByProductId.values()]
     .filter((entry) => !entry.strictMatch)
-    .sort((left, right) => right.score - left.score)
-    .map((entry) => entry.product);
-  const foundProducts = shouldAllowLooseAliExpressMatches(input.query)
+    .sort((left, right) => right.score - left.score);
+  const foundEntries = shouldAllowLooseAliExpressMatches(input.query)
     ? [...strictMatches, ...looseMatches].slice(0, desiredCount)
     : strictMatches.slice(0, desiredCount);
+  const foundProducts = await Promise.all(foundEntries.map((entry) => enrichAliExpressAffiliateProduct(entry.product, entry.item, entry.context, input.credentials)));
 
   return {
     ok: foundProducts.length > 0,
@@ -4264,6 +4575,87 @@ async function searchAliExpressAffiliateProducts(input: {
     errorMessage: foundProducts.length > 0
       ? undefined
       : lastSearchError?.errorMessage ?? "Aucun produit AliExpress Affiliate trouvé. Essaie un mot-clé plus simple.",
+  };
+}
+
+export async function fetchAliExpressAffiliateProductSnapshot(input: {
+  sourceProductId: string;
+  query?: string;
+  shipToCountry?: string;
+  targetCurrency?: string;
+  targetLanguage?: string;
+}): Promise<AlibabaSearchProduct | null> {
+  const credentials = await resolveAlibabaCredentialsForLiveCall();
+  if (!isAliExpressCredentials(credentials)) {
+    return null;
+  }
+
+  const shipToCountry = String(input.shipToCountry ?? process.env.ALIEXPRESS_DEFAULT_SHIP_TO_COUNTRY ?? "FR").trim().toUpperCase();
+  const currency = String(input.targetCurrency ?? process.env.ALIEXPRESS_TARGET_CURRENCY ?? "USD").trim().toUpperCase();
+  const local = String(input.targetLanguage ?? process.env.ALIEXPRESS_TARGET_LANGUAGE ?? "fr_FR").trim();
+  const response = await callAliExpressTopEndpoint("aliexpress.affiliate.product.sku.detail.get", {
+    ship_to_country: shipToCountry,
+    product_id: input.sourceProductId,
+    target_currency: currency,
+    target_language: affiliateLanguageCode(local),
+    need_deliver_info: "No",
+  }, {
+    credentials,
+    includeAccessToken: Boolean(credentials.accessToken),
+  }).catch(() => null);
+  if (!response?.ok) {
+    return null;
+  }
+
+  const projection = extractAliExpressAffiliateSkuDetailProjection(response.responseBody, {
+    productId: input.sourceProductId,
+    query: input.query?.trim() || input.sourceProductId,
+    shipToCountry,
+  });
+  if (!projection) {
+    return null;
+  }
+
+  return {
+    sourceProductId: input.sourceProductId,
+    slug: input.sourceProductId,
+    title: projection.title,
+    shortTitle: projection.shortTitle,
+    keywords: projection.keywords,
+    image: projection.image,
+    gallery: projection.gallery,
+    packaging: "Non fourni par affiliation",
+    itemWeightGrams: projection.itemWeightGrams,
+    lotCbm: "0.0000",
+    minUsd: projection.minUsd,
+    maxUsd: projection.maxUsd,
+    moq: 1,
+    unit: "piece",
+    badge: "AliExpress Affiliate",
+    supplierName: projection.supplierName,
+    supplierLocation: projection.supplierLocation,
+    responseTime: "AliExpress Affiliate",
+    yearsInBusiness: 0,
+    transactionsLabel: projection.transactionsLabel,
+    soldLabel: projection.soldLabel,
+    customizationLabel: projection.variantGroups.length > 0 ? "Variantes synchronisées" : "Import affiliation",
+    shippingLabel: projection.shippingLabel,
+    overview: projection.overview,
+    variantGroups: projection.variantGroups,
+    variantPricing: projection.variantPricing,
+    variantSkus: projection.variantSkus,
+    tiers: projection.tiers.length > 0 ? projection.tiers : [{ quantityLabel: "1+", priceUsd: projection.minUsd }],
+    specs: projection.specs,
+    inventory: 1,
+    rawPayload: {
+      provider: "aliexpress-affiliate",
+      affiliate: true,
+      promotion_link: projection.sourceUrl,
+      affiliate_sku_detail: projection.rawResponse,
+    },
+    moqVerified: false,
+    weightVerified: projection.weightVerified,
+    priceVerified: true,
   };
 }
 
