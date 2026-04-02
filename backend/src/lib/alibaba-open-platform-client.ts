@@ -96,6 +96,12 @@ export type AlibabaIcbuCategorySummary = {
   leafCategory: boolean;
 };
 
+export type AliExpressAffiliateCategory = {
+  categoryId: string;
+  categoryName: string;
+  parentCategoryId?: string;
+};
+
 export type AliExpressPostCategorySummary = AlibabaIcbuCategorySummary & {
   features?: Record<string, string>;
   names?: Record<string, string>;
@@ -270,6 +276,7 @@ export type AlibabaLogisticsTracking = {
 };
 
 const alibabaIcbuCategoryNodeCache = new Map<string, Promise<AlibabaIcbuCategoryNode | null>>();
+const aliExpressAffiliateCategoryCache = new Map<string, Promise<AliExpressAffiliateCategory[]>>();
 
 function normalizeBaseUrl(value: string) {
   return value.replace(/\/+$/, "").replace(/\/rest$/, "");
@@ -3142,6 +3149,15 @@ const ALIEXPRESS_SEARCH_TOKEN_TRANSLATIONS: Record<string, string> = {
   boucles: "earrings",
   montre: "watch",
   montres: "watches",
+  clavier: "keyboard",
+  claviers: "keyboards",
+  souris: "mouse",
+  casque: "headset",
+  casques: "headsets",
+  ecouteur: "earbud",
+  ecouteurs: "earbuds",
+  manette: "controller",
+  manettes: "controllers",
   chaussure: "shoes",
   chaussures: "shoes",
   robe: "dress",
@@ -3276,6 +3292,13 @@ function buildAliExpressAffiliateQueryCandidates(query: string) {
   const filteredTokens = uniqueStrings(translatedTokens)
     .filter((token) => token.length >= 3 && token !== "women" && token !== "men" && token !== "kids" && !/^\d+$/.test(token));
 
+  if (phraseTranslations.length > 0) {
+    return uniqueStrings([
+      ...phraseTranslations,
+      translated && !phraseTranslations.includes(translated) ? translated : "",
+    ]).filter((entry) => entry.length > 0);
+  }
+
   return uniqueStrings([
     trimmed,
     normalized && normalized !== trimmed.toLowerCase() ? normalized : "",
@@ -3306,6 +3329,7 @@ const ALIEXPRESS_RELEVANCE_STOPWORDS = new Set([
 const ALIEXPRESS_GAMING_TERMS = ["gaming", "game", "gamer", "jeu", "esport"];
 const ALIEXPRESS_MONITOR_TERMS = ["monitor", "monitors", "screen", "screens", "display", "displays"];
 const ALIEXPRESS_MONITOR_ACCESSORY_TERMS = ["hdmi", "cable", "cables", "adapter", "adapters", "support", "supports", "mount", "stand", "bracket", "splitter", "converter"];
+const ALIEXPRESS_MONITOR_PERIPHERAL_TERMS = ["keyboard", "keyboards", "mouse", "mice", "headset", "headsets", "earbud", "earbuds", "controller", "controllers", "keycap", "keycaps", "webcam", "microphone", "microphones"];
 
 function normalizeAliExpressRelevanceText(value: string) {
   return normalizeAliExpressHardwareTerms(normalizeAliExpressSearchTerm(value))
@@ -3349,6 +3373,8 @@ function scoreAliExpressSearchProductRelevance(product: AlibabaSearchProduct, qu
   const accessoryOnlyForMonitorIntent = hasMonitorIntent
     && !hasMonitorToken
     && ALIEXPRESS_MONITOR_ACCESSORY_TERMS.some((term) => productTokenSet.has(term));
+  const peripheralForMonitorIntent = hasMonitorIntent
+    && ALIEXPRESS_MONITOR_PERIPHERAL_TERMS.some((term) => productTokenSet.has(term));
 
   let strictMatch = false;
   if (queryTokens.length <= 1) {
@@ -3369,12 +3395,17 @@ function scoreAliExpressSearchProductRelevance(product: AlibabaSearchProduct, qu
     strictMatch = false;
   }
 
+  if (peripheralForMonitorIntent) {
+    strictMatch = false;
+  }
+
   const score = (matchCount * 4)
     + (titleMatchCount * 2)
     + (phraseMatch ? 8 : 0)
     + (hasGamingIntent && hasGamingToken ? 4 : 0)
     + (hasMonitorIntent && hasMonitorToken ? 5 : 0)
-    - (accessoryOnlyForMonitorIntent ? 12 : 0);
+    - (accessoryOnlyForMonitorIntent ? 12 : 0)
+    - (peripheralForMonitorIntent ? 14 : 0);
 
   return {
     score,
@@ -3877,6 +3908,95 @@ function extractAliExpressAffiliateItems(responseBody: unknown): Array<Record<st
   return extractAliExpressSearchItems(payload);
 }
 
+function extractAliExpressAffiliateCategories(responseBody: unknown): AliExpressAffiliateCategory[] {
+  const payload = getAliExpressSellerPayload(responseBody);
+  if (!isRecord(payload)) {
+    return [];
+  }
+
+  const rawCategories = Array.isArray(payload.categories)
+    ? payload.categories
+    : Array.isArray(payload.category_list)
+      ? payload.category_list
+      : [];
+
+  return rawCategories
+    .filter(isRecord)
+    .flatMap((entry) => {
+      const categoryId = getStringValue(entry.category_id) ?? getStringValue(entry.categoryId);
+      const categoryName = getStringValue(entry.category_name) ?? getStringValue(entry.categoryName);
+      if (!categoryId || !categoryName) {
+        return [] as AliExpressAffiliateCategory[];
+      }
+
+      return [{
+        categoryId,
+        categoryName,
+        parentCategoryId: getStringValue(entry.parent_category_id) ?? getStringValue(entry.parentCategoryId),
+      } satisfies AliExpressAffiliateCategory];
+    });
+}
+
+async function getAliExpressAffiliateCategories(credentials: AlibabaCredentials): Promise<AliExpressAffiliateCategory[]> {
+  const cacheKey = credentials.accountId?.trim() || credentials.appKey;
+  const existing = aliExpressAffiliateCategoryCache.get(cacheKey);
+  if (existing) {
+    return existing;
+  }
+
+  const pending = (async () => {
+    const response = await callAliExpressTopEndpoint("aliexpress.affiliate.category.get", {}, {
+      credentials,
+      includeAccessToken: Boolean(credentials.accessToken),
+    });
+
+    if (!response.ok) {
+      return [] as AliExpressAffiliateCategory[];
+    }
+
+    return extractAliExpressAffiliateCategories(response.responseBody);
+  })();
+
+  aliExpressAffiliateCategoryCache.set(cacheKey, pending);
+  return pending;
+}
+
+function resolveAliExpressAffiliateCategoryIds(query: string, categories: AliExpressAffiliateCategory[]) {
+  const queryTokens = tokenizeAliExpressRelevanceText(query)
+    .filter((token) => token.length >= 3 && !ALIEXPRESS_RELEVANCE_STOPWORDS.has(token) && !/^\d+$/.test(token));
+  const normalizedQuery = normalizeAliExpressRelevanceText(query);
+  if (queryTokens.length === 0 || categories.length === 0) {
+    return undefined;
+  }
+
+  const hasMonitorIntent = queryTokens.some((token) => ALIEXPRESS_MONITOR_TERMS.includes(token));
+  const ranked = categories
+    .map((category) => {
+      const normalizedName = normalizeAliExpressRelevanceText(category.categoryName);
+      const categoryTokens = new Set(tokenizeAliExpressRelevanceText(category.categoryName));
+      const matchCount = queryTokens.reduce((count, token) => (categoryTokens.has(token) ? count + 1 : count), 0);
+      const phraseMatch = normalizedQuery.length >= 5 && normalizedName.includes(normalizedQuery);
+      const hasMonitorCategory = ALIEXPRESS_MONITOR_TERMS.some((term) => categoryTokens.has(term));
+
+      if (hasMonitorIntent && !hasMonitorCategory) {
+        return { category, score: -1 };
+      }
+
+      return {
+        category,
+        score: (matchCount * 4) + (phraseMatch ? 8 : 0) + (hasMonitorIntent && hasMonitorCategory ? 6 : 0),
+      };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => right.score - left.score);
+
+  if (ranked.length === 0) {
+    return undefined;
+  }
+
+  return ranked.slice(0, 3).map((entry) => entry.category.categoryId).join(",");
+}
+
 function mapAliExpressAffiliateItemToProduct(
   item: Record<string, unknown>,
   query: string,
@@ -4006,6 +4126,8 @@ async function searchAliExpressAffiliateProducts(input: {
   const queryCandidates = buildAliExpressAffiliateQueryCandidates(input.query);
   const searchContexts = buildAliExpressSearchContexts(input.preferredShipToCountry);
   const allowLooseMatches = shouldAllowLooseAliExpressMatches(input.query);
+  const affiliateCategories = await getAliExpressAffiliateCategories(input.credentials).catch(() => [] as AliExpressAffiliateCategory[]);
+  const categoryIds = resolveAliExpressAffiliateCategoryIds(input.query, affiliateCategories);
   const collectedByProductId = new Map<string, {
     product: AlibabaSearchProduct;
     score: number;
@@ -4019,13 +4141,16 @@ async function searchAliExpressAffiliateProducts(input: {
       for (let pageNo = 1; pageNo <= maxPages && collectedByProductId.size < maxCollectedCandidates; pageNo += 1) {
         const searchResult = await callAliExpressTopEndpoint("aliexpress.affiliate.product.query", {
           keywords: queryCandidate,
+          ...(categoryIds ? { category_ids: categoryIds } : {}),
           target_language: affiliateLanguageCode(context.local),
           target_currency: context.currency,
           ship_to_country: context.shipToCountry,
           page_no: pageNo,
           page_size: pageSize,
+          platform_product_type: "ALL",
+          sort: "LAST_VOLUME_DESC",
           tracking_id: process.env.ALIEXPRESS_AFFILIATE_TRACKING_ID ?? "",
-          fields: "product_id,product_title,product_main_image_url,product_small_image_urls,target_sale_price,target_original_price,sale_price,original_price,app_sale_price,lastest_volume,evaluate_rate,first_level_category_name,second_level_category_name,shop_id,promotion_link,commission_rate,discount",
+          fields: "product_id,product_title,product_main_image_url,product_small_image_urls,target_sale_price,target_original_price,sale_price,original_price,app_sale_price,lastest_volume,evaluate_rate,first_level_category_name,first_level_category_id,second_level_category_name,second_level_category_id,shop_id,shop_name,shop_url,product_detail_url,promotion_link,commission_rate,discount,platform_product_type,ship_to_days",
         }, {
           credentials: input.credentials,
           includeAccessToken: Boolean(input.credentials.accessToken),
