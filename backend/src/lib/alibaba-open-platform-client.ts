@@ -3004,8 +3004,11 @@ const ALIEXPRESS_SEARCH_TOKEN_TRANSLATIONS: Record<string, string> = {
   carte: "card",
   graphique: "graphics",
   graphiques: "graphics",
+  moniteur: "monitor",
+  moniteurs: "monitors",
   ecran: "screen",
   ecrans: "screens",
+  display: "monitor",
   creme: "cream",
   cremes: "creams",
   solaire: "sun",
@@ -3027,6 +3030,9 @@ const ALIEXPRESS_SEARCH_TOKEN_TRANSLATIONS: Record<string, string> = {
 const ALIEXPRESS_SEARCH_PHRASE_TRANSLATIONS: Array<[string, string[]]> = [
   ["carte graphique", ["graphics card", "gpu", "video card"]],
   ["creme solaire", ["sunscreen", "sun cream"]],
+  ["moniteur de jeu", ["gaming monitor", "game monitor", "computer monitor"]],
+  ["moniteur gaming", ["gaming monitor", "game monitor", "computer monitor"]],
+  ["moniteur pc", ["computer monitor", "pc monitor", "desktop monitor"]],
   ["ecran gaming", ["gaming monitor", "gaming screen"]],
   ["ecran pc", ["computer monitor", "pc monitor"]],
   ["friteuse a air", ["air fryer", "airfryer"]],
@@ -3126,6 +3132,8 @@ const ALIEXPRESS_RELEVANCE_STOPWORDS = new Set([
 ]);
 
 const ALIEXPRESS_GAMING_TERMS = ["gaming", "game", "gamer", "jeu", "esport"];
+const ALIEXPRESS_MONITOR_TERMS = ["monitor", "monitors", "screen", "screens", "display", "displays"];
+const ALIEXPRESS_MONITOR_ACCESSORY_TERMS = ["hdmi", "cable", "cables", "adapter", "adapters", "support", "supports", "mount", "stand", "bracket", "splitter", "converter"];
 
 function normalizeAliExpressRelevanceText(value: string) {
   return normalizeAliExpressHardwareTerms(normalizeAliExpressSearchTerm(value))
@@ -3164,6 +3172,11 @@ function scoreAliExpressSearchProductRelevance(product: AlibabaSearchProduct, qu
   const phraseMatch = normalizedQuery.length >= 6 && productText.includes(normalizedQuery);
   const hasGamingIntent = ALIEXPRESS_GAMING_TERMS.some((term) => normalizedQuery.includes(term));
   const hasGamingToken = ALIEXPRESS_GAMING_TERMS.some((term) => productTokenSet.has(term));
+  const hasMonitorIntent = queryTokens.some((token) => ALIEXPRESS_MONITOR_TERMS.includes(token));
+  const hasMonitorToken = ALIEXPRESS_MONITOR_TERMS.some((term) => productTokenSet.has(term));
+  const accessoryOnlyForMonitorIntent = hasMonitorIntent
+    && !hasMonitorToken
+    && ALIEXPRESS_MONITOR_ACCESSORY_TERMS.some((term) => productTokenSet.has(term));
 
   let strictMatch = false;
   if (queryTokens.length <= 1) {
@@ -3176,10 +3189,20 @@ function scoreAliExpressSearchProductRelevance(product: AlibabaSearchProduct, qu
     strictMatch = false;
   }
 
+  if (hasMonitorIntent && !hasMonitorToken) {
+    strictMatch = false;
+  }
+
+  if (accessoryOnlyForMonitorIntent) {
+    strictMatch = false;
+  }
+
   const score = (matchCount * 4)
     + (titleMatchCount * 2)
     + (phraseMatch ? 8 : 0)
-    + (hasGamingIntent && hasGamingToken ? 4 : 0);
+    + (hasGamingIntent && hasGamingToken ? 4 : 0)
+    + (hasMonitorIntent && hasMonitorToken ? 5 : 0)
+    - (accessoryOnlyForMonitorIntent ? 12 : 0);
 
   return {
     score,
