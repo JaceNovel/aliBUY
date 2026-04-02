@@ -1161,7 +1161,7 @@ export async function reenrichImportedProduct(importedProductId: string) {
   const snapshot = await fetchAlibabaProductSnapshot({
     sourceProductId: product.sourceProductId,
     query: product.query,
-  });
+  }).catch(() => null);
   const effectiveSnapshot = snapshot ?? {
     ...product,
     sourceProductId: product.sourceProductId,
@@ -1171,7 +1171,7 @@ export async function reenrichImportedProduct(importedProductId: string) {
 
   const liveCategoryInfo = await resolveAlibabaIcbuCategoryInfo({
     rawPayload: effectiveSnapshot.rawPayload,
-  });
+  }).catch(() => null);
   const enrichedRawPayload = effectiveSnapshot.rawPayload && typeof effectiveSnapshot.rawPayload === "object" && !Array.isArray(effectiveSnapshot.rawPayload)
     ? {
         ...(effectiveSnapshot.rawPayload as Record<string, unknown>),
