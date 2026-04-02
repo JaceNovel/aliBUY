@@ -67,7 +67,14 @@ function formatOrderDate(dateIso: string) {
 }
 
 function buildVariant(order: SourcingOrder) {
-  return order.items.map((item) => `${item.quantity} x ${item.title}`).join(" • ");
+  return order.items.map((item) => {
+    const hasEmbeddedSelection = item.selectionLabel ? item.title.includes(item.selectionLabel) : false;
+    const displayTitle = item.selectionLabel && !hasEmbeddedSelection
+      ? `${item.title} · ${item.selectionLabel}`
+      : item.title;
+
+    return `${item.quantity} x ${displayTitle}`;
+  }).join(" • ");
 }
 
 function buildTrackingNumber(order: Pick<OrderRecord, "id" | "orderNumber">) {

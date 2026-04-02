@@ -4959,7 +4959,7 @@ export async function exchangeAlibabaOAuthCode(input: { accountId: string; code:
       name: "AliExpress OAuth",
       email: "oauth@aliexpress.local",
       accountPlatform: "seller",
-      countryCode: "CI",
+      countryCode: "FR",
       defaultDispatchLocation: "CN",
       status: "needs_auth",
       appKey: envCredentials.appKey,

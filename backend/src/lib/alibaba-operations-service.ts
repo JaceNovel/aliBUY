@@ -917,6 +917,7 @@ export async function runAlibabaCatalogImport(input: {
     }
 
     const uniqueSearchProducts = searchResult.products.filter((product, index, products) => products.findIndex((entry) => entry.sourceProductId === product.sourceProductId) === index);
+    const relevanceRankBySourceProductId = new Map(uniqueSearchProducts.map((product, index) => [product.sourceProductId, index]));
     const productsWithRequiredData = uniqueSearchProducts.filter((product) => product.priceVerified && product.moqVerified && product.weightVerified && product.itemWeightGrams > 0);
     const fallbackEligibleProducts = uniqueSearchProducts.filter((product) => {
       if (productsWithRequiredData.some((entry) => entry.sourceProductId === product.sourceProductId)) {
@@ -927,6 +928,12 @@ export async function runAlibabaCatalogImport(input: {
     });
     const importCandidates = productsWithRequiredData.length > 0 ? productsWithRequiredData : fallbackEligibleProducts;
     const prioritizedImportCandidates = [...importCandidates].sort((left, right) => {
+      const leftRank = relevanceRankBySourceProductId.get(left.sourceProductId) ?? Number.MAX_SAFE_INTEGER;
+      const rightRank = relevanceRankBySourceProductId.get(right.sourceProductId) ?? Number.MAX_SAFE_INTEGER;
+      if (leftRank !== rightRank) {
+        return leftRank - rightRank;
+      }
+
       if (left.minUsd !== right.minUsd) {
         return left.minUsd - right.minUsd;
       }

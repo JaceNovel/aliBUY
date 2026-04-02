@@ -129,7 +129,7 @@ export default async function ProductPage({
             formattedPrice: pricing.formatPrice(tier.priceUsd),
           })),
           variantGroups: product.variantGroups,
-          variantPricing: [],
+          variantPricing: product.variantPricing ?? [],
           specs: product.specs.map((spec) => ({
             ...spec,
             value: normalizeStorefrontText(spec.value),

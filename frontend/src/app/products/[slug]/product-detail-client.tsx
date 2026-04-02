@@ -101,9 +101,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const [shippingMethod, setShippingMethod] = useState<"air" | "sea" | null>(null);
   const [orderQuantity, setOrderQuantity] = useState(Math.max(product.moq, 1));
   const touchStartXRef = useRef<number | null>(null);
-  const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>(() => {
-    return Object.fromEntries(product.variantGroups.map((group) => [group.label, group.values[0] ?? ""]));
-  });
+  const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
 
   useEffect(() => {
     router.prefetch("/cart");
@@ -146,6 +144,14 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const [mixQuantities, setMixQuantities] = useState<Record<string, number>>(() => {
     return Object.fromEntries((mixGroup?.values ?? []).map((value, index) => [value, index === 0 ? 0 : 0]));
   });
+  const resolveVariantGroupSelection = (group: DetailVariantGroup, fallbackToFirstValue = false) => {
+    const selectedValue = selectedVariants[group.label];
+    if (selectedValue && group.values.includes(selectedValue)) {
+      return selectedValue;
+    }
+
+    return fallbackToFirstValue ? group.values[0] ?? "" : "";
+  };
   const lowerTitle = product.title.toLowerCase();
   const referenceCode = product.title.match(/\b[A-Z0-9]{3,}(?:[- ][A-Z0-9]{2,})?\b/)?.[0] ?? product.shortTitle.match(/\b[A-Z0-9]{3,}(?:[- ][A-Z0-9]{2,})?\b/)?.[0] ?? "Selon catalogue";
   const inferredType = /keyboard|clavier/.test(lowerTitle)
@@ -282,13 +288,26 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     : orderQuantity;
   const totalWeightKg = (product.itemWeightGrams * totalSelectedQuantity) / 1000;
   const exceedsSeaThreshold = totalWeightKg > 5;
-  const modalSelections = Object.fromEntries(modalGroups.map((group) => [group.label, selectedVariants[group.label] ?? group.values[0] ?? ""]));
+  const modalSelections = Object.fromEntries(
+    modalGroups.flatMap((group) => {
+      const value = resolveVariantGroupSelection(group);
+      return value ? [[group.label, value] as const] : [];
+    }),
+  );
+  const previewModalSelections = Object.fromEntries(
+    modalGroups.flatMap((group) => {
+      const value = resolveVariantGroupSelection(group, true);
+      return value ? [[group.label, value] as const] : [];
+    }),
+  );
   const previewSelection = mixGroup
     ? {
         [mixGroup.label]: Object.entries(mixQuantities).find(([, quantity]) => quantity > 0)?.[0] ?? mixGroup.values[0] ?? "",
-        ...modalSelections,
+        ...previewModalSelections,
       }
-    : modalSelections;
+    : previewModalSelections;
+  const missingVariantGroups = modalGroups.filter((group) => !resolveVariantGroupSelection(group));
+  const hasAllRequiredVariantSelections = missingVariantGroups.length === 0;
   const displayTiers = getDisplayPriceTiers(productWithNormalizedTiers, previewSelection).map((tier) => ({
     ...tier,
     formattedPrice: formatMoney(tier.priceUsd),
@@ -448,7 +467,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       setFavoriteBusy(false);
     }
   };
-  const canSubmitOrder = totalSelectedQuantity > 0 && shippingMethod !== null;
+  const canSubmitOrder = totalSelectedQuantity > 0 && shippingMethod !== null && hasAllRequiredVariantSelections;
   const buildOrderSelections = () => {
     if (!mixGroup) {
       return [{ quantity: orderQuantity, selectedVariants: modalSelections }];
@@ -1175,9 +1194,15 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
             </div>
 
             <div className="mt-6 space-y-4">
-              {product.variantGroups.map((group) => (
+              {mixGroup ? (
+                <div className="rounded-[18px] border border-[#ffd7b7] bg-[#fff7f0] px-4 py-4 text-[14px] leading-6 text-[#7c4a22]">
+                  Les attributs fournisseur sont importés avec le produit. Ouvrez <span className="font-semibold">Commander</span> pour choisir votre {mixGroup.label.toLowerCase()} et la quantité exacte avant ajout au panier.
+                </div>
+              ) : null}
+
+              {modalGroups.map((group) => (
                 <div key={group.label}>
-                  <div className="text-[14px] font-semibold text-[#222]">{group.label}</div>
+                  <div className="text-[14px] font-semibold text-[#222]">{group.label}: <span className="font-medium text-[#666]">{resolveVariantGroupSelection(group) || "Choisir"}</span></div>
                   <div className="mt-2 flex flex-wrap gap-2.5">
                     {group.values.map((value) => {
                       const isSelected = selectedVariants[group.label] === value;
@@ -1393,7 +1418,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
             {modalGroups.map((group) => (
               <div key={group.label} className="mt-5 sm:mt-7">
-                <div className="text-[14px] font-semibold text-[#222] sm:text-[16px]">{group.label}: <span className="font-medium">{selectedVariants[group.label]}</span></div>
+                <div className="text-[14px] font-semibold text-[#222] sm:text-[16px]">{group.label}: <span className="font-medium">{resolveVariantGroupSelection(group) || "Choisir"}</span></div>
                 <div className="mt-2 flex flex-wrap gap-2 sm:mt-3 sm:gap-2.5">
                   {group.values.map((value) => {
                     const isSelected = selectedVariants[group.label] === value;
@@ -1516,6 +1541,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 </div>
                 <div className="mt-1 text-[12px] text-[#666] sm:text-[14px]">Quantité totale: {totalSelectedQuantity} pièce(s)</div>
                 <div className="mt-1 text-[12px] text-[#666] sm:text-[14px]">Expédition: {selectedShippingChoice?.summaryLabel ?? "à choisir"}</div>
+                {missingVariantGroups.length > 0 ? <div className="mt-1 text-[12px] font-medium text-[#c85a11] sm:text-[14px]">Options à choisir: {missingVariantGroups.map((group) => group.label).join(", ")}</div> : null}
               </div>
               <div className="grid gap-2.5 sm:min-w-[360px] sm:grid-cols-2 sm:gap-3">
                 <button type="button" onClick={proceedToCheckout} disabled={!canSubmitOrder} className="inline-flex h-11 items-center justify-center rounded-full bg-[#ff5b1f] px-5 text-[15px] font-semibold text-white transition hover:bg-[#ec510f] disabled:cursor-not-allowed disabled:bg-[#ffc09f] sm:h-13 sm:px-6 sm:text-[18px]">
