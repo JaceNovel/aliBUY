@@ -3333,6 +3333,31 @@ function mapAliExpressProductDetailToProduct(
 
     return [...groups, { label: entry.label, values: [entry.value] }];
   }, []);
+  const variantPricing = skuInfo.flatMap((sku, index) => {
+    const propertyDtos = Array.isArray(sku.ae_sku_property_dtos) ? sku.ae_sku_property_dtos as Array<Record<string, unknown>> : [];
+    const selections = Object.fromEntries(propertyDtos.map((property, propertyIndex) => [
+      getStringValue(property.sku_property_name) ?? `Option ${propertyIndex + 1}`,
+      getStringValue(property.property_value_definition_name) ?? getStringValue(property.sku_property_value) ?? "Valeur",
+    ]));
+
+    if (Object.keys(selections).length === 0) {
+      return [];
+    }
+
+    const skuPriceUsd = applyAliExpressMargin(getNumberValue(sku.offer_sale_price, sku.sku_price) ?? minRawPrice);
+    if (!Number.isFinite(skuPriceUsd) || skuPriceUsd <= 0) {
+      return [];
+    }
+
+    return [{
+      selections,
+      priceUsd: skuPriceUsd,
+      minPriceUsd: skuPriceUsd,
+      minimumQuantity: Math.max(1, Math.round(getNumberValue(sku.sku_bulk_order) ?? moq)),
+      quantityLabel: `${Math.max(1, Math.round(getNumberValue(sku.sku_bulk_order) ?? moq))}+`,
+      note: getStringValue(sku.sku_attr) ?? `SKU ${index + 1}`,
+    }];
+  });
   const specs = properties.slice(0, 12).map((property) => ({
     label: getStringValue(property.attr_name) ?? "Attribut",
     value: getStringValue(property.attr_value) ?? getStringValue(property.attr_value_start) ?? "-",
@@ -3397,6 +3422,7 @@ function mapAliExpressProductDetailToProduct(
       `Livraison estimée ${getStringValue(logisticsInfo.delivery_time) ?? "variable"} jour(s)`,
     ],
     variantGroups,
+    variantPricing,
     variantSkus,
     tiers: tiers.length > 0 ? tiers : [{ quantityLabel: `${moq}+`, priceUsd: minUsd }],
     specs,
