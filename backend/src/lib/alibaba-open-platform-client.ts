@@ -3198,8 +3198,10 @@ const ALIEXPRESS_SEARCH_PHRASE_TRANSLATIONS: Array<[string, string[]]> = [
   ["carte graphique", ["graphics card", "gpu", "video card"]],
   ["creme solaire", ["sunscreen", "sun cream"]],
   ["moniteur de jeu", ["gaming monitor", "game monitor", "computer monitor"]],
+  ["moniteur gamer", ["gaming monitor", "game monitor", "computer monitor"]],
   ["moniteur gaming", ["gaming monitor", "game monitor", "computer monitor"]],
   ["moniteur pc", ["computer monitor", "pc monitor", "desktop monitor"]],
+  ["ecran gamer", ["gaming monitor", "gaming screen"]],
   ["ecran gaming", ["gaming monitor", "gaming screen"]],
   ["ecran pc", ["computer monitor", "pc monitor"]],
   ["friteuse a air", ["air fryer", "airfryer"]],
@@ -3328,8 +3330,18 @@ const ALIEXPRESS_RELEVANCE_STOPWORDS = new Set([
 
 const ALIEXPRESS_GAMING_TERMS = ["gaming", "game", "gamer", "jeu", "esport"];
 const ALIEXPRESS_MONITOR_TERMS = ["monitor", "monitors", "screen", "screens", "display", "displays"];
-const ALIEXPRESS_MONITOR_ACCESSORY_TERMS = ["hdmi", "cable", "cables", "adapter", "adapters", "support", "supports", "mount", "stand", "bracket", "splitter", "converter"];
+const ALIEXPRESS_MONITOR_ACCESSORY_TERMS = ["hdmi", "cable", "cables", "adapter", "adapters", "support", "supports", "mount", "stand", "bracket", "splitter", "converter", "holder", "holders", "arm", "arms", "light", "lights", "lamp", "lamps", "bar", "bars", "strip", "strips", "backlight", "riser", "risers", "gpu"];
 const ALIEXPRESS_MONITOR_PERIPHERAL_TERMS = ["keyboard", "keyboards", "mouse", "mice", "headset", "headsets", "earbud", "earbuds", "controller", "controllers", "keycap", "keycaps", "webcam", "microphone", "microphones"];
+
+function extractAliExpressDisplaySizeInches(value: string) {
+  const match = normalizeAliExpressSearchTerm(value).match(/(\d+(?:[.,]\d+)?)\s*(?:\"|inch|inches|pouces|pouce)\b/);
+  if (!match?.[1]) {
+    return undefined;
+  }
+
+  const parsed = Number(match[1].replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
 
 function normalizeAliExpressRelevanceText(value: string) {
   return normalizeAliExpressHardwareTerms(normalizeAliExpressSearchTerm(value))
@@ -3370,11 +3382,12 @@ function scoreAliExpressSearchProductRelevance(product: AlibabaSearchProduct, qu
   const hasGamingToken = ALIEXPRESS_GAMING_TERMS.some((term) => productTokenSet.has(term));
   const hasMonitorIntent = queryTokens.some((token) => ALIEXPRESS_MONITOR_TERMS.includes(token));
   const hasMonitorToken = ALIEXPRESS_MONITOR_TERMS.some((term) => productTokenSet.has(term));
-  const accessoryOnlyForMonitorIntent = hasMonitorIntent
-    && !hasMonitorToken
+  const accessoryForMonitorIntent = hasMonitorIntent
     && ALIEXPRESS_MONITOR_ACCESSORY_TERMS.some((term) => productTokenSet.has(term));
   const peripheralForMonitorIntent = hasMonitorIntent
     && ALIEXPRESS_MONITOR_PERIPHERAL_TERMS.some((term) => productTokenSet.has(term));
+  const parsedDisplaySize = extractAliExpressDisplaySizeInches([product.title, product.shortTitle].join(" "));
+  const tinyDisplayForMonitorIntent = hasMonitorIntent && typeof parsedDisplaySize === "number" && parsedDisplaySize > 0 && parsedDisplaySize < 10;
 
   let strictMatch = false;
   if (queryTokens.length <= 1) {
@@ -3391,11 +3404,15 @@ function scoreAliExpressSearchProductRelevance(product: AlibabaSearchProduct, qu
     strictMatch = false;
   }
 
-  if (accessoryOnlyForMonitorIntent) {
+  if (accessoryForMonitorIntent) {
     strictMatch = false;
   }
 
   if (peripheralForMonitorIntent) {
+    strictMatch = false;
+  }
+
+  if (tinyDisplayForMonitorIntent) {
     strictMatch = false;
   }
 
@@ -3404,8 +3421,9 @@ function scoreAliExpressSearchProductRelevance(product: AlibabaSearchProduct, qu
     + (phraseMatch ? 8 : 0)
     + (hasGamingIntent && hasGamingToken ? 4 : 0)
     + (hasMonitorIntent && hasMonitorToken ? 5 : 0)
-    - (accessoryOnlyForMonitorIntent ? 12 : 0)
-    - (peripheralForMonitorIntent ? 14 : 0);
+    - (accessoryForMonitorIntent ? 18 : 0)
+    - (peripheralForMonitorIntent ? 14 : 0)
+    - (tinyDisplayForMonitorIntent ? 16 : 0);
 
   return {
     score,
