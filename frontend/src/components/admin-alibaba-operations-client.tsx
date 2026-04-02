@@ -212,13 +212,13 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     refreshUrl: ALIEXPRESS_DEFAULT_REFRESH_URL,
     apiBaseUrl: ALIEXPRESS_DEFAULT_API_BASE_URL,
     accountPlatform: "seller",
-    countryCode: "CI",
+    countryCode: "FR",
     defaultDispatchLocation: "CN",
     status: "needs_auth",
     isActive: true,
     accessTokenHint: "",
   });
-  const [addressForm, setAddressForm] = useState({ label: "Entrepot principal", contactName: "", phone: "", email: "", addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "", countryCode: "CI", port: "", portCode: "", isDefault: true });
+  const [addressForm, setAddressForm] = useState({ label: "Entrepot principal", contactName: "", phone: "", email: "", addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "", countryCode: "FR", port: "", portCode: "", isDefault: true });
   const [countries, setCountries] = useState(initialDashboard.countries);
 
   const defaultAddressId = initialDashboard.addresses.find((address) => address.isDefault)?.id ?? initialDashboard.addresses[0]?.id;
@@ -495,7 +495,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       refreshUrl: ALIEXPRESS_DEFAULT_REFRESH_URL,
       apiBaseUrl: ALIEXPRESS_DEFAULT_API_BASE_URL,
       accountPlatform: "seller",
-      countryCode: "CI",
+      countryCode: "FR",
       defaultDispatchLocation: "CN",
       status: "needs_auth",
       isActive: true,

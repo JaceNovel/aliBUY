@@ -5,7 +5,6 @@ import type { ProductCatalogItem } from "@/lib/products-data";
 import {
   buildCartItemKey,
   createEmptyQuote,
-  convertUsdToFcfa,
   formatFcfa,
   formatVariantSelection,
   getProductSourcingMetrics,
@@ -117,16 +116,6 @@ export async function createAlibabaSourcingQuote(
         selectionLabel,
         matchedVariantSku,
         ...metrics,
-        localChinaFreight: typeof metrics.chinaLocalFreightFcfa === "number" && Number.isFinite(metrics.chinaLocalFreightFcfa) && metrics.chinaLocalFreightFcfa > 0
-          ? { priceFcfa: Math.round(metrics.chinaLocalFreightFcfa), estimated: false }
-          : {
-              priceFcfa: Math.max(
-                convertUsdToFcfa(0.5),
-                Math.round(metrics.weightKg * settings.airRatePerKgFcfa * 0.08),
-                Math.round(metrics.supplierPriceFcfa * 0.025),
-              ),
-              estimated: true,
-            },
         marginAmountFcfa,
         finalUnitPriceFcfa,
       };
@@ -160,8 +149,6 @@ export async function createAlibabaSourcingQuote(
   const cartProductsTotalFcfa = items.reduce((sum, item) => sum + item.finalLinePriceFcfa, 0);
   const totalWeightKg = Number(validItems.reduce((sum, item) => sum + item.weightKg * item.quantity, 0).toFixed(3));
   const totalCbm = Number(validItems.reduce((sum, item) => sum + item.volumeCbm * item.quantity, 0).toFixed(4));
-  const totalLocalChinaFreightFcfa = validItems.reduce((sum, item) => sum + (item.localChinaFreight.priceFcfa * item.quantity), 0);
-  const hasEstimatedLocalFreight = validItems.some((item) => item.localChinaFreight.estimated);
   const airCostFcfa = Math.ceil(totalWeightKg * settings.airRatePerKgFcfa);
   const seaCostFcfa = Math.ceil(totalCbm * settings.seaSellRatePerCbmFcfa);
   const shouldPreferSea = totalWeightKg > settings.airWeightThresholdKg;
@@ -179,20 +166,16 @@ export async function createAlibabaSourcingQuote(
         {
           key: "freight",
           label: "Fret",
-          priceFcfa: totalLocalChinaFreightFcfa,
+          priceFcfa: 0,
           deliveryWindow: "2-5 jours en Chine",
-          isFree: false,
-          tradeLabel: hasEstimatedLocalFreight
-            ? "Routier local Chine · estimation fournisseur -> transitaire"
-            : "Routier local Chine · fournisseur -> transitaire",
-          tradeDescriptor: hasEstimatedLocalFreight ? "Fret local estimé" : "Fret local",
+          isFree: true,
+          tradeLabel: "Transport calcule au moment de la validation du panier",
+          tradeDescriptor: "Transport differe",
         },
       ],
       recommendedMethod: "freight",
       freeAirRemainingFcfa: 0,
-      freeShippingMessage: hasEstimatedLocalFreight
-        ? "Le fret local en Chine inclut une estimation quand le fournisseur ne publie pas de montant exploitable."
-        : "Le fret local en Chine couvre seulement le trajet fournisseur -> transitaire.",
+      freeShippingMessage: "Le transport est choisi et paye par le client au moment de la validation du panier.",
       containerProjection: {
         targetCbm: settings.containerTargetCbm,
         projectedCbm: totalCbm,

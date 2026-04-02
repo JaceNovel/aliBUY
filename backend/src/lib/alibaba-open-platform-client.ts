@@ -2962,14 +2962,14 @@ function mapAliExpressSearchItemFallbackToProduct(
   };
 }
 
-function buildAliExpressSearchContexts() {
-  const configuredCountry = (process.env.ALIEXPRESS_DEFAULT_SHIP_TO_COUNTRY ?? "CI").trim().toUpperCase();
+function buildAliExpressSearchContexts(preferredShipToCountry?: string) {
+  const configuredCountry = (preferredShipToCountry ?? process.env.ALIEXPRESS_DEFAULT_SHIP_TO_COUNTRY ?? "FR").trim().toUpperCase();
   const configuredLanguage = (process.env.ALIEXPRESS_TARGET_LANGUAGE ?? "fr_FR").trim();
   const configuredCurrency = (process.env.ALIEXPRESS_TARGET_CURRENCY ?? "USD").trim().toUpperCase();
 
   const candidates = [
-    { shipToCountry: configuredCountry || "CI", local: configuredLanguage || "fr_FR", currency: configuredCurrency || "USD" },
-    { shipToCountry: configuredCountry || "CI", local: "en_US", currency: configuredCurrency || "USD" },
+    { shipToCountry: configuredCountry || "FR", local: configuredLanguage || "fr_FR", currency: configuredCurrency || "USD" },
+    { shipToCountry: configuredCountry || "FR", local: "en_US", currency: configuredCurrency || "USD" },
     { shipToCountry: "US", local: "en_US", currency: configuredCurrency || "USD" },
     { shipToCountry: "US", local: "fr_FR", currency: configuredCurrency || "USD" },
     { shipToCountry: "FR", local: "fr_FR", currency: configuredCurrency || "USD" },
@@ -3394,6 +3394,7 @@ function mapAliExpressProductDetailToProduct(
 async function searchAliExpressProducts(input: {
   query: string;
   limit: number;
+  preferredShipToCountry?: string;
 }): Promise<AlibabaProductSearchResult> {
   const credentials = await resolveAlibabaCredentialsForLiveCall();
   if (!credentials) {
@@ -3406,7 +3407,7 @@ async function searchAliExpressProducts(input: {
     };
   }
 
-  const searchContexts = buildAliExpressSearchContexts();
+  const searchContexts = buildAliExpressSearchContexts(input.preferredShipToCountry);
   const desiredCount = Math.min(Math.max(input.limit, 1), 40);
   const pageSize = Math.min(20, desiredCount);
   const maxPages = Math.max(1, Math.ceil(desiredCount / pageSize));
@@ -3769,13 +3770,14 @@ async function searchAliExpressAffiliateProducts(input: {
   query: string;
   limit: number;
   credentials: AlibabaCredentials;
+  preferredShipToCountry?: string;
 }): Promise<AlibabaProductSearchResult> {
   const desiredCount = Math.min(Math.max(input.limit, 1), 40);
   const pageSize = Math.min(50, desiredCount);
   const maxPages = Math.max(1, Math.ceil(desiredCount / pageSize));
   const maxCollectedCandidates = Math.max(desiredCount * 4, 40);
   const queryCandidates = buildAliExpressQueryCandidates(input.query);
-  const searchContexts = buildAliExpressSearchContexts();
+  const searchContexts = buildAliExpressSearchContexts(input.preferredShipToCountry);
   const collectedByProductId = new Map<string, {
     product: AlibabaSearchProduct;
     score: number;
@@ -3892,6 +3894,7 @@ export async function searchAlibabaProducts(input: {
   query: string;
   limit: number;
   fulfillmentChannel: AlibabaFulfillmentChannel;
+  preferredShipToCountry?: string;
 }): Promise<AlibabaProductSearchResult> {
   const credentials = await resolveAlibabaCredentialsForLiveCall();
   if (!isAliExpressCredentials(credentials)) {
@@ -3909,6 +3912,7 @@ export async function searchAlibabaProducts(input: {
   const dsResult = await searchAliExpressProducts({
     query: input.query,
     limit: input.limit,
+    preferredShipToCountry: input.preferredShipToCountry,
   });
 
   if (dsResult.ok || dsResult.products.length > 0) {
@@ -3921,6 +3925,7 @@ export async function searchAlibabaProducts(input: {
       query: input.query,
       limit: input.limit,
       credentials,
+      preferredShipToCountry: input.preferredShipToCountry,
     });
 
     if (affiliateResult.ok || affiliateResult.products.length > 0) {

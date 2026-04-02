@@ -905,6 +905,7 @@ export async function runAlibabaCatalogImport(input: {
       query: job.query,
       limit: explorationLimit,
       fulfillmentChannel: job.fulfillmentChannel,
+      preferredShipToCountry: "FR",
     });
 
     if (!searchResult.ok) {
@@ -925,7 +926,24 @@ export async function runAlibabaCatalogImport(input: {
       return product.priceVerified && product.minUsd > 0 && typeof product.image === "string" && product.image.length > 0;
     });
     const importCandidates = productsWithRequiredData.length > 0 ? productsWithRequiredData : fallbackEligibleProducts;
-    const freshProducts = importCandidates.filter((product) => !existingSourceProductIds.has(product.sourceProductId)).slice(0, job.limit);
+    const prioritizedImportCandidates = [...importCandidates].sort((left, right) => {
+      if (left.minUsd !== right.minUsd) {
+        return left.minUsd - right.minUsd;
+      }
+
+      const leftMaxUsd = typeof left.maxUsd === "number" ? left.maxUsd : left.minUsd;
+      const rightMaxUsd = typeof right.maxUsd === "number" ? right.maxUsd : right.minUsd;
+      if (leftMaxUsd !== rightMaxUsd) {
+        return leftMaxUsd - rightMaxUsd;
+      }
+
+      if (left.moq !== right.moq) {
+        return left.moq - right.moq;
+      }
+
+      return left.title.localeCompare(right.title);
+    });
+    const freshProducts = prioritizedImportCandidates.filter((product) => !existingSourceProductIds.has(product.sourceProductId)).slice(0, job.limit);
     const rejectedReasonCounts = uniqueSearchProducts.reduce((counts, product) => {
       if (!product.priceVerified) {
         counts.price += 1;
@@ -977,7 +995,7 @@ export async function runAlibabaCatalogImport(input: {
     }));
 
     const skippedMissingRequiredDataCount = Math.max(0, uniqueSearchProducts.length - importCandidates.length);
-    const skippedExistingCount = Math.max(0, importCandidates.length - freshProducts.length);
+    const skippedExistingCount = Math.max(0, prioritizedImportCandidates.length - freshProducts.length);
 
     if (importedProducts.length > 0) {
       await saveAlibabaImportedProducts(importedProducts);
