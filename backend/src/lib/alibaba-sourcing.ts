@@ -1,5 +1,6 @@
 import { canonicalizeCountryCode } from "@/lib/country-utils";
 import { type ProductCatalogItem } from "@/lib/products-data";
+import { inferTypicalPackageDimensionsCm, resolveCoherentItemWeightGrams } from "@/lib/product-weight";
 import { resolveProductUnitPriceUsd } from "@/lib/product-variant-pricing";
 import { COUNTRY_CONFIG, CURRENCY_CONFIG, type CountryCode, type CurrencyCode } from "@/lib/pricing-options";
 
@@ -201,6 +202,8 @@ export type SourcingManyChatContext = {
   lastFlowResponse?: unknown;
   cartReminderSentAt?: string;
   lastCartReminderResponse?: unknown;
+  logisticsLastSentAt?: string;
+  lastLogisticsResponse?: unknown;
 };
 
 export type SourcingFreeDealMeta = {
@@ -644,6 +647,8 @@ function normalizeManyChatContext(value: unknown): SourcingManyChatContext | und
     lastFlowResponse: "lastFlowResponse" in value ? value.lastFlowResponse : undefined,
     cartReminderSentAt: typeof value.cartReminderSentAt === "string" ? value.cartReminderSentAt : undefined,
     lastCartReminderResponse: "lastCartReminderResponse" in value ? value.lastCartReminderResponse : undefined,
+    logisticsLastSentAt: typeof value.logisticsLastSentAt === "string" ? value.logisticsLastSentAt : undefined,
+    lastLogisticsResponse: "lastLogisticsResponse" in value ? value.lastLogisticsResponse : undefined,
   };
 }
 
@@ -1049,8 +1054,24 @@ export function resolveSourcingDeliveryPlan(input: {
 }
 
 export function getProductSourcingMetrics(product: ProductCatalogItem, input?: { quantity?: number; selectedVariants?: VariantSelection }) {
-  const weightKg = Number((product.itemWeightGrams / 1000).toFixed(3));
-  const volumeCbm = Number(parseLotCbmVolume(product.lotCbm, product.moq).toFixed(4));
+  const weightContext = {
+    title: product.title,
+    shortTitle: product.shortTitle,
+    keywords: product.keywords,
+    lotCbm: product.lotCbm,
+    moq: product.moq,
+    packaging: product.packaging,
+    unit: product.unit,
+    specs: product.specs.map((entry) => `${entry.label} ${entry.value}`),
+  };
+  const resolvedWeightGrams = resolveCoherentItemWeightGrams(product.itemWeightGrams, {
+    ...weightContext,
+  }) ?? 0;
+  const parsedVolumeCbm = parseLotCbmVolume(product.lotCbm, product.moq);
+  const inferredDimensions = inferTypicalPackageDimensionsCm(weightContext);
+  const inferredVolumeCbm = (inferredDimensions.lengthCm * inferredDimensions.widthCm * inferredDimensions.heightCm) / 1_000_000;
+  const weightKg = Number((resolvedWeightGrams / 1000).toFixed(3));
+  const volumeCbm = Number((parsedVolumeCbm > 0 ? parsedVolumeCbm : inferredVolumeCbm).toFixed(4));
   const supplierPriceFcfa = convertUsdToFcfa(resolveProductUnitPriceUsd(product, {
     quantity: input?.quantity,
     selection: input?.selectedVariants,

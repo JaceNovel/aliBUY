@@ -1,5 +1,6 @@
 import { cookies, headers } from "next/headers";
 
+import { syncUserPhoneChannels } from "@/lib/account-contact-sync";
 import { API_URL, buildApiUrl } from "@/lib/api";
 import { FREE_DEAL_DEVICE_COOKIE } from "@/lib/free-deal-constants";
 import { createFreeDealOrder, resolveRequestIp, resolveRequestOrigin, type FreeDealCheckoutCustomerInput } from "@/lib/free-deal-service";
@@ -166,6 +167,12 @@ export async function POST(request: Request) {
       visitor,
       user,
     });
+    if (user) {
+      await syncUserPhoneChannels(user, {
+        phone: customer.customerPhone,
+        usePhoneAsWhatsappByDefault: true,
+      });
+    }
     const requestOrigin = resolveRequestOrigin(headerStore);
     const siteOrigin = requestOrigin.startsWith("http://localhost") || requestOrigin.startsWith("https://localhost")
       ? requestOrigin

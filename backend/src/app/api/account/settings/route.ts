@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { clerkClient } from "@clerk/nextjs/server";
 
+import { syncUserPhoneChannels } from "@/lib/account-contact-sync";
 import { getAccountSettings, updateAccountSettings } from "@/lib/account-settings-store";
 import { parseDisplayName } from "@/lib/user-session";
 import { getCurrentUser } from "@/lib/user-auth";
@@ -91,21 +92,11 @@ export async function PATCH(request: Request) {
       await updateStoredUserProfile({ id: user.id, displayName: body.displayName.trim() });
     }
 
-    if (user.clerkUserId) {
-      const client = await clerkClient();
-      const clerkUser = await client.users.getUser(user.clerkUserId).catch(() => null);
-      const currentUnsafeMetadata = clerkUser?.unsafeMetadata && typeof clerkUser.unsafeMetadata === "object"
-        ? clerkUser.unsafeMetadata
-        : {};
-
-      await client.users.updateUser(user.clerkUserId, {
-        unsafeMetadata: {
-          ...currentUnsafeMetadata,
-          phone: nextPhone ?? null,
-          connectedWhatsapp: nextConnectedWhatsapp ?? null,
-        },
-      });
-    }
+    await syncUserPhoneChannels(user, {
+      phone: nextPhone,
+      connectedWhatsapp: nextConnectedWhatsapp,
+      usePhoneAsWhatsappByDefault: Boolean(nextPhone),
+    });
 
     const settings = await updateAccountSettings(user.id, {
       profilePhotoUrl: typeof body?.profilePhotoUrl === "string" ? body.profilePhotoUrl.trim() || undefined : undefined,

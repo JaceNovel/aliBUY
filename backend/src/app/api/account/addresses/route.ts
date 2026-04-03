@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { syncUserPhoneChannels } from "@/lib/account-contact-sync";
 import { createUserAddress, getUserAddresses } from "@/lib/customer-data-store";
 import { getCurrentUser } from "@/lib/user-auth";
 
@@ -62,6 +63,10 @@ export async function POST(request: Request) {
     const body = await request.json();
     const address = validateAddressPayload(body);
     const createdAddress = await createUserAddress(user.id, address);
+    await syncUserPhoneChannels(user, {
+      phone: address.phone,
+      usePhoneAsWhatsappByDefault: true,
+    });
 
     return NextResponse.json({ address: createdAddress }, { status: 201 });
   } catch (error) {

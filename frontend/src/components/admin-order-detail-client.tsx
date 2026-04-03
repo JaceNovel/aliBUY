@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { CheckCheck, ExternalLink, PackageCheck, Save, ShieldCheck, Trash2, Truck } from "lucide-react";
+import { CheckCheck, ExternalLink, MessageCircle, PackageCheck, Save, ShieldCheck, Trash2, Truck } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import type { AdminOrderParcelSnapshot } from "@/lib/admin-order-parcel";
@@ -88,6 +88,8 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
   const canLaunchSupplierPayment = useMemo(() => isSourcingOrderEligibleForSupplierPayment(order), [order]);
   const workflow = meta.workflow;
   const deliveryProfile = meta.deliveryProfile;
+  const whatsappLinked = Boolean(meta.manychat?.subscriberId);
+  const whatsappSyncDate = meta.manychat?.logisticsLastSentAt;
 
   const submitPatch = async (payload: Record<string, unknown>) => {
     setFeedback(null);
@@ -355,6 +357,37 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
         </article>
 
         <article className="rounded-[20px] border border-[#e6eaf0] bg-white px-5 py-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
+          <div className="flex items-center gap-3 text-[18px] font-bold text-[#1f2937]">
+            <MessageCircle className="h-5 w-5 text-[#16a34a]" />
+            Liaison WhatsApp
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <span
+              className={[
+                "inline-flex min-h-10 items-center rounded-full px-4 text-[13px] font-semibold",
+                whatsappLinked ? "bg-[#ecfdf3] text-[#027a48] ring-1 ring-[#abefc6]" : "bg-[#fff4ed] text-[#c2410c] ring-1 ring-[#fed7aa]",
+              ].join(" ")}
+            >
+              Lié WhatsApp : {whatsappLinked ? "oui" : "non"}
+            </span>
+            <button
+              type="button"
+              onClick={() => void submitPatch({ action: "send-whatsapp-update-now" })}
+              disabled={isPending || !whatsappLinked}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-[#16a34a] px-5 text-[14px] font-semibold text-white transition hover:bg-[#12833b] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <MessageCircle className="h-4 w-4" />
+              Envoyer mise à jour WhatsApp maintenant
+            </button>
+          </div>
+          <div className="mt-4 rounded-[16px] bg-[#fafbfd] px-4 py-4 text-[13px] leading-6 text-[#667085] ring-1 ring-[#edf1f6]">
+            {whatsappLinked
+              ? `Les mises à jour logistiques peuvent partir automatiquement et manuellement sur WhatsApp.${whatsappSyncDate ? ` Dernier envoi: ${new Date(whatsappSyncDate).toLocaleString("fr-FR")}.` : ""}`
+              : "Cette commande n'est pas encore reliée à un subscriber WhatsApp. Le numéro client seul ne suffit pas encore pour pousser un message sortant."}
+          </div>
+        </article>
+
+        <article className="rounded-[20px] border border-[#e6eaf0] bg-white px-5 py-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
           <div className="text-[18px] font-bold text-[#1f2937]">Livraison manuelle AfriPay</div>
           <div className="mt-2 text-[13px] leading-6 text-[#667085]">Pilotez ici les pays hors réseau direct AliExpress avec suivi opérateur, checkpoint et prévision client.</div>
           <label className="mt-4 inline-flex items-center gap-3 text-[13px] font-semibold text-[#344054]">
@@ -594,7 +627,7 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
             ))}
           </div>
         ) : (
-          <div className="mt-4 rounded-[16px] bg-[#fafbfd] px-4 py-4 text-[13px] text-[#667085] ring-1 ring-[#edf1f6]">Aucune photo colis ou photo source n'est disponible pour cette commande.</div>
+          <div className="mt-4 rounded-[16px] bg-[#fafbfd] px-4 py-4 text-[13px] text-[#667085] ring-1 ring-[#edf1f6]">Aucune photo colis ou photo source n&apos;est disponible pour cette commande.</div>
         )}
 
         <div className="mt-4 space-y-3">

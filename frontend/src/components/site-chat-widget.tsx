@@ -9,7 +9,8 @@ import { useState } from "react";
 import { SITE_NAME } from "@/lib/site-config";
 
 const WHATSAPP_ICON_PATH = "/WhatsApp_Image_2026-03-22_at_03.03.05-removebg-preview.png";
-const WHATSAPP_CONTACT_URL = "https://wa.me/3584573963223";
+const WHATSAPP_HELP_MESSAGE = "j'ai besoin d'aide SVP";
+const WHATSAPP_CONTACT_URL = `https://wa.me/3584573963223?text=${encodeURIComponent(WHATSAPP_HELP_MESSAGE)}`;
 
 export function SiteChatWidget() {
   const pathname = usePathname();
@@ -28,7 +29,7 @@ export function SiteChatWidget() {
         <div className="flex items-start justify-between gap-3 border-b border-[#eef3ef] px-4 py-4">
           <div className="flex items-center gap-3">
             <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-[#fff8f2] ring-1 ring-[#f0f0f0]">
-              <Image src={WHATSAPP_ICON_PATH} alt={`${SITE_NAME} WhatsApp`} width={48} height={48} className="h-10 w-10 object-contain" />
+              <Image src={WHATSAPP_ICON_PATH} alt={`${SITE_NAME} WhatsApp`} width={48} height={48} className="h-8 w-8 object-contain object-center" />
             </div>
             <div>
               <div className="text-sm font-semibold text-[#111827]">Chat AfriPay</div>
@@ -72,7 +73,9 @@ export function SiteChatWidget() {
           isFreeDealRoute ? "hidden sm:inline-flex" : "",
         ].join(" ")}
       >
-        <Image src={WHATSAPP_ICON_PATH} alt={`${SITE_NAME} WhatsApp`} width={64} height={64} className="h-full w-full object-cover" />
+        <span className="flex h-full w-full items-center justify-center bg-white">
+          <Image src={WHATSAPP_ICON_PATH} alt={`${SITE_NAME} WhatsApp`} width={64} height={64} className="h-9 w-9 object-contain object-center sm:h-11 sm:w-11" />
+        </span>
       </button>
     </>
   );

@@ -216,6 +216,27 @@ function buildOrderProductsLabel(order: SourcingOrder) {
     .slice(0, 240);
 }
 
+function buildTrackingCode(order: SourcingOrder) {
+  const base = order.orderNumber.replace(/[^A-Z0-9]+/gi, "").slice(-10);
+  return base ? `AFP-${base}` : undefined;
+}
+
+function buildLogisticsMessage(order: SourcingOrder, input: {
+  title: string;
+  detail?: string;
+}) {
+  const trackingCode = buildTrackingCode(order);
+  const lines = [
+    `AfriPay - Mise a jour logistique`,
+    `Commande: ${order.orderNumber}`,
+    `Statut: ${input.title}`,
+    trackingCode ? `Tracking: ${trackingCode}` : undefined,
+    input.detail,
+  ].filter((line): line is string => Boolean(line && line.trim()));
+
+  return lines.join("\n");
+}
+
 async function maybeSetOrderCustomField(subscriberId: string, fieldId: string | undefined, value: ManyChatFieldValue) {
   const normalizedFieldId = normalizeOptionalString(fieldId);
   if (!normalizedFieldId || value === null || value === "") {
@@ -313,6 +334,42 @@ export async function triggerManyChatCartReminderFlow(order: SourcingOrder) {
       ...manychat,
       cartReminderSentAt: new Date().toISOString(),
       lastCartReminderResponse: flowResponse,
+    },
+  });
+  await saveSourcingOrder(updatedOrder);
+  return updatedOrder;
+}
+
+export async function triggerManyChatLogisticsUpdate(order: SourcingOrder, input: {
+  title: string;
+  detail?: string;
+}) {
+  const meta = getSourcingOrderMeta(order);
+  const manychat = meta.manychat;
+
+  if (!process.env.MANYCHAT_API_KEY?.trim() || !manychat?.subscriberId) {
+    return order;
+  }
+
+  const subscriberId = manychat.subscriberId;
+  const message = buildLogisticsMessage(order, input);
+  const trackingCode = buildTrackingCode(order);
+
+  await Promise.all([
+    maybeSetOrderCustomField(subscriberId, process.env.MANYCHAT_CF_ORDER_NUMBER_ID, order.orderNumber),
+    maybeSetOrderCustomField(subscriberId, process.env.MANYCHAT_CF_SHIPPING_METHOD_ID, order.shippingMethod),
+    maybeSetOrderCustomField(subscriberId, process.env.MANYCHAT_CF_PRODUCT_ID, buildOrderProductsLabel(order)),
+    maybeSetOrderCustomField(subscriberId, process.env.MANYCHAT_CF_AMOUNT_ID, order.totalPriceFcfa),
+    maybeSetOrderCustomField(subscriberId, process.env.MANYCHAT_CF_TRACKING_CODE_ID, trackingCode ?? null),
+    maybeSetOrderCustomField(subscriberId, process.env.MANYCHAT_CF_LOGISTICS_STATUS_ID, input.title),
+  ]);
+
+  const response = await sendMessage(subscriberId, message, "ACCOUNT_UPDATE");
+  const updatedOrder = withSourcingOrderMeta(order, {
+    manychat: {
+      ...manychat,
+      logisticsLastSentAt: new Date().toISOString(),
+      lastLogisticsResponse: response,
     },
   });
   await saveSourcingOrder(updatedOrder);

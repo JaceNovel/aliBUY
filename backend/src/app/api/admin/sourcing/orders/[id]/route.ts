@@ -15,6 +15,7 @@ import {
   type SourcingOrder,
   type SourcingOrderStatus,
 } from "@/lib/alibaba-sourcing";
+import { triggerManyChatLogisticsUpdate } from "@/lib/manychat";
 import {
   launchSourcingSupplierPaymentForOrder,
   repairBlockedSourcingOrderForSupplierPayment,
@@ -138,6 +139,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           ],
         },
       });
+      await triggerManyChatLogisticsUpdate(nextOrder, {
+        title: "Nouvelle preuve logistique",
+        detail: title,
+      }).catch(() => null);
 
       return buildOrderResponse(nextOrder);
     }
@@ -164,6 +169,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           availableForPickupAt: workflow.availableForPickupAt ?? nowIso(),
         },
       });
+      await triggerManyChatLogisticsUpdate(nextOrder, {
+        title: "Point relais mis a jour",
+        detail: relayPointAddress,
+      }).catch(() => null);
 
       return buildOrderResponse(nextOrder);
     }
@@ -180,6 +189,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }, {
         workflow: normalizeStatusWorkflow(order, status),
       });
+      await triggerManyChatLogisticsUpdate(nextOrder, {
+        title: `Statut logistique: ${status}`,
+        detail: `Le suivi de votre colis vient d'etre mis a jour.`,
+      }).catch(() => null);
 
       return buildOrderResponse(nextOrder);
     }
@@ -247,6 +260,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           lastUpdatedAt: nowIso(),
         },
         parcel: meta.parcel,
+      });
+      await triggerManyChatLogisticsUpdate(nextOrder, {
+        title: body?.checkpointLabel ? String(body.checkpointLabel) : "Suivi logistique mis a jour",
+        detail: typeof body?.checkpointNote === "string" ? body.checkpointNote.trim() : undefined,
+      }).catch(() => null);
+
+      return buildOrderResponse(nextOrder);
+    }
+
+    if (action === "send-whatsapp-update-now") {
+      const nextOrder = await saveOrderWithMeta(order, {
+        manualFulfillment: getSourcingOrderMeta(order).manualFulfillment,
+      });
+      await triggerManyChatLogisticsUpdate(nextOrder, {
+        title: "Mise a jour logistique envoyee",
+        detail: "Un agent AfriPay vient de vous envoyer une mise a jour WhatsApp sur votre commande.",
       });
 
       return buildOrderResponse(nextOrder);

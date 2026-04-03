@@ -124,7 +124,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hasUserSelectedShipping, setHasUserSelectedShipping] = useState(false);
   const [selectedShipping, setSelectedShipping] = useState<ShippingMethodKey>("air");
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"paypal" | "card" | "google-pay" | "klarna">("paypal");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"card" | "mobile" | "bank">("card");
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(savedAddresses.length === 0);
   const [addressModalView, setAddressModalView] = useState<"list" | "form">(savedAddresses.length === 0 ? "form" : "list");
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
@@ -186,32 +186,25 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
     : formatSourcingAmount(0, { currencyCode, locale });
   const paymentChoices = [
     {
-      key: "paypal" as const,
-      title: "PayPal",
-      subtitle: "Payez facilement, rapidement et en toute securite avec PayPal",
-      logo: "PP",
-      logoClassName: "bg-[#ebf3ff] text-[#0a58ca]",
-    },
-    {
       key: "card" as const,
-      title: "Ajouter une nouvelle carte",
-      subtitle: "Visa, Mastercard et autres cartes bancaires",
+      title: "Carte bancaire",
+      subtitle: "Visa, Mastercard et cartes compatibles Moneroo",
       logo: "CB",
       logoClassName: "bg-[#f5f5f5] text-[#111827]",
     },
     {
-      key: "google-pay" as const,
-      title: "Google Pay",
-      subtitle: "Payer en un geste avec votre methode Google Pay",
-      logo: "G",
-      logoClassName: "bg-[#f0f7ff] text-[#1a73e8]",
+      key: "mobile" as const,
+      title: "Mobile Money",
+      subtitle: "Paiement mobile pris en charge directement dans le checkout Moneroo",
+      logo: "MM",
+      logoClassName: "bg-[#eefcf3] text-[#15803d]",
     },
     {
-      key: "klarna" as const,
-      title: "Klarna",
-      subtitle: "Payer avec Klarna lorsque disponible",
-      logo: "K",
-      logoClassName: "bg-[#ffe5ef] text-[#d81b60]",
+      key: "bank" as const,
+      title: "Virement bancaire",
+      subtitle: "Méthodes bancaires locales disponibles selon votre configuration",
+      logo: "VB",
+      logoClassName: "bg-[#fff7ed] text-[#c2410c]",
     },
   ];
 
@@ -644,9 +637,6 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
         <section className="bg-white px-5 py-5 shadow-[0_1px_0_rgba(0,0,0,0.06)] sm:px-7">
           <div className="flex items-center justify-between gap-4">
             <div className="text-[20px] font-bold tracking-[-0.03em] text-[#111827]">Moyens de paiement</div>
-            <button type="button" className="inline-flex items-center gap-2 text-[16px] font-semibold text-[#2563eb] transition hover:text-[#1d4ed8]">
-              Voir plus
-            </button>
           </div>
 
           <div className="mt-4 divide-y divide-[#eef2f6]">
@@ -924,13 +914,12 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
                 </div>
 
                 <div className="mt-7">
-                  <div className="text-[16px] font-bold text-[#111827]">Adresse</div>
+                  <div className="text-[16px] font-bold text-[#111827]">
+                    {requiresTransitAddress ? "Adresse actuelle" : "Adresse"}
+                  </div>
 
                   {requiresTransitAddress ? (
                     <div className="mt-4 space-y-4">
-                      <div className="rounded-[14px] bg-[#fff7ed] px-4 py-4 text-[14px] leading-6 text-[#9a3412]">
-                        Pour les pays non desservis directement par AliExpress, ajoutez votre adresse actuelle Google Maps. Le pays et l&apos;adresse seront remplis automatiquement, puis vous confirmez avec le numéro de téléphone.
-                      </div>
                       <div className="grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
                         <label className="text-[13px] font-semibold text-[#344054]">
                           Ma position actuelle Google Maps

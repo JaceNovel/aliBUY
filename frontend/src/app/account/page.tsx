@@ -48,6 +48,7 @@ export default async function AccountPage() {
             <div className="min-w-0">
               <h1 className="text-[24px] font-semibold tracking-[-0.04em] text-[#222]">{user.displayName}</h1>
               <p className="mt-1 text-[13px] text-[#666]">{maskedEmail}</p>
+              <p className="mt-1 text-[13px] text-[#666]">{settings.connectedWhatsapp || settings.phone || "Numéro non renseigné"}</p>
             </div>
           </div>
         </div>
@@ -92,6 +93,14 @@ export default async function AccountPage() {
                   <span className="min-w-28 text-[#666]">Identifiant de membre</span>
                   <span>{user.id}</span>
                   <CopyUserIdButton value={user.id} />
+                </div>
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+                  <span className="min-w-28 text-[#666]">Téléphone</span>
+                  <span>{settings.phone || "Non renseigné"}</span>
+                </div>
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+                  <span className="min-w-28 text-[#666]">WhatsApp</span>
+                  <span>{settings.connectedWhatsapp || settings.phone || "Non renseigné"}</span>
                 </div>
               </div>
             </div>

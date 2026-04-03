@@ -333,9 +333,20 @@ export function AccountSettingDetailClient({ slug, page, initialUser, initialSet
         return (
           <div className="grid gap-4">
             <label className="text-[13px] font-semibold text-[#344054]">Nouveau numéro
-              <input value={settings.phone ?? ""} onChange={(event) => setSettings((current) => ({ ...current, phone: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" />
+              <input value={settings.phone ?? ""} onChange={(event) => setSettings((current) => {
+                const nextPhone = event.target.value;
+                const mirrorsWhatsapp = (current.connectedWhatsapp ?? "") === (current.phone ?? "");
+                return {
+                  ...current,
+                  phone: nextPhone,
+                  connectedWhatsapp: mirrorsWhatsapp ? nextPhone : current.connectedWhatsapp,
+                };
+              })} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" />
             </label>
             <ToggleField label="Utiliser aussi ce numéro pour WhatsApp" checked={settings.connectedWhatsapp === settings.phone && Boolean(settings.phone)} onChange={(checked) => setSettings((current) => ({ ...current, connectedWhatsapp: checked ? current.phone : "" }))} />
+            <div className="rounded-[16px] border border-[#edf1f6] bg-[#fbfcfd] px-4 py-3 text-[13px] leading-6 text-[#475467]">
+              Ce numero sera aussi reutilise pour les mises a jour logistiques automatiques sur WhatsApp quand le canal client est relie.
+            </div>
           </div>
         );
       case "preferences-sms":

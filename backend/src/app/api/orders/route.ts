@@ -1,3 +1,4 @@
+import { syncUserPhoneChannels } from "@/lib/account-contact-sync";
 import { createCheckoutOrder } from "@/lib/sourcing-service";
 import { getCurrentUser } from "@/lib/user-auth";
 
@@ -11,12 +12,13 @@ export async function POST(request: Request) {
     const body = await request.json();
     const persistedUserId = user.id.startsWith("admin:") ? undefined : user.id;
 
+    const customerPhone = String(body?.customerPhone ?? "");
     const order = await createCheckoutOrder({
       userId: persistedUserId,
       customerAddressId: persistedUserId && body?.customerAddressId ? String(body.customerAddressId) : undefined,
       customerName: String(body?.customerName ?? user.displayName),
       customerEmail: String(body?.customerEmail ?? user.email),
-      customerPhone: String(body?.customerPhone ?? ""),
+      customerPhone,
       googleMapsUrl: body?.googleMapsUrl ? String(body.googleMapsUrl) : undefined,
       addressLine1: String(body?.addressLine1 ?? ""),
       addressLine2: body?.addressLine2 ? String(body.addressLine2) : undefined,
@@ -35,6 +37,11 @@ export async function POST(request: Request) {
       manychatFlowId: body?.manychatFlowId ? String(body.manychatFlowId) : undefined,
       manychatPaidTagId: body?.manychatPaidTagId ? String(body.manychatPaidTagId) : undefined,
       items: Array.isArray(body?.items) ? body.items : [],
+    });
+
+    await syncUserPhoneChannels(user, {
+      phone: customerPhone,
+      usePhoneAsWhatsappByDefault: true,
     });
 
     return Response.json({ order });

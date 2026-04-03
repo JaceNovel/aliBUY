@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronRight, ExternalLink, Heart, Minus, Play, Plus, Share2, ShieldCheck, ShoppingCart, X } from "lucide-react";
+import { ArrowLeft, ChevronRight, ExternalLink, Heart, Minus, Play, Plus, Share2, ShieldCheck, ShoppingCart, Star, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
@@ -105,6 +105,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const [isFavorite, setIsFavorite] = useState(initialIsFavorite ?? false);
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+  const [shippingSelectionPulse, setShippingSelectionPulse] = useState<"air" | "sea" | null>(null);
   const [isCartAnimating, setIsCartAnimating] = useState(false);
   const [cartToastVisible, setCartToastVisible] = useState(false);
   const [shippingMethod, setShippingMethod] = useState<"air" | "sea" | null>(null);
@@ -547,6 +548,13 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       }, 1800);
     });
   };
+  const triggerShippingSelectionAnimation = (method: "air" | "sea") => {
+    setShippingMethod(method);
+    setShippingSelectionPulse(method);
+    window.setTimeout(() => {
+      setShippingSelectionPulse((current) => (current === method ? null : current));
+    }, 420);
+  };
   const addSelectionToCart = () => {
     if (!canSubmitOrder) {
       return;
@@ -953,17 +961,18 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                         <button
                           key={option.key}
                           type="button"
-                          onClick={() => setShippingMethod(option.key)}
+                          onClick={() => triggerShippingSelectionAnimation(option.key)}
                           className={[
-                            "border px-4 py-3 text-left transition",
-                            shippingMethod === option.key ? "border-[#191919] bg-[#fafafa]" : "border-[#e5e5e5] bg-white hover:border-[#999]",
+                            "border px-4 py-3 text-left transition duration-300",
+                            shippingMethod === option.key ? "border-[#191919] bg-[#fafafa] shadow-[0_10px_24px_rgba(17,24,39,0.08)]" : "border-[#e5e5e5] bg-white hover:border-[#999]",
+                            shippingSelectionPulse === option.key ? "scale-[1.02] -translate-y-0.5 shadow-[0_16px_34px_rgba(240,111,18,0.22)]" : "",
                           ].join(" ")}
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div className="text-[15px] font-semibold text-[#221813]">{option.title}</div>
                             <div className="text-[13px] font-bold text-[#f06f12]">{option.feeLabel}</div>
                           </div>
-                          <div className="mt-1 text-[13px] text-[#706155]">{option.description}</div>
+                          <div className={["mt-1 text-[13px] text-[#706155] transition", shippingSelectionPulse === option.key ? "translate-x-0.5 text-[#4d4035]" : ""].join(" ")}>{option.description}</div>
                         </button>
                       ))}
                     </div>
@@ -1024,22 +1033,23 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 border-t border-[#efefef] pt-4">
-                    <button type="button" onClick={shareProduct} className="inline-flex h-12 items-center justify-center gap-2 border border-[#e5e5e5] bg-[#fafafa] text-[14px] font-medium text-[#333] transition hover:border-[#999]">
-                      <Share2 className="h-4 w-4" />
+                    <button type="button" onClick={shareProduct} className="inline-flex h-12 items-center justify-center gap-2 border border-[#e5e5e5] bg-[#fafafa] text-[14px] font-medium text-[#333] transition hover:-translate-y-0.5 hover:border-[#999]">
+                      <Share2 className="h-4 w-4 transition group-hover:rotate-12" />
                       Partager
                     </button>
-                    <button type="button" onClick={toggleFavorite} className="inline-flex h-12 items-center justify-center gap-2 border border-[#e5e5e5] bg-[#fafafa] text-[14px] font-medium text-[#333] transition hover:border-[#999]">
+                    <button type="button" onClick={toggleFavorite} className="inline-flex h-12 items-center justify-center gap-2 border border-[#e5e5e5] bg-[#fafafa] text-[14px] font-medium text-[#333] transition hover:-translate-y-0.5 hover:border-[#999]">
                       <Heart className={["h-4 w-4", isFavorite ? "fill-current text-[#f06f12]" : ""].join(" ")} />
-                      Favori
+                      Favoris
                     </button>
                     {sourceProductUrl ? (
-                      <Link href={sourceProductUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-12 items-center justify-center gap-2 border border-[#e5e5e5] bg-[#fafafa] text-[14px] font-medium text-[#333] transition hover:border-[#999]">
-                        <ExternalLink className="h-4 w-4" />
-                        Source
+                      <Link href={sourceProductUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-12 items-center justify-center gap-2 border border-[#e5e5e5] bg-[#fafafa] text-[14px] font-medium text-[#333] transition hover:-translate-y-0.5 hover:border-[#999]">
+                        <Star className="h-4 w-4 fill-current text-[#f5b301]" />
+                        Avis 4.8
                       </Link>
                     ) : (
-                      <div className="inline-flex h-12 items-center justify-center border border-[#efefef] bg-[#fafafa] text-[13px] text-[#888]">
-                        {product.transactionsLabel}
+                      <div className="inline-flex h-12 items-center justify-center gap-1 border border-[#efefef] bg-[#fafafa] text-[13px] font-medium text-[#555]">
+                        <Star className="h-4 w-4 fill-current text-[#f5b301]" />
+                        Avis 4.8
                       </div>
                     )}
                   </div>
@@ -1279,17 +1289,18 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     <button
                       key={option.key}
                       type="button"
-                      onClick={() => setShippingMethod(option.key)}
+                      onClick={() => triggerShippingSelectionAnimation(option.key)}
                       className={[
-                        "rounded-[14px] border px-3 py-3 text-left transition sm:rounded-[18px] sm:px-4 sm:py-4",
+                        "rounded-[14px] border px-3 py-3 text-left transition duration-300 sm:rounded-[18px] sm:px-4 sm:py-4",
                         shippingMethod === option.key ? "border-[#ff6a00] bg-[#fff5ed] shadow-[inset_0_0_0_1px_#ff6a00]" : "border-[#e5e5e5] bg-white hover:border-[#ffb48a]",
+                        shippingSelectionPulse === option.key ? "scale-[1.02] -translate-y-0.5 shadow-[0_16px_34px_rgba(255,106,0,0.16)]" : "",
                       ].join(" ")}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-[15px] font-semibold text-[#222] sm:text-[17px]">{option.title}</div>
                         <div className="text-[13px] font-bold text-[#ff5b1f] sm:text-[15px]">{option.feeLabel}</div>
                       </div>
-                      <div className="mt-1 text-[12px] leading-5 text-[#666] sm:text-[14px]">{option.description}</div>
+                      <div className={["mt-1 text-[12px] leading-5 text-[#666] transition sm:text-[14px]", shippingSelectionPulse === option.key ? "translate-x-0.5 text-[#4d4035]" : ""].join(" ")}>{option.description}</div>
                     </button>
                   ))}
                 </div>
