@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
+import { getProductSourcingMetrics } from "@/lib/alibaba-sourcing";
 import { getCatalogCategories } from "@/lib/catalog-category-service";
 import { getCatalogProductBySlug, getCatalogRelatedProducts } from "@/lib/catalog-service";
+import { resolveCoherentPackageDimensionsCm } from "@/lib/product-weight";
 import { formatTierAwarePrice } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
 import { normalizeStorefrontBadge, normalizeStorefrontText } from "@/lib/public-storefront";
@@ -112,6 +114,18 @@ export default async function ProductPage({
     image: entry.image,
     formattedPrice: formatTierAwarePrice(pricing.formatPrice, entry),
   }));
+  const logisticsContext = {
+    title: product.title,
+    shortTitle: product.shortTitle,
+    keywords: product.keywords,
+    lotCbm: product.lotCbm,
+    moq: product.moq,
+    packaging: product.packaging,
+    unit: product.unit,
+    specs: product.specs.map((entry) => `${entry.label} ${entry.value}`),
+  };
+  const sourcingMetrics = getProductSourcingMetrics(product);
+  const resolvedPackageDimensionsCm = resolveCoherentPackageDimensionsCm(product.packageDimensionsCm, logisticsContext);
 
   return (
     <InternalPageShell pricing={pricing}>
@@ -127,9 +141,9 @@ export default async function ProductPage({
           moq: product.moq,
           moqVerified: product.moqVerified,
           packaging: product.packaging,
-          packageDimensionsCm: product.packageDimensionsCm,
-          itemWeightGrams: product.itemWeightGrams,
-          lotCbm: product.lotCbm,
+          packageDimensionsCm: resolvedPackageDimensionsCm,
+          itemWeightGrams: Math.max(product.itemWeightGrams, Math.round(sourcingMetrics.weightKg * 1000)),
+          lotCbm: sourcingMetrics.volumeCbm > 0 ? sourcingMetrics.volumeCbm.toFixed(4) : product.lotCbm,
           supplierName: normalizeStorefrontText(product.supplierName),
           supplierLocation: product.supplierLocation,
           responseTime: normalizeStorefrontText(product.responseTime),

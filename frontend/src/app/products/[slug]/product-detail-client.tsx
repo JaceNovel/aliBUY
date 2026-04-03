@@ -387,7 +387,17 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
         maxUsd: (currentPriceSummary.maxUsd ?? currentPriceSummary.minUsd) * totalSelectedQuantity,
       };
   const hasSubtotalRange = subtotalRange.maxUsd > subtotalRange.minUsd;
-  const dynamicPriceLabel = formatPriceSummary(currentPriceSummary);
+  const promoCurrentMinUsd = hasSubtotalRange ? subtotalRange.minUsd : subtotal;
+  const promoCurrentMaxUsd = hasSubtotalRange ? subtotalRange.maxUsd : subtotal;
+  const promoOriginalMinUsd = Math.max(promoCurrentMinUsd * 1.14, promoCurrentMinUsd + 0.18);
+  const promoOriginalMaxUsd = Math.max(promoCurrentMaxUsd * 1.14, promoCurrentMaxUsd + 0.24);
+  const promoSavingsUsd = Math.max(promoOriginalMinUsd - promoCurrentMinUsd, 0.08);
+  const promoOriginalLabel = hasSubtotalRange
+    ? `${formatMoney(promoOriginalMinUsd)} - ${formatMoney(promoOriginalMaxUsd)}`
+    : formatMoney(promoOriginalMinUsd);
+  const promoSavingsLabel = formatMoney(promoSavingsUsd);
+  const promoThresholdUsd = Math.max(15, Math.ceil((promoCurrentMinUsd * 1.9) / 5) * 5);
+  const promoThresholdLabel = formatMoney(promoThresholdUsd);
   const freeShippingThresholdLabel = new Intl.NumberFormat(product.locale, {
     style: "currency",
     currency: "XOF",
@@ -868,14 +878,14 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     <div className="text-[32px] font-bold leading-none tracking-[-0.04em] text-[#111] sm:text-[46px]">
                       {hasSubtotalRange ? `${formatMoney(subtotalRange.minUsd)} - ${formatMoney(subtotalRange.maxUsd)}` : formatMoney(subtotal)}
                     </div>
-                    <div className="bg-[#fff1f0] px-2 py-1 text-[13px] font-bold text-[#ff375f]">Economisez</div>
+                    <div className="bg-[#fff1f0] px-2 py-1 text-[13px] font-bold text-[#ff375f]">Economisez {promoSavingsLabel}</div>
                   </div>
-                  <div className="mt-2 text-[13px] text-[#888] line-through sm:text-[14px]">{dynamicPriceLabel}</div>
+                  <div className="mt-2 text-[13px] text-[#888] line-through sm:text-[14px]">{promoOriginalLabel}</div>
                 </div>
               </div>
 
               <div className="mt-3 flex max-w-[620px] items-center justify-between rounded-[4px] bg-[#fff1f1] px-4 py-3 text-[14px] text-[#e53b2d]">
-                <span>-2,00€ sur 15,00€</span>
+                <span>-{promoSavingsLabel} sur {promoThresholdLabel}</span>
                 <ChevronRight className="h-4 w-4" />
               </div>
 
