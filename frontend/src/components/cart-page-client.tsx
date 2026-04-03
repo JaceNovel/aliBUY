@@ -380,7 +380,7 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
           </div>
         </div>
         <div className="px-0 pt-3 text-[13px] font-semibold text-[#1f2937] sm:px-9 sm:text-[14px]">Livraison gratuite</div>
-        <div className="mt-3 space-y-3 sm:mt-4 sm:space-y-4">
+        <div className="mt-3 space-y-2.5 sm:mt-4 sm:space-y-4">
           {quote.items.map((item) => {
             const cartItem = items.find((entry) => buildCartItemKey(entry.slug, entry.selectedVariants) === (item.cartKey ?? item.slug));
             const quantity = cartItem?.quantity ?? item.quantity;
@@ -389,10 +389,13 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
             const volumeLabel = item.volumeCbm > 0 ? `${item.volumeCbm.toFixed(4)} CBM` : totalVolumeLabel;
             const cartKey = item.cartKey ?? item.slug;
             const isSelected = selectedCartKeys.includes(cartKey);
+            const primaryVariantLabel = variantEntries.length > 0
+              ? variantEntries.map(([label, value]) => `${label}: ${value}`).join(" · ")
+              : null;
 
             return (
               <article key={cartKey} className={[
-                "grid gap-3 border-t border-[#f2f4f7] pt-4 transition sm:grid-cols-[24px_132px_minmax(0,1fr)_136px] sm:items-start sm:gap-4 sm:pt-5",
+                "grid gap-2.5 border-t border-[#f2f4f7] pt-3 transition sm:grid-cols-[24px_132px_minmax(0,1fr)_136px] sm:items-start sm:gap-4 sm:pt-5",
                 isSelected ? "rounded-[18px] bg-[#fffdfd] shadow-[0_10px_24px_rgba(248,6,50,0.05)]" : "",
               ].join(" ")}>
                 <div className="hidden pt-8 sm:block">
@@ -400,14 +403,51 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
                     {isSelected ? <CheckCircle2 className="h-7 w-7 text-[#f80632]" /> : <Circle className="h-7 w-7 text-[#d0d5dd]" />}
                   </button>
                 </div>
-                <div className="relative h-[112px] overflow-hidden rounded-[14px] bg-[#f5f5f5] sm:h-[132px] sm:rounded-[16px]">
+                <div className="relative hidden h-[92px] overflow-hidden rounded-[14px] bg-[#f5f5f5] sm:block sm:h-[132px] sm:rounded-[16px]">
                   <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between bg-[#34c759] px-3 py-1 text-[11px] font-bold text-white">
                     <span>ALL</span>
                     <span>Free</span>
                   </div>
-                  <Image src={item.image} alt={item.title} fill sizes="(max-width: 640px) 112px, 132px" className="object-cover pt-6" />
+                  <Image src={item.image} alt={item.title} fill sizes="(max-width: 640px) 92px, 132px" className="object-cover pt-6" />
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 sm:hidden">
+                  <div className="flex items-start gap-2.5">
+                    <button type="button" onClick={() => toggleCartItemSelection(cartKey)} className="mt-8 inline-flex shrink-0 items-center gap-2 text-[12px] font-semibold text-[#667085]">
+                      {isSelected ? <CheckCircle2 className="h-5 w-5 text-[#f80632]" /> : <Circle className="h-5 w-5 text-[#d0d5dd]" />}
+                    </button>
+                    <div className="relative h-[92px] w-[92px] shrink-0 overflow-hidden rounded-[14px] bg-[#f5f5f5]">
+                      <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between bg-[#34c759] px-2 py-1 text-[10px] font-bold text-white">
+                        <span>ALL</span>
+                        <span>Free</span>
+                      </div>
+                      <Image src={item.image} alt={item.title} fill sizes="92px" className="object-cover pt-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[15px] font-semibold leading-5 text-[#1f2937]">{item.title}</div>
+                      {primaryVariantLabel ? (
+                        <div className="mt-1 truncate text-[12px] text-[#667085]">{primaryVariantLabel} ›</div>
+                      ) : null}
+                      <div className="mt-1.5 text-[14px] font-black tracking-[-0.03em] text-[#1f2937]">{formatSourcingAmount(item.finalLinePriceFcfa, { currencyCode, locale })}</div>
+                      <div className="mt-1 inline-flex w-fit items-center gap-1 rounded-[8px] border border-[#ffd5dc] bg-[#fff7f8] px-2 py-0.5 text-[10px] font-bold text-[#f80632]">
+                        <TicketPercent className="h-3 w-3" />
+                        Éligible coupons
+                      </div>
+                      <div className="mt-1 text-[11px] text-[#98a2b3]">AfriPay Store ›</div>
+                      <div className="mt-2 flex items-center justify-end">
+                        <div className="inline-flex h-9 items-center rounded-full border border-[#e4e7ec] bg-white px-1 text-[#101828] shadow-[0_4px_14px_rgba(15,23,42,0.05)]">
+                          <button type="button" onClick={() => updateItem(item.cartKey ?? item.slug, quantity - 1)} className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[#344054] transition hover:bg-[#f8fafc] hover:text-[#f80632]">
+                            <Minus className="h-4 w-4" />
+                          </button>
+                          <div className="min-w-[24px] text-center text-[15px] font-semibold">{quantity}</div>
+                          <button type="button" onClick={() => updateItem(item.cartKey ?? item.slug, quantity + 1)} className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[#344054] transition hover:bg-[#f8fafc] hover:text-[#f80632]">
+                            <Plus className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="hidden min-w-0 sm:block">
                   <button type="button" onClick={() => toggleCartItemSelection(cartKey)} className="mb-2 inline-flex items-center gap-2 text-[12px] font-semibold text-[#667085] sm:hidden">
                     {isSelected ? <CheckCircle2 className="h-4.5 w-4.5 text-[#f80632]" /> : <Circle className="h-4.5 w-4.5 text-[#d0d5dd]" />}
                     {isSelected ? "Sélectionné" : "Sélectionner"}
@@ -435,7 +475,7 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
                     ) : null}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 self-center sm:justify-end">
+                <div className="hidden items-center gap-2 self-center sm:flex sm:justify-end">
                   <button type="button" onClick={() => updateItem(item.cartKey ?? item.slug, quantity - 1)} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d0d5dd] bg-white text-[#344054] transition hover:border-[#f80632] hover:text-[#f80632] sm:h-11 sm:w-11">
                     <Minus className="h-4 w-4" />
                   </button>
@@ -444,7 +484,7 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
                     <Plus className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="grid grid-cols-3 gap-2 pt-1 sm:col-span-4 sm:ml-[calc(24px+132px+16px)] sm:max-w-[440px]">
+                <div className="hidden grid-cols-3 gap-2 pt-1 sm:col-span-4 sm:ml-[calc(24px+132px+16px)] sm:grid sm:max-w-[440px]">
                   <button type="button" className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#eceff3] bg-[#fafbfc] text-[13px] font-medium text-[#1f2937] transition hover:-translate-y-0.5 hover:border-[#d0d5dd]">
                     <Share2 className="h-4 w-4" />
                     Partager
@@ -458,7 +498,7 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
                     Note 4.8
                   </div>
                 </div>
-                <div className="sm:col-span-4 sm:ml-[calc(24px+132px+16px)]">
+                <div className="hidden sm:col-span-4 sm:ml-[calc(24px+132px+16px)] sm:block">
                   <button type="button" onClick={() => removeItem(item.cartKey ?? item.slug)} className="text-[13px] font-semibold text-[#d92d20] transition hover:opacity-80">
                     Retirer
                   </button>
@@ -582,17 +622,17 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
         </section>
       </div>
 
-      <div className="fixed inset-x-0 bottom-[var(--mobile-bottom-nav-height,0px)] z-[60] border-t border-[#eaecf0] bg-white px-4 py-3 shadow-[0_-12px_30px_rgba(17,24,39,0.08)] xl:hidden">
+      <div className="fixed inset-x-0 bottom-[var(--mobile-bottom-nav-height,0px)] z-[60] border-t border-[#eaecf0] bg-white px-3 py-2.5 shadow-[0_-12px_30px_rgba(17,24,39,0.08)] xl:hidden">
         <div className="flex items-center justify-between gap-3">
-          <button type="button" onClick={toggleAllItemsSelection} className="inline-flex items-center gap-2 text-[14px] font-medium text-[#111827]">
+          <button type="button" onClick={toggleAllItemsSelection} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#111827]">
             {allItemsSelected ? <CheckCircle2 className="h-5 w-5 text-[#f80632]" /> : <Circle className="h-5 w-5 text-[#d0d5dd]" />}
             Tout
           </button>
           <div className="text-right">
-            <div className="text-[28px] font-black tracking-[-0.05em] text-[#111827]">{formatSourcingAmount(selectedTotalFcfa, { currencyCode, locale })}</div>
+            <div className="text-[24px] font-black tracking-[-0.05em] text-[#111827]">{formatSourcingAmount(selectedTotalFcfa, { currencyCode, locale })}</div>
             <div className="text-[11px] text-[#667085]">{selectedCount} article(s) · {selectedWeightKg.toFixed(2)} kg</div>
           </div>
-          <Link href="/checkout" className="inline-flex h-14 min-w-[154px] items-center justify-center rounded-full bg-[#f80632] px-6 text-[16px] font-bold text-white transition hover:bg-[#dc042c]">
+          <Link href="/checkout" className="inline-flex h-11 min-w-[128px] items-center justify-center rounded-full bg-[#f80632] px-4 text-[15px] font-bold text-white transition hover:bg-[#dc042c]">
             Paiement ({selectedCount})
           </Link>
         </div>
