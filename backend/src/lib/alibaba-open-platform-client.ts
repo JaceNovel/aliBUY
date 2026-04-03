@@ -4260,28 +4260,54 @@ function extractAliExpressAffiliateSkuDetailProjection(
   };
 }
 
-function extractAliExpressSolutionProductInfoWeightGrams(responseBody: unknown) {
+function extractAliExpressSolutionProductPackageMetrics(responseBody: unknown) {
   const payload = getAliExpressSellerPayload(responseBody);
   const result = isRecord(payload?.result) ? payload.result as Record<string, unknown> : payload;
   if (!isRecord(result)) {
-    return undefined;
+    return {};
   }
 
-  const rawWeight = getNumberValue(result.gross_weight, result.package_weight, result.weight);
-  if (typeof rawWeight !== "number" || rawWeight <= 0) {
-    return undefined;
+  const packageInfo = isRecord(result.package_info_dto) ? result.package_info_dto as Record<string, unknown> : undefined;
+
+  const rawWeight = getNumberValue(
+    result.gross_weight,
+    result.package_weight,
+    result.weight,
+    packageInfo?.gross_weight,
+    packageInfo?.package_weight,
+    packageInfo?.weight,
+  );
+  const weightUnit = (getStringValue(result.weight_unit, packageInfo?.weight_unit) ?? "1").trim().toLowerCase();
+  let weightGrams: number | undefined;
+
+  if (typeof rawWeight === "number" && rawWeight > 0) {
+    if (["1", "kg", "kgs", "kilogram", "kilograms"].includes(weightUnit)) {
+      weightGrams = sanitizeItemWeightGrams(Math.round(rawWeight * 1000));
+    } else if (["2", "g", "gram", "grams"].includes(weightUnit)) {
+      weightGrams = sanitizeItemWeightGrams(Math.round(rawWeight));
+    } else {
+      weightGrams = sanitizeItemWeightGrams(Math.round(rawWeight < 10 ? rawWeight * 1000 : rawWeight));
+    }
   }
 
-  const weightUnit = (getStringValue(result.weight_unit) ?? "1").trim().toLowerCase();
-  if (["1", "kg", "kgs", "kilogram", "kilograms"].includes(weightUnit)) {
-    return sanitizeItemWeightGrams(Math.round(rawWeight * 1000));
-  }
+  const packageLength = getNumberValue(result.package_length, packageInfo?.package_length);
+  const packageWidth = getNumberValue(result.package_width, packageInfo?.package_width);
+  const packageHeight = getNumberValue(result.package_height, packageInfo?.package_height);
+  const hasPackageDimensions = [packageLength, packageWidth, packageHeight].every((value) => typeof value === "number" && value > 0);
 
-  if (["2", "g", "gram", "grams"].includes(weightUnit)) {
-    return sanitizeItemWeightGrams(Math.round(rawWeight));
-  }
+  const formatDimension = (value: number) => (Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2))));
+  const lotCbm = hasPackageDimensions
+    ? ((packageLength * packageWidth * packageHeight) / 1_000_000).toFixed(4)
+    : undefined;
+  const packaging = hasPackageDimensions
+    ? `${formatDimension(packageLength)} x ${formatDimension(packageWidth)} x ${formatDimension(packageHeight)} cm`
+    : undefined;
 
-  return sanitizeItemWeightGrams(Math.round(rawWeight < 10 ? rawWeight * 1000 : rawWeight));
+  return {
+    weightGrams,
+    packaging,
+    lotCbm,
+  };
 }
 
 async function enrichAliExpressAffiliateProduct(
@@ -4328,10 +4354,10 @@ async function enrichAliExpressAffiliateProduct(
     return product;
   }
 
-  const sellerWeightGrams = sellerProductInfoResponse?.ok
-    ? extractAliExpressSolutionProductInfoWeightGrams(sellerProductInfoResponse.responseBody)
+  const sellerPackageMetrics = sellerProductInfoResponse?.ok
+    ? extractAliExpressSolutionProductPackageMetrics(sellerProductInfoResponse.responseBody)
     : undefined;
-  const itemWeightGrams = sellerWeightGrams ?? projection.itemWeightGrams;
+  const itemWeightGrams = sellerPackageMetrics?.weightGrams ?? projection.itemWeightGrams;
   const weightVerified = typeof itemWeightGrams === "number" && itemWeightGrams > 0;
 
   return {
@@ -4341,7 +4367,9 @@ async function enrichAliExpressAffiliateProduct(
     keywords: projection.keywords,
     image: projection.image,
     gallery: projection.gallery,
+    packaging: sellerPackageMetrics?.packaging ?? product.packaging,
     itemWeightGrams,
+    lotCbm: sellerPackageMetrics?.lotCbm ?? product.lotCbm,
     minUsd: projection.minUsd,
     maxUsd: projection.maxUsd,
     supplierName: projection.supplierName,
@@ -4365,6 +4393,7 @@ async function enrichAliExpressAffiliateProduct(
       affiliate_sku_detail: projection.rawResponse,
       seller_product_info: sellerProductInfoResponse?.ok ? sellerProductInfoResponse.responseBody : undefined,
       source_weight_grams: itemWeightGrams > 0 ? itemWeightGrams : null,
+      source_package_cbm: sellerPackageMetrics?.lotCbm ?? null,
     },
   };
 }
@@ -4670,10 +4699,10 @@ export async function fetchAliExpressAffiliateProductSnapshot(input: {
     return null;
   }
 
-  const sellerWeightGrams = sellerProductInfoResponse?.ok
-    ? extractAliExpressSolutionProductInfoWeightGrams(sellerProductInfoResponse.responseBody)
+  const sellerPackageMetrics = sellerProductInfoResponse?.ok
+    ? extractAliExpressSolutionProductPackageMetrics(sellerProductInfoResponse.responseBody)
     : undefined;
-  const itemWeightGrams = sellerWeightGrams ?? projection.itemWeightGrams;
+  const itemWeightGrams = sellerPackageMetrics?.weightGrams ?? projection.itemWeightGrams;
   const weightVerified = typeof itemWeightGrams === "number" && itemWeightGrams > 0;
 
   return {
@@ -4684,9 +4713,9 @@ export async function fetchAliExpressAffiliateProductSnapshot(input: {
     keywords: projection.keywords,
     image: projection.image,
     gallery: projection.gallery,
-    packaging: "Non fourni par affiliation",
+    packaging: sellerPackageMetrics?.packaging ?? "Non fourni par affiliation",
     itemWeightGrams,
-    lotCbm: "0.0000",
+    lotCbm: sellerPackageMetrics?.lotCbm ?? "0.0000",
     minUsd: projection.minUsd,
     maxUsd: projection.maxUsd,
     moq: 1,
@@ -4714,6 +4743,7 @@ export async function fetchAliExpressAffiliateProductSnapshot(input: {
       affiliate_sku_detail: projection.rawResponse,
       seller_product_info: sellerProductInfoResponse?.ok ? sellerProductInfoResponse.responseBody : undefined,
       source_weight_grams: itemWeightGrams > 0 ? itemWeightGrams : null,
+      source_package_cbm: sellerPackageMetrics?.lotCbm ?? null,
     },
     moqVerified: false,
     weightVerified,

@@ -677,7 +677,7 @@ function parseLotCbmVolume(lotCbm: string, moq: number) {
   const lotQuantity = lotQtyMatch ? Number(lotQtyMatch[1]) : moq;
 
   if (!Number.isFinite(totalLotCbm) || totalLotCbm <= 0) {
-    return 0.002;
+    return 0;
   }
 
   const divisor = Number.isFinite(lotQuantity) && lotQuantity > 0 ? lotQuantity : Math.max(moq, 1);

@@ -57,6 +57,11 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
   const shipping = useMemo(() => quote.shippingOptions.find((option) => option.key === selectedShipping) ?? quote.shippingOptions[0], [quote.shippingOptions, selectedShipping]);
   const totalFcfa = quote.cartProductsTotalFcfa + (shipping?.priceFcfa ?? 0);
   const freeAirThresholdLabel = formatSourcingAmount(15000, { currencyCode, locale });
+  const itemsMissingWeight = quote.items.filter((item) => item.weightKg <= 0);
+  const itemsMissingVolume = quote.items.filter((item) => item.volumeCbm <= 0);
+  const hasMissingLogisticsMetrics = itemsMissingWeight.length > 0 || itemsMissingVolume.length > 0;
+  const totalWeightLabel = quote.totalWeightKg > 0 ? `${quote.totalWeightKg.toFixed(2)} kg` : "Selon catalogue";
+  const totalVolumeLabel = quote.totalCbm > 0 ? `${quote.totalCbm.toFixed(4)} CBM` : "Selon catalogue";
 
   const triggerShareFeedback = (message: string) => {
     setSharePulse(true);
@@ -171,11 +176,11 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-[18px] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
               <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#98a2b3]">Poids total</div>
-              <div className="mt-2 text-[23px] font-black tracking-[-0.04em] text-[#1f2937]">{quote.totalWeightKg.toFixed(2)} kg</div>
+              <div className="mt-2 text-[23px] font-black tracking-[-0.04em] text-[#1f2937]">{totalWeightLabel}</div>
             </div>
             <div className="rounded-[18px] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
               <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#98a2b3]">Volume total</div>
-              <div className="mt-2 text-[23px] font-black tracking-[-0.04em] text-[#1f2937]">{quote.totalCbm.toFixed(4)} CBM</div>
+              <div className="mt-2 text-[23px] font-black tracking-[-0.04em] text-[#1f2937]">{totalVolumeLabel}</div>
             </div>
             <div className="rounded-[18px] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
               <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#98a2b3]">Sous-total</div>
@@ -204,6 +209,12 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
         </div>
         {shareFeedback ? <div className="mt-3 rounded-[16px] bg-white px-4 py-3 text-[13px] font-medium text-[#344054] ring-1 ring-[#ece7df]">{shareFeedback}</div> : null}
       </section>
+
+      {hasMissingLogisticsMetrics ? (
+        <section className="rounded-[24px] border border-[#ffd4b5] bg-[#fff7f1] px-5 py-4 text-[14px] leading-6 text-[#8a4b16] shadow-[0_12px_30px_rgba(255,106,0,0.08)]">
+          Les totaux logistiques affichent uniquement les poids et volumes réellement importés. Certains articles restent à confirmer: {itemsMissingWeight.length > 0 ? `${itemsMissingWeight.length} sans poids réel` : "0 sans poids réel"}{itemsMissingVolume.length > 0 ? `, ${itemsMissingVolume.length} sans CBM réel` : ""}.
+        </section>
+      ) : null}
 
       {initialSharedCartSummaries.length > 0 ? (
         <section className="rounded-[24px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)]">
@@ -237,6 +248,9 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
           {quote.items.map((item) => {
             const cartItem = items.find((entry) => buildCartItemKey(entry.slug, entry.selectedVariants) === (item.cartKey ?? item.slug));
             const quantity = cartItem?.quantity ?? item.quantity;
+            const variantEntries = Object.entries(item.selectedVariants ?? {});
+            const weightLabel = item.weightKg > 0 ? `${item.weightKg.toFixed(2)} kg/unité` : "Poids réel: Selon catalogue";
+            const volumeLabel = item.volumeCbm > 0 ? `${item.volumeCbm.toFixed(4)} CBM/unité` : "CBM réel: Selon catalogue";
 
             return (
               <article key={item.cartKey ?? item.slug} className="grid gap-4 rounded-[22px] border border-[#edf1f6] px-4 py-4 sm:grid-cols-[96px_minmax(0,1fr)]">
@@ -248,7 +262,25 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
                     <div>
                       <div className="text-[17px] font-semibold text-[#1f2937]">{item.title}</div>
                       <div className="mt-1 text-[13px] text-[#667085]">Tarif AfriPay pret a commander</div>
-                      <div className="mt-1 text-[13px] text-[#667085]">{item.weightKg.toFixed(2)} kg/unité · {item.volumeCbm.toFixed(4)} CBM/unité</div>
+                      {variantEntries.length > 0 ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {variantEntries.map(([label, value]) => (
+                            <span key={`${label}-${value}`} className="rounded-full bg-[#fff3ea] px-3 py-1 text-[12px] font-semibold text-[#c85a11] ring-1 ring-[#ffd4b5]">
+                              {label}: {value}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                      <div className="mt-2 flex flex-wrap gap-2 text-[13px]">
+                        <span className={[
+                          "rounded-full px-3 py-1 ring-1",
+                          item.weightKg > 0 ? "bg-[#f8fafc] text-[#475467] ring-[#e5e7eb]" : "bg-[#fff4ea] text-[#c85a11] ring-[#ffd4b5]",
+                        ].join(" ")}>{weightLabel}</span>
+                        <span className={[
+                          "rounded-full px-3 py-1 ring-1",
+                          item.volumeCbm > 0 ? "bg-[#f8fafc] text-[#475467] ring-[#e5e7eb]" : "bg-[#fff4ea] text-[#c85a11] ring-[#ffd4b5]",
+                        ].join(" ")}>{volumeLabel}</span>
+                      </div>
                     </div>
                     <div className="text-[18px] font-black tracking-[-0.04em] text-[#1f2937]">{formatSourcingAmount(item.finalLinePriceFcfa, { currencyCode, locale })}</div>
                   </div>

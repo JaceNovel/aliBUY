@@ -190,7 +190,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
     return /^\d{12,20}$/.test(product.slug) ? `https://www.aliexpress.com/item/${product.slug}.html` : "";
   })();
-  const lotLabel = `${product.lotCbm} m3`;
+  const parsedLotCbm = Number(product.lotCbm.replace(",", "."));
+  const lotLabel = Number.isFinite(parsedLotCbm) && parsedLotCbm > 0 ? `${product.lotCbm} m3` : "Selon catalogue";
   const characteristicRows = [
     [
       { label: "Type", value: product.specs[0]?.value ?? inferredType },
