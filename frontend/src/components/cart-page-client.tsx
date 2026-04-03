@@ -56,12 +56,22 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
 
   const shipping = useMemo(() => quote.shippingOptions.find((option) => option.key === selectedShipping) ?? quote.shippingOptions[0], [quote.shippingOptions, selectedShipping]);
   const totalFcfa = quote.cartProductsTotalFcfa + (shipping?.priceFcfa ?? 0);
-  const freeAirThresholdLabel = formatSourcingAmount(15000, { currencyCode, locale });
+  const freeAirThresholdLabel = formatSourcingAmount(20000, { currencyCode, locale });
   const itemsMissingWeight = quote.items.filter((item) => item.weightKg <= 0);
   const itemsMissingVolume = quote.items.filter((item) => item.volumeCbm <= 0);
   const hasMissingLogisticsMetrics = itemsMissingWeight.length > 0 || itemsMissingVolume.length > 0;
   const totalWeightLabel = quote.totalWeightKg > 0 ? `${quote.totalWeightKg.toFixed(2)} kg` : "Selon catalogue";
   const totalVolumeLabel = quote.totalCbm > 0 ? `${quote.totalCbm.toFixed(4)} CBM` : "Selon catalogue";
+  const localizedRemainingFreeShippingLabel = formatSourcingAmount(quote.freeAirRemainingFcfa, { currencyCode, locale });
+  const shippingThresholdMessage = deliveryPlan.workflow.freeDeliveryEligible
+    ? quote.recommendedMethod === "sea"
+      ? "Le moyen de livraison peut etre changé si le poids est trop conséquent. Pour profiter de la livraison gratuite, les commandes ne doivent pas dépasser 2.5 kg."
+      : shipping?.key === "air" && shipping.isFree
+        ? "Livraison gratuite active pour ce devis. Pour en profiter, les commandes ne doivent pas dépasser 2.5 kg."
+        : quote.freeAirRemainingFcfa > 0
+          ? `Ajoutez encore ${localizedRemainingFreeShippingLabel} à votre devis pour profiter de la livraison gratuite, sous 2.5 kg.`
+          : quote.freeShippingMessage
+    : quote.freeShippingMessage;
 
   const triggerShareFeedback = (message: string) => {
     setSharePulse(true);
@@ -171,7 +181,7 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
           <div>
             <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Sourcing AfriPay</div>
             <h1 className="mt-2 text-[30px] font-black tracking-[-0.05em] text-[#1f2937]">Panier, transport et prix finaux</h1>
-            <p className="mt-3 max-w-[760px] text-[14px] leading-6 text-[#667085]">Livraison avion offerte dès {freeAirThresholdLabel}, calcul du poids et du volume en direct, plus regroupement maritime vers un conteneur dès que le volume cumulé atteint 1 CBM.</p>
+            <p className="mt-3 max-w-[760px] text-[14px] leading-6 text-[#667085]">Livraison gratuite à partir de {freeAirThresholdLabel}. Le moyen de livraison peut etre changé si le poids est trop conséquent. Pour profiter de la livraison gratuite, les commandes ne doivent pas dépasser 2.5 kg.</p>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-[18px] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
@@ -308,7 +318,7 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
         <aside className="space-y-4">
           <section className="rounded-[28px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)]">
             <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Options de livraison</div>
-            {quote.recommendedMethod === "sea" ? <div className="mt-3 rounded-[18px] bg-[#eef6ff] px-4 py-3 text-[13px] font-medium text-[#1d4f91]">Au-dessus de 1 kg, le bateau est recommandé. Vous pouvez quand même choisir l&apos;avion, mais il reste payant.</div> : null}
+            {quote.recommendedMethod === "sea" ? <div className="mt-3 rounded-[18px] bg-[#eef6ff] px-4 py-3 text-[13px] font-medium text-[#1d4f91]">Le moyen de livraison peut etre changé si le poids est trop conséquent. Pour profiter de la livraison gratuite, les commandes ne doivent pas dépasser 2.5 kg.</div> : null}
             <div className="mt-4 space-y-3">
               {quote.shippingOptions.map((option) => {
                 const isActive = selectedShipping === option.key;
@@ -334,7 +344,7 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
                 );
               })}
             </div>
-            <div className="mt-4 rounded-[18px] bg-[#f8fafc] px-4 py-3 text-[13px] font-medium text-[#475467]">Seuil gratuité appliqué selon votre mode de livraison. {quote.freeShippingMessage}</div>
+            <div className="mt-4 rounded-[18px] bg-[#f8fafc] px-4 py-3 text-[13px] font-medium text-[#475467]">{shippingThresholdMessage}</div>
           </section>
 
           <section className="rounded-[28px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)]">

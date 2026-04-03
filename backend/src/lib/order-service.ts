@@ -14,6 +14,35 @@ const countryLabels: Record<string, string> = {
   TG: "Togo",
 };
 
+function normalizeEmail(value?: string) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function resolveThirdPartyCartNotice(order: SourcingOrder, user: AuthenticatedUser) {
+  const meta = getSourcingOrderMeta(order);
+  if (!meta.paymentContext?.createdFromSharedCart) {
+    return undefined;
+  }
+
+  const userEmail = normalizeEmail(user.email);
+  const ownerUserId = meta.sharedCart?.ownerUserId?.trim();
+  const ownerEmail = normalizeEmail(meta.sharedCart?.ownerEmail);
+  const payerUserId = meta.paymentContext?.payerUserId?.trim();
+  const payerEmail = normalizeEmail(meta.paymentContext?.payerEmail);
+  const viewerIsOwner = ownerUserId === user.id || ownerEmail === userEmail;
+  const viewerIsPayer = payerUserId === user.id || payerEmail === userEmail || order.userId === user.id || normalizeEmail(order.customerEmail) === userEmail;
+
+  if (viewerIsOwner && !viewerIsPayer) {
+    return "Commande payée par un ami";
+  }
+
+  if (viewerIsPayer) {
+    return "Commande Tiers";
+  }
+
+  return "Commande Tiers";
+}
+
 function resolveStatus(order: SourcingOrder): OrderStatus {
   if (order.paymentStatus === "paid") {
     if (order.status === "delivered_to_agent" || order.status === "completed") {
@@ -182,9 +211,7 @@ async function mapOrderRecord(order: SourcingOrder, user: AuthenticatedUser): Pr
     total: formatFcfa(order.totalPriceFcfa),
     promoCode: meta.promo?.code,
     promoDiscountLabel: meta.promo ? formatFcfa(meta.promo.discountFcfa) : undefined,
-    thirdPartyCartNotice: meta.paymentContext?.createdFromSharedCart && meta.paymentContext.thirdPartyCreatorName
-      ? `Commande issue d'un panier tiers cree par ${meta.paymentContext.thirdPartyCreatorName}`
-      : undefined,
+    thirdPartyCartNotice: resolveThirdPartyCartNotice(order, user),
     seller: "AfriPay sourcing",
     title: firstItem?.title ?? `Commande ${order.orderNumber}`,
     variant: buildVariant(order),

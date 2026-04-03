@@ -107,7 +107,7 @@ function ProductDetailLoadingSkeleton() {
             </div>
           </section>
 
-          <section className="mt-6 rounded-[30px] bg-white px-4 py-5 shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 sm:px-6 sm:py-6">
+          <section className="mt-6 px-1 py-2 sm:px-0 sm:py-1">
             <div className="h-4 w-28 animate-pulse rounded-[8px] bg-[#f1ece5]" />
             <div className="mt-3 h-9 w-56 animate-pulse rounded-[10px] bg-[#f1ece5]" />
             <div className="mt-5 grid gap-3">

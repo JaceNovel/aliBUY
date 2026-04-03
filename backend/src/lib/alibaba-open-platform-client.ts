@@ -4079,6 +4079,20 @@ function extractAliExpressAffiliateSkuSelections(sku: Record<string, unknown>) {
     }
   }
 
+  const propertyDtos = Array.isArray(sku.ae_sku_property_dtos) ? sku.ae_sku_property_dtos as Array<Record<string, unknown>> : [];
+  for (const property of propertyDtos) {
+    const label = getStringValue(property.sku_property_name) ?? getStringValue(property.property_name) ?? getStringValue(property.attr_name);
+    const value = getStringValue(property.property_value_definition_name) ?? getStringValue(property.sku_property_value) ?? getStringValue(property.property_value_name) ?? getStringValue(property.attr_value);
+    if (!label || !value) {
+      continue;
+    }
+
+    const normalizedLabel = normalizeAliExpressAffiliatePropertyLabel(label);
+    if (!selections.has(normalizedLabel)) {
+      selections.set(normalizedLabel, value);
+    }
+  }
+
   const explicitPairs = [
     ["Color", getStringValue(sku.color)],
     ["Size", getStringValue(sku.size)],
@@ -4277,7 +4291,8 @@ function extractAliExpressSolutionProductPackageMetrics(responseBody: unknown) {
     packageInfo?.package_weight,
     packageInfo?.weight,
   );
-  const weightUnit = (getStringValue(result.weight_unit, packageInfo?.weight_unit) ?? "1").trim().toLowerCase();
+  const rawWeightUnit = getStringValue(result.weight_unit) ?? getStringValue(packageInfo ? packageInfo.weight_unit : undefined) ?? "1";
+  const weightUnit = rawWeightUnit.trim().toLowerCase();
   let weightGrams: number | undefined;
 
   if (typeof rawWeight === "number" && rawWeight > 0) {
@@ -4293,15 +4308,18 @@ function extractAliExpressSolutionProductPackageMetrics(responseBody: unknown) {
   const packageLength = getNumberValue(result.package_length, packageInfo?.package_length);
   const packageWidth = getNumberValue(result.package_width, packageInfo?.package_width);
   const packageHeight = getNumberValue(result.package_height, packageInfo?.package_height);
-  const hasPackageDimensions = [packageLength, packageWidth, packageHeight].every((value) => typeof value === "number" && value > 0);
+  const resolvedPackageLength = typeof packageLength === "number" && packageLength > 0 ? packageLength : undefined;
+  const resolvedPackageWidth = typeof packageWidth === "number" && packageWidth > 0 ? packageWidth : undefined;
+  const resolvedPackageHeight = typeof packageHeight === "number" && packageHeight > 0 ? packageHeight : undefined;
+  const hasPackageDimensions = typeof resolvedPackageLength === "number" && typeof resolvedPackageWidth === "number" && typeof resolvedPackageHeight === "number";
 
   const formatDimension = (value: number) => (Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2))));
-  const lotCbm = hasPackageDimensions
-    ? ((packageLength * packageWidth * packageHeight) / 1_000_000).toFixed(4)
-    : undefined;
-  const packaging = hasPackageDimensions
-    ? `${formatDimension(packageLength)} x ${formatDimension(packageWidth)} x ${formatDimension(packageHeight)} cm`
-    : undefined;
+  let lotCbm: string | undefined;
+  let packaging: string | undefined;
+  if (hasPackageDimensions) {
+    lotCbm = ((resolvedPackageLength * resolvedPackageWidth * resolvedPackageHeight) / 1_000_000).toFixed(4);
+    packaging = `${formatDimension(resolvedPackageLength)} x ${formatDimension(resolvedPackageWidth)} x ${formatDimension(resolvedPackageHeight)} cm`;
+  }
 
   return {
     weightGrams,

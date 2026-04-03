@@ -232,10 +232,10 @@ export async function createAlibabaSourcingQuote(
     recommendedMethod: showBothOptions ? "sea" : "air",
     freeAirRemainingFcfa,
     freeShippingMessage: shouldPreferSea
-      ? `Au-dessus de ${settings.airWeightThresholdKg} kg, le bateau est recommande. L'avion reste disponible avec frais.`
+      ? `Le moyen de livraison peut etre change si le poids est trop consequent. Pour profiter de la livraison gratuite, les commandes ne doivent pas depasser ${settings.airWeightThresholdKg} kg.`
       : airIsFree
-        ? "Livraison avion offerte debloquee pour ce panier"
-        : "Livraison avion calculee selon le poids du colis.",
+        ? `Livraison gratuite debloquee des ${formatFcfa(settings.freeAirThresholdFcfa)} pour une commande ne depassant pas ${settings.airWeightThresholdKg} kg.`
+        : `Livraison gratuite disponible a partir de ${formatFcfa(settings.freeAirThresholdFcfa)} si la commande ne depasse pas ${settings.airWeightThresholdKg} kg.`,
     containerProjection: {
       targetCbm: settings.containerTargetCbm,
       projectedCbm: totalCbm,

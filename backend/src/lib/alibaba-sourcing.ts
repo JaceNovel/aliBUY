@@ -1028,7 +1028,7 @@ export function getProductSourcingMetrics(product: ProductCatalogItem, input?: {
   };
 }
 export function createEmptyQuote(settings?: Pick<SourcingSettings, "freeAirThresholdFcfa" | "containerTargetCbm">): AlibabaSourcingQuote {
-  const threshold = settings?.freeAirThresholdFcfa ?? 15000;
+  const threshold = settings?.freeAirThresholdFcfa ?? 20000;
 
   const containerTarget = settings?.containerTargetCbm ?? 1;
 
@@ -1040,7 +1040,7 @@ export function createEmptyQuote(settings?: Pick<SourcingSettings, "freeAirThres
     shippingOptions: [],
     recommendedMethod: "air",
     freeAirRemainingFcfa: threshold,
-    freeShippingMessage: `Ajoutez ${formatFcfa(threshold)} de plus pour obtenir la livraison avion offerte`,
+    freeShippingMessage: "Ajoutez des produits au devis pour activer le calcul de la livraison gratuite.",
     containerProjection: {
       targetCbm: containerTarget,
       projectedCbm: 0,

@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { LifeBuoy, ReceiptText, ShieldAlert, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type SupportMenuProps = {
   triggerLabel?: string;
@@ -15,14 +15,14 @@ const supportCards = [
   {
     title: "Assistance commande",
     icon: ReceiptText,
-    href: "/orders",
+    topic: "order",
   },
   {
-    title: "Assistance Rembousement",
+    title: "Assistance Remboursement",
     icon: LifeBuoy,
-    href: "/account",
+    topic: "refund",
   },
-];
+] as const;
 
 const supportLinks = [
   "Ouvrir un litige",
@@ -36,7 +36,9 @@ export function SupportMenu({
   panelClassName = "top-[calc(100%+12px)]",
   align = "right",
 }: SupportMenuProps) {
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+  const [isLaunchingTopic, setIsLaunchingTopic] = useState<string | null>(null);
   const closeTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -73,6 +75,37 @@ export function SupportMenu({
     setIsOpen((current) => !current);
   };
 
+  const launchSupportTopic = async (topic: "order" | "refund") => {
+    setIsLaunchingTopic(topic);
+
+    try {
+      const response = await fetch("/api/support/quick-start", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ topic }),
+      });
+
+      if (response.status === 401) {
+        router.push(`/login?next=${encodeURIComponent("/messages")}`);
+        return;
+      }
+
+      const payload = await response.json().catch(() => null) as { conversationId?: string; message?: string } | null;
+      if (!response.ok || !payload?.conversationId) {
+        throw new Error(payload?.message || "Impossible d'ouvrir le centre d'assistance.");
+      }
+
+      setIsOpen(false);
+      router.push(`/messages?tab=service&conversationId=${encodeURIComponent(payload.conversationId)}`);
+    } catch (error) {
+      router.push(`/messages?tab=service&error=${encodeURIComponent(error instanceof Error ? error.message : "support_unavailable")}`);
+    } finally {
+      setIsLaunchingTopic(null);
+    }
+  };
+
   const alignmentClassName =
     align === "left"
       ? "left-0"
@@ -100,14 +133,16 @@ export function SupportMenu({
               const Icon = card.icon;
 
               return (
-                <Link
+                <button
                   key={card.title}
-                  href={card.href}
+                  type="button"
+                  onClick={() => void launchSupportTopic(card.topic)}
+                  disabled={isLaunchingTopic !== null}
                   className="flex min-h-[162px] flex-col items-center justify-center rounded-[14px] border border-[#e6e6e6] px-6 text-center transition hover:border-[#ff6a00]/40 hover:bg-[#fffaf6]"
                 >
                   <Icon className="h-10 w-10 text-[#222]" />
-                  <div className="mt-5 text-[18px] text-[#222]">{card.title}</div>
-                </Link>
+                  <div className="mt-5 text-[18px] text-[#222]">{isLaunchingTopic === card.topic ? "Ouverture..." : card.title}</div>
+                </button>
               );
             })}
           </div>

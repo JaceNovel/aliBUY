@@ -7,6 +7,39 @@ import { getSourcingOrderById } from "@/lib/sourcing-store";
 import { getCurrentUser } from "@/lib/user-auth";
 import { redirect } from "next/navigation";
 
+function normalizeEmail(value?: string) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function resolveThirdPartyCartNotice(userId: string, userEmail: string, sourcingOrder: Awaited<ReturnType<typeof getSourcingOrderById>>) {
+  if (!sourcingOrder) {
+    return undefined;
+  }
+
+  const meta = getSourcingOrderMeta(sourcingOrder);
+  if (!meta.paymentContext?.createdFromSharedCart) {
+    return undefined;
+  }
+
+  const normalizedUserEmail = normalizeEmail(userEmail);
+  const ownerUserId = meta.sharedCart?.ownerUserId?.trim();
+  const ownerEmail = normalizeEmail(meta.sharedCart?.ownerEmail);
+  const payerUserId = meta.paymentContext?.payerUserId?.trim();
+  const payerEmail = normalizeEmail(meta.paymentContext?.payerEmail);
+  const viewerIsOwner = ownerUserId === userId || ownerEmail === normalizedUserEmail;
+  const viewerIsPayer = payerUserId === userId || payerEmail === normalizedUserEmail || sourcingOrder.userId === userId || normalizeEmail(sourcingOrder.customerEmail) === normalizedUserEmail;
+
+  if (viewerIsOwner && !viewerIsPayer) {
+    return "Commande payée par un ami";
+  }
+
+  if (viewerIsPayer) {
+    return "Commande Tiers";
+  }
+
+  return undefined;
+}
+
 export default async function OrderPaymentPage({
   searchParams,
 }: {
@@ -24,9 +57,20 @@ export default async function OrderPaymentPage({
     ? await getSourcingOrderById(resolvedSearchParams.orderId)
     : null;
 
-  if (sourcingOrder && (sourcingOrder.userId === user.id || sourcingOrder.customerEmail.toLowerCase() === user.email.toLowerCase())) {
+  const meta = sourcingOrder ? getSourcingOrderMeta(sourcingOrder) : null;
+  const viewerMatchesSharedCart = Boolean(
+    sourcingOrder
+    && meta
+    && (
+      meta.sharedCart?.ownerUserId === user.id
+      || normalizeEmail(meta.sharedCart?.ownerEmail) === normalizeEmail(user.email)
+      || meta.paymentContext?.payerUserId === user.id
+      || normalizeEmail(meta.paymentContext?.payerEmail) === normalizeEmail(user.email)
+    )
+  );
+
+  if (sourcingOrder && (sourcingOrder.userId === user.id || sourcingOrder.customerEmail.toLowerCase() === user.email.toLowerCase() || viewerMatchesSharedCart)) {
     const firstItem = sourcingOrder.items[0];
-    const meta = getSourcingOrderMeta(sourcingOrder);
 
     return (
       <InternalPageShell pricing={pricing}>
@@ -50,9 +94,7 @@ export default async function OrderPaymentPage({
             promoDiscountLabel: meta.promo ? formatFcfa(meta.promo.discountFcfa) : undefined,
             originalTotal: meta.promo ? formatFcfa(meta.promo.baseTotalFcfa) : undefined,
             thirdPartyCartCreatorName: meta.paymentContext?.thirdPartyCreatorName,
-            thirdPartyCartNotice: meta.paymentContext?.createdFromSharedCart && meta.paymentContext.thirdPartyCreatorName
-              ? `Commande issue d'un panier tiers créé par ${meta.paymentContext.thirdPartyCreatorName}`
-              : undefined,
+            thirdPartyCartNotice: resolveThirdPartyCartNotice(user.id, user.email, sourcingOrder),
             returnPaymentId: resolvedSearchParams.paymentId,
             returnPaymentStatus: resolvedSearchParams.paymentStatus || resolvedSearchParams.status,
           }}

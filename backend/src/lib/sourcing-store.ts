@@ -15,6 +15,7 @@ import type {
   SourcingSeaContainer,
   SourcingSettings,
 } from "@/lib/alibaba-sourcing";
+import { getSourcingOrderMeta } from "@/lib/alibaba-sourcing";
 
 function resolveSourcingDir() {
   const isServerlessRuntime = Boolean(
@@ -415,9 +416,9 @@ export async function getSourcingSettings() {
       seaRealCostPerCbmFcfa: 180000,
       seaSellRatePerCbmFcfa: 210000,
       seaEstimatedDays: "20-40 jours",
-      freeAirThresholdFcfa: 15000,
+      freeAirThresholdFcfa: 20000,
       freeAirEnabled: true,
-      airWeightThresholdKg: 1,
+      airWeightThresholdKg: 2.5,
       containerTargetCbm: 1,
       defaultMarginMode: "percent",
       defaultMarginValue: 10,
@@ -721,7 +722,22 @@ export async function getUserSourcingOrders(input: { userId: string; email: stri
   const orders = await getSourcingOrders();
   const normalizedEmail = input.email.trim().toLowerCase();
 
-  return orders.filter((order) => order.userId === input.userId || order.customerEmail.trim().toLowerCase() === normalizedEmail);
+  return orders.filter((order) => {
+    if (order.userId === input.userId || order.customerEmail.trim().toLowerCase() === normalizedEmail) {
+      return true;
+    }
+
+    const meta = getSourcingOrderMeta(order);
+    const ownerUserId = meta.sharedCart?.ownerUserId?.trim();
+    const ownerEmail = meta.sharedCart?.ownerEmail?.trim().toLowerCase();
+    const payerUserId = meta.paymentContext?.payerUserId?.trim();
+    const payerEmail = meta.paymentContext?.payerEmail?.trim().toLowerCase();
+
+    return ownerUserId === input.userId
+      || ownerEmail === normalizedEmail
+      || payerUserId === input.userId
+      || payerEmail === normalizedEmail;
+  });
 }
 
 export async function getSourcingSeaContainers() {

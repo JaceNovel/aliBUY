@@ -158,6 +158,18 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
 
   const selectedOption = useMemo(() => shippingOptions.find((option) => option.key === selectedShipping) ?? shippingOptions[0] ?? null, [selectedShipping, shippingOptions]);
   const baseTotalPrice = quote.cartProductsTotalFcfa + (selectedOption?.priceFcfa ?? 0);
+  const localizedRemainingFreeShippingLabel = formatSourcingAmount(quote.freeAirRemainingFcfa, { currencyCode, locale });
+  const shippingThresholdMessage = isDirectAliExpressFlow
+    ? "Livraison directe vers votre adresse. Aucun lot air ou mer ne sera cree pour cette commande."
+    : deliveryPlan.workflow.freeDeliveryEligible
+      ? quote.recommendedMethod === "sea"
+        ? "Le moyen de livraison peut etre changé si le poids est trop conséquent. Pour profiter de la livraison gratuite, les commandes ne doivent pas dépasser 2.5 kg."
+        : selectedOption?.key === "air" && selectedOption.isFree
+          ? "Livraison gratuite active pour ce devis. Pour en profiter, les commandes ne doivent pas dépasser 2.5 kg."
+          : quote.freeAirRemainingFcfa > 0
+            ? `Ajoutez encore ${localizedRemainingFreeShippingLabel} à votre devis pour profiter de la livraison gratuite, sous 2.5 kg.`
+            : quote.freeShippingMessage
+      : "La livraison directe n'est pas encore disponible pour cette destination.";
   const totalPrice = appliedPromo?.baseTotalFcfa === baseTotalPrice ? appliedPromo.finalTotalFcfa : baseTotalPrice;
   const quickAddress = useMemo(() => buildAddressQuickInput(form), [form]);
 
@@ -597,17 +609,13 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
           <div className="mt-2 text-[24px] font-black tracking-[-0.05em] text-[#1f2937]">{formatSourcingAmount(quote.cartProductsTotalFcfa, { currencyCode, locale })}</div>
           <div className="mt-2 text-[13px] text-[#667085]">Produits finalisés avec marge, hors transport.</div>
           <div className="mt-4 rounded-[18px] bg-[#f8fafc] px-4 py-3 text-[13px] font-medium text-[#475467]">
-            {isDirectAliExpressFlow
-              ? "Livraison directe vers votre adresse. Aucun lot air ou mer ne sera cree pour cette commande."
-              : deliveryPlan.workflow.freeDeliveryEligible
-              ? quote.freeShippingMessage
-              : "La livraison directe n'est pas encore disponible pour cette destination."}
+            {shippingThresholdMessage}
           </div>
         </section>
 
         <section className="rounded-[28px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)]">
           <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Choix de livraison</div>
-          {deliveryMode === "direct" && usesInternalReceptionAddress && quote.recommendedMethod === "sea" ? <div className="mt-3 rounded-[18px] bg-[#eef6ff] px-4 py-3 text-[13px] font-medium text-[#1d4f91]">Au-dessus de 1 kg, le bateau est recommandé et l&apos;avion reste disponible si vous voulez payer l&apos;express.</div> : null}
+          {deliveryMode === "direct" && usesInternalReceptionAddress && quote.recommendedMethod === "sea" ? <div className="mt-3 rounded-[18px] bg-[#eef6ff] px-4 py-3 text-[13px] font-medium text-[#1d4f91]">Le moyen de livraison peut etre changé si le poids est trop conséquent. Pour profiter de la livraison gratuite, les commandes ne doivent pas dépasser 2.5 kg.</div> : null}
           <div className="mt-4 space-y-3">
             {isDirectAliExpressFlow && selectedOption ? (
               <div className="flex items-start gap-3 rounded-[20px] border border-[#d8eadf] bg-[#f8fdf9] px-4 py-4">

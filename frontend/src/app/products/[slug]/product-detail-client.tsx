@@ -144,6 +144,11 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const hasVariantChoices = product.variantGroups.length > 0;
   const requiredVariantLabels = product.variantGroups.map((group) => group.label);
   const variantSelectionInstruction = requiredVariantLabels.join(", ");
+  const freeShippingThresholdLabel = new Intl.NumberFormat(product.locale, {
+    style: "currency",
+    currency: "XOF",
+    maximumFractionDigits: 0,
+  }).format(20000);
   const [mixQuantities, setMixQuantities] = useState<Record<string, number>>(() => {
     return Object.fromEntries((mixGroup?.values ?? []).map((value, index) => [value, index === 0 ? 0 : 0]));
   });
@@ -432,6 +437,15 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   };
   const updateOrderQuantity = (delta: number) => {
     setOrderQuantity((current) => Math.max(product.moq, current + delta));
+  };
+  const handleVariantPreviewSelection = (group: DetailVariantGroup, value: string) => {
+    if (mixGroup && group.label === mixGroup.label) {
+      setMixQuantities(Object.fromEntries(mixGroup.values.map((entry) => [entry, entry === value ? Math.max(orderQuantity, product.moq, 1) : 0])));
+      setIsOrderModalOpen(true);
+      return;
+    }
+
+    setSelectedVariants((current) => ({ ...current, [group.label]: value }));
   };
   const toggleFavorite = async () => {
     if (favoriteBusy) {
@@ -1187,6 +1201,21 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               </div>
               <div className="mt-2 text-[14px] text-[#6e5b4b]">{dynamicPriceHint}</div>
 
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[18px] border border-[#ffd7b7] bg-white px-4 py-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#b66724]">Poids importé</div>
+                  <div className="mt-1 text-[18px] font-bold tracking-[-0.04em] text-[#222]">{weightLabel}</div>
+                </div>
+                <div className="rounded-[18px] border border-[#ffd7b7] bg-white px-4 py-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#b66724]">Volume CBM</div>
+                  <div className="mt-1 text-[18px] font-bold tracking-[-0.04em] text-[#222]">{lotLabel}</div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-[18px] border border-[#ffd7b7] bg-white px-4 py-3 text-[13px] leading-6 text-[#6e5b4b]">
+                Livraison gratuite à partir de <span className="font-semibold text-[#222]">{freeShippingThresholdLabel}</span>. Le moyen de livraison peut etre changé si le poids est trop conséquent. Pour profiter de la livraison gratuite, les commandes ne doivent pas dépasser <span className="font-semibold text-[#222]">2.5 kg</span>.
+              </div>
+
               <div className="mt-5 overflow-hidden rounded-[18px] border border-[#ffd7b7] bg-white">
                 {sortedTiers.map((tier, index) => (
                   <div key={tier.quantityLabel} className={["grid grid-cols-1 gap-1 px-4 py-3 text-[14px] sm:grid-cols-[1.1fr_0.8fr_1fr] sm:gap-3", index > 0 ? "border-t border-[#f4e2d5]" : ""].join(" ")}>
@@ -1202,6 +1231,40 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               {hasVariantChoices ? (
                 <div className="rounded-[18px] border border-[#ffd7b7] bg-[#fff7f0] px-4 py-4 text-[14px] leading-6 text-[#7c4a22]">
                   Les attributs fournisseur sont importés avec le produit. Avant la commande, le client doit choisir les options requises: <span className="font-semibold">{variantSelectionInstruction}</span>. Exemple: chaussure = pointure, LED = longueur, puis couleur si disponible.
+                </div>
+              ) : null}
+
+              {hasVariantChoices ? (
+                <div className="rounded-[18px] border border-[#ece7df] bg-[#fffdfa] px-4 py-4">
+                  <div className="text-[13px] font-semibold uppercase tracking-[0.12em] text-[#a06f49]">Variantes disponibles</div>
+                  <div className="mt-3 space-y-3">
+                    {product.variantGroups.map((group) => (
+                      <div key={`preview-${group.label}`}>
+                        <div className="text-[14px] font-semibold text-[#222]">{group.label}</div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {group.values.map((value) => {
+                            const isSelected = mixGroup && group.label === mixGroup.label
+                              ? (mixQuantities[value] ?? 0) > 0
+                              : selectedVariants[group.label] === value;
+
+                            return (
+                              <button
+                                key={`${group.label}-${value}`}
+                                type="button"
+                                onClick={() => handleVariantPreviewSelection(group, value)}
+                                className={[
+                                  "rounded-full border px-3 py-1.5 text-[13px] font-medium transition",
+                                  isSelected ? "border-[#ff6a00] bg-[#fff4eb] text-[#d85a00]" : "border-[#dedede] bg-white text-[#333] hover:border-[#ffb48a]",
+                                ].join(" ")}
+                              >
+                                {value}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : null}
 
@@ -1287,8 +1350,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
         </div>
       </section>
 
-      <section>
-        <article className="rounded-[30px] bg-white px-4 py-5 shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 sm:px-6 sm:py-6">
+      <section className="px-1 sm:px-0">
+        <article className="px-0 py-2 sm:py-3">
           <div className="text-[13px] font-semibold uppercase tracking-[0.14em] text-[#777]">Points forts</div>
           <h2 className="mt-2 text-[28px] font-bold tracking-[-0.04em] text-[#222]">Résumé de l&apos;offre</h2>
           <div className="mt-5 grid gap-3">
@@ -1302,7 +1365,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
         </article>
       </section>
 
-      <section className="rounded-[30px] bg-white px-4 py-5 shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 sm:px-6 sm:py-6">
+      <section className="px-1 py-2 sm:px-0 sm:py-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="text-[13px] font-semibold uppercase tracking-[0.14em] text-[#777]">Suggestions</div>
