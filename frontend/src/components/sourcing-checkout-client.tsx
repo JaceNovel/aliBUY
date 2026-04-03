@@ -37,6 +37,11 @@ const defaultForm = {
   notes: "",
 };
 
+const EU_COUNTRY_CODES = [
+  "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT",
+  "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+] as const;
+
 type SourcingCheckoutClientProps = {
   initialUser: {
     displayName: string;
@@ -124,7 +129,9 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hasUserSelectedShipping, setHasUserSelectedShipping] = useState(false);
   const [selectedShipping, setSelectedShipping] = useState<ShippingMethodKey>("air");
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"card" | "mobile" | "bank">("card");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"card" | "mobile" | "bank" | "pay_on_delivery">("card");
+  const [payOnDeliveryIdentityFirstName, setPayOnDeliveryIdentityFirstName] = useState("");
+  const [payOnDeliveryIdentityLastName, setPayOnDeliveryIdentityLastName] = useState("");
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(savedAddresses.length === 0);
   const [addressModalView, setAddressModalView] = useState<"list" | "form">(savedAddresses.length === 0 ? "form" : "list");
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
@@ -184,6 +191,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
   const selectedShippingLabel = selectedOption
     ? `${selectedOption.isFree ? "gratuit" : formatSourcingAmount(selectedOption.priceFcfa, { currencyCode, locale })}`
     : formatSourcingAmount(0, { currencyCode, locale });
+  const isEuropeanUnionDestination = EU_COUNTRY_CODES.includes(canonicalizeCountryCode(form.countryCode, "TG") as (typeof EU_COUNTRY_CODES)[number]);
   const paymentChoices = [
     {
       key: "card" as const,
@@ -206,6 +214,13 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
       logo: "VB",
       logoClassName: "bg-[#fff7ed] text-[#c2410c]",
     },
+    ...(!isEuropeanUnionDestination ? [{
+      key: "pay_on_delivery" as const,
+      title: "Paiement après livraison",
+      subtitle: "Commande sans paiement immédiat, validation avec identité du titulaire",
+      logo: "PD",
+      logoClassName: "bg-[#eef2ff] text-[#4338ca]",
+    }] : []),
   ];
 
   useEffect(() => {
@@ -496,6 +511,18 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
       return;
     }
 
+    if (selectedPaymentMethod === "pay_on_delivery") {
+      if (isEuropeanUnionDestination) {
+        setErrorMessage("Le paiement après livraison n'est pas disponible pour les pays de l'Union européenne.");
+        return;
+      }
+
+      if (!payOnDeliveryIdentityFirstName.trim() || !payOnDeliveryIdentityLastName.trim()) {
+        setErrorMessage("Le nom et le prénom figurant sur la pièce d'identité sont obligatoires pour ce mode de paiement.");
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     setErrorMessage(null);
 
@@ -514,6 +541,9 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
             }
           : {}),
         shippingMethod: selectedOption.key,
+        paymentMethod: selectedPaymentMethod,
+        payOnDeliveryIdentityFirstName: selectedPaymentMethod === "pay_on_delivery" ? payOnDeliveryIdentityFirstName.trim() : undefined,
+        payOnDeliveryIdentityLastName: selectedPaymentMethod === "pay_on_delivery" ? payOnDeliveryIdentityLastName.trim() : undefined,
         items,
         deliveryProfile: deliveryPlan.deliveryProfile,
         promoCode: appliedPromo?.code,
@@ -523,7 +553,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
       setIsSubmitting(false);
       clearCart();
       clearSharedCartContext();
-      router.push(`/orders/payment?orderId=${encodeURIComponent(payload.order.id)}`);
+      router.push(selectedPaymentMethod === "pay_on_delivery" ? "/orders" : `/orders/payment?orderId=${encodeURIComponent(payload.order.id)}`);
     } catch (error) {
       setIsSubmitting(false);
       setErrorMessage(error instanceof Error ? error.message : "Impossible de créer la commande sourcing.");
@@ -665,6 +695,25 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
               </button>
             ))}
           </div>
+
+          {selectedPaymentMethod === "pay_on_delivery" ? (
+            <div className="mt-4 rounded-[18px] border border-[#dbe4ff] bg-[#f7f9ff] p-4">
+              <div className="text-[15px] font-semibold text-[#111827]">Identité du client</div>
+              <div className="mt-1 text-[13px] leading-6 text-[#667085]">
+                Entrez le nom et le prénom qui figurent sur la carte d&apos;identité. La commande sera créée sans paiement immédiat.
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label className="text-[13px] font-semibold text-[#344054]">
+                  Nom
+                  <input value={payOnDeliveryIdentityLastName} onChange={(event) => setPayOnDeliveryIdentityLastName(event.target.value)} placeholder="Nom sur la pièce d'identité" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] bg-white px-4 text-[14px] text-[#111827] outline-none focus:border-[#111827]" />
+                </label>
+                <label className="text-[13px] font-semibold text-[#344054]">
+                  Prénom
+                  <input value={payOnDeliveryIdentityFirstName} onChange={(event) => setPayOnDeliveryIdentityFirstName(event.target.value)} placeholder="Prénom sur la pièce d'identité" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] bg-white px-4 text-[14px] text-[#111827] outline-none focus:border-[#111827]" />
+                </label>
+              </div>
+            </div>
+          ) : null}
         </section>
 
         <section className="bg-white px-5 py-5 shadow-[0_1px_0_rgba(0,0,0,0.06)] sm:px-7">
@@ -801,7 +850,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
           </div>
 
           <button type="button" onClick={submitOrder} disabled={isSubmitting || isLoading || !selectedOption} className="mt-6 inline-flex h-14 w-full items-center justify-center rounded-full bg-[#f00633] px-6 text-[16px] font-bold text-white transition hover:bg-[#d9042d] disabled:cursor-not-allowed disabled:opacity-70">
-            {isSubmitting ? "Création en cours..." : "Commander"}
+            {isSubmitting ? "Création en cours..." : selectedPaymentMethod === "pay_on_delivery" ? "Commander sans payer" : "Commander"}
           </button>
 
           <p className="mt-5 text-[13px] leading-7 text-[#98a2b3]">

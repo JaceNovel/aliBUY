@@ -41,7 +41,6 @@ import {
   extractAlibabaOperationCode,
   extractAlibabaOperationMessage,
   extractAlibabaTradeId,
-  fetchAliExpressAffiliateProductSnapshot,
   fetchAlibabaProductSnapshot,
   normalizeAliExpressDsAddressOptions,
   normalizeAlibabaFreightOptions,
@@ -167,34 +166,6 @@ function getBooleanRecordValue(value: unknown, ...keys: string[]) {
   }
 
   return undefined;
-}
-
-function isAffiliateImportedPayload(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
-
-  const record = value as Record<string, unknown>;
-  return record.affiliate === true || record.provider === "aliexpress-affiliate";
-}
-
-function isLikelyAffiliateImportedProduct(product: AlibabaImportedProduct) {
-  if (isAffiliateImportedPayload(product.rawPayload)) {
-    return true;
-  }
-
-  const haystack = [
-    product.badge,
-    product.packaging,
-    product.customizationLabel,
-    product.responseTime,
-    product.supplierName,
-  ]
-    .filter((value): value is string => typeof value === "string" && value.length > 0)
-    .join(" ")
-    .toLowerCase();
-
-  return /affiliate|affiliation/.test(haystack) || product.packaging === "Non fourni par affiliation";
 }
 
 function getRecordValue(value: unknown, key: string) {
@@ -812,6 +783,7 @@ function toImportedProduct(product: ProductCatalogItem, query: string, published
     videoUrl: product.videoUrl,
     videoPoster: product.videoPoster,
     packaging: product.packaging,
+    packageDimensionsCm: product.packageDimensionsCm,
     itemWeightGrams: product.itemWeightGrams,
     lotCbm: product.lotCbm,
     minUsd: product.minUsd,
@@ -945,31 +917,24 @@ export async function runAlibabaCatalogImport(input: {
       throw new Error("Aucun produit live AliExpress n'a ete renvoye pour cette recherche.");
     }
 
-    const isAffiliateImport = searchResult.endpoint === "aliexpress.affiliate.product.query";
     const uniqueSearchProducts = searchResult.products.filter((product, index, products) => products.findIndex((entry) => entry.sourceProductId === product.sourceProductId) === index);
     const relevanceRankBySourceProductId = new Map(uniqueSearchProducts.map((product, index) => [product.sourceProductId, index]));
-    const productsWithRequiredData = isAffiliateImport
-      ? uniqueSearchProducts.filter((product) => product.priceVerified && product.minUsd > 0 && typeof product.image === "string" && product.image.length > 0)
-      : uniqueSearchProducts.filter((product) => product.priceVerified && product.moqVerified && product.weightVerified && product.itemWeightGrams > 0);
-    const fallbackEligibleProducts = isAffiliateImport
-      ? []
-      : uniqueSearchProducts.filter((product) => {
-          if (productsWithRequiredData.some((entry) => entry.sourceProductId === product.sourceProductId)) {
-            return false;
-          }
-
-          return product.priceVerified && product.minUsd > 0 && typeof product.image === "string" && product.image.length > 0;
-        });
-    const importCandidates = productsWithRequiredData.length > 0 ? productsWithRequiredData : fallbackEligibleProducts;
+    const productsWithRequiredData = uniqueSearchProducts.filter((product) => product.priceVerified
+      && product.moqVerified
+      && product.weightVerified
+      && product.itemWeightGrams > 0
+      && typeof product.image === "string"
+      && product.image.length > 0
+      && !!product.packageDimensionsCm
+      && product.packageDimensionsCm.lengthCm > 0
+      && product.packageDimensionsCm.widthCm > 0
+      && product.packageDimensionsCm.heightCm > 0);
+    const importCandidates = productsWithRequiredData;
     const prioritizedImportCandidates = [...importCandidates].sort((left, right) => {
       const leftRank = relevanceRankBySourceProductId.get(left.sourceProductId) ?? Number.MAX_SAFE_INTEGER;
       const rightRank = relevanceRankBySourceProductId.get(right.sourceProductId) ?? Number.MAX_SAFE_INTEGER;
       if (leftRank !== rightRank) {
         return leftRank - rightRank;
-      }
-
-      if (isAffiliateImport) {
-        return left.title.localeCompare(right.title);
       }
 
       if (left.minUsd !== right.minUsd) {
@@ -994,27 +959,25 @@ export async function runAlibabaCatalogImport(input: {
         counts.price += 1;
       }
 
-      if (!isAffiliateImport && !product.moqVerified) {
+      if (!product.moqVerified) {
         counts.moq += 1;
       }
 
-      if (!isAffiliateImport && (!product.weightVerified || product.itemWeightGrams <= 0)) {
+      if (!product.weightVerified || product.itemWeightGrams <= 0) {
         counts.weight += 1;
       }
 
-      return counts;
-    }, { price: 0, moq: 0, weight: 0, fallback: 0 });
+      if (!product.packageDimensionsCm || product.packageDimensionsCm.lengthCm <= 0 || product.packageDimensionsCm.widthCm <= 0 || product.packageDimensionsCm.heightCm <= 0) {
+        counts.dimensions += 1;
+      }
 
-    fallbackEligibleProducts.forEach(() => {
-      rejectedReasonCounts.fallback += 1;
-    });
+      return counts;
+    }, { price: 0, moq: 0, weight: 0, dimensions: 0 });
 
     const importedProducts = await Promise.all(freshProducts.map(async (product) => {
-      const liveCategoryInfo = isAffiliateImport
-        ? null
-        : await resolveAlibabaIcbuCategoryInfo({
-            rawPayload: product.rawPayload,
-          });
+      const liveCategoryInfo = await resolveAlibabaIcbuCategoryInfo({
+        rawPayload: product.rawPayload,
+      });
       const enrichedRawPayload = product.rawPayload && typeof product.rawPayload === "object" && !Array.isArray(product.rawPayload)
         ? {
             ...(product.rawPayload as Record<string, unknown>),
@@ -1049,9 +1012,7 @@ export async function runAlibabaCatalogImport(input: {
     }
 
     const warningMessage = importedProducts.length < job.limit
-      ? isAffiliateImport
-        ? `Import partiel: ${importedProducts.length}/${job.limit} importes.${skippedMissingRequiredDataCount > 0 ? ` Rejets affiliation: ${skippedMissingRequiredDataCount}.` : ""}${rejectedReasonCounts.price > 0 ? ` Prix incoherent: ${rejectedReasonCounts.price}.` : ""}${skippedExistingCount > 0 ? ` Deja importes ignores: ${skippedExistingCount}.` : ""}`
-        : `Import partiel: ${importedProducts.length}/${job.limit} importes.${productsWithRequiredData.length === 0 && fallbackEligibleProducts.length > 0 ? ` Import affiliation partiel utilise: ${Math.min(fallbackEligibleProducts.length, job.limit)} fiche(s).` : ""}${skippedMissingRequiredDataCount > 0 ? ` Rejets donnees fournisseur: ${skippedMissingRequiredDataCount}.` : ""}${rejectedReasonCounts.price > 0 ? ` Prix incoherent: ${rejectedReasonCounts.price}.` : ""}${rejectedReasonCounts.moq > 0 ? ` MOQ non verifie: ${rejectedReasonCounts.moq}.` : ""}${rejectedReasonCounts.weight > 0 ? ` Poids non exploitable: ${rejectedReasonCounts.weight}.` : ""}${skippedExistingCount > 0 ? ` Deja importes ignores: ${skippedExistingCount}.` : ""}`
+      ? `Import partiel: ${importedProducts.length}/${job.limit} importes.${skippedMissingRequiredDataCount > 0 ? ` Rejets donnees fournisseur: ${skippedMissingRequiredDataCount}.` : ""}${rejectedReasonCounts.price > 0 ? ` Prix incoherent: ${rejectedReasonCounts.price}.` : ""}${rejectedReasonCounts.moq > 0 ? ` MOQ non verifie: ${rejectedReasonCounts.moq}.` : ""}${rejectedReasonCounts.weight > 0 ? ` Poids non exploitable: ${rejectedReasonCounts.weight}.` : ""}${rejectedReasonCounts.dimensions > 0 ? ` Dimensions colis manquantes: ${rejectedReasonCounts.dimensions}.` : ""}${skippedExistingCount > 0 ? ` Deja importes ignores: ${skippedExistingCount}.` : ""}`
       : undefined;
 
     const completedJob: AlibabaImportJob = {
@@ -1075,7 +1036,6 @@ export async function runAlibabaCatalogImport(input: {
         skippedExistingCount,
         skippedMissingRequiredDataCount,
         rejectedReasonCounts,
-        fallback: !isAffiliateImport && productsWithRequiredData.length === 0 && fallbackEligibleProducts.length > 0,
         warningMessage,
       },
     });
@@ -1083,7 +1043,7 @@ export async function runAlibabaCatalogImport(input: {
     return {
       job: completedJob,
       products: importedProducts,
-      usedFallback: !isAffiliateImport && productsWithRequiredData.length === 0 && fallbackEligibleProducts.length > 0,
+      usedFallback: false,
       targetImportCount: job.limit,
       exploredCount: uniqueSearchProducts.length,
       purgedCount,
@@ -1200,16 +1160,10 @@ export async function reenrichImportedProduct(importedProductId: string) {
     throw new Error("Produit importe introuvable.");
   }
 
-  const isAffiliateProduct = isLikelyAffiliateImportedProduct(product);
-  const snapshot = await (isAffiliateProduct
-    ? fetchAliExpressAffiliateProductSnapshot({
-      sourceProductId: product.sourceProductId,
-      query: product.query,
-    })
-    : fetchAlibabaProductSnapshot({
-      sourceProductId: product.sourceProductId,
-      query: product.query,
-    })).catch(() => null);
+  const snapshot = await fetchAlibabaProductSnapshot({
+    sourceProductId: product.sourceProductId,
+    query: product.query,
+  }).catch(() => null);
   const effectiveSnapshot = snapshot ?? {
     ...product,
     sourceProductId: product.sourceProductId,
@@ -1217,11 +1171,9 @@ export async function reenrichImportedProduct(importedProductId: string) {
     rawPayload: product.rawPayload,
   };
 
-  const liveCategoryInfo = isAffiliateProduct
-    ? null
-    : await resolveAlibabaIcbuCategoryInfo({
-      rawPayload: effectiveSnapshot.rawPayload,
-    }).catch(() => null);
+  const liveCategoryInfo = await resolveAlibabaIcbuCategoryInfo({
+    rawPayload: effectiveSnapshot.rawPayload,
+  }).catch(() => null);
   const enrichedRawPayload = effectiveSnapshot.rawPayload && typeof effectiveSnapshot.rawPayload === "object" && !Array.isArray(effectiveSnapshot.rawPayload)
     ? {
         ...(effectiveSnapshot.rawPayload as Record<string, unknown>),
@@ -1256,11 +1208,7 @@ export async function reenrichImportedProduct(importedProductId: string) {
           priceUsd: effectiveSnapshot.minUsd,
           note: typeof effectiveSnapshot.maxUsd === "number" ? `Jusqu'à ${effectiveSnapshot.maxUsd.toFixed(2)} USD` : undefined,
         }];
-  const isAffiliateSnapshot = isAffiliateImportedPayload(enrichedRawPayload) || isAffiliateImportedPayload(product.rawPayload);
-  const snapshotWeightVerified = getBooleanRecordValue(effectiveSnapshot, "weightVerified") ?? false;
-  const nextItemWeightGrams = isAffiliateSnapshot
-    ? (snapshotWeightVerified && effectiveSnapshot.itemWeightGrams > 0 ? effectiveSnapshot.itemWeightGrams : 0)
-    : (effectiveSnapshot.itemWeightGrams > 0 ? effectiveSnapshot.itemWeightGrams : product.itemWeightGrams);
+  const nextItemWeightGrams = effectiveSnapshot.itemWeightGrams > 0 ? effectiveSnapshot.itemWeightGrams : product.itemWeightGrams;
   const nextProduct: AlibabaImportedProduct = {
     ...product,
     categorySlug: categoryInfo.slug,
@@ -1275,8 +1223,9 @@ export async function reenrichImportedProduct(importedProductId: string) {
     videoUrl: nextVideoUrl,
     videoPoster: nextVideoPoster,
     packaging: effectiveSnapshot.packaging,
+    packageDimensionsCm: effectiveSnapshot.packageDimensionsCm ?? product.packageDimensionsCm,
     itemWeightGrams: nextItemWeightGrams,
-    lotCbm: effectiveSnapshot.lotCbm,
+    lotCbm: effectiveSnapshot.lotCbm || product.lotCbm,
     minUsd: effectiveSnapshot.minUsd,
     maxUsd: effectiveSnapshot.maxUsd,
     moq: effectiveSnapshot.moq,
@@ -1300,7 +1249,7 @@ export async function reenrichImportedProduct(importedProductId: string) {
     tiers: nextTiers,
     specs: nextSpecs,
     moqVerified: getBooleanRecordValue(effectiveSnapshot, "moqVerified") ?? product.moqVerified,
-    weightVerified: isAffiliateSnapshot ? snapshotWeightVerified : (getBooleanRecordValue(effectiveSnapshot, "weightVerified") ?? product.weightVerified),
+    weightVerified: getBooleanRecordValue(effectiveSnapshot, "weightVerified") ?? product.weightVerified,
     priceVerified: getBooleanRecordValue(effectiveSnapshot, "priceVerified") ?? product.priceVerified,
     inventory: Math.max(effectiveSnapshot.moq * 5, 50),
     updatedAt: timestamp,

@@ -1,6 +1,5 @@
 import { canonicalizeCountryCode } from "@/lib/country-utils";
 import { type ProductCatalogItem } from "@/lib/products-data";
-import { inferTypicalPackageDimensionsCm, resolveCoherentItemWeightGrams } from "@/lib/product-weight";
 import { resolveProductUnitPriceUsd } from "@/lib/product-variant-pricing";
 import { COUNTRY_CONFIG, CURRENCY_CONFIG, type CountryCode, type CurrencyCode } from "@/lib/pricing-options";
 
@@ -189,6 +188,9 @@ export type SourcingPaymentContext = {
   payerUserId?: string;
   payerDisplayName: string;
   payerEmail: string;
+  paymentMethod?: "card" | "mobile" | "bank" | "pay_on_delivery";
+  payOnDeliveryIdentityFirstName?: string;
+  payOnDeliveryIdentityLastName?: string;
   createdFromSharedCart: boolean;
   thirdPartyCreatorName?: string;
   thirdPartyCreatorEmail?: string;
@@ -266,6 +268,9 @@ export type SourcingCheckoutInput = SourcingCheckoutAddress & {
   userId?: string;
   items: CartInputItem[];
   shippingMethod: ShippingMethodKey;
+  paymentMethod?: "card" | "mobile" | "bank" | "pay_on_delivery";
+  payOnDeliveryIdentityFirstName?: string;
+  payOnDeliveryIdentityLastName?: string;
   notes?: string;
   deliveryProfile?: SourcingDeliveryProfile;
   promoCode?: string;
@@ -623,6 +628,9 @@ function normalizePaymentContext(value: unknown): SourcingPaymentContext | undef
     payerUserId: typeof value.payerUserId === "string" ? value.payerUserId : undefined,
     payerDisplayName,
     payerEmail,
+    paymentMethod: value.paymentMethod === "mobile" || value.paymentMethod === "bank" || value.paymentMethod === "pay_on_delivery" ? value.paymentMethod : "card",
+    payOnDeliveryIdentityFirstName: typeof value.payOnDeliveryIdentityFirstName === "string" ? value.payOnDeliveryIdentityFirstName : undefined,
+    payOnDeliveryIdentityLastName: typeof value.payOnDeliveryIdentityLastName === "string" ? value.payOnDeliveryIdentityLastName : undefined,
     createdFromSharedCart: value.createdFromSharedCart === true,
     thirdPartyCreatorName: typeof value.thirdPartyCreatorName === "string" ? value.thirdPartyCreatorName : undefined,
     thirdPartyCreatorEmail: typeof value.thirdPartyCreatorEmail === "string" ? value.thirdPartyCreatorEmail : undefined,
@@ -1054,24 +1062,18 @@ export function resolveSourcingDeliveryPlan(input: {
 }
 
 export function getProductSourcingMetrics(product: ProductCatalogItem, input?: { quantity?: number; selectedVariants?: VariantSelection }) {
-  const weightContext = {
-    title: product.title,
-    shortTitle: product.shortTitle,
-    keywords: product.keywords,
-    lotCbm: product.lotCbm,
-    moq: product.moq,
-    packaging: product.packaging,
-    unit: product.unit,
-    specs: product.specs.map((entry) => `${entry.label} ${entry.value}`),
-  };
-  const resolvedWeightGrams = resolveCoherentItemWeightGrams(product.itemWeightGrams, {
-    ...weightContext,
-  }) ?? 0;
+  const actualWeightGrams = typeof product.itemWeightGrams === "number" && product.itemWeightGrams > 0
+    ? product.itemWeightGrams
+    : 0;
   const parsedVolumeCbm = parseLotCbmVolume(product.lotCbm, product.moq);
-  const inferredDimensions = inferTypicalPackageDimensionsCm(weightContext);
-  const inferredVolumeCbm = (inferredDimensions.lengthCm * inferredDimensions.widthCm * inferredDimensions.heightCm) / 1_000_000;
-  const weightKg = Number((resolvedWeightGrams / 1000).toFixed(3));
-  const volumeCbm = Number((parsedVolumeCbm > 0 ? parsedVolumeCbm : inferredVolumeCbm).toFixed(4));
+  const packageVolumeCbm = product.packageDimensionsCm
+    && product.packageDimensionsCm.lengthCm > 0
+    && product.packageDimensionsCm.widthCm > 0
+    && product.packageDimensionsCm.heightCm > 0
+    ? (product.packageDimensionsCm.lengthCm * product.packageDimensionsCm.widthCm * product.packageDimensionsCm.heightCm) / 1_000_000
+    : 0;
+  const weightKg = Number((actualWeightGrams / 1000).toFixed(3));
+  const volumeCbm = Number((parsedVolumeCbm > 0 ? parsedVolumeCbm : packageVolumeCbm).toFixed(4));
   const supplierPriceFcfa = convertUsdToFcfa(resolveProductUnitPriceUsd(product, {
     quantity: input?.quantity,
     selection: input?.selectedVariants,

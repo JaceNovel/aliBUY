@@ -3529,18 +3529,29 @@ function mapAliExpressProductDetailToProduct(
         return Math.round(weightKg * (weightKg < 10 ? 1000 : 1));
       })(),
     );
-  const packageLength = getNumberValue(packageInfo.package_length) ?? 20;
-  const packageWidth = getNumberValue(packageInfo.package_width) ?? 15;
-  const packageHeight = getNumberValue(packageInfo.package_height) ?? 8;
-  const lotCbm = ((packageLength * packageWidth * packageHeight) / 1_000_000).toFixed(4);
-  const weightGrams = resolveCoherentItemWeightGrams(extractedWeightGrams, {
-    title,
-    shortTitle: title.slice(0, 96),
-    query,
-    keywords,
-    lotCbm,
-    moq,
-  });
+  const packageLength = getNumberValue(packageInfo.package_length);
+  const packageWidth = getNumberValue(packageInfo.package_width);
+  const packageHeight = getNumberValue(packageInfo.package_height);
+  const hasPackageDimensions = typeof packageLength === "number"
+    && typeof packageWidth === "number"
+    && typeof packageHeight === "number"
+    && packageLength > 0
+    && packageWidth > 0
+    && packageHeight > 0;
+  const packageDimensionsCm = hasPackageDimensions
+    ? {
+        lengthCm: Number(packageLength.toFixed(2)),
+        widthCm: Number(packageWidth.toFixed(2)),
+        heightCm: Number(packageHeight.toFixed(2)),
+      }
+    : undefined;
+  const lotCbm = hasPackageDimensions
+    ? ((packageLength * packageWidth * packageHeight) / 1_000_000).toFixed(4)
+    : "";
+  const weightGrams = sanitizeItemWeightGrams(extractedWeightGrams);
+  const packaging = hasPackageDimensions
+    ? `${packageLength} x ${packageWidth} x ${packageHeight} cm`
+    : "Dimensions non fournies par AliExpress DS";
   const variantGroups = [...new Map(
     skuInfo.flatMap((sku) => {
       const propertyDtos = Array.isArray(sku.ae_sku_property_dtos) ? sku.ae_sku_property_dtos as Array<Record<string, unknown>> : [];
@@ -3626,7 +3637,8 @@ function mapAliExpressProductDetailToProduct(
     gallery,
     videoUrl: getStringValue(videoDtos[0]?.media_url),
     videoPoster: getStringValue(videoDtos[0]?.poster_url) ?? primaryImage,
-    packaging: `${packageLength} x ${packageWidth} x ${packageHeight} cm`,
+    packaging,
+    packageDimensionsCm,
     itemWeightGrams: weightGrams ?? 0,
     lotCbm,
     minUsd,
@@ -3659,13 +3671,9 @@ function mapAliExpressProductDetailToProduct(
       search: searchItem,
       detail: detailResponseBody,
       supplier_price_usd: minRawPrice,
-      source_package_dimensions_cm: {
-        lengthCm: Number(packageLength.toFixed(2)),
-        widthCm: Number(packageWidth.toFixed(2)),
-        heightCm: Number(packageHeight.toFixed(2)),
-      },
+      source_package_dimensions_cm: packageDimensionsCm ?? null,
       source_weight_grams: weightGrams ?? null,
-      source_package_cbm: lotCbm,
+      source_package_cbm: lotCbm || null,
       margin_rate: Number(process.env.ALIEXPRESS_MARGIN_RATE ?? "0.1"),
     },
     moqVerified: true,
@@ -3737,8 +3745,7 @@ async function searchAliExpressProducts(input: {
         itemId: directProductId,
         product_id: directProductId,
       } satisfies Record<string, unknown>;
-      const normalized = mapAliExpressProductDetailToProduct(searchSeed, detailResult.responseBody, input.query)
-        ?? mapAliExpressSearchItemFallbackToProduct(searchSeed, input.query, context.shipToCountry);
+      const normalized = mapAliExpressProductDetailToProduct(searchSeed, detailResult.responseBody, input.query);
 
       if (!normalized) {
         continue;
@@ -3808,7 +3815,6 @@ async function searchAliExpressProducts(input: {
             continue;
           }
 
-          let normalized: AlibabaSearchProduct | null = null;
           const detailResult = await callAliExpressTopEndpoint("aliexpress.ds.product.get", {
             ship_to_country: context.shipToCountry,
             product_id: productId,
@@ -3820,13 +3826,11 @@ async function searchAliExpressProducts(input: {
             method: "POST",
           });
 
-          if (detailResult.ok) {
-            normalized = mapAliExpressProductDetailToProduct(searchItem, detailResult.responseBody, input.query);
+          if (!detailResult.ok) {
+            continue;
           }
 
-          if (!normalized) {
-            normalized = mapAliExpressSearchItemFallbackToProduct(searchItem, input.query, context.shipToCountry);
-          }
+          const normalized = mapAliExpressProductDetailToProduct(searchItem, detailResult.responseBody, input.query);
 
           if (!normalized) {
             continue;
@@ -4805,19 +4809,19 @@ export async function searchAlibabaProducts(input: {
     };
   }
 
-  const importProvider = String(process.env.ALIEXPRESS_IMPORT_PROVIDER ?? "affiliate").trim().toLowerCase();
-  if (importProvider === "ds") {
-    return searchAliExpressProducts({
+  const importProvider = String(process.env.ALIEXPRESS_IMPORT_PROVIDER ?? "ds").trim().toLowerCase();
+  if (importProvider === "affiliate") {
+    return searchAliExpressAffiliateProducts({
       query: input.query,
       limit: input.limit,
+      credentials,
       preferredShipToCountry: input.preferredShipToCountry,
     });
   }
 
-  return searchAliExpressAffiliateProducts({
+  return searchAliExpressProducts({
     query: input.query,
     limit: input.limit,
-    credentials,
     preferredShipToCountry: input.preferredShipToCountry,
   });
 }

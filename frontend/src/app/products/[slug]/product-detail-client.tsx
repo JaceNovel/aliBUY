@@ -215,6 +215,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     ? `${product.packageDimensionsCm.lengthCm} x ${product.packageDimensionsCm.widthCm} x ${product.packageDimensionsCm.heightCm} cm`
     : "Dimensions à confirmer";
   const displayShippingLabel = /^(Expédition|Expedition)\s+[A-Z]{2,3}$/i.test(product.shippingLabel) ? "Expédition" : product.shippingLabel;
+  const storefrontSellerName = "AfriPay";
+  const storefrontSellerLocation = "Réseau logistique AfriPay";
   const sourceProductUrl = (() => {
     if (typeof product.sourceUrl === "string" && product.sourceUrl.trim()) {
       return product.sourceUrl.trim();
@@ -445,10 +447,10 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     { label: "Personnalisation", value: product.customizationLabel },
   ];
   const supplierMetrics = [
-    { label: "Transactions", value: product.transactionsLabel },
-    { label: "Implantation", value: product.supplierLocation || "Réseau fournisseur vérifié" },
-    { label: "Réponse", value: product.responseTime || "Sous 24 h" },
-    { label: "Expérience", value: `${product.yearsInBusiness}+ ans` },
+    { label: "Transactions", value: product.soldLabel || "Commandes vérifiées" },
+    { label: "Implantation", value: storefrontSellerLocation },
+    { label: "Réponse", value: "Support AfriPay+" },
+    { label: "Expérience", value: `${Math.max(product.yearsInBusiness, 3)}+ ans` },
   ];
   const serviceHighlights = [
     {
@@ -938,7 +940,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-[14px] text-[#191919]">
                       <span className="font-semibold">Vendu par</span>{" "}
-                      <span className="truncate text-[#444]">{product.supplierName}</span>
+                      <span className="truncate text-[#444]">{storefrontSellerName}</span>
                     </div>
                     <ChevronRight className="h-4 w-4 text-[#666]" />
                   </div>
@@ -1112,8 +1114,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
           <div className="space-y-6 xl:sticky xl:top-6 xl:self-start">
             <article className="border border-[#e5e5e5] bg-white p-5">
               <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#907e70]">Vendu par</div>
-              <div className="mt-3 text-[22px] font-bold text-[#221813]">{product.supplierName}</div>
-              <div className="mt-2 text-[14px] text-[#6c5e52]">{product.supplierLocation || "Réseau fournisseur vérifié"}</div>
+              <div className="mt-3 text-[22px] font-bold text-[#221813]">{storefrontSellerName}</div>
+              <div className="mt-2 text-[14px] text-[#6c5e52]">{storefrontSellerLocation}</div>
               <div className="mt-5 space-y-3">
                 {supplierMetrics.map((metric) => (
                   <div key={metric.label} className="flex items-center justify-between gap-4 bg-[#fafafa] px-4 py-3">

@@ -146,6 +146,9 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
     ? await validatePromoCodeForAmount({ code: input.promoCode, totalFcfa: baseTotalPriceFcfa })
     : null;
   const finalTotalPriceFcfa = promoAdjustment?.finalTotalFcfa ?? baseTotalPriceFcfa;
+  const paymentMethod = input.paymentMethod === "mobile" || input.paymentMethod === "bank" || input.paymentMethod === "pay_on_delivery"
+    ? input.paymentMethod
+    : "card";
 
   let order: SourcingOrder = {
     id: createSourcingIds(),
@@ -172,7 +175,7 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
     freightStatus: "not_requested",
     supplierOrderStatus: "not_created",
     paymentStatus: "unpaid",
-    paymentProvider: "moneroo",
+    paymentProvider: paymentMethod === "pay_on_delivery" ? undefined : "moneroo",
     paymentCurrency: "XOF",
     alibabaTradeIds: [],
     notes: input.notes,
@@ -207,6 +210,9 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
       payerUserId: persistedUserId,
       payerDisplayName: input.payerDisplayName || input.customerName,
       payerEmail: input.payerEmail || input.customerEmail,
+      paymentMethod,
+      payOnDeliveryIdentityFirstName: paymentMethod === "pay_on_delivery" ? input.payOnDeliveryIdentityFirstName?.trim() : undefined,
+      payOnDeliveryIdentityLastName: paymentMethod === "pay_on_delivery" ? input.payOnDeliveryIdentityLastName?.trim() : undefined,
       createdFromSharedCart: Boolean(sharedCart),
       thirdPartyCreatorName: sharedCart?.ownerDisplayName,
       thirdPartyCreatorEmail: sharedCart?.ownerEmail,

@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { BadgeHelp, Circle, Heart, LockKeyhole, Minus, Plus, Share2, ShieldCheck, ShoppingCart, Sparkles, Star, TicketPercent, Truck } from "lucide-react";
-import { useMemo, useState } from "react";
+import { BadgeHelp, CheckCircle2, Circle, Heart, LockKeyhole, MapPin, Minus, Package, Plus, Share2, ShieldCheck, ShoppingCart, Sparkles, Star, TicketPercent, Trash2, Truck } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useCart, useCartQuote } from "@/components/cart-provider";
@@ -23,6 +23,7 @@ type SharedCartSummary = {
 export function CartPageClient({ currencyCode, locale, initialCountryCode, isAuthenticated, initialSharedCartSummaries }: { currencyCode: string; locale: string; initialCountryCode: string; isAuthenticated: boolean; initialSharedCartSummaries: SharedCartSummary[] }) {
   const router = useRouter();
   const { items, updateItem, removeItem, clearCart, sharedCartContext } = useCart();
+  const cartKeys = useMemo(() => items.map((item) => buildCartItemKey(item.slug, item.selectedVariants)), [items]);
   const deliveryPlan = useMemo(() => resolveSourcingDeliveryPlan({
     countryCode: initialCountryCode,
     deliveryProfile: { mode: "direct" },
@@ -35,26 +36,40 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
   const [sharePulse, setSharePulse] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  const [selectedCartKeys, setSelectedCartKeys] = useState<string[]>([]);
+  const [selectionPulse, setSelectionPulse] = useState(false);
   const shipping = useMemo(() => quote.shippingOptions.find((option) => option.key === quote.recommendedMethod) ?? quote.shippingOptions[0], [quote.recommendedMethod, quote.shippingOptions]);
   const totalFcfa = quote.cartProductsTotalFcfa + (shipping?.priceFcfa ?? 0);
   const totalWeightLabel = quote.totalWeightKg > 0 ? `${quote.totalWeightKg.toFixed(2)} kg` : "Selon catalogue";
   const totalVolumeLabel = quote.totalCbm > 0 ? `${quote.totalCbm.toFixed(4)} CBM` : "Selon catalogue";
-  const originalTotalFcfa = Math.round(totalFcfa * 1.14);
+  const roundPromoAmount = (amount: number) => {
+    if (amount >= 10000) {
+      return Math.round(amount / 100) * 100;
+    }
+    if (amount >= 1000) {
+      return Math.round(amount / 50) * 50;
+    }
+    return Math.round(amount / 10) * 10;
+  };
+  const originalTotalFcfa = roundPromoAmount(totalFcfa * 1.14);
   const welcomeDiscountFcfa = Math.max(500, originalTotalFcfa - totalFcfa);
+  const welcomeCouponThresholdFcfa = roundPromoAmount(Math.max(totalFcfa * 0.2, 5000));
+  const welcomeCouponDiscountFcfa = Math.min(welcomeDiscountFcfa, roundPromoAmount(Math.max(totalFcfa * 0.04, 500)));
+  const securePaymentBonusFcfa = roundPromoAmount(Math.max(totalFcfa * 0.06, 750));
   const promoRows = useMemo(() => ([
     {
       id: "welcome",
       icon: TicketPercent,
-      label: `${formatSourcingAmount(Math.max(1000, Math.round(totalFcfa * 0.04)), { currencyCode, locale })} sur ${formatSourcingAmount(Math.max(15000, Math.round(totalFcfa * 0.2)), { currencyCode, locale })}`,
+      label: `${formatSourcingAmount(welcomeCouponDiscountFcfa, { currencyCode, locale })} sur ${formatSourcingAmount(welcomeCouponThresholdFcfa, { currencyCode, locale })}`,
       accent: "bg-[#fff2f3] text-[#f80632]",
     },
     {
       id: "paypal",
       icon: Sparkles,
-      label: `${formatSourcingAmount(Math.max(1500, Math.round(totalFcfa * 0.06)), { currencyCode, locale })} suppl. avec paiement sécurisé`,
+      label: `${formatSourcingAmount(securePaymentBonusFcfa, { currencyCode, locale })} suppl. avec paiement sécurisé`,
       accent: "bg-[#eef6ff] text-[#1457d8]",
     },
-  ]), [currencyCode, locale, totalFcfa]);
+  ]), [currencyCode, locale, securePaymentBonusFcfa, welcomeCouponDiscountFcfa, welcomeCouponThresholdFcfa]);
   const localizedRemainingFreeShippingLabel = formatSourcingAmount(quote.freeAirRemainingFcfa, { currencyCode, locale });
   const shippingThresholdMessage = deliveryPlan.workflow.freeDeliveryEligible
     ? quote.recommendedMethod === "sea"
@@ -65,6 +80,25 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
           ? `Ajoutez encore ${localizedRemainingFreeShippingLabel} à votre devis pour profiter de la livraison gratuite, sous 2.5 kg.`
           : quote.freeShippingMessage
     : quote.freeShippingMessage;
+  const allItemsSelected = cartKeys.length > 0 && cartKeys.every((cartKey) => selectedCartKeys.includes(cartKey));
+  const selectedCount = selectedCartKeys.length;
+  const selectedQuoteItems = quote.items.filter((item) => selectedCartKeys.includes(item.cartKey ?? item.slug));
+  const selectedProductsTotalFcfa = selectedQuoteItems.reduce((sum, item) => sum + item.finalLinePriceFcfa, 0);
+  const selectedTotalFcfa = selectedCount > 0 ? selectedProductsTotalFcfa + (shipping?.priceFcfa ?? 0) : 0;
+  const selectedWeightKg = selectedQuoteItems.reduce((sum, item) => sum + item.weightKg * item.quantity, 0);
+
+  useEffect(() => {
+    setSelectedCartKeys((current) => {
+      const next = current.filter((cartKey) => cartKeys.includes(cartKey));
+      if (next.length === cartKeys.length) {
+        return next;
+      }
+      if (next.length === 0) {
+        return cartKeys;
+      }
+      return next;
+    });
+  }, [cartKeys]);
 
   const triggerShareFeedback = (message: string) => {
     setSharePulse(true);
@@ -73,6 +107,38 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
     window.setTimeout(() => {
       setShareFeedback((current) => (current === message ? null : current));
     }, 2200);
+  };
+
+  const triggerSelectionAnimation = () => {
+    setSelectionPulse(true);
+    window.setTimeout(() => setSelectionPulse(false), 260);
+  };
+
+  const toggleAllItemsSelection = () => {
+    setSelectedCartKeys(allItemsSelected ? [] : cartKeys);
+    triggerSelectionAnimation();
+  };
+
+  const toggleCartItemSelection = (cartKey: string) => {
+    setSelectedCartKeys((current) => (
+      current.includes(cartKey)
+        ? current.filter((entry) => entry !== cartKey)
+        : [...current, cartKey]
+    ));
+    triggerSelectionAnimation();
+  };
+
+  const removeSelectedItems = () => {
+    if (selectedCartKeys.length === 0) {
+      triggerShareFeedback("Aucun article sélectionné");
+      return;
+    }
+
+    selectedCartKeys.forEach((cartKey) => {
+      removeItem(cartKey);
+    });
+    setSelectedCartKeys([]);
+    triggerShareFeedback("Articles sélectionnés supprimés");
   };
 
   const shareCart = async () => {
@@ -171,15 +237,52 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
         ) : null}
 
       <section className="rounded-[20px] border border-[#ededed] bg-white px-4 py-5 shadow-[0_10px_28px_rgba(17,24,39,0.04)] sm:px-8 sm:py-6">
+        <div className="mb-4 flex items-center justify-between sm:hidden">
+          <div className="text-[26px] font-black tracking-[-0.05em] text-[#111827]">Panier ({items.length})</div>
+          <div className="flex items-center gap-3 text-[#111827]">
+            <div className="inline-flex items-center gap-1 text-[13px] font-medium">
+              <MapPin className="h-5 w-5" />
+              <span>{initialCountryCode}</span>
+            </div>
+            <Package className="h-6 w-6" />
+            <Heart className="h-6 w-6" />
+            <Trash2 className="h-6 w-6" />
+          </div>
+        </div>
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-          <div>
+          <div className="hidden sm:block">
             <h1 className="text-[24px] font-black tracking-[-0.04em] text-[#1f2937] sm:text-[34px]">Panier ({items.length})</h1>
-            <div className="mt-4 inline-flex items-center gap-3 text-[14px] text-[#1f2937] sm:mt-6 sm:text-[15px]">
-              <Circle className="h-5 w-5 text-[#d0d5dd] sm:h-6 sm:w-6" />
-              <span>Sélectionner tous les articles</span>
+            <div className="mt-4 flex flex-wrap items-center gap-3 sm:mt-6">
+              <button
+                type="button"
+                onClick={toggleAllItemsSelection}
+                className={[
+                  "inline-flex items-center gap-3 text-[14px] text-[#1f2937] transition sm:text-[15px]",
+                  selectionPulse ? "scale-[1.02]" : "",
+                ].join(" ")}
+              >
+                {allItemsSelected ? (
+                  <CheckCircle2 className="h-5 w-5 text-[#f80632] sm:h-6 sm:w-6" />
+                ) : (
+                  <Circle className="h-5 w-5 text-[#d0d5dd] sm:h-6 sm:w-6" />
+                )}
+                <span>Sélectionner tous les articles</span>
+              </button>
+              <span className="rounded-full bg-[#f8fafc] px-3 py-1 text-[12px] font-semibold text-[#475467]">
+                {selectedCount} sélectionné{selectedCount > 1 ? "s" : ""}
+              </span>
+              <button
+                type="button"
+                onClick={removeSelectedItems}
+                disabled={selectedCount === 0}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-[#fecaca] bg-[#fff5f5] px-4 text-[12px] font-semibold text-[#d92d20] transition hover:bg-[#ffe9e9] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Supprimer la sélection
+              </button>
             </div>
           </div>
-          <div className="w-full max-w-[360px]">
+          <div className="hidden w-full max-w-[360px] sm:block">
             <div className="flex items-center justify-between gap-3 text-[14px] font-semibold text-[#1f2937] sm:text-[15px]">
               <div className="inline-flex items-center gap-2">
                 <Share2 className="h-4 w-4" />
@@ -201,12 +304,12 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
             {shareFeedback ? <div className="mt-3 rounded-[14px] bg-[#f8fafc] px-4 py-3 text-[13px] font-medium text-[#475467]">{shareFeedback}</div> : null}
           </div>
         </div>
-        <div className="mt-5 rounded-[14px] border border-[#84c4ff] bg-white shadow-[0_12px_28px_rgba(47,103,246,0.12)]">
+        <div className="mt-5 overflow-hidden rounded-[14px] border border-[#84c4ff] bg-white shadow-[0_12px_28px_rgba(47,103,246,0.12)]">
           <div className="flex items-center justify-between gap-3 rounded-t-[14px] bg-[linear-gradient(90deg,#30a3ff_0%,#2f67f6_100%)] px-4 py-3 text-white">
-            <div className="text-[13px] font-extrabold sm:text-[15px]">
-              En plein air · Offre bienvenue
-            </div>
-            <div className="text-[13px] font-bold sm:text-[15px]">Fin : 7 avril, 21:59 (GMT0)</div>
+            <div className="hidden text-[13px] font-extrabold sm:text-[15px] sm:block">En plein air · Offre bienvenue</div>
+            <div className="text-[13px] font-medium sm:hidden">Fin: 7 avril, 23:59 (CET)</div>
+            <div className="hidden text-[13px] font-bold sm:text-[15px] sm:block">Fin : 7 avril, 21:59 (GMT0)</div>
+            <span className="text-[22px] leading-none">›</span>
           </div>
           <div className="px-4 py-4 sm:px-5 sm:py-5">
             <div className="flex flex-wrap items-center gap-3">
@@ -260,8 +363,16 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
       ) : null}
 
       <section className="rounded-[20px] border border-[#ededed] bg-white p-3 shadow-[0_10px_28px_rgba(17,24,39,0.04)] sm:p-6">
+        <div className="mb-3 sm:hidden">
+          <div className="inline-flex rounded-[10px] bg-[#f5f5f5] px-3 py-2 text-[14px] font-medium text-[#344054]">
+            <span className="rounded-[6px] bg-[#ffe784] px-2 py-0.5 text-[12px] font-bold text-[#5d4600]">Choice</span>
+            <span className="ml-2">Livraison gratuite</span>
+          </div>
+        </div>
         <div className="flex items-center gap-3 border-b border-[#f2f4f7] pb-3 sm:pb-4">
-          <Circle className="h-6 w-6 text-[#d0d5dd] sm:h-7 sm:w-7" />
+          <button type="button" onClick={toggleAllItemsSelection} className="transition hover:scale-105">
+            {allItemsSelected ? <CheckCircle2 className="h-6 w-6 text-[#f80632] sm:h-7 sm:w-7" /> : <Circle className="h-6 w-6 text-[#d0d5dd] sm:h-7 sm:w-7" />}
+          </button>
           <span className="rounded-[6px] bg-[#ffe784] px-2 py-1 text-[12px] font-bold text-[#5d4600]">Choice</span>
           <div className="flex items-center gap-2 text-[14px] font-bold text-[#1f2937] sm:text-[18px]">
             Expédié par AfriPay
@@ -276,11 +387,18 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
             const variantEntries = Object.entries(item.selectedVariants ?? {});
             const weightLabel = item.weightKg > 0 ? `${item.weightKg.toFixed(2)} kg` : totalWeightLabel;
             const volumeLabel = item.volumeCbm > 0 ? `${item.volumeCbm.toFixed(4)} CBM` : totalVolumeLabel;
+            const cartKey = item.cartKey ?? item.slug;
+            const isSelected = selectedCartKeys.includes(cartKey);
 
             return (
-              <article key={item.cartKey ?? item.slug} className="grid gap-3 border-t border-[#f2f4f7] pt-4 sm:grid-cols-[24px_132px_minmax(0,1fr)_136px] sm:items-start sm:gap-4 sm:pt-5">
+              <article key={cartKey} className={[
+                "grid gap-3 border-t border-[#f2f4f7] pt-4 transition sm:grid-cols-[24px_132px_minmax(0,1fr)_136px] sm:items-start sm:gap-4 sm:pt-5",
+                isSelected ? "rounded-[18px] bg-[#fffdfd] shadow-[0_10px_24px_rgba(248,6,50,0.05)]" : "",
+              ].join(" ")}>
                 <div className="hidden pt-8 sm:block">
-                  <Circle className="h-7 w-7 text-[#d0d5dd]" />
+                  <button type="button" onClick={() => toggleCartItemSelection(cartKey)} className="transition hover:scale-105" aria-label={isSelected ? "Désélectionner l'article" : "Sélectionner l'article"}>
+                    {isSelected ? <CheckCircle2 className="h-7 w-7 text-[#f80632]" /> : <Circle className="h-7 w-7 text-[#d0d5dd]" />}
+                  </button>
                 </div>
                 <div className="relative h-[112px] overflow-hidden rounded-[14px] bg-[#f5f5f5] sm:h-[132px] sm:rounded-[16px]">
                   <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between bg-[#34c759] px-3 py-1 text-[11px] font-bold text-white">
@@ -290,6 +408,10 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
                   <Image src={item.image} alt={item.title} fill sizes="(max-width: 640px) 112px, 132px" className="object-cover pt-6" />
                 </div>
                 <div className="min-w-0">
+                  <button type="button" onClick={() => toggleCartItemSelection(cartKey)} className="mb-2 inline-flex items-center gap-2 text-[12px] font-semibold text-[#667085] sm:hidden">
+                    {isSelected ? <CheckCircle2 className="h-4.5 w-4.5 text-[#f80632]" /> : <Circle className="h-4.5 w-4.5 text-[#d0d5dd]" />}
+                    {isSelected ? "Sélectionné" : "Sélectionner"}
+                  </button>
                   <div className="flex flex-col gap-1.5 sm:gap-2">
                     <div className="text-[15px] font-semibold leading-6 text-[#1f2937] sm:text-[18px] sm:leading-7">{item.title}</div>
                     <div className="text-[13px] font-black tracking-[-0.03em] text-[#1f2937] sm:text-[14px]">{formatSourcingAmount(item.finalLinePriceFcfa, { currencyCode, locale })}</div>
@@ -297,7 +419,7 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
                       <TicketPercent className="h-3.5 w-3.5" />
                       Coupons utilisables
                     </div>
-                    <div className="text-[12px] text-[#98a2b3] sm:text-[14px]">AfriPay Store</div>
+                    <div className="text-[12px] text-[#98a2b3] sm:text-[14px]">AfriPay Store ›</div>
                     <div className="text-[12px] font-semibold text-[#1f2937] sm:text-[14px]">Frais de livraison : Livraison gratuite</div>
                     <div className="text-[12px] text-[#667085] sm:text-[14px]">Livraison : {shipping?.deliveryWindow ?? "5-10 jours"}</div>
                     <div className="text-[12px] text-[#667085] sm:text-[14px]">Courrier : Colissimo, Mondial Relay, Colis Privé, etc.</div>
@@ -348,7 +470,7 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
       </section>
       </div>
 
-      <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+      <aside className="hidden space-y-4 xl:sticky xl:top-6 xl:self-start xl:block">
         <section className="rounded-[20px] border border-[#ededed] bg-white p-5 shadow-[0_10px_28px_rgba(17,24,39,0.04)] sm:p-6">
           <div className="text-[18px] font-black tracking-[-0.03em] text-[#1f2937] sm:text-[24px]">Résumé</div>
           <div className="mt-7 flex items-center justify-between gap-4">
@@ -423,6 +545,58 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
           </div>
         </section>
       </aside>
+
+      <div className="space-y-4 xl:hidden">
+        <section className="rounded-[20px] border border-[#ededed] bg-white p-5 shadow-[0_10px_28px_rgba(17,24,39,0.04)]">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-[15px] font-bold text-[#111827]">
+              <ShieldCheck className="h-5 w-5" />
+              Services
+            </div>
+            <span className="text-[20px]">›</span>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <article className="rounded-[16px] bg-[#fafafa] p-4">
+              <div className="text-[15px] font-bold text-[#1f2937]">Sécurité et vie privée</div>
+              <div className="mt-2 text-[13px] leading-6 text-[#667085]">Paiements sûrs et informations personnelles sécurisées.</div>
+            </article>
+            <article className="rounded-[16px] bg-[#fafafa] p-4">
+              <div className="text-[15px] font-bold text-[#1f2937]">Livraison rapide</div>
+              <div className="mt-2 text-[13px] leading-6 text-[#667085]">Coupon retard et protections si le colis est perdu ou endommagé.</div>
+            </article>
+          </div>
+        </section>
+
+        <section className="rounded-[20px] border border-[#ededed] bg-white p-5 shadow-[0_10px_28px_rgba(17,24,39,0.04)]">
+          <div className="flex items-center gap-2 text-[15px] font-bold text-[#111827]">
+            <LockKeyhole className="h-5 w-5" />
+            Paiements sûrs
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            {["Visa Secure", "ID Check", "SafeKey", "ProtectBuy", "J/Secure"].map((entry) => (
+              <div key={entry} className="rounded-[12px] border border-[#e5e7eb] bg-white px-3 py-4 text-center text-[11px] font-semibold text-[#344054]">
+                {entry}
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <div className="fixed inset-x-0 bottom-[var(--mobile-bottom-nav-height,0px)] z-[60] border-t border-[#eaecf0] bg-white px-4 py-3 shadow-[0_-12px_30px_rgba(17,24,39,0.08)] xl:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <button type="button" onClick={toggleAllItemsSelection} className="inline-flex items-center gap-2 text-[14px] font-medium text-[#111827]">
+            {allItemsSelected ? <CheckCircle2 className="h-5 w-5 text-[#f80632]" /> : <Circle className="h-5 w-5 text-[#d0d5dd]" />}
+            Tout
+          </button>
+          <div className="text-right">
+            <div className="text-[28px] font-black tracking-[-0.05em] text-[#111827]">{formatSourcingAmount(selectedTotalFcfa, { currencyCode, locale })}</div>
+            <div className="text-[11px] text-[#667085]">{selectedCount} article(s) · {selectedWeightKg.toFixed(2)} kg</div>
+          </div>
+          <Link href="/checkout" className="inline-flex h-14 min-w-[154px] items-center justify-center rounded-full bg-[#f80632] px-6 text-[16px] font-bold text-white transition hover:bg-[#dc042c]">
+            Paiement ({selectedCount})
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }
