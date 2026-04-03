@@ -89,7 +89,7 @@ export default async function RootLayout({
         <ClerkProvider appearance={clerkAppearance}>
           <CartProvider><RouteWarmup />{children}</CartProvider>
         </ClerkProvider>
-        <Script id="manychat-widget-loader" src="//widget.manychat.com/4669591_72a02.js" strategy="afterInteractive" />
+        <Script id="manychat-widget-loader" src="https://widget.manychat.com/4669591_72a02.js" strategy="afterInteractive" />
         <Script id="manychat-widget-runtime" src="https://mccdn.me/assets/js/widget.js" strategy="afterInteractive" />
       </body>
     </html>
