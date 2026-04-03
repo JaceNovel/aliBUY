@@ -57,9 +57,6 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
   const shipping = useMemo(() => quote.shippingOptions.find((option) => option.key === selectedShipping) ?? quote.shippingOptions[0], [quote.shippingOptions, selectedShipping]);
   const totalFcfa = quote.cartProductsTotalFcfa + (shipping?.priceFcfa ?? 0);
   const freeAirThresholdLabel = formatSourcingAmount(20000, { currencyCode, locale });
-  const itemsMissingWeight = quote.items.filter((item) => item.weightKg <= 0);
-  const itemsMissingVolume = quote.items.filter((item) => item.volumeCbm <= 0);
-  const hasMissingLogisticsMetrics = itemsMissingWeight.length > 0 || itemsMissingVolume.length > 0;
   const totalWeightLabel = quote.totalWeightKg > 0 ? `${quote.totalWeightKg.toFixed(2)} kg` : "Selon catalogue";
   const totalVolumeLabel = quote.totalCbm > 0 ? `${quote.totalCbm.toFixed(4)} CBM` : "Selon catalogue";
   const localizedRemainingFreeShippingLabel = formatSourcingAmount(quote.freeAirRemainingFcfa, { currencyCode, locale });
@@ -219,12 +216,6 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
         </div>
         {shareFeedback ? <div className="mt-3 rounded-[16px] bg-white px-4 py-3 text-[13px] font-medium text-[#344054] ring-1 ring-[#ece7df]">{shareFeedback}</div> : null}
       </section>
-
-      {hasMissingLogisticsMetrics ? (
-        <section className="rounded-[24px] border border-[#ffd4b5] bg-[#fff7f1] px-5 py-4 text-[14px] leading-6 text-[#8a4b16] shadow-[0_12px_30px_rgba(255,106,0,0.08)]">
-          Les totaux logistiques affichent uniquement les poids et volumes réellement importés. Certains articles restent à confirmer: {itemsMissingWeight.length > 0 ? `${itemsMissingWeight.length} sans poids réel` : "0 sans poids réel"}{itemsMissingVolume.length > 0 ? `, ${itemsMissingVolume.length} sans CBM réel` : ""}.
-        </section>
-      ) : null}
 
       {initialSharedCartSummaries.length > 0 ? (
         <section className="rounded-[24px] border border-[#ece7df] bg-white p-5 shadow-[0_16px_40px_rgba(17,24,39,0.05)]">

@@ -105,6 +105,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const [isFavorite, setIsFavorite] = useState(initialIsFavorite ?? false);
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+  const [isCartAnimating, setIsCartAnimating] = useState(false);
+  const [cartToastVisible, setCartToastVisible] = useState(false);
   const [shippingMethod, setShippingMethod] = useState<"air" | "sea" | null>(null);
   const [orderQuantity, setOrderQuantity] = useState(Math.max(product.moq, 1));
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
@@ -112,10 +114,23 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     Object.fromEntries((mixGroup?.values ?? []).map((value) => [value, 0]))
   ));
   const touchStartXRef = useRef<number | null>(null);
+  const cartAnimationTimeoutRef = useRef<number | null>(null);
+  const cartToastTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     router.prefetch("/cart");
   }, [router]);
+
+  useEffect(() => {
+    return () => {
+      if (cartAnimationTimeoutRef.current !== null) {
+        window.clearTimeout(cartAnimationTimeoutRef.current);
+      }
+      if (cartToastTimeoutRef.current !== null) {
+        window.clearTimeout(cartToastTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (initialIsFavorite !== null) {
@@ -508,8 +523,29 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       }))
       .filter((entry) => entry.quantity > 0);
   };
-  const openOrderModal = () => {
-    setIsOrderModalOpen(true);
+  const triggerCartAnimation = () => {
+    if (cartAnimationTimeoutRef.current !== null) {
+      window.clearTimeout(cartAnimationTimeoutRef.current);
+    }
+    if (cartToastTimeoutRef.current !== null) {
+      window.clearTimeout(cartToastTimeoutRef.current);
+    }
+
+    setIsCartAnimating(false);
+    setCartToastVisible(false);
+
+    window.requestAnimationFrame(() => {
+      setIsCartAnimating(true);
+      setCartToastVisible(true);
+
+      cartAnimationTimeoutRef.current = window.setTimeout(() => {
+        setIsCartAnimating(false);
+      }, 700);
+
+      cartToastTimeoutRef.current = window.setTimeout(() => {
+        setCartToastVisible(false);
+      }, 1800);
+    });
   };
   const addSelectionToCart = () => {
     if (!canSubmitOrder) {
@@ -519,6 +555,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     buildOrderSelections().forEach((entry) => {
       addItem(product.slug, entry.quantity, entry.selectedVariants);
     });
+    triggerCartAnimation();
     setShareFeedback("Produit ajouté au panier sourcing.");
   };
   const proceedToCheckout = () => {
@@ -529,6 +566,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     buildOrderSelections().forEach((entry) => {
       addItem(product.slug, entry.quantity, entry.selectedVariants);
     });
+    triggerCartAnimation();
     setIsOrderModalOpen(false);
     router.push("/cart");
   };
@@ -965,7 +1003,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                   <div className="grid gap-3">
                     <button
                       type="button"
-                      onClick={openOrderModal}
+                      onClick={proceedToCheckout}
+                      disabled={!canSubmitOrder}
                       className="inline-flex h-14 items-center justify-center gap-3 bg-[#d8001f] px-6 text-[17px] font-bold text-white transition hover:bg-[#bf001c]"
                     >
                       <ShoppingCart className="h-4.5 w-4.5" />
@@ -975,7 +1014,10 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                       type="button"
                       onClick={addSelectionToCart}
                       disabled={!canSubmitOrder}
-                      className="inline-flex h-14 items-center justify-center border border-[#1f1f1f] bg-white px-6 text-[17px] font-semibold text-[#221813] transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:border-[#d9d0c8] disabled:text-[#aaa29a]"
+                      className={[
+                        "inline-flex h-14 items-center justify-center border border-[#1f1f1f] bg-white px-6 text-[17px] font-semibold text-[#221813] transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:border-[#d9d0c8] disabled:text-[#aaa29a]",
+                        isCartAnimating ? "animate-[cartButtonPulse_680ms_ease-out]" : "",
+                      ].join(" ")}
                     >
                       Ajouter au panier
                     </button>
@@ -1337,7 +1379,9 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     Commander
                   </button>
                   <button type="button" onClick={addSelectionToCart} disabled={!canSubmitOrder} className="inline-flex h-11 items-center justify-center rounded-full border border-[#222] px-5 text-[15px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:border-[#d8d8d8] disabled:text-[#b0b0b0] sm:h-13 sm:px-6 sm:text-[18px]">
-                    Ajouter au panier
+                    <span className={isCartAnimating ? "animate-[cartButtonPulse_680ms_ease-out]" : ""}>
+                      Ajouter au panier
+                    </span>
                   </button>
                 </div>
               </div>
@@ -1345,6 +1389,51 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
           </div>
         </div>
       ) : null}
+
+      {cartToastVisible ? (
+        <div className="pointer-events-none fixed bottom-[calc(var(--mobile-bottom-nav-height)+var(--mobile-floating-cta-height)+92px)] right-4 z-[170] sm:bottom-8 sm:right-8">
+          <div className="flex items-center gap-2 rounded-full bg-[#161616] px-4 py-3 text-[13px] font-semibold text-white shadow-[0_18px_38px_rgba(0,0,0,0.24)] animate-[cartToastSlide_1.8s_ease-out_forwards] sm:px-5 sm:text-[14px]">
+            <ShoppingCart className="h-4 w-4 text-[#ff8c2a]" />
+            Ajouté au panier
+          </div>
+        </div>
+      ) : null}
+
+      <style jsx global>{`
+        @keyframes cartButtonPulse {
+          0% {
+            transform: scale(1);
+          }
+          30% {
+            transform: scale(0.94);
+          }
+          65% {
+            transform: scale(1.08);
+          }
+          100% {
+            transform: scale(1);
+          }
+        }
+
+        @keyframes cartToastSlide {
+          0% {
+            opacity: 0;
+            transform: translateY(18px) scale(0.92);
+          }
+          12% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+          82% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+          100% {
+            opacity: 0;
+            transform: translateY(10px) scale(0.96);
+          }
+        }
+      `}</style>
     </>
   );
 }

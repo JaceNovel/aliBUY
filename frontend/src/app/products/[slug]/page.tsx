@@ -7,7 +7,7 @@ import { getCatalogProductBySlug, getCatalogRelatedProducts } from "@/lib/catalo
 import { formatTierAwarePrice } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
 import { normalizeStorefrontBadge, normalizeStorefrontText } from "@/lib/public-storefront";
-import { SITE_NAME, SITE_URL } from "@/lib/site-config";
+import { PRODUCT_SHARE_IMAGE_PATH, SITE_NAME, SITE_URL } from "@/lib/site-config";
 
 import { ProductDetailClient } from "./product-detail-client";
 
@@ -67,6 +67,23 @@ export async function generateMetadata({
     description: product.overview.join(" "),
     alternates: {
       canonical: `${SITE_URL}/products/${slug}`,
+    },
+    openGraph: {
+      title: product.shortTitle,
+      description: product.overview.join(" "),
+      url: `${SITE_URL}/products/${slug}`,
+      images: [
+        {
+          url: PRODUCT_SHARE_IMAGE_PATH,
+          alt: `${SITE_NAME} produit`,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: product.shortTitle,
+      description: product.overview.join(" "),
+      images: [PRODUCT_SHARE_IMAGE_PATH],
     },
   };
 }

@@ -5,11 +5,17 @@ import { SITE_URL } from "@/lib/site-config";
 const STATIC_ROUTES = [
   "",
   "/products",
+  "/categories",
+  "/trends",
+  "/mode",
+  "/deals-flash",
   "/pricing",
   "/quotes",
+  "/application",
   "/support-center",
   "/protection-commandes",
   "/decouvrir-afripay",
+  "/articles-gratuits",
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

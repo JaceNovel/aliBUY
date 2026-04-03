@@ -32,7 +32,9 @@ export type SharedCartRecord = {
   claimedOrderId?: string;
 };
 
-const SITE_DIR = path.join(process.cwd(), "data", "site");
+const SITE_DIR = process.env.VERCEL
+  ? path.join("/tmp", "afripay-data", "site")
+  : path.join(process.cwd(), "data", "site");
 const SHARED_CARTS_PATH = path.join(SITE_DIR, "shared-carts.json");
 const SHARED_CARTS_BLOB_PATHNAME = "site/shared-carts.json";
 const BLOB_ACCESS_MODE = getVercelBlobAccessMode();
