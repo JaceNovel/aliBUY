@@ -4260,20 +4260,28 @@ function extractAliExpressAffiliateSkuDetailProjection(
   };
 }
 
-function extractAliExpressDsPackageWeightGrams(responseBody: unknown) {
+function extractAliExpressSolutionProductInfoWeightGrams(responseBody: unknown) {
   const payload = getAliExpressSellerPayload(responseBody);
   const result = isRecord(payload?.result) ? payload.result as Record<string, unknown> : payload;
   if (!isRecord(result)) {
     return undefined;
   }
 
-  const packageInfo = isRecord(result.package_info_dto) ? result.package_info_dto as Record<string, unknown> : null;
-  const grossWeightKg = getNumberValue(packageInfo?.gross_weight);
-  if (typeof grossWeightKg !== "number" || grossWeightKg <= 0) {
+  const rawWeight = getNumberValue(result.gross_weight, result.package_weight, result.weight);
+  if (typeof rawWeight !== "number" || rawWeight <= 0) {
     return undefined;
   }
 
-  return sanitizeItemWeightGrams(Math.round(grossWeightKg * 1000));
+  const weightUnit = (getStringValue(result.weight_unit) ?? "1").trim().toLowerCase();
+  if (["1", "kg", "kgs", "kilogram", "kilograms"].includes(weightUnit)) {
+    return sanitizeItemWeightGrams(Math.round(rawWeight * 1000));
+  }
+
+  if (["2", "g", "gram", "grams"].includes(weightUnit)) {
+    return sanitizeItemWeightGrams(Math.round(rawWeight));
+  }
+
+  return sanitizeItemWeightGrams(Math.round(rawWeight < 10 ? rawWeight * 1000 : rawWeight));
 }
 
 async function enrichAliExpressAffiliateProduct(
@@ -4282,7 +4290,7 @@ async function enrichAliExpressAffiliateProduct(
   context: { shipToCountry: string; local: string; currency: string },
   credentials: AlibabaCredentials,
 ) {
-  const [affiliateResponse, dsResponse] = await Promise.all([
+  const [affiliateResponse, sellerProductInfoResponse] = await Promise.all([
     callAliExpressTopEndpoint("aliexpress.affiliate.product.sku.detail.get", {
       ship_to_country: context.shipToCountry,
       product_id: product.sourceProductId,
@@ -4293,11 +4301,11 @@ async function enrichAliExpressAffiliateProduct(
       credentials,
       includeAccessToken: Boolean(credentials.accessToken),
     }).catch(() => null),
-    getAlibabaIcbuProduct({
-      productId: product.sourceProductId,
-      shipToCountry: context.shipToCountry,
-      targetCurrency: context.currency,
-      targetLanguage: context.local,
+    callAliExpressTopEndpoint("aliexpress.solution.product.info.get", {
+      product_id: product.sourceProductId,
+    }, {
+      credentials,
+      includeAccessToken: Boolean(credentials.accessToken),
     }).catch(() => null),
   ]);
   if (!affiliateResponse?.ok) {
@@ -4320,9 +4328,11 @@ async function enrichAliExpressAffiliateProduct(
     return product;
   }
 
-  const dsWeightGrams = dsResponse?.ok ? extractAliExpressDsPackageWeightGrams(dsResponse.responseBody) : undefined;
-  const resolvedWeightGrams = dsWeightGrams ?? 0;
-  const weightVerified = typeof dsWeightGrams === "number" && dsWeightGrams > 0;
+  const sellerWeightGrams = sellerProductInfoResponse?.ok
+    ? extractAliExpressSolutionProductInfoWeightGrams(sellerProductInfoResponse.responseBody)
+    : undefined;
+  const itemWeightGrams = sellerWeightGrams ?? projection.itemWeightGrams;
+  const weightVerified = typeof itemWeightGrams === "number" && itemWeightGrams > 0;
 
   return {
     ...product,
@@ -4331,7 +4341,7 @@ async function enrichAliExpressAffiliateProduct(
     keywords: projection.keywords,
     image: projection.image,
     gallery: projection.gallery,
-    itemWeightGrams: resolvedWeightGrams,
+    itemWeightGrams,
     minUsd: projection.minUsd,
     maxUsd: projection.maxUsd,
     supplierName: projection.supplierName,
@@ -4353,8 +4363,8 @@ async function enrichAliExpressAffiliateProduct(
       affiliate: true,
       promotion_link: projection.sourceUrl ?? getStringValue(searchItem.promotion_link) ?? getStringValue(searchItem.product_detail_url),
       affiliate_sku_detail: projection.rawResponse,
-      ds_product_detail: dsResponse?.ok ? dsResponse.responseBody : undefined,
-      source_weight_grams: resolvedWeightGrams > 0 ? resolvedWeightGrams : null,
+      seller_product_info: sellerProductInfoResponse?.ok ? sellerProductInfoResponse.responseBody : undefined,
+      source_weight_grams: itemWeightGrams > 0 ? itemWeightGrams : null,
     },
   };
 }
@@ -4629,7 +4639,7 @@ export async function fetchAliExpressAffiliateProductSnapshot(input: {
   const shipToCountry = String(input.shipToCountry ?? process.env.ALIEXPRESS_DEFAULT_SHIP_TO_COUNTRY ?? "FR").trim().toUpperCase();
   const currency = String(input.targetCurrency ?? process.env.ALIEXPRESS_TARGET_CURRENCY ?? "USD").trim().toUpperCase();
   const local = String(input.targetLanguage ?? process.env.ALIEXPRESS_TARGET_LANGUAGE ?? "fr_FR").trim();
-  const [affiliateResponse, dsResponse] = await Promise.all([
+  const [affiliateResponse, sellerProductInfoResponse] = await Promise.all([
     callAliExpressTopEndpoint("aliexpress.affiliate.product.sku.detail.get", {
       ship_to_country: shipToCountry,
       product_id: input.sourceProductId,
@@ -4640,11 +4650,11 @@ export async function fetchAliExpressAffiliateProductSnapshot(input: {
       credentials,
       includeAccessToken: Boolean(credentials.accessToken),
     }).catch(() => null),
-    getAlibabaIcbuProduct({
-      productId: input.sourceProductId,
-      shipToCountry,
-      targetCurrency: currency,
-      targetLanguage: local,
+    callAliExpressTopEndpoint("aliexpress.solution.product.info.get", {
+      product_id: input.sourceProductId,
+    }, {
+      credentials,
+      includeAccessToken: Boolean(credentials.accessToken),
     }).catch(() => null),
   ]);
   if (!affiliateResponse?.ok) {
@@ -4660,9 +4670,11 @@ export async function fetchAliExpressAffiliateProductSnapshot(input: {
     return null;
   }
 
-  const dsWeightGrams = dsResponse?.ok ? extractAliExpressDsPackageWeightGrams(dsResponse.responseBody) : undefined;
-  const resolvedWeightGrams = dsWeightGrams ?? 0;
-  const weightVerified = typeof dsWeightGrams === "number" && dsWeightGrams > 0;
+  const sellerWeightGrams = sellerProductInfoResponse?.ok
+    ? extractAliExpressSolutionProductInfoWeightGrams(sellerProductInfoResponse.responseBody)
+    : undefined;
+  const itemWeightGrams = sellerWeightGrams ?? projection.itemWeightGrams;
+  const weightVerified = typeof itemWeightGrams === "number" && itemWeightGrams > 0;
 
   return {
     sourceProductId: input.sourceProductId,
@@ -4673,7 +4685,7 @@ export async function fetchAliExpressAffiliateProductSnapshot(input: {
     image: projection.image,
     gallery: projection.gallery,
     packaging: "Non fourni par affiliation",
-    itemWeightGrams: resolvedWeightGrams,
+    itemWeightGrams,
     lotCbm: "0.0000",
     minUsd: projection.minUsd,
     maxUsd: projection.maxUsd,
@@ -4700,8 +4712,8 @@ export async function fetchAliExpressAffiliateProductSnapshot(input: {
       affiliate: true,
       promotion_link: projection.sourceUrl,
       affiliate_sku_detail: projection.rawResponse,
-      ds_product_detail: dsResponse?.ok ? dsResponse.responseBody : undefined,
-      source_weight_grams: resolvedWeightGrams > 0 ? resolvedWeightGrams : null,
+      seller_product_info: sellerProductInfoResponse?.ok ? sellerProductInfoResponse.responseBody : undefined,
+      source_weight_grams: itemWeightGrams > 0 ? itemWeightGrams : null,
     },
     moqVerified: false,
     weightVerified,

@@ -141,6 +141,9 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   }, [initialIsFavorite, product.slug]);
   const mixGroup = product.variantGroups[0];
   const modalGroups = product.variantGroups.slice(1);
+  const hasVariantChoices = product.variantGroups.length > 0;
+  const requiredVariantLabels = product.variantGroups.map((group) => group.label);
+  const variantSelectionInstruction = requiredVariantLabels.join(", ");
   const [mixQuantities, setMixQuantities] = useState<Record<string, number>>(() => {
     return Object.fromEntries((mixGroup?.values ?? []).map((value, index) => [value, index === 0 ? 0 : 0]));
   });
@@ -1195,9 +1198,9 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
             </div>
 
             <div className="mt-6 space-y-4">
-              {mixGroup ? (
+              {hasVariantChoices ? (
                 <div className="rounded-[18px] border border-[#ffd7b7] bg-[#fff7f0] px-4 py-4 text-[14px] leading-6 text-[#7c4a22]">
-                  Les attributs fournisseur sont importés avec le produit. Ouvrez <span className="font-semibold">Commander</span> pour choisir votre {mixGroup.label.toLowerCase()} et la quantité exacte avant ajout au panier.
+                  Les attributs fournisseur sont importés avec le produit. Avant la commande, le client doit choisir les options requises: <span className="font-semibold">{variantSelectionInstruction}</span>. Exemple: chaussure = pointure, LED = longueur, puis couleur si disponible.
                 </div>
               ) : null}
 
@@ -1272,6 +1275,12 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 {isFavorite ? "Ajouté aux favoris" : "Ajouter aux favoris"}
               </button>
             </div>
+
+            {hasVariantChoices ? (
+              <div className="mt-3 text-[13px] leading-5 text-[#7a5a42]">
+                Aucun choix par défaut n&apos;est appliqué pour <span className="font-semibold">{variantSelectionInstruction}</span>. La sélection se fait dans la fenêtre de commande avant ajout au panier.
+              </div>
+            ) : null}
           </div>
 
         </div>
@@ -1393,8 +1402,12 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
         <div className="relative flex max-h-[90vh] w-full max-w-[760px] flex-col overflow-hidden rounded-[22px] bg-white shadow-[0_30px_80px_rgba(0,0,0,0.24)] sm:max-h-[92vh] sm:rounded-[28px]">
           <div className="flex items-start justify-between border-b border-[#ececec] px-3 py-3 sm:px-6 sm:py-5">
             <div>
-              <h2 className="text-[19px] font-bold tracking-[-0.05em] text-[#222] sm:text-[32px]">Sélectionnez les options et la quantité</h2>
-              <div className="mt-1 text-[12px] leading-5 text-[#666] sm:mt-2 sm:text-[14px]">Choisissez votre mix et voyez le prix unitaire évoluer selon la quantité totale.</div>
+              <h2 className="text-[19px] font-bold tracking-[-0.05em] text-[#222] sm:text-[32px]">Sélectionnez les options obligatoires et la quantité</h2>
+              <div className="mt-1 text-[12px] leading-5 text-[#666] sm:mt-2 sm:text-[14px]">
+                {hasVariantChoices
+                  ? `Choisissez ${variantSelectionInstruction} avant la commande. Aucun attribut n'est preselectionne automatiquement.`
+                  : "Choisissez la quantité et voyez le prix unitaire évoluer selon la quantité totale."}
+              </div>
             </div>
             <button type="button" onClick={() => setIsOrderModalOpen(false)} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#e2e2e2] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-10 sm:w-10">
               <X className="h-5 w-5" />
@@ -1403,6 +1416,12 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
           <div className="overflow-y-auto px-3 py-3 sm:px-6 sm:py-5">
             <div className="inline-flex rounded-[6px] bg-[#ff5b1f] px-2.5 py-1 text-[11px] font-semibold text-white sm:px-3 sm:text-[13px]">Prix inférieur à celui des produits similaires</div>
+
+            {hasVariantChoices ? (
+              <div className="mt-3 rounded-[14px] border border-[#ffd4b5] bg-[#fff4ea] px-3 py-2.5 text-[12px] font-medium leading-5 text-[#c85a11] sm:px-4 sm:py-3 sm:text-[14px]">
+                Sélection obligatoire avant validation: <span className="font-semibold">{variantSelectionInstruction}</span>.
+              </div>
+            ) : null}
 
             <div className="mt-3 grid gap-2.5 sm:mt-5 sm:gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {sortedTiers.map((tier) => {
