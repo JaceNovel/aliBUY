@@ -1,5 +1,11 @@
 const MAX_REASONABLE_ITEM_WEIGHT_GRAMS = 500_000;
 
+export type PackageDimensionsCm = {
+  lengthCm: number;
+  widthCm: number;
+  heightCm: number;
+};
+
 export type ItemWeightContext = {
   title?: string;
   shortTitle?: string;
@@ -59,6 +65,34 @@ function parseLotCbmPerUnit(lotCbm?: string, moq?: number) {
   return totalLotCbm / Math.max(1, moq ?? 1);
 }
 
+function roundDimension(value: number) {
+  return Number(Math.max(1, value).toFixed(1));
+}
+
+function scaleDimensionsToLotCbm(base: PackageDimensionsCm, context?: ItemWeightContext) {
+  const perUnitCbm = parseLotCbmPerUnit(context?.lotCbm, context?.moq);
+  if (typeof perUnitCbm !== "number") {
+    return base;
+  }
+
+  const targetVolumeCm3 = perUnitCbm * 1_000_000;
+  const currentVolumeCm3 = base.lengthCm * base.widthCm * base.heightCm;
+  if (!Number.isFinite(targetVolumeCm3) || targetVolumeCm3 <= 0 || !Number.isFinite(currentVolumeCm3) || currentVolumeCm3 <= 0) {
+    return base;
+  }
+
+  const scale = Math.cbrt(targetVolumeCm3 / currentVolumeCm3);
+  if (!Number.isFinite(scale) || scale <= 0) {
+    return base;
+  }
+
+  return {
+    lengthCm: roundDimension(base.lengthCm * scale),
+    widthCm: roundDimension(base.widthCm * scale),
+    heightCm: roundDimension(base.heightCm * scale),
+  };
+}
+
 export function inferMinimumReasonableItemWeightGrams(context?: ItemWeightContext) {
   const haystack = buildWeightHaystack(context);
 
@@ -83,6 +117,44 @@ export function inferMinimumReasonableItemWeightGrams(context?: ItemWeightContex
   }
 
   return 15;
+}
+
+export function inferTypicalPackageDimensionsCm(context?: ItemWeightContext): PackageDimensionsCm {
+  const haystack = buildWeightHaystack(context);
+
+  if (isBulkyItem(context)) {
+    return scaleDimensionsToLotCbm({ lengthCm: 60, widthCm: 40, heightCm: 20 }, context);
+  }
+
+  if (/\bkeyboard|clavier\b/i.test(haystack)) {
+    return scaleDimensionsToLotCbm({ lengthCm: 46, widthCm: 16, heightCm: 5 }, context);
+  }
+
+  if (/\bmouse|souris\b/i.test(haystack)) {
+    return scaleDimensionsToLotCbm({ lengthCm: 14, widthCm: 9, heightCm: 5 }, context);
+  }
+
+  if (/\b(phone|iphone|android|smartphone|mobile|tablet|ipad)\b/i.test(haystack)) {
+    return scaleDimensionsToLotCbm({ lengthCm: 18, widthCm: 12, heightCm: 5 }, context);
+  }
+
+  if (/\b(cable|charger|adapter|adaptateur|usb|hub|dock|station)\b/i.test(haystack)) {
+    return scaleDimensionsToLotCbm({ lengthCm: 18, widthCm: 12, heightCm: 6 }, context);
+  }
+
+  if (HOME_GOODS_PATTERN.test(haystack)) {
+    return scaleDimensionsToLotCbm({ lengthCm: 32, widthCm: 24, heightCm: 18 }, context);
+  }
+
+  if (SOFT_GOODS_PATTERN.test(haystack)) {
+    return scaleDimensionsToLotCbm({ lengthCm: 35, widthCm: 28, heightCm: 6 }, context);
+  }
+
+  if (SMALL_ACCESSORY_PATTERN.test(haystack)) {
+    return scaleDimensionsToLotCbm({ lengthCm: 10, widthCm: 8, heightCm: 3 }, context);
+  }
+
+  return scaleDimensionsToLotCbm({ lengthCm: 24, widthCm: 16, heightCm: 8 }, context);
 }
 
 export function estimateWeightFromLotCbm(context?: ItemWeightContext) {
@@ -113,6 +185,29 @@ export function resolveCoherentItemWeightGrams(value: number | undefined, contex
   }
 
   return undefined;
+}
+
+export function resolveCoherentPackageDimensionsCm(
+  value: PackageDimensionsCm | undefined,
+  context?: ItemWeightContext,
+) {
+  if (
+    value
+    && Number.isFinite(value.lengthCm)
+    && Number.isFinite(value.widthCm)
+    && Number.isFinite(value.heightCm)
+    && value.lengthCm > 0
+    && value.widthCm > 0
+    && value.heightCm > 0
+  ) {
+    return {
+      lengthCm: roundDimension(value.lengthCm),
+      widthCm: roundDimension(value.widthCm),
+      heightCm: roundDimension(value.heightCm),
+    };
+  }
+
+  return inferTypicalPackageDimensionsCm(context);
 }
 
 export function sanitizeItemWeightGrams(value: number | undefined) {

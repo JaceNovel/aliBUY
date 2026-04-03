@@ -18,7 +18,7 @@ import type {
 import { prisma } from "@/lib/prisma";
 import { getOrSetCatalogRuntimeCache, invalidateCatalogRuntimeCache } from "@/lib/catalog-runtime-cache";
 import { resolveProductPriceSummaryUsd } from "@/lib/product-variant-pricing";
-import { resolveCoherentItemWeightGrams, sanitizeItemWeightGrams } from "@/lib/product-weight";
+import { resolveCoherentItemWeightGrams, resolveCoherentPackageDimensionsCm, sanitizeItemWeightGrams } from "@/lib/product-weight";
 
 const DEFAULT_COUNTRY_PROFILES: AlibabaCountryProfile[] = [
   {
@@ -1466,23 +1466,26 @@ function mapImportedProductRecord(record: {
   const effectiveGallery = normalizedGallery.length > 0 ? normalizedGallery : rawMediaGallery;
   const rawPriceBounds = extractRawPriceBounds(record.rawPayload ?? null);
   const rawWeightGrams = extractRawWeightGrams(record.rawPayload);
-  const packageDimensionsCm = extractRawPackageDimensions(record.rawPayload) ?? parsePackagingDimensions(record.packaging);
+  const rawPackageDimensionsCm = extractRawPackageDimensions(record.rawPayload) ?? parsePackagingDimensions(record.packaging);
+  const weightContext = {
+    title: record.title,
+    shortTitle: record.shortTitle,
+    query: record.query,
+    keywords: toStringArray(record.keywords),
+    categorySlug: record.categorySlug ?? undefined,
+    categoryTitle: record.categoryTitle ?? undefined,
+    categoryPath: toStringArray(record.categoryPath ?? undefined),
+    lotCbm: record.lotCbm,
+    moq: record.moq,
+  };
+  const packageDimensionsCm = resolveCoherentPackageDimensionsCm(rawPackageDimensionsCm, weightContext);
   const isAffiliateImport = isAffiliateRawPayload(record.rawPayload ?? null);
   const storedWeightGrams = sanitizeItemWeightGrams(record.itemWeightGrams > 0 ? record.itemWeightGrams : undefined);
   const storedTiers = toUnknownArray<{ quantityLabel: string; priceUsd: number; note?: string }>(record.tiers);
-  const normalizedWeightGrams = isAffiliateImport
-    ? rawWeightGrams
-    : resolveCoherentItemWeightGrams(storedWeightGrams ?? rawWeightGrams, {
-      title: record.title,
-      shortTitle: record.shortTitle,
-      query: record.query,
-      keywords: toStringArray(record.keywords),
-      categorySlug: record.categorySlug ?? undefined,
-      categoryTitle: record.categoryTitle ?? undefined,
-      categoryPath: toStringArray(record.categoryPath ?? undefined),
-      lotCbm: record.lotCbm,
-      moq: record.moq,
-    });
+  const normalizedWeightGrams = resolveCoherentItemWeightGrams(
+    (isAffiliateImport ? rawWeightGrams : storedWeightGrams ?? rawWeightGrams),
+    weightContext,
+  );
   const normalizedPriceSummary = resolveProductPriceSummaryUsd({
     tiers: storedTiers,
     minUsd: rawPriceBounds.minUsd ?? record.minUsd,

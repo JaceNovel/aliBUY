@@ -148,6 +148,17 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     };
   }, [initialIsFavorite, product.slug]);
 
+  const isWeakLogisticsText = (value?: string | null) => {
+    if (!value) {
+      return true;
+    }
+
+    return /(selon catalogue|non fourni par affiliation|affiliate|affiliation|import affiliation|afripay\+\s*affiliate)/i.test(value);
+  };
+  const findSpecValue = (pattern: RegExp) => {
+    const spec = product.specs.find((entry) => pattern.test(entry.label) && !isWeakLogisticsText(entry.value));
+    return spec?.value;
+  };
   const resolveVariantGroupSelection = (group: DetailVariantGroup, fallbackToFirstValue = false) => {
     const selectedValue = selectedVariants[group.label];
     if (selectedValue && group.values.includes(selectedValue)) {
@@ -159,7 +170,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const lowerTitle = product.title.toLowerCase();
   const referenceCode = product.title.match(/\b[A-Z0-9]{3,}(?:[- ][A-Z0-9]{2,})?\b/)?.[0]
     ?? product.shortTitle.match(/\b[A-Z0-9]{3,}(?:[- ][A-Z0-9]{2,})?\b/)?.[0]
-    ?? "Selon catalogue";
+    ?? "Référence à confirmer";
   const inferredType = /keyboard|clavier/.test(lowerTitle)
     ? (/mouse|souris/.test(lowerTitle) ? "Combo clavier et souris" : "Clavier")
     : (/mouse|souris/.test(lowerTitle) ? "Souris gaming" : "Accessoire informatique");
@@ -171,10 +182,10 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
         ? "Sans fil"
         : /wired|usb/.test(lowerTitle)
           ? "Filaire"
-          : "Selon catalogue";
+          : "Connexion à confirmer";
   const inferredSensor = product.title.match(/PAW\s?\d+/i)?.[0]?.toUpperCase()
     ?? product.title.match(/\d{4,5}\s?DPI/i)?.[0]?.toUpperCase()
-    ?? "Selon catalogue";
+    ?? "Caractéristique à confirmer";
   const inferredUse = /office/.test(lowerTitle) && /gaming/.test(lowerTitle)
     ? "Gaming et bureautique"
     : /gaming/.test(lowerTitle)
@@ -182,10 +193,11 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       : /office/.test(lowerTitle)
         ? "Bureautique"
         : "Usage polyvalent";
-  const weightLabel = product.itemWeightGrams > 0 ? `${product.itemWeightGrams} g` : "Selon catalogue";
+  const packagingLabel = !isWeakLogisticsText(product.packaging) ? product.packaging : "Emballage standard";
+  const weightLabel = product.itemWeightGrams > 0 ? `${product.itemWeightGrams} g` : "Poids à confirmer";
   const dimensionsLabel = product.packageDimensionsCm
     ? `${product.packageDimensionsCm.lengthCm} x ${product.packageDimensionsCm.widthCm} x ${product.packageDimensionsCm.heightCm} cm`
-    : product.packaging;
+    : "Dimensions à confirmer";
   const displayShippingLabel = /^(Expédition|Expedition)\s+[A-Z]{2,3}$/i.test(product.shippingLabel) ? "Expédition" : product.shippingLabel;
   const sourceProductUrl = (() => {
     if (typeof product.sourceUrl === "string" && product.sourceUrl.trim()) {
@@ -194,17 +206,17 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     return /^\d{12,20}$/.test(product.slug) ? `https://www.aliexpress.com/item/${product.slug}.html` : "";
   })();
   const parsedLotCbm = Number(product.lotCbm.replace(",", "."));
-  const lotLabel = Number.isFinite(parsedLotCbm) && parsedLotCbm > 0 ? `${product.lotCbm} m3` : "Selon catalogue";
+  const lotLabel = Number.isFinite(parsedLotCbm) && parsedLotCbm > 0 ? `${product.lotCbm} m3` : "Volume à confirmer";
   const characteristics = [
-    { label: "Type", value: product.specs[0]?.value ?? inferredType },
+    { label: "Type", value: findSpecValue(/type|model|modele|style|material|matiere/i) ?? inferredType },
     { label: "Référence", value: referenceCode },
-    { label: "Connexion", value: product.specs[1]?.value ?? inferredConnection },
-    { label: "Capteur", value: product.specs[2]?.value ?? inferredSensor },
+    { label: "Connexion", value: findSpecValue(/connexion|connection|interface|plug|prise|port/i) ?? inferredConnection },
+    { label: "Capteur", value: findSpecValue(/capteur|sensor|feature|fonction|function|light|display/i) ?? inferredSensor },
     { label: "Dimensions", value: dimensionsLabel },
-    { label: "Emballage", value: product.packaging },
+    { label: "Emballage", value: packagingLabel },
     { label: "Poids", value: weightLabel },
-    { label: "Usage", value: product.specs[3]?.value ?? inferredUse },
-    { label: "Support", value: product.responseTime || "Selon disponibilité" },
+    { label: "Usage", value: findSpecValue(/usage|application|compatib|use/i) ?? inferredUse },
+    { label: "Support", value: !isWeakLogisticsText(product.responseTime) ? product.responseTime : "Support logistique AfriPay+" },
     { label: "Volume", value: lotLabel },
   ];
   const paymentMethods = [
@@ -1084,18 +1096,18 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#907e70]">Articles similaires</div>
               <h2 className="mt-2 text-[28px] font-bold text-[#221813]">Articles similaires</h2>
             </div>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
               {relatedProducts.map((relatedProduct) => (
                 <Link
                   key={relatedProduct.slug}
                   href={`/products/${relatedProduct.slug}`}
-                  className="group border border-[#efefef] bg-white p-4 transition hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(0,0,0,0.08)]"
+                  className="group border border-[#efefef] bg-white p-3 transition hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(0,0,0,0.08)] sm:p-4"
                 >
                   <div className="relative aspect-square overflow-hidden bg-[#fafafa]">
                     <Image src={relatedProduct.image} alt={relatedProduct.title} fill sizes="(max-width: 1280px) 50vw, 25vw" className="object-cover transition duration-500 group-hover:scale-[1.04]" />
                   </div>
-                  <div className="mt-4 line-clamp-2 text-[16px] font-semibold leading-6 text-[#221813]">{relatedProduct.title}</div>
-                  <div className="mt-3 text-[22px] font-black tracking-[-0.05em] text-[#221813]">{relatedProduct.formattedPrice}</div>
+                  <div className="mt-3 line-clamp-2 text-[13px] font-semibold leading-5 text-[#221813] sm:mt-4 sm:text-[16px] sm:leading-6">{relatedProduct.title}</div>
+                  <div className="mt-2 text-[18px] font-black tracking-[-0.05em] text-[#221813] sm:mt-3 sm:text-[22px]">{relatedProduct.formattedPrice}</div>
                 </Link>
               ))}
             </div>
