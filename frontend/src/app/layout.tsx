@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Geist } from "next/font/google";
 import Script from "next/script";
+import { AccountPhoneRequiredModal } from "@/components/account-phone-required-modal";
 import { CartProvider } from "@/components/cart-provider";
 import { RouteWarmup } from "@/components/route-warmup";
 import { clerkAppearance } from "@/lib/clerk-theme";
@@ -87,7 +88,11 @@ export default async function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
         />
         <ClerkProvider appearance={clerkAppearance}>
-          <CartProvider><RouteWarmup />{children}</CartProvider>
+          <CartProvider>
+            <RouteWarmup />
+            <AccountPhoneRequiredModal />
+            {children}
+          </CartProvider>
         </ClerkProvider>
         <Script id="manychat-widget-loader" src="https://widget.manychat.com/4669591_72a02.js" strategy="afterInteractive" />
         <Script id="manychat-widget-runtime" src="https://mccdn.me/assets/js/widget.js" strategy="afterInteractive" />
