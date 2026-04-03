@@ -622,7 +622,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
   return (
     <>
-      <div className="space-y-6 bg-white pb-28 sm:space-y-8 sm:pb-12">
+      <div className="mx-auto max-w-[1430px] space-y-6 bg-white pb-28 sm:space-y-8 sm:pb-12">
         <section className="border border-[#e5e5e5] bg-white p-3 sm:p-4">
           <div className="flex flex-wrap items-center gap-2 text-[12px] text-[#666]">
             <Link href="/" className="transition hover:text-[#191919]">Accueil</Link>
@@ -632,7 +632,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
             <span className="max-w-[280px] truncate text-[#191919]">{product.shortTitle}</span>
           </div>
 
-          <div className="mt-4 grid gap-4 xl:grid-cols-[72px_minmax(0,1.1fr)_minmax(360px,430px)]">
+          <div className="mt-4 grid gap-4 xl:grid-cols-[72px_minmax(0,570px)_minmax(0,1fr)_316px]">
             <div className="order-2 flex gap-2 overflow-x-auto pb-1 xl:order-1 xl:flex-col xl:overflow-visible xl:pb-0">
               {product.gallery.map((image, index) => {
                 const isActive = activeMedia === "photo" && activeImage === index;
@@ -646,7 +646,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                       setActiveImage(index);
                     }}
                     className={[
-                      "relative h-[64px] min-w-[64px] overflow-hidden border bg-white transition xl:h-[64px] xl:min-w-[64px]",
+                      "relative h-[62px] min-w-[62px] overflow-hidden border bg-white transition xl:h-[62px] xl:min-w-[62px]",
                       isActive ? "border-[#191919]" : "border-[#e5e5e5] hover:border-[#999]",
                     ].join(" ")}
                   >
@@ -659,7 +659,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                   type="button"
                   onClick={() => setActiveMedia("video")}
                   className={[
-                    "relative h-[64px] min-w-[64px] overflow-hidden border bg-[#161820] transition xl:h-[64px] xl:min-w-[64px]",
+                    "relative h-[62px] min-w-[62px] overflow-hidden border bg-[#161820] transition xl:h-[62px] xl:min-w-[62px]",
                     activeMedia === "video" ? "border-[#191919]" : "border-[#e5e5e5] hover:border-[#999]",
                   ].join(" ")}
                 >
@@ -675,60 +675,42 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
             <div className="order-1 xl:order-2">
               <div
-                className="relative overflow-hidden border border-[#e5e5e5] bg-white"
+                className="relative overflow-hidden border border-[#ececec] bg-white"
                 onTouchEnd={(event) => handleImageTouchEnd(event.changedTouches[0]?.clientX ?? 0)}
               >
-                <div className="absolute inset-x-0 top-0 z-10 flex items-start justify-between p-3">
-                  <div className="space-y-2">
-                    <span className="inline-flex bg-[#111] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white">
-                      {product.badge || "AfriPay Select"}
-                    </span>
-                    <div className="inline-flex border border-[#d9d9d9] bg-white p-1 text-[11px] font-semibold text-[#191919]">
+                <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
+                  <span className="inline-flex bg-[#111] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white">
+                    {product.badge || "AfriPay Select"}
+                  </span>
+                  <div className="inline-flex border border-[#d9d9d9] bg-white p-1 text-[11px] font-semibold text-[#191919]">
+                    <button
+                      type="button"
+                      onClick={() => setActiveMedia("photo")}
+                      className={["px-3 py-1.5", activeMedia === "photo" ? "bg-[#191919] text-white" : ""].join(" ")}
+                    >
+                      Photos
+                    </button>
+                    {product.videoUrl ? (
                       <button
                         type="button"
-                        onClick={() => setActiveMedia("photo")}
-                        className={["px-3 py-1.5", activeMedia === "photo" ? "bg-[#191919] text-white" : ""].join(" ")}
+                        onClick={() => setActiveMedia("video")}
+                        className={["px-3 py-1.5", activeMedia === "video" ? "bg-[#191919] text-white" : ""].join(" ")}
                       >
-                        Photos
+                        Vidéo
                       </button>
-                      {product.videoUrl ? (
-                        <button
-                          type="button"
-                          onClick={() => setActiveMedia("video")}
-                          className={["px-3 py-1.5", activeMedia === "video" ? "bg-[#191919] text-white" : ""].join(" ")}
-                        >
-                          Vidéo
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex justify-end gap-2">
-                      <button type="button" onClick={toggleFavorite} className="flex h-10 w-10 items-center justify-center rounded-full border border-[#d9d9d9] bg-white text-[#221813] transition hover:border-[#191919]">
-                        <Heart className={["h-5 w-5", isFavorite ? "fill-current text-[#f06f12]" : ""].join(" ")} />
-                      </button>
-                      <button type="button" onClick={shareProduct} className="flex h-10 w-10 items-center justify-center rounded-full border border-[#d9d9d9] bg-white text-[#221813] transition hover:border-[#191919]">
-                        <Share2 className="h-5 w-5" />
-                      </button>
-                    </div>
-                    {activeMedia === "photo" ? (
-                      <div className="ml-auto inline-flex border border-[#d9d9d9] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#1c1b1b]">
-                        {activeImage + 1}/{product.gallery.length}
-                      </div>
                     ) : null}
                   </div>
                 </div>
 
                 {shareFeedback ? (
-                  <div className="absolute right-3 top-24 z-10 bg-black/70 px-4 py-2 text-[12px] font-semibold text-white">
+                  <div className="absolute right-3 top-3 z-10 bg-black/70 px-4 py-2 text-[12px] font-semibold text-white">
                     {shareFeedback}
                   </div>
                 ) : null}
 
-                <div className="relative aspect-square w-full bg-white">
+                <div className="relative aspect-square w-full bg-white p-3 sm:p-4">
                   {activeMedia === "video" && product.videoUrl ? (
-                    <video controls poster={product.videoPoster} className="h-full w-full object-cover" src={product.videoUrl} />
+                    <video controls poster={product.videoPoster} className="h-full w-full object-contain" src={product.videoUrl} />
                   ) : (
                     <button type="button" onClick={openImageLightbox} className="relative h-full w-full cursor-zoom-in">
                       <Image
@@ -759,99 +741,124 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               </div>
             </div>
 
-            <aside className="order-3 xl:sticky xl:top-4 xl:self-start">
-              <div className="border border-[#e5e5e5] bg-white p-5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center gap-2 bg-[#fff7ef] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#de6a19]">
-                    <ShieldCheck className="h-4 w-4" />
-                    Offre verifiee
-                  </span>
-                  <span className="inline-flex bg-[#f5f5f5] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#555]">
-                    {product.categoryTitle}
-                  </span>
+            <div className="order-3 min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-2 bg-[#fff7ef] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#de6a19]">
+                  <ShieldCheck className="h-4 w-4" />
+                  Offre verifiee
+                </span>
+                <span className="inline-flex bg-[#f5f5f5] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#555]">
+                  {product.categoryTitle}
+                </span>
+              </div>
+
+              <h1 className="mt-3 max-w-[760px] text-[25px] font-bold leading-[1.22] text-[#191919] sm:text-[29px]">
+                {product.title}
+              </h1>
+
+              <div className="mt-2 text-[14px] text-[#555]">
+                {product.soldLabel || "60 vendus"}
+              </div>
+
+              <div className="mt-4 max-w-[620px] overflow-hidden rounded-[4px] border border-[#8ec8ff]">
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-[#3a97f0] px-4 py-3 text-white">
+                  <div className="text-[14px] font-bold">En plein air · Offre bienvenue</div>
+                  <div className="text-[13px] font-semibold">Fin : 7 avril, 21:59 (GMT0)</div>
                 </div>
-
-                <h1 className="mt-4 text-[26px] font-bold leading-[1.18] text-[#191919] sm:text-[30px]">
-                  {product.title}
-                </h1>
-
-                <div className="mt-2 text-[14px] text-[#555]">
-                  {product.soldLabel || "60 vendus"}
-                </div>
-
-                <div className="mt-4 overflow-hidden border border-[#8ec8ff]">
-                  <div className="flex flex-wrap items-center justify-between gap-3 bg-[#3a97f0] px-4 py-3 text-white">
-                    <div className="text-[14px] font-bold">En plein air · Offre bienvenue</div>
-                    <div className="text-[13px] font-semibold">Fin : 7 avril, 21:59 (GMT0)</div>
-                  </div>
-                  <div className="bg-white px-4 py-4">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <div className="text-[46px] font-bold leading-none tracking-[-0.04em] text-[#111]">
-                        {hasSubtotalRange ? `${formatMoney(subtotalRange.minUsd)} - ${formatMoney(subtotalRange.maxUsd)}` : formatMoney(subtotal)}
-                      </div>
-                      <div className="bg-[#fff1f0] px-2 py-1 text-[13px] font-bold text-[#ff375f]">Economisez</div>
+                <div className="bg-white px-4 py-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="text-[46px] font-bold leading-none tracking-[-0.04em] text-[#111]">
+                      {hasSubtotalRange ? `${formatMoney(subtotalRange.minUsd)} - ${formatMoney(subtotalRange.maxUsd)}` : formatMoney(subtotal)}
                     </div>
-                    <div className="mt-2 text-[14px] text-[#888] line-through">{dynamicPriceLabel}</div>
+                    <div className="bg-[#fff1f0] px-2 py-1 text-[13px] font-bold text-[#ff375f]">Economisez</div>
                   </div>
+                  <div className="mt-2 text-[14px] text-[#888] line-through">{dynamicPriceLabel}</div>
                 </div>
+              </div>
 
-                <div className="mt-3 flex items-center justify-between bg-[#fff1f1] px-4 py-3 text-[14px] text-[#e53b2d]">
-                  <span>-2,00€ sur 15,00€</span>
-                  <ChevronRight className="h-4 w-4" />
-                </div>
+              <div className="mt-3 flex max-w-[620px] items-center justify-between rounded-[4px] bg-[#fff1f1] px-4 py-3 text-[14px] text-[#e53b2d]">
+                <span>-2,00€ sur 15,00€</span>
+                <ChevronRight className="h-4 w-4" />
+              </div>
 
-                <div className="mt-6 space-y-4">
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {offerMetrics.map((metric) => (
-                      <div key={metric.label} className="border border-[#ededed] bg-[#fafafa] px-3 py-3">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#888]">{metric.label}</div>
-                        <div className="mt-1 text-[14px] font-semibold text-[#241b15]">{metric.value}</div>
+              {product.variantGroups.length > 0 ? (
+                <div className="mt-6 max-w-[620px] border-t border-[#efefef] pt-5">
+                  {product.variantGroups.map((group) => (
+                    <div key={group.label} className="mb-5 last:mb-0">
+                      <div className="text-[15px] font-bold text-[#191919]">
+                        {group.label}: <span className="uppercase">{resolveVariantGroupSelection(group, true) || "A choisir"}</span>
                       </div>
-                    ))}
-                  </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {group.values.map((value) => {
+                          const isSelected = mixGroup && group.label === mixGroup.label
+                            ? (mixQuantities[value] ?? 0) > 0
+                            : selectedVariants[group.label] === value;
 
-                  {product.variantGroups.length > 0 ? (
-                    <div className="border-t border-[#efefef] pt-4">
-                      <div className="text-[15px] font-bold text-[#191919]">{product.variantGroups[0]?.label || "Configuration"}: <span className="uppercase">{resolveVariantGroupSelection(product.variantGroups[0] ?? { label: "", values: [] }, true) || "A choisir"}</span></div>
-                      <div className="mt-4 space-y-4">
-                        {product.variantGroups.map((group) => (
-                          <div key={group.label}>
-                            <div className="flex items-center justify-between gap-4">
-                              <div className="text-[15px] font-semibold text-[#211914]">{group.label}</div>
-                              <div className="text-[12px] text-[#7c6a5b]">
-                                {mixGroup && group.label === mixGroup.label ? `${totalSelectedQuantity} sélection${totalSelectedQuantity > 1 ? "s" : ""}` : resolveVariantGroupSelection(group) || "A choisir"}
-                              </div>
-                            </div>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {group.values.map((value) => {
-                                const isSelected = mixGroup && group.label === mixGroup.label
-                                  ? (mixQuantities[value] ?? 0) > 0
-                                  : selectedVariants[group.label] === value;
-
-                                return (
-                                  <button
-                                    key={`${group.label}-${value}`}
-                                    type="button"
-                                    onClick={() => handleVariantPreviewSelection(group, value)}
-                                    className={[
-                                    "border px-3 py-2 text-[13px] font-medium transition",
-                                      isSelected ? "border-[#191919] bg-white text-[#191919]" : "border-[#dcdcdc] bg-[#fff] text-[#241b15] hover:border-[#999]",
-                                    ].join(" ")}
-                                  >
-                                    {value}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
+                          return (
+                            <button
+                              key={`${group.label}-${value}`}
+                              type="button"
+                              onClick={() => handleVariantPreviewSelection(group, value)}
+                              className={[
+                                "min-w-[76px] border bg-white px-3 py-2 text-[13px] font-medium transition",
+                                isSelected ? "border-[#191919] text-[#191919]" : "border-[#dcdcdc] text-[#241b15] hover:border-[#999]",
+                              ].join(" ")}
+                            >
+                              {value}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
-                  ) : null}
+                  ))}
+                </div>
+              ) : null}
 
-                    <div className="border-t border-[#efefef] pt-4">
-                      <div className="text-[15px] font-bold text-[#191919]">Livraison</div>
-                      <div className="mt-4 grid gap-3">
+              <div className="mt-5 max-w-[620px] grid gap-2 sm:grid-cols-2">
+                {offerMetrics.map((metric) => (
+                  <div key={metric.label} className="border border-[#ededed] bg-[#fafafa] px-3 py-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#888]">{metric.label}</div>
+                    <div className="mt-1 text-[14px] font-semibold text-[#241b15]">{metric.value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <aside className="order-4 xl:sticky xl:top-4 xl:self-start">
+              <div className="overflow-hidden border border-[#e5e5e5] bg-white">
+                <div className="border-b border-[#ececec] px-5 py-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[14px] text-[#191919]">
+                      <span className="font-semibold">Vendu par</span>{" "}
+                      <span className="truncate text-[#444]">{product.supplierName}</span>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-[#666]" />
+                  </div>
+                </div>
+
+                <div className="space-y-4 px-5 py-4">
+                  <div className="space-y-3 border-b border-[#efefef] pb-4">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-[#4caf50]">✓</div>
+                      <div>
+                        <div className="text-[14px] font-semibold text-[#191919]">Livraison suivie</div>
+                        <div className="mt-1 text-[13px] text-[#666]">{selectedShippingChoice?.summaryLabel ?? product.shippingLabel}</div>
+                      </div>
+                      <ChevronRight className="ml-auto mt-0.5 h-4 w-4 text-[#888]" />
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-[#4caf50]">✓</div>
+                      <div>
+                        <div className="text-[14px] font-semibold text-[#191919]">Retour et securite</div>
+                        <div className="mt-1 text-[13px] text-[#666]">Paiements securises et suivi de commande AfriPay.</div>
+                      </div>
+                      <ChevronRight className="ml-auto mt-0.5 h-4 w-4 text-[#888]" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[14px] font-semibold text-[#191919]">Livraison</div>
+                    <div className="mt-3 grid gap-2">
                       {shippingChoices.map((option) => (
                         <button
                           key={option.key}
@@ -871,7 +878,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                       ))}
                     </div>
                     {exceedsSeaThreshold && !supportsDirectAliExpressDelivery ? (
-                      <div className="mt-3 rounded-[18px] border border-[#f2d0b1] bg-[#fff4ea] px-4 py-3 text-[13px] font-medium text-[#d15f12]">
+                      <div className="mt-3 rounded-[12px] border border-[#f2d0b1] bg-[#fff4ea] px-4 py-3 text-[13px] font-medium text-[#d15f12]">
                         Ce colis dépasse 5 kg, l’expédition maritime est recommandée.
                       </div>
                     ) : null}
@@ -879,30 +886,26 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
                   {!mixGroup ? (
                     <div className="border-t border-[#efefef] pt-4">
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#8d7966]">Quantité</div>
-                          <div className="mt-2 text-[14px] text-[#6c5c50]">{product.moqVerified ? `Minimum ${product.moq} pièce${product.moq > 1 ? "s" : ""}` : "Minimum à confirmer"}</div>
-                        </div>
-                        <div className="inline-flex items-center gap-2">
-                          <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f5f5f5] text-[#55473b] transition hover:bg-[#ebebeb] disabled:cursor-not-allowed disabled:opacity-40">
-                            <Minus className="h-4 w-4" />
-                          </button>
-                          <div className="min-w-[36px] text-center text-[20px] font-semibold tracking-[-0.04em] text-[#1e1712]">{orderQuantity}</div>
-                          <button type="button" onClick={() => updateOrderQuantity(1)} className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f5f5f5] text-[#55473b] transition hover:bg-[#ebebeb]">
-                            <Plus className="h-4 w-4" />
-                          </button>
-                        </div>
+                      <div className="text-[14px] font-semibold text-[#191919]">Quantité</div>
+                      <div className="mt-3 flex items-center gap-3">
+                        <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f5f5f5] text-[#55473b] transition hover:bg-[#ebebeb] disabled:cursor-not-allowed disabled:opacity-40">
+                          <Minus className="h-4 w-4" />
+                        </button>
+                        <div className="min-w-[24px] text-center text-[20px] font-semibold tracking-[-0.04em] text-[#1e1712]">{orderQuantity}</div>
+                        <button type="button" onClick={() => updateOrderQuantity(1)} className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f5f5f5] text-[#55473b] transition hover:bg-[#ebebeb]">
+                          <Plus className="h-4 w-4" />
+                        </button>
                       </div>
+                      <div className="mt-2 text-[12px] text-[#6c5c50]">{product.moqVerified ? `Minimum ${product.moq} pièce${product.moq > 1 ? "s" : ""}` : "Minimum à confirmer"}</div>
                     </div>
                   ) : (
-                    <div className="rounded-[24px] border border-[#f2d0b1] bg-[#fff7ef] px-4 py-4 text-[14px] leading-6 text-[#6d5744]">
-                      La sélection mixte se règle dans la fenêtre de commande pour garder une quantité par variante parfaitement propre.
+                    <div className="rounded-[14px] border border-[#f2d0b1] bg-[#fff7ef] px-4 py-4 text-[13px] leading-6 text-[#6d5744]">
+                      La sélection mixte se règle dans la fenêtre de commande.
                     </div>
                   )}
 
                   {missingVariantGroups.length > 0 ? (
-                    <div className="rounded-[22px] border border-[#f2d0b1] bg-[#fff5ea] px-4 py-3 text-[13px] font-medium text-[#d15f12]">
+                    <div className="rounded-[12px] border border-[#f2d0b1] bg-[#fff5ea] px-4 py-3 text-[13px] font-medium text-[#d15f12]">
                       Options à choisir : {missingVariantGroups.map((group) => group.label).join(", ")}
                     </div>
                   ) : null}
@@ -924,6 +927,27 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     >
                       Ajouter au panier
                     </button>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 border-t border-[#efefef] pt-4">
+                    <button type="button" onClick={shareProduct} className="inline-flex h-12 items-center justify-center gap-2 border border-[#e5e5e5] bg-[#fafafa] text-[14px] font-medium text-[#333] transition hover:border-[#999]">
+                      <Share2 className="h-4 w-4" />
+                      Partager
+                    </button>
+                    <button type="button" onClick={toggleFavorite} className="inline-flex h-12 items-center justify-center gap-2 border border-[#e5e5e5] bg-[#fafafa] text-[14px] font-medium text-[#333] transition hover:border-[#999]">
+                      <Heart className={["h-4 w-4", isFavorite ? "fill-current text-[#f06f12]" : ""].join(" ")} />
+                      Favori
+                    </button>
+                    {sourceProductUrl ? (
+                      <Link href={sourceProductUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-12 items-center justify-center gap-2 border border-[#e5e5e5] bg-[#fafafa] text-[14px] font-medium text-[#333] transition hover:border-[#999]">
+                        <ExternalLink className="h-4 w-4" />
+                        Source
+                      </Link>
+                    ) : (
+                      <div className="inline-flex h-12 items-center justify-center border border-[#efefef] bg-[#fafafa] text-[13px] text-[#888]">
+                        {product.transactionsLabel}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
