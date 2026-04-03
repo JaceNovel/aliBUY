@@ -71,6 +71,7 @@ export default async function OrderPaymentPage({
 
   if (sourcingOrder && (sourcingOrder.userId === user.id || sourcingOrder.customerEmail.toLowerCase() === user.email.toLowerCase() || viewerMatchesSharedCart)) {
     const firstItem = sourcingOrder.items[0];
+    const sourcingMeta = meta ?? {};
 
     return (
       <InternalPageShell pricing={pricing}>
@@ -90,10 +91,10 @@ export default async function OrderPaymentPage({
             monerooCheckoutUrl: sourcingOrder.monerooCheckoutUrl,
             monerooPaymentStatus: sourcingOrder.monerooPaymentStatus,
             paymentCurrency: sourcingOrder.paymentCurrency,
-            promoCode: meta.promo?.code,
-            promoDiscountLabel: meta.promo ? formatFcfa(meta.promo.discountFcfa) : undefined,
-            originalTotal: meta.promo ? formatFcfa(meta.promo.baseTotalFcfa) : undefined,
-            thirdPartyCartCreatorName: meta.paymentContext?.thirdPartyCreatorName,
+            promoCode: sourcingMeta.promo?.code,
+            promoDiscountLabel: sourcingMeta.promo ? formatFcfa(sourcingMeta.promo.discountFcfa) : undefined,
+            originalTotal: sourcingMeta.promo ? formatFcfa(sourcingMeta.promo.baseTotalFcfa) : undefined,
+            thirdPartyCartCreatorName: sourcingMeta.paymentContext?.thirdPartyCreatorName,
             thirdPartyCartNotice: resolveThirdPartyCartNotice(user.id, user.email, sourcingOrder),
             returnPaymentId: resolvedSearchParams.paymentId,
             returnPaymentStatus: resolvedSearchParams.paymentStatus || resolvedSearchParams.status,
