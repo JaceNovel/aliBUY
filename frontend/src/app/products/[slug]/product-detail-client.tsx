@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, ExternalLink, Heart, Minus, Play, Plus, Share2, ShieldCheck, ShoppingCart, X } from "lucide-react";
+import { ArrowLeft, ChevronRight, ExternalLink, Heart, Minus, Play, Plus, Share2, ShieldCheck, ShoppingCart, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
@@ -624,7 +624,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     <>
       <div className="mx-auto max-w-[1430px] space-y-6 bg-white pb-28 sm:space-y-8 sm:pb-12">
         <section className="border border-[#e5e5e5] bg-white p-3 sm:p-4">
-          <div className="flex flex-wrap items-center gap-2 text-[12px] text-[#666]">
+          <div className="hidden flex-wrap items-center gap-2 text-[12px] text-[#666] sm:flex">
             <Link href="/" className="transition hover:text-[#191919]">Accueil</Link>
             <ChevronRight className="h-3.5 w-3.5" />
             <Link href="/products" className="transition hover:text-[#191919]">Produits</Link>
@@ -632,8 +632,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
             <span className="max-w-[280px] truncate text-[#191919]">{product.shortTitle}</span>
           </div>
 
-          <div className="mt-4 grid gap-4 xl:grid-cols-[72px_minmax(0,570px)_minmax(0,1fr)_316px]">
-            <div className="order-2 flex gap-2 overflow-x-auto pb-1 xl:order-1 xl:flex-col xl:overflow-visible xl:pb-0">
+          <div className="mt-0 grid gap-4 sm:mt-4 xl:grid-cols-[72px_minmax(0,500px)_minmax(0,1fr)_316px]">
+            <div className="order-2 hidden gap-2 overflow-x-auto pb-1 xl:order-1 xl:flex xl:flex-col xl:overflow-visible xl:pb-0">
               {product.gallery.map((image, index) => {
                 const isActive = activeMedia === "photo" && activeImage === index;
 
@@ -675,10 +675,10 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
             <div className="order-1 xl:order-2">
               <div
-                className="relative overflow-hidden border border-[#ececec] bg-white"
+                className="relative -mx-3 -mt-3 overflow-hidden bg-white sm:mx-0 sm:mt-0 sm:border sm:border-[#ececec]"
                 onTouchEnd={(event) => handleImageTouchEnd(event.changedTouches[0]?.clientX ?? 0)}
               >
-                <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
+                <div className="absolute left-3 top-3 z-20 hidden items-center gap-2 sm:flex">
                   <span className="inline-flex bg-[#111] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white">
                     {product.badge || "AfriPay Select"}
                   </span>
@@ -702,13 +702,42 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                   </div>
                 </div>
 
+                <div className="absolute inset-x-3 top-4 z-20 flex items-center justify-between sm:hidden">
+                  <button
+                    type="button"
+                    onClick={() => router.back()}
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/92 text-[#111] shadow-[0_8px_20px_rgba(0,0,0,0.12)]"
+                    aria-label="Retour"
+                  >
+                    <ArrowLeft className="h-5 w-5" />
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={shareProduct}
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/92 text-[#111] shadow-[0_8px_20px_rgba(0,0,0,0.12)]"
+                      aria-label="Partager le produit"
+                    >
+                      <Share2 className="h-5 w-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={toggleFavorite}
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/92 text-[#111] shadow-[0_8px_20px_rgba(0,0,0,0.12)]"
+                      aria-label="Ajouter aux favoris"
+                    >
+                      <Heart className={["h-5 w-5", isFavorite ? "fill-current text-[#f06f12]" : ""].join(" ")} />
+                    </button>
+                  </div>
+                </div>
+
                 {shareFeedback ? (
                   <div className="absolute right-3 top-3 z-10 bg-black/70 px-4 py-2 text-[12px] font-semibold text-white">
                     {shareFeedback}
                   </div>
                 ) : null}
 
-                <div className="relative aspect-square w-full bg-white p-3 sm:p-4">
+                <div className="relative aspect-square w-full bg-[#f7f7f7] p-4 sm:aspect-[0.9/1] sm:bg-white sm:p-8">
                   {activeMedia === "video" && product.videoUrl ? (
                     <video controls poster={product.videoPoster} className="h-full w-full object-contain" src={product.videoUrl} />
                   ) : (
@@ -728,12 +757,20 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                   )}
                 </div>
 
+                {activeMedia === "photo" ? (
+                  <div className="absolute bottom-4 left-4 z-20 sm:hidden">
+                    <div className="rounded-full bg-white/92 px-4 py-2 text-[13px] font-semibold text-[#191919] shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
+                      Article {activeImage + 1}/{product.gallery.length}
+                    </div>
+                  </div>
+                ) : null}
+
                 {activeMedia === "photo" && product.gallery.length > 1 ? (
                   <>
-                    <button type="button" onClick={goToPreviousImage} className="absolute left-3 top-1/2 z-10 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-[#d9d9d9] bg-white text-[#1b1b1b] transition hover:border-[#191919]" aria-label="Image précédente">
+                    <button type="button" onClick={goToPreviousImage} className="absolute left-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-[#d9d9d9] bg-white text-[#1b1b1b] transition hover:border-[#191919] sm:inline-flex" aria-label="Image précédente">
                       <ChevronRight className="h-5 w-5 rotate-180" />
                     </button>
-                    <button type="button" onClick={goToNextImage} className="absolute right-3 top-1/2 z-10 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-[#d9d9d9] bg-white text-[#1b1b1b] transition hover:border-[#191919]" aria-label="Image suivante">
+                    <button type="button" onClick={goToNextImage} className="absolute right-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-[#d9d9d9] bg-white text-[#1b1b1b] transition hover:border-[#191919] sm:inline-flex" aria-label="Image suivante">
                       <ChevronRight className="h-5 w-5" />
                     </button>
                   </>
@@ -741,8 +778,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               </div>
             </div>
 
-            <div className="order-3 min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
+            <div className="order-3 min-w-0 px-1 sm:px-0">
+              <div className="hidden flex-wrap items-center gap-2 sm:flex">
                 <span className="inline-flex items-center gap-2 bg-[#fff7ef] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#de6a19]">
                   <ShieldCheck className="h-4 w-4" />
                   Offre verifiee
@@ -752,27 +789,30 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 </span>
               </div>
 
-              <h1 className="mt-3 max-w-[760px] text-[25px] font-bold leading-[1.22] text-[#191919] sm:text-[29px]">
+              <h1 className="mt-3 max-w-[760px] text-[19px] font-bold leading-[1.24] text-[#191919] sm:text-[29px]">
                 {product.title}
               </h1>
 
-              <div className="mt-2 text-[14px] text-[#555]">
-                {product.soldLabel || "60 vendus"}
+              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-[#8a6d5b] sm:text-[14px] sm:text-[#555]">
+                <span>De {product.supplierName}</span>
+                <span className="text-[#d89b00]">★ 4.6</span>
+                <span>•</span>
+                <span>{product.soldLabel || "60 vendus"}</span>
               </div>
 
-              <div className="mt-4 max-w-[620px] overflow-hidden rounded-[4px] border border-[#8ec8ff]">
+              <div className="mt-4 max-w-[620px] overflow-hidden rounded-[4px] border border-[#8ec8ff] sm:mt-4">
                 <div className="flex flex-wrap items-center justify-between gap-3 bg-[#3a97f0] px-4 py-3 text-white">
-                  <div className="text-[14px] font-bold">En plein air · Offre bienvenue</div>
-                  <div className="text-[13px] font-semibold">Fin : 7 avril, 21:59 (GMT0)</div>
+                  <div className="text-[13px] font-bold sm:text-[14px]">En plein air · Offre bienvenue</div>
+                  <div className="text-[12px] font-semibold sm:text-[13px]">Fin : 7 avril, 21:59 (GMT0)</div>
                 </div>
                 <div className="bg-white px-4 py-4">
                   <div className="flex flex-wrap items-center gap-3">
-                    <div className="text-[46px] font-bold leading-none tracking-[-0.04em] text-[#111]">
+                    <div className="text-[32px] font-bold leading-none tracking-[-0.04em] text-[#111] sm:text-[46px]">
                       {hasSubtotalRange ? `${formatMoney(subtotalRange.minUsd)} - ${formatMoney(subtotalRange.maxUsd)}` : formatMoney(subtotal)}
                     </div>
                     <div className="bg-[#fff1f0] px-2 py-1 text-[13px] font-bold text-[#ff375f]">Economisez</div>
                   </div>
-                  <div className="mt-2 text-[14px] text-[#888] line-through">{dynamicPriceLabel}</div>
+                  <div className="mt-2 text-[13px] text-[#888] line-through sm:text-[14px]">{dynamicPriceLabel}</div>
                 </div>
               </div>
 
