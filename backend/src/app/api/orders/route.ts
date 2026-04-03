@@ -31,6 +31,9 @@ export async function POST(request: Request) {
       sharedCartToken: body?.sharedCartToken ? String(body.sharedCartToken) : undefined,
       payerDisplayName: user.displayName,
       payerEmail: user.email,
+      manychatSubscriberId: body?.manychatSubscriberId ? String(body.manychatSubscriberId) : undefined,
+      manychatFlowId: body?.manychatFlowId ? String(body.manychatFlowId) : undefined,
+      manychatPaidTagId: body?.manychatPaidTagId ? String(body.manychatPaidTagId) : undefined,
       items: Array.isArray(body?.items) ? body.items : [],
     });
 

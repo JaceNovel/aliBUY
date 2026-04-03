@@ -46,6 +46,7 @@ export const getCatalogProducts = cache(async function getCatalogProducts(): Pro
       videoUrl: product.videoUrl,
       videoPoster: product.videoPoster,
       packaging: product.packaging,
+      packageDimensionsCm: product.packageDimensionsCm,
       itemWeightGrams: product.itemWeightGrams,
       lotCbm: product.lotCbm,
       minUsd: product.minUsd,

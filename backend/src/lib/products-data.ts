@@ -28,6 +28,12 @@ export type ProductVariantSku = {
   image?: string;
 };
 
+export type ProductPackageDimensions = {
+  lengthCm: number;
+  widthCm: number;
+  heightCm: number;
+};
+
 export type ProductCatalogItem = {
   slug: string;
   title: string;
@@ -38,6 +44,7 @@ export type ProductCatalogItem = {
   videoUrl?: string;
   videoPoster?: string;
   packaging: string;
+  packageDimensionsCm?: ProductPackageDimensions;
   itemWeightGrams: number;
   lotCbm: string;
   minUsd: number;

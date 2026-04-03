@@ -211,6 +211,13 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
       thirdPartyCreatorName: sharedCart?.ownerDisplayName,
       thirdPartyCreatorEmail: sharedCart?.ownerEmail,
     },
+    manychat: input.manychatSubscriberId
+      ? {
+          subscriberId: input.manychatSubscriberId,
+          flowId: input.manychatFlowId,
+          paidTagId: input.manychatPaidTagId,
+        }
+      : undefined,
   });
 
   if (input.shippingMethod === "sea") {

@@ -1,4 +1,4 @@
-import type { ProductCatalogItem, ProductVariantPrice, ProductVariantSku } from "@/lib/products-data";
+import type { ProductCatalogItem, ProductPackageDimensions, ProductVariantPrice, ProductVariantSku } from "@/lib/products-data";
 import { deriveVariantGroupsFromPricing, extractAlibabaVariantPricing, extractAlibabaVariantSkus } from "@/lib/product-variant-pricing";
 import { resolveAlibabaMoq } from "@/lib/product-moq";
 import { sanitizeItemWeightGrams } from "@/lib/product-weight";
@@ -62,6 +62,7 @@ export type AlibabaImportedProduct = {
   videoUrl?: string;
   videoPoster?: string;
   packaging: string;
+  packageDimensionsCm?: ProductPackageDimensions;
   itemWeightGrams: number;
   lotCbm: string;
   minUsd: number;

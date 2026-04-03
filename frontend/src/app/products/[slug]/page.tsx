@@ -110,6 +110,7 @@ export default async function ProductPage({
           moq: product.moq,
           moqVerified: product.moqVerified,
           packaging: product.packaging,
+          packageDimensionsCm: product.packageDimensionsCm,
           itemWeightGrams: product.itemWeightGrams,
           lotCbm: product.lotCbm,
           supplierName: normalizeStorefrontText(product.supplierName),

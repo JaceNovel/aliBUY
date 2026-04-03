@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Geist } from "next/font/google";
+import Script from "next/script";
 import { CartProvider } from "@/components/cart-provider";
 import { RouteWarmup } from "@/components/route-warmup";
-import { SiteChatWidget } from "@/components/site-chat-widget";
 import { clerkAppearance } from "@/lib/clerk-theme";
 import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_LOGO_PATH, SITE_NAME, SITE_SHARE_IMAGE_PATH, SITE_URL } from "@/lib/site-config";
 import "./globals.css";
@@ -87,8 +87,10 @@ export default async function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
         />
         <ClerkProvider appearance={clerkAppearance}>
-          <CartProvider><RouteWarmup />{children}<SiteChatWidget /></CartProvider>
+          <CartProvider><RouteWarmup />{children}</CartProvider>
         </ClerkProvider>
+        <Script id="manychat-widget-loader" src="//widget.manychat.com/4669591_72a02.js" strategy="afterInteractive" />
+        <Script id="manychat-widget-runtime" src="https://mccdn.me/assets/js/widget.js" strategy="afterInteractive" />
       </body>
     </html>
   );

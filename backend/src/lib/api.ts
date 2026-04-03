@@ -94,6 +94,11 @@ export type CatalogProduct = {
   moqVerified?: boolean;
   unit: string;
   packaging: string;
+  packageDimensionsCm?: {
+    lengthCm: number;
+    widthCm: number;
+    heightCm: number;
+  };
   itemWeightGrams: number;
   lotCbm: string;
   supplierName: string;

@@ -1,5 +1,6 @@
 import type { SourcingOrder } from "@/lib/alibaba-sourcing";
 import { registerFreeDealClaimFromPaidOrder } from "@/lib/free-deal-store";
+import { triggerManyChatOrderPaidFlow } from "@/lib/manychat";
 import { getMonerooCurrencyCode, normalizeMonerooPaymentStatus, type MonerooPaymentRecord } from "@/lib/moneroo";
 import { incrementProductSalesCounts } from "@/lib/products-feed";
 import { getSourcingOrderById, getSourcingOrderByMonerooPaymentId, saveSourcingOrder } from "@/lib/sourcing-store";
@@ -42,6 +43,12 @@ export async function persistMonerooPaymentToOrder(options: PersistMonerooPaymen
       quantity: item.quantity,
     })));
     await registerFreeDealClaimFromPaidOrder(nextOrder).catch(() => null);
+    await triggerManyChatOrderPaidFlow(nextOrder).catch((error) => {
+      console.error("[manychat] paid flow trigger failed", {
+        orderId: nextOrder.id,
+        reason: error instanceof Error ? error.message : "unknown",
+      });
+    });
   }
 
   return nextOrder;

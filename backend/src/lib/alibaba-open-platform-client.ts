@@ -3659,6 +3659,13 @@ function mapAliExpressProductDetailToProduct(
       search: searchItem,
       detail: detailResponseBody,
       supplier_price_usd: minRawPrice,
+      source_package_dimensions_cm: {
+        lengthCm: Number(packageLength.toFixed(2)),
+        widthCm: Number(packageWidth.toFixed(2)),
+        heightCm: Number(packageHeight.toFixed(2)),
+      },
+      source_weight_grams: weightGrams ?? null,
+      source_package_cbm: lotCbm,
       margin_rate: Number(process.env.ALIEXPRESS_MARGIN_RATE ?? "0.1"),
     },
     moqVerified: true,
@@ -4314,6 +4321,13 @@ function extractAliExpressSolutionProductPackageMetrics(responseBody: unknown) {
   const hasPackageDimensions = typeof resolvedPackageLength === "number" && typeof resolvedPackageWidth === "number" && typeof resolvedPackageHeight === "number";
 
   const formatDimension = (value: number) => (Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2))));
+  const packageDimensionsCm = hasPackageDimensions
+    ? {
+        lengthCm: Number(resolvedPackageLength.toFixed(2)),
+        widthCm: Number(resolvedPackageWidth.toFixed(2)),
+        heightCm: Number(resolvedPackageHeight.toFixed(2)),
+      }
+    : undefined;
   let lotCbm: string | undefined;
   let packaging: string | undefined;
   if (hasPackageDimensions) {
@@ -4323,6 +4337,7 @@ function extractAliExpressSolutionProductPackageMetrics(responseBody: unknown) {
 
   return {
     weightGrams,
+    packageDimensionsCm,
     packaging,
     lotCbm,
   };
@@ -4411,6 +4426,7 @@ async function enrichAliExpressAffiliateProduct(
       affiliate_sku_detail: projection.rawResponse,
       seller_product_info: sellerProductInfoResponse?.ok ? sellerProductInfoResponse.responseBody : undefined,
       source_weight_grams: itemWeightGrams > 0 ? itemWeightGrams : null,
+      source_package_dimensions_cm: sellerPackageMetrics?.packageDimensionsCm ?? null,
       source_package_cbm: sellerPackageMetrics?.lotCbm ?? null,
     },
   };
@@ -4761,6 +4777,7 @@ export async function fetchAliExpressAffiliateProductSnapshot(input: {
       affiliate_sku_detail: projection.rawResponse,
       seller_product_info: sellerProductInfoResponse?.ok ? sellerProductInfoResponse.responseBody : undefined,
       source_weight_grams: itemWeightGrams > 0 ? itemWeightGrams : null,
+      source_package_dimensions_cm: sellerPackageMetrics?.packageDimensionsCm ?? null,
       source_package_cbm: sellerPackageMetrics?.lotCbm ?? null,
     },
     moqVerified: false,

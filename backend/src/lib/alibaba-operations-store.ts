@@ -848,6 +848,96 @@ function extractRawWeightGrams(value: unknown, depth = 0, keyHint?: string): num
   return undefined;
 }
 
+function normalizeDimensionCm(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return Number(value.toFixed(2));
+  }
+
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const numeric = Number(value.trim().replace(",", ".").replace(/[^0-9.\-]/g, ""));
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return undefined;
+  }
+
+  return Number(numeric.toFixed(2));
+}
+
+function buildPackageDimensions(lengthCm?: number, widthCm?: number, heightCm?: number): {
+  lengthCm: number;
+  widthCm: number;
+  heightCm: number;
+} | undefined {
+  if (typeof lengthCm !== "number" || typeof widthCm !== "number" || typeof heightCm !== "number") {
+    return undefined;
+  }
+
+  return { lengthCm, widthCm, heightCm };
+}
+
+function parsePackagingDimensions(packaging: string | null | undefined): {
+  lengthCm: number;
+  widthCm: number;
+  heightCm: number;
+} | undefined {
+  if (typeof packaging !== "string" || !packaging.trim()) {
+    return undefined;
+  }
+
+  const match = packaging.match(/(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*cm/i);
+  if (!match) {
+    return undefined;
+  }
+
+  return buildPackageDimensions(
+    normalizeDimensionCm(match[1]),
+    normalizeDimensionCm(match[2]),
+    normalizeDimensionCm(match[3]),
+  );
+}
+
+function extractRawPackageDimensions(value: unknown, depth = 0): {
+  lengthCm: number;
+  widthCm: number;
+  heightCm: number;
+} | undefined {
+  if (depth > 5 || value == null || typeof value !== "object") {
+    return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const nested: ReturnType<typeof extractRawPackageDimensions> = extractRawPackageDimensions(entry, depth + 1);
+      if (nested) {
+        return nested;
+      }
+    }
+
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const direct = buildPackageDimensions(
+    normalizeDimensionCm(record.package_length ?? record.length ?? record.lengthCm),
+    normalizeDimensionCm(record.package_width ?? record.width ?? record.widthCm),
+    normalizeDimensionCm(record.package_height ?? record.height ?? record.heightCm),
+  );
+  if (direct) {
+    return direct;
+  }
+
+  for (const nestedValue of Object.values(record)) {
+    const nested: ReturnType<typeof extractRawPackageDimensions> = extractRawPackageDimensions(nestedValue, depth + 1);
+    if (nested) {
+      return nested;
+    }
+  }
+
+  return undefined;
+}
+
 function isAffiliateRawPayload(rawPayload: Prisma.JsonValue | null) {
   if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) {
     return false;
@@ -1376,6 +1466,7 @@ function mapImportedProductRecord(record: {
   const effectiveGallery = normalizedGallery.length > 0 ? normalizedGallery : rawMediaGallery;
   const rawPriceBounds = extractRawPriceBounds(record.rawPayload ?? null);
   const rawWeightGrams = extractRawWeightGrams(record.rawPayload);
+  const packageDimensionsCm = extractRawPackageDimensions(record.rawPayload) ?? parsePackagingDimensions(record.packaging);
   const isAffiliateImport = isAffiliateRawPayload(record.rawPayload ?? null);
   const storedWeightGrams = sanitizeItemWeightGrams(record.itemWeightGrams > 0 ? record.itemWeightGrams : undefined);
   const storedTiers = toUnknownArray<{ quantityLabel: string; priceUsd: number; note?: string }>(record.tiers);
@@ -1418,6 +1509,7 @@ function mapImportedProductRecord(record: {
     videoUrl: normalizeAlibabaMediaUrl(record.videoUrl ?? undefined) ?? undefined,
     videoPoster: normalizeAlibabaMediaUrl(record.videoPoster ?? undefined) ?? undefined,
     packaging: record.packaging,
+    packageDimensionsCm,
     itemWeightGrams: normalizedWeightGrams ?? 0,
     lotCbm: record.lotCbm,
     minUsd: normalizedPriceSummary.minUsd,

@@ -193,6 +193,16 @@ export type SourcingPaymentContext = {
   thirdPartyCreatorEmail?: string;
 };
 
+export type SourcingManyChatContext = {
+  subscriberId: string;
+  flowId?: string;
+  paidTagId?: string;
+  orderConfirmationSentAt?: string;
+  lastFlowResponse?: unknown;
+  cartReminderSentAt?: string;
+  lastCartReminderResponse?: unknown;
+};
+
 export type SourcingFreeDealMeta = {
   campaignKey: string;
   fixedPriceEur: number;
@@ -245,6 +255,7 @@ export type SourcingOrderMeta = {
   promo?: SourcingPromoAdjustment;
   sharedCart?: SourcingSharedCartContext;
   paymentContext?: SourcingPaymentContext;
+  manychat?: SourcingManyChatContext;
   freeDeal?: SourcingFreeDealMeta;
 };
 
@@ -258,6 +269,9 @@ export type SourcingCheckoutInput = SourcingCheckoutAddress & {
   sharedCartToken?: string;
   payerDisplayName?: string;
   payerEmail?: string;
+  manychatSubscriberId?: string;
+  manychatFlowId?: string;
+  manychatPaidTagId?: string;
 };
 
 export type SourcingOrderItem = CartComputedItem;
@@ -612,6 +626,27 @@ function normalizePaymentContext(value: unknown): SourcingPaymentContext | undef
   };
 }
 
+function normalizeManyChatContext(value: unknown): SourcingManyChatContext | undefined {
+  if (!isObjectRecord(value)) {
+    return undefined;
+  }
+
+  const subscriberId = typeof value.subscriberId === "string" ? value.subscriberId.trim() : "";
+  if (!subscriberId) {
+    return undefined;
+  }
+
+  return {
+    subscriberId,
+    flowId: typeof value.flowId === "string" && value.flowId.trim().length > 0 ? value.flowId.trim() : undefined,
+    paidTagId: typeof value.paidTagId === "string" && value.paidTagId.trim().length > 0 ? value.paidTagId.trim() : undefined,
+    orderConfirmationSentAt: typeof value.orderConfirmationSentAt === "string" ? value.orderConfirmationSentAt : undefined,
+    lastFlowResponse: "lastFlowResponse" in value ? value.lastFlowResponse : undefined,
+    cartReminderSentAt: typeof value.cartReminderSentAt === "string" ? value.cartReminderSentAt : undefined,
+    lastCartReminderResponse: "lastCartReminderResponse" in value ? value.lastCartReminderResponse : undefined,
+  };
+}
+
 function normalizeFreeDealMeta(value: unknown): SourcingFreeDealMeta | undefined {
   if (!isObjectRecord(value)) {
     return undefined;
@@ -743,6 +778,7 @@ export function getSourcingOrderMeta(order: Pick<SourcingOrder, "supplierOrderPa
     promo: normalizePromoAdjustment(meta.promo),
     sharedCart: normalizeSharedCartContext(meta.sharedCart),
     paymentContext: normalizePaymentContext(meta.paymentContext),
+    manychat: normalizeManyChatContext(meta.manychat),
     freeDeal: normalizeFreeDealMeta(meta.freeDeal),
   };
 }
@@ -891,6 +927,7 @@ export function withSourcingOrderMeta(order: SourcingOrder, metaUpdate: Sourcing
     promo: metaUpdate.promo ?? currentMeta.promo,
     sharedCart: metaUpdate.sharedCart ?? currentMeta.sharedCart,
     paymentContext: metaUpdate.paymentContext ?? currentMeta.paymentContext,
+    manychat: metaUpdate.manychat ?? currentMeta.manychat,
     freeDeal: metaUpdate.freeDeal ?? currentMeta.freeDeal,
   };
 

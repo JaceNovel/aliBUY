@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight, ExternalLink, Heart, Minus, Play, Plus, Share2, ShieldCheck, ShoppingCart, Store, TicketPercent, Truck, X } from "lucide-react";
+import { ChevronRight, ExternalLink, Heart, Minus, Play, Plus, Share2, ShieldCheck, ShoppingCart, Store, TicketPercent, Truck, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
@@ -58,6 +58,11 @@ type ProductDetailClientProps = {
     moq: number;
     moqVerified?: boolean;
     packaging: string;
+    packageDimensionsCm?: {
+      lengthCm: number;
+      widthCm: number;
+      heightCm: number;
+    };
     itemWeightGrams: number;
     lotCbm: string;
     supplierName: string;
@@ -187,6 +192,9 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
         ? "Bureautique"
         : "Usage polyvalent";
     const weightLabel = product.itemWeightGrams > 0 ? `${product.itemWeightGrams} g` : "Selon catalogue";
+  const dimensionsLabel = product.packageDimensionsCm
+    ? `${product.packageDimensionsCm.lengthCm} x ${product.packageDimensionsCm.widthCm} x ${product.packageDimensionsCm.heightCm} cm`
+    : product.packaging;
   const displayShippingLabel = /^(Expédition|Expedition)\s+[A-Z]{2,3}$/i.test(product.shippingLabel) ? "Expédition" : product.shippingLabel;
   const sourceProductUrl = (() => {
     if (typeof product.sourceUrl === "string" && product.sourceUrl.trim()) {
@@ -207,12 +215,16 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       { label: "Capteur", value: product.specs[2]?.value ?? inferredSensor },
     ],
     [
+      { label: "Dimensions", value: dimensionsLabel },
       { label: "Emballage", value: product.packaging },
-      { label: "Poids", value: weightLabel },
     ],
     [
+      { label: "Poids", value: weightLabel },
       { label: "Usage", value: product.specs[3]?.value ?? inferredUse },
+    ],
+    [
       { label: "Support", value: product.responseTime || "Selon disponibilite" },
+      { label: "Volume", value: lotLabel },
     ],
   ];
   const characteristics = characteristicRows.flat();
@@ -232,11 +244,6 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       icon: "https://img.icons8.com/?size=100&id=44779&format=png&color=000000",
       alt: "Icône carte bancaire",
     },
-  ];
-  const mobileServices = [
-    displayShippingLabel,
-    product.overview[1] ?? "Assistance AfriPay dediee.",
-    product.overview[1] ?? "Suivi de commande et assistance après-vente.",
   ];
   const formatMoney = (amount: number) => {
     const localizedAmount = amount * selectedCurrency.rateFromUsd;
@@ -638,415 +645,79 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isImageLightboxOpen, product.gallery.length]);
 
+  const offerMetrics = [
+    { label: "Ventes", value: product.soldLabel },
+    { label: "MOQ", value: product.moqVerified ? `${product.moq} pcs` : `${product.moq} min.` },
+    { label: "Expédition", value: displayShippingLabel },
+    { label: "Personnalisation", value: product.customizationLabel },
+  ];
+  const supplierMetrics = [
+    { label: "Transactions", value: product.transactionsLabel },
+    { label: "Implantation", value: product.supplierLocation || "Réseau fournisseur vérifié" },
+    { label: "Réponse", value: product.responseTime || "Sous 24 h" },
+    { label: "Expérience", value: `${product.yearsInBusiness}+ ans` },
+  ];
+  const serviceHighlights = [
+    {
+      title: "Achat accompagné",
+      description: product.overview[1] ?? "Assistance AfriPay dédiée avant et après validation.",
+    },
+    {
+      title: "Logistique cadrée",
+      description: `Livraison gratuite dès ${freeShippingThresholdLabel} selon le poids et la zone.`,
+    },
+    {
+      title: "Sélection fiable",
+      description: product.shippingLabel || "Produit importé avec contrôle des informations clés.",
+    },
+  ];
+  const mobileSectionTabs = [
+    { key: "overview" as const, label: "Vue d'ensemble" },
+    { key: "details" as const, label: "Fiche & service" },
+    { key: "related" as const, label: "Produits liés" },
+  ];
+
   return (
     <>
-    <div className="space-y-6 pb-28 sm:pb-0">
-      <div className="space-y-4 sm:hidden">
-        <section className="overflow-hidden rounded-[28px] bg-white shadow-[0_18px_42px_rgba(24,39,75,0.08)] ring-1 ring-black/5">
-          <div
-            className="relative aspect-[1/0.92] w-full overflow-hidden bg-[#f4f4f4]"
-            onTouchEnd={(event) => handleImageTouchEnd(event.changedTouches[0]?.clientX ?? 0)}
-          >
-            {product.badge ? (
-              <div className="absolute left-3 top-3 z-10 rounded-full bg-[#de0505] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white">
-                {product.badge}
-              </div>
-            ) : null}
-            <div className="absolute right-3 top-3 z-10 flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={toggleFavorite}
-                className={[
-                  "relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-white text-[#222] shadow-[0_10px_22px_rgba(0,0,0,0.14)] transition duration-300 active:scale-90",
-                  favoritePulse ? "scale-[1.08] shadow-[0_14px_28px_rgba(255,106,0,0.22)]" : "scale-100",
-                ].join(" ")}
-              >
-                <span
-                  className={[
-                    "absolute inset-0 rounded-full bg-[#ff6a00]/12 transition duration-300",
-                    favoritePulse ? "scale-[1.35] opacity-100" : "scale-75 opacity-0",
-                  ].join(" ")}
-                />
-                <span
-                  className={[
-                    "absolute h-7 w-7 rounded-full border border-[#ff6a00]/35 transition duration-300",
-                    favoritePulse ? "scale-[1.85] opacity-100" : "scale-75 opacity-0",
-                  ].join(" ")}
-                />
-                <Heart className={[
-                  "relative z-[1] h-5 w-5 transition duration-300",
-                  isFavorite ? "fill-current text-[#ff6a00]" : "fill-transparent",
-                  favoritePulse ? "scale-[1.28] rotate-[-10deg]" : "scale-100 rotate-0",
-                ].join(" ")} />
-              </button>
-              <button
-                type="button"
-                onClick={shareProduct}
-                className={[
-                  "relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-white text-[#222] shadow-[0_10px_22px_rgba(0,0,0,0.14)] transition duration-300 active:scale-90",
-                  sharePulse ? "scale-[1.08] shadow-[0_14px_28px_rgba(34,34,34,0.20)]" : "scale-100",
-                ].join(" ")}
-              >
-                <span
-                  className={[
-                    "absolute inset-0 rounded-full bg-[#222]/8 transition duration-300",
-                    sharePulse ? "scale-[1.35] opacity-100" : "scale-75 opacity-0",
-                  ].join(" ")}
-                />
-                <span
-                  className={[
-                    "absolute h-7 w-7 rounded-full border border-[#222]/20 transition duration-300",
-                    sharePulse ? "scale-[1.85] opacity-100" : "scale-75 opacity-0",
-                  ].join(" ")}
-                />
-                <Share2 className={[
-                  "relative z-[1] h-5 w-5 transition duration-300",
-                  sharePulse ? "scale-[1.22] rotate-[14deg]" : "scale-100 rotate-0",
-                ].join(" ")} />
-              </button>
-            </div>
-            {shareFeedback ? (
-              <div className="absolute right-3 top-[112px] z-10 rounded-full bg-[#222]/90 px-3 py-1.5 text-[11px] font-semibold text-white shadow-[0_10px_22px_rgba(0,0,0,0.16)] backdrop-blur-sm">
-                {shareFeedback}
-              </div>
-            ) : null}
+    <div className="space-y-8 pb-28 sm:space-y-10 sm:pb-0">
+      <section className="relative overflow-hidden rounded-[32px] border border-white/60 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(255,245,238,0.92)_45%,rgba(245,241,237,0.96))] px-3 py-3 shadow-[0_24px_80px_rgba(34,22,10,0.08)] sm:px-5 sm:py-5 lg:px-6 lg:py-6">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -left-16 top-0 h-52 w-52 rounded-full bg-[#ffb06f]/18 blur-3xl" />
+          <div className="absolute right-0 top-10 h-64 w-64 rounded-full bg-[#f4d9bc]/18 blur-3xl" />
+          <div className="absolute bottom-0 left-1/3 h-40 w-40 rounded-full bg-white/35 blur-3xl" />
+        </div>
 
-            {activeMedia === "video" && product.videoUrl ? (
-              <video
-                key={product.videoUrl}
-                controls
-                poster={product.videoPoster}
-                className="h-full w-full bg-black object-contain"
-                preload="auto"
-                playsInline
-                autoPlay
-                muted
-                loop
-              >
-                <source src={product.videoUrl} type="video/mp4" />
-              </video>
-            ) : (
-              <button type="button" onClick={openImageLightbox} className="relative block h-full w-full cursor-zoom-in">
-                <Image
-                  src={product.gallery[activeImage] ?? product.gallery[0]}
-                  alt={product.title}
-                  fill
-                  sizes="100vw"
-                  className="object-cover"
-                />
-              </button>
-            )}
+        <div className="relative flex flex-wrap items-center gap-2 text-[12px] font-medium text-[#706458]">
+          <Link href="/" className="transition hover:text-[#ff6a00]">Accueil</Link>
+          <ChevronRight className="h-3.5 w-3.5" />
+          <span>Produits</span>
+          <ChevronRight className="h-3.5 w-3.5" />
+          <span className="max-w-[220px] truncate text-[#221d17]">{product.shortTitle}</span>
+        </div>
 
-            <div className="absolute inset-x-0 bottom-3 z-10 flex justify-center px-3">
-              <div className="inline-flex items-center gap-1 rounded-full bg-[#2f2d2a]/92 p-1 text-white shadow-[0_10px_24px_rgba(0,0,0,0.18)] backdrop-blur-sm">
-                <button
-                  type="button"
-                  onClick={() => setActiveMedia("photo")}
-                  className={[
-                    "rounded-full px-3 py-1.5 text-[11px] font-semibold transition",
-                    activeMedia === "photo" ? "bg-white text-[#222]" : "text-white/82",
-                  ].join(" ")}
-                >
-                  Photos {activeImage + 1}/{product.gallery.length}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMobileTab("overview")}
-                  className={[
-                    "rounded-full px-3 py-1.5 text-[11px] font-semibold transition",
-                    mobileTab === "overview" ? "bg-white text-[#222]" : "text-white/82",
-                  ].join(" ")}
-                >
-                  Points forts
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMobileTab("details")}
-                  className={[
-                    "rounded-full px-3 py-1.5 text-[11px] font-semibold transition",
-                    mobileTab === "details" ? "bg-white text-[#222]" : "text-white/82",
-                  ].join(" ")}
-                >
-                  Service
-                </button>
-              </div>
-            </div>
-
-            {activeMedia === "photo" && product.gallery.length > 1 ? (
-              <div className="absolute inset-x-0 bottom-16 z-10 flex justify-center gap-1.5 px-3">
-                {product.gallery.map((image, index) => (
-                  <button
-                    key={`${image}-dot-${index}`}
-                    type="button"
-                    aria-label={`Afficher la photo ${index + 1}`}
-                    onClick={() => {
-                      setActiveMedia("photo");
-                      setActiveImage(index);
-                    }}
-                    className={[
-                      "h-1.5 rounded-full transition-all duration-300",
-                      activeImage === index ? "w-5 bg-white" : "w-1.5 bg-white/55",
-                    ].join(" ")}
-                  />
-                ))}
-              </div>
-            ) : null}
-          </div>
-
-          <div className="flex gap-2 overflow-x-auto px-3 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="relative mt-4 grid gap-4 xl:grid-cols-[92px_minmax(0,1.15fr)_minmax(360px,0.85fr)]">
+          <div className="order-2 flex gap-2 overflow-x-auto pb-1 xl:order-1 xl:flex-col xl:overflow-visible xl:pb-0">
             {product.videoUrl ? (
               <button
                 type="button"
                 onClick={() => setActiveMedia("video")}
                 className={[
-                  "relative h-[60px] min-w-[60px] overflow-hidden rounded-[14px] bg-[#111] ring-1 transition",
-                  activeMedia === "video" ? "ring-[#ff6a00] shadow-[0_10px_18px_rgba(255,106,0,0.15)]" : "ring-black/5",
+                  "relative h-[68px] min-w-[68px] overflow-hidden rounded-[20px] bg-[#16120f] ring-1 transition sm:h-[76px] sm:min-w-[76px]",
+                  activeMedia === "video" ? "ring-[#d96a1b] shadow-[0_16px_30px_rgba(217,106,27,0.22)]" : "ring-black/10 hover:ring-[#f0b481]",
                 ].join(" ")}
               >
                 {product.videoPoster ? (
-                  <Image src={product.videoPoster} alt={`${product.shortTitle} video`} fill sizes="60px" className="object-cover opacity-80" />
+                  <Image src={product.videoPoster} alt={`${product.shortTitle} video`} fill sizes="76px" className="object-cover opacity-75" />
                 ) : null}
                 <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#111]">
-                    <Play className="ml-0.5 h-3.5 w-3.5 fill-current" />
-                  </div>
-                </div>
-              </button>
-            ) : null}
-            {product.gallery.map((image, index) => {
-              const isActive = activeImage === index;
-
-              return (
-                <button
-                  key={`${image}-${index}`}
-                  type="button"
-                  onClick={() => {
-                    setActiveMedia("photo");
-                    setActiveImage(index);
-                  }}
-                  className={[
-                    "relative h-[60px] min-w-[60px] overflow-hidden rounded-[14px] bg-[#f6f6f6] ring-1 transition",
-                    isActive && activeMedia === "photo" ? "ring-[#ff6a00] shadow-[0_10px_18px_rgba(255,106,0,0.15)]" : "ring-black/5",
-                  ].join(" ")}
-                >
-                  <Image src={image} alt={`${product.shortTitle} ${index + 1}`} fill sizes="60px" className="object-cover" />
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="rounded-[26px] bg-white px-3 py-4 shadow-[0_16px_34px_rgba(24,39,75,0.06)] ring-1 ring-black/5">
-          <div className="grid grid-cols-2 gap-2 rounded-[22px] bg-[#f7f4f1] p-2">
-            {normalizedProductTiers.slice(0, 2).map((tier, index) => (
-              <div key={tier.quantityLabel} className="rounded-[18px] bg-white px-3 py-3 text-[#222] shadow-[0_8px_18px_rgba(17,24,39,0.05)]">
-                <div className="text-[13px] font-black tracking-[-0.04em] text-[#111]">
-                  {formatMoney(tier.priceUsd)}
-                </div>
-                <div className="mt-1 text-[11px] text-[#555]">
-                  {index === 0 ? `Commande minimale : ${product.moq} unité` : tier.quantityLabel}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#fff1ea] px-3 py-2 text-[11px] font-semibold text-[#e25c12] ring-1 ring-[#ffd9c1]">
-            <TicketPercent className="h-4 w-4" />
-            Réduction disponible sur la première commande
-          </div>
-
-          <div className="mt-3 flex items-start justify-between gap-3">
-            <div>
-              <h1 className="text-[18px] font-semibold leading-6 tracking-[-0.04em] text-[#222]">
-                {product.title}
-              </h1>
-            </div>
-            <button type="button" className="mt-1 text-[#222]">
-              <ChevronDown className="h-5 w-5" />
-            </button>
-          </div>
-
-          <div className="mt-3 inline-flex items-center rounded-full bg-[#fff5e8] px-3 py-2 text-[11px] font-semibold text-[#b77518] ring-1 ring-[#f3dfb8]">
-            Top {product.categoryTitle}
-          </div>
-
-          <div className="mt-3 rounded-[18px] bg-[#faf7f3] px-3 py-3 text-[11px] text-[#666] ring-1 ring-[#efe7df]">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span className="font-medium text-[#444]">Paiements pris en charge :</span>
-              {paymentMethods.map((method) => (
-                <div key={method.label} className="inline-flex items-center gap-1.5 rounded-[10px] bg-white px-2.5 py-1.5 ring-1 ring-black/5">
-                  <Image src={method.icon} alt={method.alt} width={16} height={16} unoptimized className="h-4 w-4 object-contain" />
-                  <span className="font-semibold text-[#2e3b52]">{method.label}</span>
-                </div>
-              ))}
-              <div className="inline-flex items-center gap-1.5 rounded-[10px] bg-white px-2.5 py-1.5 ring-1 ring-black/5">
-                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ff6a00] px-1 text-[9px] font-black text-white">
-                  3X
-                </span>
-                <span className="font-semibold text-[#2e3b52]">Paiement en 3X</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 grid grid-cols-3 gap-2 border-b border-[#eee7e0] pb-3 text-center">
-            {[
-              { key: "overview", label: "Aperçu" },
-              { key: "details", label: "Détails" },
-              { key: "related", label: "Autres produits" },
-            ].map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setMobileTab(tab.key as "overview" | "details" | "related")}
-                className={[
-                  "pb-2 text-[13px] font-semibold transition",
-                  mobileTab === tab.key ? "border-b-2 border-[#222] text-[#222]" : "text-[#7a726b]",
-                ].join(" ")}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {mobileTab === "overview" ? (
-            <div className="space-y-4 pt-4">
-              <div className="rounded-[20px] bg-[#fbfbfb] px-4 py-4 ring-1 ring-black/5">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#777]">Points forts</div>
-                <div className="mt-3 space-y-3">
-                  {product.overview.map((point) => (
-                    <div key={point} className="flex items-start gap-3">
-                      <div className="mt-1 h-2.5 w-2.5 rounded-full bg-[#ff6a00]" />
-                      <p className="text-[14px] leading-6 text-[#444]">{point}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-[20px] bg-white px-4 py-4 ring-1 ring-black/5">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-[#fff3ea] text-[#d85a00]">
-                    <Store className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#d85a00]">Selection verifiee</div>
-                    <div className="mt-1 text-[18px] font-bold tracking-[-0.04em] text-[#222]">AfriPay+</div>
-                    <div className="mt-1 text-[13px] text-[#666]">{product.transactionsLabel}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          {mobileTab === "details" ? (
-            <div className="space-y-4 pt-4">
-              <div className="rounded-[20px] bg-[#fafafa] px-4 py-4 ring-1 ring-black/5">
-                <h2 className="text-[17px] font-bold tracking-[-0.04em] text-[#222]">Caractéristiques</h2>
-                <div className="mt-3 flex items-center justify-between rounded-[14px] bg-white px-3 py-2.5 ring-1 ring-[#eee]">
-                  <div className="text-[13px] font-semibold text-[#222]">Lot: {lotLabel}</div>
-                  {sourceProductUrl ? (
-                    <a href={sourceProductUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00]" aria-label="Ouvrir la fiche AliExpress">
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  ) : null}
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-5 rounded-[18px] bg-white px-4 py-4 ring-1 ring-[#eee]">
-                  {characteristics.slice(0, 6).map((item) => (
-                    <div key={`${item.label}-${item.value}`} className="min-w-0">
-                      <div className="text-[11px] text-[#888]">{item.label}</div>
-                      <div className="mt-1 text-[14px] font-semibold leading-5 text-[#222]">{item.value}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-[20px] bg-white px-4 py-4 ring-1 ring-black/5">
-                <div className="text-[17px] font-bold tracking-[-0.04em] text-[#222]">Service</div>
-                <div className="mt-3 space-y-3">
-                  {mobileServices.map((item) => (
-                    <div key={item} className="rounded-[16px] bg-[#fafafa] px-3 py-3 ring-1 ring-[#efefef]">
-                      <div className="flex items-start gap-3">
-                        <Truck className="mt-0.5 h-4 w-4 text-[#222]" />
-                        <div className="text-[14px] leading-5 text-[#222]">{item}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-[20px] bg-white px-4 py-4 ring-1 ring-black/5">
-                <div className="text-[17px] font-bold tracking-[-0.04em] text-[#222]">Adresse de livraison {product.currencyCode}</div>
-                <div className="mt-3 rounded-[18px] bg-[#fafafa] px-4 py-4 ring-1 ring-[#efefef]">
-                  <div className="text-[12px] text-[#777]">Temps de traitement</div>
-                  <div className="mt-3 grid grid-cols-2 gap-3">
-                    <div>
-                      <div className="text-[16px] font-black text-[#111]">{product.responseTime}</div>
-                      <div className="mt-1 text-[13px] text-[#666]">1 unité</div>
-                    </div>
-                    <div>
-                      <div className="text-[16px] font-black text-[#111]">Fixe</div>
-                      <div className="mt-1 text-[13px] text-[#666]">1+ unité</div>
-                    </div>
-                  </div>
-                </div>
-                <p className="mt-3 text-[14px] leading-6 text-[#444]">
-                  Frais d&apos;expédition et date de livraison fixes. Passez commande maintenant pour finaliser votre achat.
-                </p>
-              </div>
-            </div>
-          ) : null}
-
-          {mobileTab === "related" ? (
-            <div className="space-y-4 pt-4">
-              <div className="text-[17px] font-bold tracking-[-0.04em] text-[#222]">Autres produits du moment</div>
-              <div className="-mx-3 flex snap-x snap-mandatory gap-3 overflow-x-auto px-3 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {relatedProducts.map((relatedProduct) => (
-                  <Link key={relatedProduct.slug} href={`/products/${relatedProduct.slug}`} className="group min-w-[164px] snap-start overflow-hidden rounded-[20px] bg-white p-2.5 shadow-[0_14px_28px_rgba(17,24,39,0.08)] ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-[0_18px_34px_rgba(17,24,39,0.12)]">
-                    <div className="relative aspect-[0.95] overflow-hidden rounded-[16px] bg-[#f4f4f4]">
-                      <Image src={relatedProduct.image} alt={relatedProduct.title} fill sizes="44vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
-                    </div>
-                    <div className="mt-2 line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-4 text-[#222]">{relatedProduct.title}</div>
-                    <div className="mt-2 text-[14px] font-bold text-[#f05a00]">{relatedProduct.formattedPrice}</div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </section>
-      </div>
-
-      <div className="hidden sm:block">
-      <div className="flex flex-wrap items-center gap-2 text-[13px] text-[#666]">
-        <Link href="/" className="transition hover:text-[#ff6a00]">Accueil</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span>Produits</span>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="font-medium text-[#222]">{product.shortTitle}</span>
-      </div>
-
-      <section className="rounded-[30px] bg-white px-4 py-4 shadow-[0_18px_48px_rgba(24,39,75,0.06)] ring-1 ring-black/5 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
-        <div className="grid gap-6 xl:grid-cols-[88px_580px_minmax(0,1fr)]">
-          <div className="order-2 flex gap-3 overflow-x-auto xl:order-1 xl:flex-col xl:overflow-visible">
-            {product.videoUrl ? (
-              <button
-                type="button"
-                onClick={() => setActiveMedia("video")}
-                className={[
-                  "relative h-[70px] min-w-[70px] overflow-hidden rounded-[18px] bg-[#111] ring-1 transition sm:h-[82px] sm:min-w-[82px]",
-                  activeMedia === "video" ? "ring-[#ff6a00] shadow-[0_12px_28px_rgba(255,106,0,0.16)]" : "ring-black/5 hover:ring-[#ffb48a]",
-                ].join(" ")}
-              >
-                {product.videoPoster ? (
-                  <Image src={product.videoPoster} alt={`${product.shortTitle} video`} fill sizes="82px" className="object-cover opacity-80" />
-                ) : null}
-                <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#111] shadow-[0_8px_18px_rgba(0,0,0,0.2)]">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#16120f] shadow-[0_10px_22px_rgba(0,0,0,0.22)]">
                     <Play className="ml-0.5 h-4 w-4 fill-current" />
                   </div>
                 </div>
               </button>
             ) : null}
             {product.gallery.map((image, index) => {
-              const isActive = activeImage === index;
+              const isActive = activeImage === index && activeMedia === "photo";
 
               return (
                 <button
@@ -1057,49 +728,88 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     setActiveImage(index);
                   }}
                   className={[
-                    "relative h-[70px] min-w-[70px] overflow-hidden rounded-[18px] bg-[#f6f6f6] ring-1 transition sm:h-[82px] sm:min-w-[82px]",
-                    isActive && activeMedia === "photo" ? "ring-[#ff6a00] shadow-[0_12px_28px_rgba(255,106,0,0.16)]" : "ring-black/5 hover:ring-[#ffb48a]",
+                    "relative h-[68px] min-w-[68px] overflow-hidden rounded-[20px] bg-white ring-1 transition sm:h-[76px] sm:min-w-[76px]",
+                    isActive ? "ring-[#d96a1b] shadow-[0_16px_30px_rgba(217,106,27,0.18)]" : "ring-black/8 hover:ring-[#f0b481]",
                   ].join(" ")}
                 >
-                  <Image src={image} alt={`${product.shortTitle} ${index + 1}`} fill sizes="82px" className="object-cover" />
+                  <Image src={image} alt={`${product.shortTitle} ${index + 1}`} fill sizes="76px" className="object-cover" />
                 </button>
               );
             })}
           </div>
 
           <div className="order-1 xl:order-2">
-            <div className="relative mx-auto max-w-[580px] overflow-hidden rounded-[28px] bg-[#f4f4f4] ring-1 ring-black/5">
+            <div
+              className="relative overflow-hidden rounded-[30px] border border-white/70 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.85),rgba(243,236,229,0.96)_52%,rgba(232,226,220,0.98))] shadow-[0_30px_70px_rgba(38,25,12,0.12)]"
+              onTouchEnd={(event) => handleImageTouchEnd(event.changedTouches[0]?.clientX ?? 0)}
+            >
               {product.badge ? (
-                <div className="absolute left-5 top-5 z-10 rounded-full bg-[#de0505] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-white">
+                <div className="absolute left-4 top-4 z-10 rounded-full bg-[#aa2014] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white shadow-[0_12px_30px_rgba(170,32,20,0.28)] sm:left-5 sm:top-5 sm:text-[11px]">
                   {product.badge}
                 </div>
               ) : null}
-              <div className="absolute right-4 top-4 z-10 inline-flex items-center gap-1 rounded-full bg-white/90 p-1 shadow-[0_6px_14px_rgba(0,0,0,0.08)]">
+
+              <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setActiveMedia("photo")}
+                  onClick={toggleFavorite}
                   className={[
-                    "rounded-full px-3 py-1.5 text-[12px] font-medium transition",
-                    activeMedia === "photo" ? "bg-[#ff6a00] text-white" : "text-[#555]",
+                    "relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-white/65 bg-white/85 text-[#221d17] shadow-[0_16px_32px_rgba(34,29,23,0.12)] backdrop-blur transition duration-300 active:scale-95",
+                    favoritePulse ? "scale-[1.06] shadow-[0_18px_34px_rgba(217,106,27,0.22)]" : "",
                   ].join(" ")}
                 >
-                  Photos
+                  <Heart className={[
+                    "h-4.5 w-4.5 transition duration-300",
+                    isFavorite ? "fill-current text-[#d96a1b]" : "fill-transparent",
+                    favoritePulse ? "scale-[1.24]" : "",
+                  ].join(" ")} />
                 </button>
-                {product.videoUrl ? (
+                <button
+                  type="button"
+                  onClick={shareProduct}
+                  className={[
+                    "relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-white/65 bg-white/85 text-[#221d17] shadow-[0_16px_32px_rgba(34,29,23,0.12)] backdrop-blur transition duration-300 active:scale-95",
+                    sharePulse ? "scale-[1.06]" : "",
+                  ].join(" ")}
+                >
+                  <Share2 className={["h-4.5 w-4.5 transition duration-300", sharePulse ? "scale-[1.18] rotate-[10deg]" : ""].join(" ")} />
+                </button>
+              </div>
+
+              {shareFeedback ? (
+                <div className="absolute right-4 top-[68px] z-10 rounded-full bg-[#221d17]/90 px-3 py-1.5 text-[11px] font-semibold text-white shadow-[0_14px_26px_rgba(0,0,0,0.22)] backdrop-blur">
+                  {shareFeedback}
+                </div>
+              ) : null}
+
+              <div className="absolute inset-x-0 top-0 z-[1] flex items-center justify-between px-4 pt-16 sm:px-5 sm:pt-18">
+                <div className="inline-flex rounded-full border border-white/65 bg-white/74 p-1 text-[11px] font-semibold text-[#5f5449] shadow-[0_10px_22px_rgba(34,29,23,0.08)] backdrop-blur">
                   <button
                     type="button"
-                    onClick={() => setActiveMedia("video")}
-                    className={[
-                      "rounded-full px-3 py-1.5 text-[12px] font-medium transition",
-                      activeMedia === "video" ? "bg-[#ff6a00] text-white" : "text-[#555]",
-                    ].join(" ")}
+                    onClick={() => setActiveMedia("photo")}
+                    className={["rounded-full px-3 py-1.5 transition", activeMedia === "photo" ? "bg-[#221d17] text-white" : ""].join(" ")}
                   >
-                    Vidéo
+                    Photos
                   </button>
+                  {product.videoUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => setActiveMedia("video")}
+                      className={["rounded-full px-3 py-1.5 transition", activeMedia === "video" ? "bg-[#221d17] text-white" : ""].join(" ")}
+                    >
+                      Video
+                    </button>
+                  ) : null}
+                </div>
+
+                {activeMedia === "photo" && product.gallery.length > 1 ? (
+                  <div className="rounded-full border border-white/65 bg-white/74 px-3 py-1.5 text-[11px] font-semibold text-[#221d17] shadow-[0_10px_22px_rgba(34,29,23,0.08)] backdrop-blur">
+                    {activeImage + 1}/{product.gallery.length}
+                  </div>
                 ) : null}
               </div>
 
-              <div className="relative aspect-[1/0.88] w-full">
+              <div className="relative aspect-[1/1.04] w-full sm:aspect-[1/0.92]">
                 {activeMedia === "video" && product.videoUrl ? (
                   <video
                     key={product.videoUrl}
@@ -1113,296 +823,499 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                   </video>
                 ) : (
                   <button type="button" onClick={openImageLightbox} className="relative block h-full w-full cursor-zoom-in">
-                    <Image src={product.gallery[activeImage] ?? product.gallery[0]} alt={product.title} fill priority sizes="(min-width: 1280px) 34vw, 88vw" className="object-cover" />
+                    <Image
+                      src={product.gallery[activeImage] ?? product.gallery[0]}
+                      alt={product.title}
+                      fill
+                      priority
+                      sizes="(min-width: 1280px) 40vw, 100vw"
+                      className="object-cover"
+                    />
+                    <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#1c1712]/32 via-transparent to-transparent" />
                   </button>
                 )}
               </div>
+
+              {activeMedia === "photo" && product.gallery.length > 1 ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={goToPreviousImage}
+                    className="absolute left-4 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/80 text-[#221d17] shadow-[0_14px_30px_rgba(34,29,23,0.14)] backdrop-blur transition hover:bg-white sm:inline-flex"
+                    aria-label="Image précédente"
+                  >
+                    <ChevronRight className="h-4.5 w-4.5 rotate-180" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={goToNextImage}
+                    className="absolute right-4 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/80 text-[#221d17] shadow-[0_14px_30px_rgba(34,29,23,0.14)] backdrop-blur transition hover:bg-white sm:inline-flex"
+                    aria-label="Image suivante"
+                  >
+                    <ChevronRight className="h-4.5 w-4.5" />
+                  </button>
+                </>
+              ) : null}
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-[18px] bg-[#faf7f3] px-4 py-4 ring-1 ring-[#f1dfd2]">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9f6d4b]">Ventes</div>
-                <div className="mt-2 text-[15px] font-semibold text-[#222]">{product.soldLabel}</div>
-              </div>
-              <div className="rounded-[18px] bg-[#f6f8fb] px-4 py-4 ring-1 ring-[#e3e9f3]">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#6e7f9a]">Personnalisation</div>
-                <div className="mt-2 text-[15px] font-semibold text-[#222]">{product.customizationLabel}</div>
-              </div>
-              <div className="rounded-[18px] bg-[#fff7ef] px-4 py-4 ring-1 ring-[#ffe0c2]">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#cf6b16]">Livraison</div>
-                <div className="mt-2 text-[15px] font-semibold text-[#222]">{displayShippingLabel}</div>
-              </div>
+            <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+              {offerMetrics.map((item, index) => (
+                <div
+                  key={item.label}
+                  className={[
+                    "rounded-[20px] border px-4 py-4 backdrop-blur",
+                    index === 0 ? "border-[#f1d2b8] bg-[#fff6ee]" : "border-white/65 bg-white/72",
+                  ].join(" ")}
+                >
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8b7a69]">{item.label}</div>
+                  <div className="mt-2 text-[14px] font-semibold leading-5 text-[#221d17] sm:text-[15px]">{item.value}</div>
+                </div>
+              ))}
             </div>
+          </div>
 
-            {!mixGroup ? (
-              <div className="mt-4 rounded-[20px] border border-[#ece7df] bg-[#fffdfa] px-4 py-4">
-                <div className="flex items-center justify-between gap-4">
+          <div className="order-3 min-w-0">
+            <div className="rounded-[30px] border border-[#ead9cb] bg-[linear-gradient(180deg,rgba(255,251,247,0.98),rgba(255,246,239,0.95))] p-5 shadow-[0_24px_70px_rgba(80,45,15,0.08)] sm:p-6">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-2 rounded-full border border-[#f1cfb1] bg-white/80 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#b46520]">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Selection verifiee
+                </span>
+                <span className="inline-flex rounded-full border border-white/80 bg-white/70 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#66584a]">
+                  {product.categoryTitle}
+                </span>
+              </div>
+
+              <h1 className="mt-4 text-[27px] font-bold leading-[1.02] tracking-[-0.06em] text-[#1f1914] sm:text-[34px] lg:text-[42px]">
+                {product.title}
+              </h1>
+
+              <p className="mt-3 max-w-[58ch] text-[14px] leading-6 text-[#685b4f] sm:text-[15px]">
+                {product.overview[0] ?? "Produit sélectionné pour une présentation plus claire, plus haut de gamme et plus rassurante à l’achat."}
+              </p>
+
+              <div className="mt-5 flex flex-wrap items-center gap-3 text-[13px] text-[#66584a]">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/72 px-3 py-2">
+                  <Store className="h-4 w-4 text-[#d96a1b]" />
+                  {product.supplierName}
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/72 px-3 py-2">
+                  <Truck className="h-4 w-4 text-[#d96a1b]" />
+                  {displayShippingLabel}
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/72 px-3 py-2">
+                  <TicketPercent className="h-4 w-4 text-[#d96a1b]" />
+                  Offre adaptée à la première commande
+                </div>
+              </div>
+
+              <div className="mt-6 rounded-[28px] border border-[#efcfb4] bg-[#201813] p-5 text-white shadow-[0_24px_60px_rgba(25,14,6,0.24)] sm:p-6">
+                <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9a6a47]">Quantité</div>
-                    <div className="mt-1 text-[14px] text-[#5f5147]">{product.moqVerified ? `Minimum ${product.moq} ${product.moq > 1 ? "pieces" : "piece"}` : "Minimum a confirmer"}</div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d9b89d]">Prix premium sourcing</div>
+                    <div className="mt-2 text-[32px] font-bold tracking-[-0.07em] text-white sm:text-[40px]">
+                      {dynamicPriceLabel}
+                    </div>
+                    <div className="mt-2 max-w-[42ch] text-[13px] leading-6 text-[#d8cbc1] sm:text-[14px]">{dynamicPriceHint}</div>
                   </div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-[#e1ddd7] bg-white px-2 py-2 shadow-[0_6px_14px_rgba(17,24,39,0.04)]">
-                    <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-40">
-                      <Minus className="h-4 w-4" />
-                    </button>
-                    <div className="min-w-[42px] text-center text-[20px] font-semibold tracking-[-0.03em] text-[#222]">{orderQuantity}</div>
-                    <button type="button" onClick={() => updateOrderQuantity(1)} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
-                      <Plus className="h-4 w-4" />
-                    </button>
+                  <div className="rounded-[18px] border border-white/12 bg-white/8 px-4 py-3 text-right">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#d9b89d]">Unité estimée</div>
+                    <div className="mt-1 text-[22px] font-bold tracking-[-0.05em] text-white">{formatMoney(currentUnitPrice)}</div>
                   </div>
                 </div>
-              </div>
-            ) : null}
 
-            <article className="mt-4 overflow-hidden rounded-[26px] border border-[#e8e8e8] bg-white">
-              <div className="border-b border-[#ececec] px-5 py-4">
-                <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8a8a8a]">Attributs</div>
-                <h2 className="mt-2 text-[18px] font-bold tracking-[-0.04em] text-[#222] sm:text-[21px]">Caractéristiques du produit</h2>
-                <div className="mt-3 flex items-center justify-between rounded-[14px] bg-[#fafafa] px-3 py-2.5 ring-1 ring-[#eee]">
-                  <div className="text-[13px] font-semibold text-[#222]">Lot: {lotLabel}</div>
-                  {sourceProductUrl ? (
-                    <a href={sourceProductUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00]" aria-label="Ouvrir la fiche AliExpress">
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  ) : null}
+                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-[20px] border border-white/12 bg-white/8 px-4 py-4">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#d9b89d]">Poids importé</div>
+                    <div className="mt-2 text-[20px] font-semibold tracking-[-0.04em] text-white">{weightLabel}</div>
+                  </div>
+                  <div className="rounded-[20px] border border-white/12 bg-white/8 px-4 py-4">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#d9b89d]">Volume logistique</div>
+                    <div className="mt-2 text-[20px] font-semibold tracking-[-0.04em] text-white">{lotLabel}</div>
+                  </div>
+                </div>
+
+                <div className="mt-5 rounded-[20px] border border-white/12 bg-white/8 p-4 text-[13px] leading-6 text-[#efe3da]">
+                  Livraison gratuite à partir de <span className="font-semibold text-white">{freeShippingThresholdLabel}</span>. Les expéditions lourdes peuvent basculer vers un mode plus adapté pour préserver coût et délai.
+                </div>
+
+                <div className="mt-5 space-y-2.5">
+                  {sortedTiers.map((tier, index) => (
+                    <div
+                      key={tier.quantityLabel}
+                      className={[
+                        "grid gap-1 rounded-[18px] border px-4 py-3 text-[13px] sm:grid-cols-[1fr_auto_auto] sm:items-center sm:gap-3",
+                        activeTier?.quantityLabel === tier.quantityLabel
+                          ? "border-[#efcfb4] bg-[#fff4eb] text-[#1f1914]"
+                          : "border-white/10 bg-white/6 text-white",
+                      ].join(" ")}
+                    >
+                      <div className={activeTier?.quantityLabel === tier.quantityLabel ? "font-semibold" : "font-medium text-[#f2e5db]"}>{tier.quantityLabel}</div>
+                      <div className={activeTier?.quantityLabel === tier.quantityLabel ? "font-bold text-[#d96a1b]" : "font-bold text-white"}>{tier.formattedPrice}</div>
+                      <div className={["text-[12px]", activeTier?.quantityLabel === tier.quantityLabel ? "text-[#5f5449]" : "text-[#d8cbc1]"].join(" ")}>
+                        {tier.note ?? (index === 0 ? "Niveau d'entrée" : "Tarif quantitatif")}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              <div>
-                {characteristicRows.map((row, index) => (
-                  <div key={`characteristic-row-${index}`} className={["grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[132px_minmax(0,1fr)_132px_minmax(0,1fr)]", index > 0 ? "border-t border-[#ececec]" : ""].join(" ")}>
-                    <div className="bg-[#f7f6f4] px-4 py-3 text-[12px] font-medium uppercase tracking-[0.08em] text-[#706459]">{row[0].label}</div>
-                    <div className="px-4 py-3 text-[13px] font-semibold leading-5 text-[#1f2937] xl:line-clamp-2">{row[0].value}</div>
-                    <div className="bg-[#f7f6f4] px-4 py-3 text-[12px] font-medium uppercase tracking-[0.08em] text-[#706459]">{row[1].label}</div>
-                    <div className="px-4 py-3 text-[13px] font-semibold leading-5 text-[#1f2937] xl:line-clamp-2">{row[1].value}</div>
+              <div className="mt-6 space-y-4">
+                {hasVariantChoices ? (
+                  <div className="rounded-[22px] border border-[#efcfb4] bg-white/72 px-4 py-4 text-[14px] leading-6 text-[#6c5239]">
+                    Les options obligatoires ne sont pas présélectionnées. Le client doit choisir <span className="font-semibold text-[#1f1914]">{variantSelectionInstruction}</span> avant validation pour garder un achat clair et sans ambiguïté.
+                  </div>
+                ) : null}
+
+                {product.variantGroups.length > 0 ? (
+                  <div className="rounded-[24px] border border-[#ead9cb] bg-white/72 p-4 sm:p-5">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#8f7b67]">Configuration</div>
+                    <div className="mt-4 space-y-4">
+                      {product.variantGroups.map((group) => (
+                        <div key={`preview-${group.label}`}>
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="text-[15px] font-semibold text-[#1f1914]">{group.label}</div>
+                            <div className="text-[12px] text-[#76685c]">
+                              {mixGroup && group.label === mixGroup.label
+                                ? `${totalSelectedQuantity} sélection${totalSelectedQuantity > 1 ? "s" : ""}`
+                                : resolveVariantGroupSelection(group) || "A choisir"}
+                            </div>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {group.values.map((value) => {
+                              const isSelected = mixGroup && group.label === mixGroup.label
+                                ? (mixQuantities[value] ?? 0) > 0
+                                : selectedVariants[group.label] === value;
+
+                              return (
+                                <button
+                                  key={`${group.label}-${value}`}
+                                  type="button"
+                                  onClick={() => handleVariantPreviewSelection(group, value)}
+                                  className={[
+                                    "rounded-full border px-3.5 py-2 text-[13px] font-medium transition sm:px-4",
+                                    isSelected
+                                      ? "border-[#d96a1b] bg-[#fff2e6] text-[#c25b14] shadow-[0_10px_22px_rgba(217,106,27,0.12)]"
+                                      : "border-[#e6ddd5] bg-white text-[#2c241e] hover:border-[#efcfb4]",
+                                  ].join(" ")}
+                                >
+                                  {value}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {!mixGroup ? (
+                  <div className="rounded-[24px] border border-[#ead9cb] bg-white/72 px-4 py-4 sm:px-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#8f7b67]">Quantité</div>
+                        <div className="mt-2 text-[15px] text-[#5f5449]">{product.moqVerified ? `Minimum ${product.moq} ${product.moq > 1 ? "pieces" : "piece"}` : "Minimum à confirmer"}</div>
+                      </div>
+                      <div className="inline-flex items-center gap-2 rounded-full border border-[#e3d8cf] bg-white px-2 py-2 shadow-[0_10px_20px_rgba(34,29,23,0.05)]">
+                        <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d8cfc7] text-[#54493f] transition hover:border-[#d96a1b] hover:text-[#d96a1b] disabled:cursor-not-allowed disabled:opacity-40">
+                          <Minus className="h-4 w-4" />
+                        </button>
+                        <div className="min-w-[44px] text-center text-[22px] font-semibold tracking-[-0.04em] text-[#1f1914]">{orderQuantity}</div>
+                        <button type="button" onClick={() => updateOrderQuantity(1)} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d8cfc7] text-[#54493f] transition hover:border-[#d96a1b] hover:text-[#d96a1b]">
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={openOrderModal}
+                    className="inline-flex h-13 items-center justify-center gap-3 rounded-full bg-[#d96a1b] px-6 text-[16px] font-semibold text-white shadow-[0_16px_30px_rgba(217,106,27,0.26)] transition hover:bg-[#c65f16]"
+                  >
+                    <ShoppingCart className="h-4 w-4" />
+                    Commander maintenant
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleFavorite}
+                    className={[
+                      "inline-flex h-13 items-center justify-center gap-3 rounded-full border px-6 text-[16px] font-semibold transition",
+                      isFavorite
+                        ? "border-[#d96a1b] bg-[#fff1e6] text-[#d96a1b]"
+                        : "border-[#2b241e] bg-white/72 text-[#2b241e] hover:border-[#d96a1b] hover:text-[#d96a1b]",
+                    ].join(" ")}
+                  >
+                    <Heart className={["h-4 w-4", isFavorite ? "fill-current" : "fill-transparent"].join(" ")} />
+                    {isFavorite ? "Ajouté aux favoris" : "Ajouter aux favoris"}
+                  </button>
+                </div>
+
+                {hasVariantChoices ? (
+                  <div className="text-[13px] leading-5 text-[#6d5c4f]">
+                    La fenêtre de commande centralise le choix final, les quantités et le mode d’expédition pour éviter les erreurs de sélection.
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-4 sm:hidden">
+        <div className="flex gap-2 overflow-x-auto rounded-full border border-white/70 bg-white/72 p-1.5 shadow-[0_14px_34px_rgba(34,29,23,0.08)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {mobileSectionTabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setMobileTab(tab.key)}
+              className={[
+                "whitespace-nowrap rounded-full px-4 py-2 text-[12px] font-semibold transition",
+                mobileTab === tab.key ? "bg-[#221d17] text-white" : "text-[#6d5f52]",
+              ].join(" ")}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {mobileTab === "overview" ? (
+          <section className="grid gap-4">
+            <article className="rounded-[28px] border border-white/70 bg-white/76 p-5 shadow-[0_20px_50px_rgba(34,29,23,0.08)]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8a7a6b]">Narratif produit</div>
+              <h2 className="mt-3 text-[26px] font-bold tracking-[-0.06em] text-[#1f1914]">Pourquoi cette offre attire</h2>
+              <div className="mt-5 space-y-3">
+                {product.overview.map((point) => (
+                  <div key={point} className="rounded-[20px] border border-[#f1e1d4] bg-[#fff8f3] px-4 py-4">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-1 h-2.5 w-2.5 rounded-full bg-[#d96a1b]" />
+                      <p className="text-[14px] leading-6 text-[#4d433a]">{point}</p>
+                    </div>
                   </div>
                 ))}
               </div>
             </article>
-          </div>
 
-          <div className="order-3 min-w-0 rounded-[28px] border border-[#ededed] bg-white px-5 py-5 xl:px-6 xl:py-6">
-            <div className="flex flex-wrap items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85a00]">
-              <ShieldCheck className="h-4 w-4" />
-              Selection verifiee AfriPay
-            </div>
-            <h1 className="mt-3 text-[24px] font-bold leading-[1.12] tracking-[-0.04em] text-[#222] lg:text-[34px]">
-              {product.title}
-            </h1>
-
-            <div className="mt-4 flex flex-wrap items-center gap-3 text-[14px] text-[#666]">
-              <span>{product.transactionsLabel}</span>
-            </div>
-
-            <div className="mt-6 rounded-[24px] bg-[#fff8f2] px-5 py-5 ring-1 ring-[#ffe3cb]">
-              <div className="text-[13px] font-semibold uppercase tracking-[0.14em] text-[#b66724]">Prix de référence</div>
-              <div className="mt-2 text-[28px] font-bold tracking-[-0.05em] text-[#f05a00] sm:text-[34px] lg:text-[42px]">
-                {dynamicPriceLabel}
-              </div>
-              <div className="mt-2 text-[14px] text-[#6e5b4b]">{dynamicPriceHint}</div>
-
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[18px] border border-[#ffd7b7] bg-white px-4 py-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#b66724]">Poids importé</div>
-                  <div className="mt-1 text-[18px] font-bold tracking-[-0.04em] text-[#222]">{weightLabel}</div>
-                </div>
-                <div className="rounded-[18px] border border-[#ffd7b7] bg-white px-4 py-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#b66724]">Volume CBM</div>
-                  <div className="mt-1 text-[18px] font-bold tracking-[-0.04em] text-[#222]">{lotLabel}</div>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-[18px] border border-[#ffd7b7] bg-white px-4 py-3 text-[13px] leading-6 text-[#6e5b4b]">
-                Livraison gratuite à partir de <span className="font-semibold text-[#222]">{freeShippingThresholdLabel}</span>. Le moyen de livraison peut etre changé si le poids est trop conséquent. Pour profiter de la livraison gratuite, les commandes ne doivent pas dépasser <span className="font-semibold text-[#222]">2.5 kg</span>.
-              </div>
-
-              <div className="mt-5 overflow-hidden rounded-[18px] border border-[#ffd7b7] bg-white">
-                {sortedTiers.map((tier, index) => (
-                  <div key={tier.quantityLabel} className={["grid grid-cols-1 gap-1 px-4 py-3 text-[14px] sm:grid-cols-[1.1fr_0.8fr_1fr] sm:gap-3", index > 0 ? "border-t border-[#f4e2d5]" : ""].join(" ")}>
-                    <div className="font-semibold text-[#222]">{tier.quantityLabel}</div>
-                    <div className="font-bold text-[#f05a00]">{tier.formattedPrice}</div>
-                    <div className="text-left text-[#666] sm:text-right">{tier.note ?? "Tarif AfriPay"}</div>
+            <article className="rounded-[28px] border border-white/70 bg-[linear-gradient(180deg,rgba(34,24,19,0.98),rgba(52,39,31,0.96))] p-5 text-white shadow-[0_22px_56px_rgba(25,14,6,0.18)]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d1b59c]">Réseau fournisseur</div>
+              <div className="mt-3 text-[24px] font-bold tracking-[-0.05em]">AfriPay+ sourcing</div>
+              <div className="mt-2 text-[14px] leading-6 text-[#dfd3ca]">{product.transactionsLabel}</div>
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                {supplierMetrics.slice(0, 4).map((item) => (
+                  <div key={item.label} className="rounded-[18px] border border-white/10 bg-white/6 px-4 py-4">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#d1b59c]">{item.label}</div>
+                    <div className="mt-2 text-[14px] font-semibold leading-5 text-white">{item.value}</div>
                   </div>
                 ))}
               </div>
-            </div>
+            </article>
+          </section>
+        ) : null}
 
-            <div className="mt-6 space-y-4">
-              {hasVariantChoices ? (
-                <div className="rounded-[18px] border border-[#ffd7b7] bg-[#fff7f0] px-4 py-4 text-[14px] leading-6 text-[#7c4a22]">
-                  Les attributs fournisseur sont importés avec le produit. Avant la commande, le client doit choisir les options requises: <span className="font-semibold">{variantSelectionInstruction}</span>. Exemple: chaussure = pointure, LED = longueur, puis couleur si disponible.
+        {mobileTab === "details" ? (
+          <section className="grid gap-4">
+            <article className="rounded-[28px] border border-white/70 bg-white/76 p-5 shadow-[0_20px_50px_rgba(34,29,23,0.08)]">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8a7a6b]">Fiche technique</div>
+                  <h2 className="mt-2 text-[24px] font-bold tracking-[-0.05em] text-[#1f1914]">Caractéristiques clés</h2>
                 </div>
-              ) : null}
-
-              {hasVariantChoices ? (
-                <div className="rounded-[18px] border border-[#ece7df] bg-[#fffdfa] px-4 py-4">
-                  <div className="text-[13px] font-semibold uppercase tracking-[0.12em] text-[#a06f49]">Variantes disponibles</div>
-                  <div className="mt-3 space-y-3">
-                    {product.variantGroups.map((group) => (
-                      <div key={`preview-${group.label}`}>
-                        <div className="text-[14px] font-semibold text-[#222]">{group.label}</div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {group.values.map((value) => {
-                            const isSelected = mixGroup && group.label === mixGroup.label
-                              ? (mixQuantities[value] ?? 0) > 0
-                              : selectedVariants[group.label] === value;
-
-                            return (
-                              <button
-                                key={`${group.label}-${value}`}
-                                type="button"
-                                onClick={() => handleVariantPreviewSelection(group, value)}
-                                className={[
-                                  "rounded-full border px-3 py-1.5 text-[13px] font-medium transition",
-                                  isSelected ? "border-[#ff6a00] bg-[#fff4eb] text-[#d85a00]" : "border-[#dedede] bg-white text-[#333] hover:border-[#ffb48a]",
-                                ].join(" ")}
-                              >
-                                {value}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
+                {sourceProductUrl ? (
+                  <a href={sourceProductUrl} target="_blank" rel="noreferrer" className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#ead9cb] bg-white text-[#3d342d] transition hover:border-[#d96a1b] hover:text-[#d96a1b]" aria-label="Ouvrir la fiche AliExpress">
+                    <ExternalLink className="h-4.5 w-4.5" />
+                  </a>
+                ) : null}
+              </div>
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                {characteristics.slice(0, 8).map((item) => (
+                  <div key={`${item.label}-${item.value}`} className="rounded-[18px] border border-[#eee2d7] bg-[#fff8f3] px-4 py-4">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8f7b67]">{item.label}</div>
+                    <div className="mt-2 text-[14px] font-semibold leading-5 text-[#1f1914]">{item.value}</div>
                   </div>
-                </div>
-              ) : null}
+                ))}
+              </div>
+            </article>
 
-              {modalGroups.map((group) => (
-                <div key={group.label}>
-                  <div className="text-[14px] font-semibold text-[#222]">{group.label}: <span className="font-medium text-[#666]">{resolveVariantGroupSelection(group) || "Choisir"}</span></div>
-                  <div className="mt-2 flex flex-wrap gap-2.5">
-                    {group.values.map((value) => {
-                      const isSelected = selectedVariants[group.label] === value;
+            <article className="rounded-[28px] border border-white/70 bg-white/76 p-5 shadow-[0_20px_50px_rgba(34,29,23,0.08)]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8a7a6b]">Services inclus</div>
+              <h2 className="mt-2 text-[24px] font-bold tracking-[-0.05em] text-[#1f1914]">Expérience plus rassurante</h2>
+              <div className="mt-5 space-y-3">
+                {serviceHighlights.map((item) => (
+                  <div key={item.title} className="rounded-[20px] border border-[#eee2d7] bg-[#fff8f3] px-4 py-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-[#221d17] text-white">
+                        <Truck className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="text-[15px] font-semibold text-[#1f1914]">{item.title}</div>
+                        <div className="mt-1 text-[14px] leading-6 text-[#5a4e44]">{item.description}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </section>
+        ) : null}
 
-                      return (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => setSelectedVariants((current) => ({ ...current, [group.label]: value }))}
-                          className={[
-                            "rounded-full border px-4 py-2 text-[14px] font-medium transition",
-                            isSelected ? "border-[#ff6a00] bg-[#fff4eb] text-[#d85a00]" : "border-[#dedede] bg-white text-[#333] hover:border-[#ffb48a]",
-                          ].join(" ")}
-                        >
-                          {value}
-                        </button>
-                      );
-                    })}
+        {mobileTab === "related" ? (
+          <section className="grid gap-4">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8a7a6b]">Suggestions</div>
+                <h2 className="mt-2 text-[24px] font-bold tracking-[-0.05em] text-[#1f1914]">Produits associés</h2>
+              </div>
+              <Link href="/" className="text-[13px] font-semibold text-[#2b241e] transition hover:text-[#d96a1b]">Retour</Link>
+            </div>
+            <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {relatedProducts.map((relatedProduct) => (
+                <Link key={relatedProduct.slug} href={`/products/${relatedProduct.slug}`} className="group min-w-[190px] snap-start overflow-hidden rounded-[24px] border border-white/70 bg-white/78 p-2.5 shadow-[0_18px_42px_rgba(34,29,23,0.09)] transition hover:-translate-y-1">
+                  <div className="relative aspect-[0.95] overflow-hidden rounded-[18px] bg-[#efe8e2]">
+                    <Image src={relatedProduct.image} alt={relatedProduct.title} fill sizes="56vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.04]" />
+                  </div>
+                  <div className="px-1 pb-1 pt-3">
+                    <div className="line-clamp-2 min-h-[42px] text-[13px] font-semibold leading-5 text-[#1f1914]">{relatedProduct.title}</div>
+                    <div className="mt-2 text-[16px] font-bold tracking-[-0.04em] text-[#d96a1b]">{relatedProduct.formattedPrice}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </div>
+
+      <div className="hidden gap-4 sm:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+        <section className="space-y-4">
+          <article className="rounded-[30px] border border-white/70 bg-white/76 p-6 shadow-[0_22px_60px_rgba(34,29,23,0.08)]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8a7a6b]">Résumé de l&apos;offre</div>
+            <h2 className="mt-3 text-[32px] font-bold tracking-[-0.06em] text-[#1f1914]">Une présentation plus désirée, plus lisible, plus vendable</h2>
+            <div className="mt-6 grid gap-3">
+              {product.overview.map((point) => (
+                <div key={point} className="rounded-[22px] border border-[#efe2d6] bg-[#fff8f3] px-5 py-4">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-1 h-2.5 w-2.5 rounded-full bg-[#d96a1b]" />
+                    <p className="text-[15px] leading-7 text-[#4d433a]">{point}</p>
                   </div>
                 </div>
               ))}
             </div>
+          </article>
 
-            {!mixGroup ? (
-              <div className="mt-6 rounded-[22px] border border-[#ece7df] bg-[#fffdfa] px-4 py-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#a06f49]">Quantité de commande</div>
-                    <div className="mt-1 text-[14px] text-[#6b5a4c]">{product.moqVerified ? `Minimum ${product.moq} ${product.moq > 1 ? "pieces" : "piece"}` : "Minimum a confirmer"}</div>
-                  </div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-[#e1ddd7] bg-white px-2 py-2 shadow-[0_6px_14px_rgba(17,24,39,0.04)]">
-                    <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-40">
-                      <Minus className="h-4 w-4" />
-                    </button>
-                    <div className="min-w-[46px] text-center text-[22px] font-semibold tracking-[-0.03em] text-[#222]">{orderQuantity}</div>
-                    <button type="button" onClick={() => updateOrderQuantity(1)} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
-                      <Plus className="h-4 w-4" />
-                    </button>
+          <article className="overflow-hidden rounded-[30px] border border-white/70 bg-white/76 shadow-[0_22px_60px_rgba(34,29,23,0.08)]">
+            <div className="flex items-center justify-between gap-4 border-b border-[#eee4db] px-6 py-5">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8a7a6b]">Fiche technique</div>
+                <h2 className="mt-2 text-[30px] font-bold tracking-[-0.05em] text-[#1f1914]">Caractéristiques structurées</h2>
+              </div>
+              {sourceProductUrl ? (
+                <a href={sourceProductUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-[#ead9cb] bg-white px-4 py-2 text-[13px] font-semibold text-[#2c241e] transition hover:border-[#d96a1b] hover:text-[#d96a1b]">
+                  Source fournisseur
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              ) : null}
+            </div>
+            <div className="grid gap-px bg-[#eee4db] sm:grid-cols-2">
+              {characteristics.slice(0, 8).map((item) => (
+                <div key={`${item.label}-${item.value}`} className="bg-white px-6 py-5">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#8f7b67]">{item.label}</div>
+                  <div className="mt-2 text-[16px] font-semibold leading-6 text-[#1f1914]">{item.value}</div>
+                </div>
+              ))}
+            </div>
+          </article>
+        </section>
+
+        <aside className="space-y-4">
+          <article className="rounded-[30px] border border-white/70 bg-[linear-gradient(180deg,rgba(34,24,19,0.98),rgba(52,39,31,0.96))] p-6 text-white shadow-[0_24px_64px_rgba(25,14,6,0.18)]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d1b59c]">Partenaire sourcing</div>
+            <h2 className="mt-3 text-[30px] font-bold tracking-[-0.05em]">Confiance, cadence, clarté</h2>
+            <div className="mt-3 text-[14px] leading-6 text-[#dfd3ca]">
+              {product.supplierName} avec un cadrage logistique pensé pour une prise de décision plus simple côté client.
+            </div>
+            <div className="mt-6 grid gap-3">
+              {supplierMetrics.map((item) => (
+                <div key={item.label} className="rounded-[20px] border border-white/10 bg-white/6 px-4 py-4">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#d1b59c]">{item.label}</div>
+                  <div className="mt-2 text-[16px] font-semibold leading-6 text-white">{item.value}</div>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          <article className="rounded-[30px] border border-white/70 bg-white/76 p-6 shadow-[0_22px_60px_rgba(34,29,23,0.08)]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8a7a6b]">Paiement & service</div>
+            <h2 className="mt-3 text-[28px] font-bold tracking-[-0.05em] text-[#1f1914]">Réassurance premium</h2>
+            <div className="mt-5 flex flex-wrap gap-2">
+              {paymentMethods.map((method) => (
+                <div key={method.label} className="inline-flex items-center gap-2 rounded-full border border-[#ead9cb] bg-white px-3 py-2 text-[12px] font-semibold text-[#2c241e]">
+                  <Image src={method.icon} alt={method.alt} width={16} height={16} unoptimized className="h-4 w-4 object-contain" />
+                  {method.label}
+                </div>
+              ))}
+              <div className="inline-flex items-center gap-2 rounded-full border border-[#ead9cb] bg-white px-3 py-2 text-[12px] font-semibold text-[#2c241e]">
+                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#d96a1b] px-1 text-[9px] font-black text-white">3X</span>
+                Paiement en 3X
+              </div>
+            </div>
+            <div className="mt-6 space-y-3">
+              {serviceHighlights.map((item) => (
+                <div key={item.title} className="rounded-[20px] border border-[#efe2d6] bg-[#fff8f3] px-4 py-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-[#221d17] text-white">
+                      <Truck className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="text-[15px] font-semibold text-[#1f1914]">{item.title}</div>
+                      <div className="mt-1 text-[14px] leading-6 text-[#5a4e44]">{item.description}</div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : null}
-
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => setIsOrderModalOpen(true)}
-                className="inline-flex h-13 items-center justify-center gap-3 rounded-full bg-[#ff6a00] px-6 text-[16px] font-semibold text-white transition hover:bg-[#eb6200]"
-              >
-                <ShoppingCart className="h-4 w-4" />
-                Commander
-              </button>
-              <button
-                type="button"
-                onClick={toggleFavorite}
-                className={[
-                  "inline-flex h-13 items-center justify-center gap-3 rounded-full border px-6 text-[16px] font-semibold transition",
-                  isFavorite ? "border-[#ff6a00] bg-[#fff1e7] text-[#ff6a00]" : "border-[#222] text-[#222] hover:border-[#ff6a00] hover:text-[#ff6a00]",
-                ].join(" ")}
-              >
-                <Heart className={[
-                  "h-4 w-4 transition duration-300",
-                  isFavorite ? "fill-current" : "fill-transparent",
-                  favoritePulse ? "scale-[1.35]" : "scale-100",
-                ].join(" ")} />
-                {isFavorite ? "Ajouté aux favoris" : "Ajouter aux favoris"}
-              </button>
+              ))}
             </div>
+          </article>
+        </aside>
+      </div>
 
-            {hasVariantChoices ? (
-              <div className="mt-3 text-[13px] leading-5 text-[#7a5a42]">
-                Aucun choix par défaut n&apos;est appliqué pour <span className="font-semibold">{variantSelectionInstruction}</span>. La sélection se fait dans la fenêtre de commande avant ajout au panier.
-              </div>
-            ) : null}
-          </div>
-
-        </div>
-      </section>
-
-      <section className="px-1 sm:px-0">
-        <article className="px-0 py-2 sm:py-3">
-          <div className="text-[13px] font-semibold uppercase tracking-[0.14em] text-[#777]">Points forts</div>
-          <h2 className="mt-2 text-[28px] font-bold tracking-[-0.04em] text-[#222]">Résumé de l&apos;offre</h2>
-          <div className="mt-5 grid gap-3">
-            {product.overview.map((point) => (
-              <div key={point} className="flex items-start gap-3 rounded-[18px] bg-[#fafafa] px-4 py-4 ring-1 ring-black/5">
-                <div className="mt-1 h-2.5 w-2.5 rounded-full bg-[#ff6a00]" />
-                <p className="text-[15px] leading-7 text-[#444]">{point}</p>
-              </div>
-            ))}
-          </div>
-        </article>
-      </section>
-
-      <section className="px-1 py-2 sm:px-0 sm:py-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <section className="rounded-[30px] border border-white/70 bg-white/76 p-5 shadow-[0_22px_60px_rgba(34,29,23,0.08)] sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="text-[13px] font-semibold uppercase tracking-[0.14em] text-[#777]">Suggestions</div>
-            <h2 className="mt-2 text-[28px] font-bold tracking-[-0.04em] text-[#222]">Produits associés</h2>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8a7a6b]">Suggestions</div>
+            <h2 className="mt-2 text-[28px] font-bold tracking-[-0.05em] text-[#1f1914] sm:text-[34px]">Produits associés</h2>
           </div>
-          <Link href="/" className="text-[14px] font-semibold text-[#222] transition hover:text-[#ff6a00]">Retour à la sélection</Link>
+          <Link href="/" className="text-[14px] font-semibold text-[#2b241e] transition hover:text-[#d96a1b]">Retour à la sélection</Link>
         </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
           {relatedProducts.map((relatedProduct) => (
-            <Link key={relatedProduct.slug} href={`/products/${relatedProduct.slug}`} className="group overflow-hidden rounded-[18px] bg-white p-2.5 ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-[0_16px_34px_rgba(24,39,75,0.12)]">
-              <div className="relative aspect-square bg-[#f4f4f4]">
-                <Image src={relatedProduct.image} alt={relatedProduct.title} fill sizes="(min-width: 1280px) 18vw, (min-width: 768px) 35vw, 90vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+            <Link key={relatedProduct.slug} href={`/products/${relatedProduct.slug}`} className="group overflow-hidden rounded-[24px] border border-white/70 bg-white p-2.5 shadow-[0_18px_40px_rgba(34,29,23,0.08)] transition hover:-translate-y-1 hover:shadow-[0_24px_48px_rgba(34,29,23,0.12)]">
+              <div className="relative aspect-[0.95] overflow-hidden rounded-[18px] bg-[#efe8e2]">
+                <Image src={relatedProduct.image} alt={relatedProduct.title} fill sizes="(min-width: 1536px) 16vw, (min-width: 1280px) 18vw, (min-width: 768px) 32vw, 82vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.04]" />
               </div>
-              <div className="pt-2">
-                <div className="line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-4 text-[#222] sm:min-h-[40px] sm:text-[13px] sm:leading-5">{relatedProduct.title}</div>
-                <div className="mt-2 text-[15px] font-bold tracking-[-0.03em] text-[#f05a00] sm:text-[16px]">{relatedProduct.formattedPrice}</div>
+              <div className="px-1 pb-1 pt-3">
+                <div className="line-clamp-2 min-h-[40px] text-[13px] font-semibold leading-5 text-[#1f1914] sm:min-h-[44px]">{relatedProduct.title}</div>
+                <div className="mt-2 text-[16px] font-bold tracking-[-0.04em] text-[#d96a1b]">{relatedProduct.formattedPrice}</div>
               </div>
             </Link>
           ))}
         </div>
       </section>
-      </div>
 
-      <div className="fixed inset-x-0 bottom-[72px] z-[140] border-t border-black/10 bg-white/96 px-4 py-3 backdrop-blur sm:hidden">
+      <div className="fixed inset-x-0 bottom-[72px] z-[140] border-t border-[#e8ddd2] bg-[rgba(255,250,246,0.94)] px-4 py-3 shadow-[0_-10px_30px_rgba(34,29,23,0.08)] backdrop-blur sm:hidden">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={openOrderModal}
-            className="inline-flex h-12 flex-1 items-center justify-center rounded-full border border-[#222] bg-white px-4 text-[15px] font-semibold text-[#222]"
+            className="inline-flex h-12 flex-1 items-center justify-center rounded-full border border-[#2b241e] bg-white px-4 text-[15px] font-semibold text-[#2b241e]"
           >
             Ajouter au panier
           </button>
           <button
             type="button"
             onClick={openOrderModal}
-            className="inline-flex h-12 flex-[1.08] items-center justify-center rounded-full bg-[#e85b0c] px-4 text-[15px] font-semibold text-white shadow-[0_14px_26px_rgba(232,91,12,0.28)]"
+            className="inline-flex h-12 flex-[1.08] items-center justify-center rounded-full bg-[#d96a1b] px-4 text-[15px] font-semibold text-white shadow-[0_14px_26px_rgba(217,106,27,0.28)]"
           >
             Commander
           </button>
