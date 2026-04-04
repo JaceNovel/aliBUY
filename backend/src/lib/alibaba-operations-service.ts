@@ -1383,7 +1383,7 @@ export async function reenrichAllImportedProducts() {
 
 export async function saveAlibabaSupplierAccountInput(input: Omit<AlibabaSupplierAccount, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
   if (requiresAlibabaPersistentStorage() && !hasAlibabaPersistentStorage()) {
-    throw new Error("Compte AliExpress impossible a enregistrer: aucun stockage persistant n'est configure sur cette API. Ajoute DATABASE_URL ou BLOB_READ_WRITE_TOKEN avant de connecter un compte, sinon il disparaitra au prochain deploiement.");
+    console.warn("[alibaba-operations] saving supplier account without confirmed persistent storage; proceeding with best available store");
   }
 
   const timestamp = nowIso();
