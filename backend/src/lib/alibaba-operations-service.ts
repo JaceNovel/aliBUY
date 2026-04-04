@@ -50,6 +50,7 @@ import {
   queryAliExpressDsAddress,
   resolveAlibabaIcbuCategoryInfo,
   searchAlibabaProducts,
+  type AlibabaSearchProduct,
 } from "@/lib/alibaba-open-platform-client";
 import { resolveCoherentItemWeightGrams, resolveCoherentPackageDimensionsCm } from "@/lib/product-weight";
 
@@ -760,7 +761,7 @@ function buildImportCampaignRawPayload(rawPayload: unknown, campaignMode: Alibab
   };
 }
 
-function normalizeSearchImportCandidate(product: ProductCatalogItem, query: string): ProductCatalogItem {
+function normalizeSearchImportCandidate(product: AlibabaSearchProduct, query: string): AlibabaSearchProduct {
   const weightContext = {
     title: product.title,
     shortTitle: product.shortTitle,
