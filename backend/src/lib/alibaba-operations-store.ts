@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { Prisma } from "@prisma/client";
-import { get, put } from "@vercel/blob";
+import { get, head, list, put } from "@vercel/blob";
 
 import type {
   AlibabaCountryProfile,
@@ -433,23 +433,57 @@ async function readJsonBlob<T>(pathname: string, fallback: T): Promise<T> {
   }
 
   const readErrors: unknown[] = [];
+  const readTargets = new Set<string>([pathname]);
 
   try {
-    for (const access of BLOB_READ_ACCESS_MODES) {
-      try {
-        const blob = await get(pathname, {
-          access,
-          useCache: false,
-        });
+    try {
+      const blobHead = await head(pathname);
+      if (blobHead?.url) {
+        readTargets.add(blobHead.url);
+      }
+      if (blobHead?.downloadUrl) {
+        readTargets.add(blobHead.downloadUrl);
+      }
+    } catch (error) {
+      readErrors.push(error);
+    }
 
-        if (!blob?.stream) {
-          continue;
+    try {
+      const listed = await list({
+        limit: 5,
+        prefix: pathname,
+      });
+      for (const blob of listed.blobs) {
+        if (blob.pathname === pathname) {
+          readTargets.add(blob.url);
+          readTargets.add(blob.downloadUrl);
         }
+      }
+    } catch (error) {
+      readErrors.push(error);
+    }
 
-        const raw = await new Response(blob.stream).text();
-        return JSON.parse(raw) as T;
-      } catch (error) {
-        readErrors.push(error);
+    for (const target of readTargets) {
+      for (const access of BLOB_READ_ACCESS_MODES) {
+        try {
+          const blob = await get(target, {
+            access,
+            useCache: false,
+          });
+
+          if (!blob?.stream) {
+            continue;
+          }
+
+          const raw = await new Response(blob.stream).text();
+          return JSON.parse(raw) as T;
+        } catch (error) {
+          readErrors.push({
+            access,
+            target,
+            error,
+          });
+        }
       }
     }
 
