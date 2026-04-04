@@ -31,7 +31,7 @@ const supportLinks = [
 ];
 
 export function SupportMenu({
-  triggerLabel = "Centre de reprise",
+  triggerLabel = "Support",
   className = "",
   panelClassName = "top-[calc(100%+12px)]",
   align = "right",

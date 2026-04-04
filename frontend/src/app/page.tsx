@@ -144,9 +144,9 @@ export default async function Home() {
       href: "/quotes",
     },
     {
-      title: "Centre de reprise",
+      title: "Mes commandes",
       icon: ShieldCheck,
-      href: "/support-center",
+      href: "/orders",
     },
     {
       title: messages.quickActions.quickCustomization,

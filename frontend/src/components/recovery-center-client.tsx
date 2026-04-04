@@ -195,9 +195,9 @@ export function RecoveryCenterClient({
               <span>Contacter AfriPay</span>
               <span className="text-[#2563eb]">Support direct</span>
             </Link>
-            <Link href="/pourquoi-afripay" className="flex items-center justify-between rounded-[18px] bg-[#f8fafc] px-4 py-4 text-[15px] font-semibold text-[#111827] ring-1 ring-[#e7edf4] transition hover:bg-white hover:ring-[#d4deea]">
-              <span>Voir les preuves AfriPay</span>
-              <span className="text-[#2563eb]">Pourquoi nous</span>
+            <Link href="/orders/tracking" className="flex items-center justify-between rounded-[18px] bg-[#f8fafc] px-4 py-4 text-[15px] font-semibold text-[#111827] ring-1 ring-[#e7edf4] transition hover:bg-white hover:ring-[#d4deea]">
+              <span>Suivre une commande</span>
+              <span className="text-[#2563eb]">Timeline</span>
             </Link>
           </div>
 

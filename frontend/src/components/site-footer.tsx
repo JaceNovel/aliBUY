@@ -25,7 +25,7 @@ export function SiteFooter({ pricing }: SiteFooterProps) {
               Une plateforme B2B pensée pour reprendre un panier, cadrer un devis, payer proprement et suivre la logistique sans zones floues.
             </p>
             <div className="mt-5 flex flex-wrap gap-3 text-[13px] font-semibold text-[#8a5a2b]">
-              <span className="rounded-full border border-[#f0d9c5] bg-white px-4 py-2">Centre de reprise</span>
+              <span className="rounded-full border border-[#f0d9c5] bg-white px-4 py-2">Timeline commande</span>
               <span className="rounded-full border border-[#f0d9c5] bg-white px-4 py-2">Timeline commande</span>
               <span className="rounded-full border border-[#f0d9c5] bg-white px-4 py-2">Paiement traçable</span>
             </div>
@@ -48,9 +48,8 @@ export function SiteFooter({ pricing }: SiteFooterProps) {
               <Link href="/quotes" className="block transition hover:text-[#ff6a00]">Demander un devis</Link>
               <Link href="/pricing" className="block transition hover:text-[#ff6a00]">Tarifs</Link>
               <Link href="/protection-commandes" className="block transition hover:text-[#ff6a00]">{messages.nav.orderProtection}</Link>
-              <Link href="/support-center" className="block transition hover:text-[#ff6a00]">Centre de reprise</Link>
+              <Link href="/messages" className="block transition hover:text-[#ff6a00]">Messages support</Link>
               <Link href="/seller-support" className="block transition hover:text-[#ff6a00]">Support vendeur</Link>
-              <Link href="/pourquoi-afripay" className="block transition hover:text-[#ff6a00]">Pourquoi AfriPay</Link>
             </div>
           </section>
 
@@ -81,8 +80,7 @@ export function SiteFooter({ pricing }: SiteFooterProps) {
         <div className="flex flex-col gap-3 pt-6 text-[13px] text-[#7b7f89] sm:flex-row sm:items-center sm:justify-between">
           <div>© {new Date().getFullYear()} AfriPay. Sourcing, catalogue et operations import unifies.</div>
           <div className="flex flex-wrap gap-4">
-            <Link href="/pourquoi-afripay" className="transition hover:text-[#ff6a00]">Pourquoi AfriPay</Link>
-            <Link href="/support-center" className="transition hover:text-[#ff6a00]">Centre de reprise</Link>
+            <Link href="/messages" className="transition hover:text-[#ff6a00]">Messages support</Link>
             <Link href="/pricing" className="transition hover:text-[#ff6a00]">Tarifs</Link>
           </div>
         </div>

@@ -34,7 +34,7 @@ type InternalPageShellProps = {
 const MOBILE_NAV_SHORTCUTS: ReadonlyArray<{ label: string; href: string }> = [
   { label: "Produits", href: "/products" },
   { label: "Devis", href: "/quotes" },
-  { label: "Reprise", href: "/support-center" },
+  { label: "Messages", href: "/messages" },
   { label: "Commandes", href: "/orders" },
 ];
 
