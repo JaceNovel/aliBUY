@@ -9,6 +9,8 @@ import {
   getAlibabaReceptionAddresses,
   getAlibabaReceptionRecords,
   getAlibabaSupplierAccounts,
+  hasAlibabaPersistentStorage,
+  requiresAlibabaPersistentStorage,
   saveAlibabaCountryProfiles,
   saveAlibabaImportJob,
   saveAlibabaImportedProducts,
@@ -49,6 +51,7 @@ import {
   resolveAlibabaIcbuCategoryInfo,
   searchAlibabaProducts,
 } from "@/lib/alibaba-open-platform-client";
+import { resolveCoherentItemWeightGrams, resolveCoherentPackageDimensionsCm } from "@/lib/product-weight";
 
 function nowIso() {
   return new Date().toISOString();
@@ -757,6 +760,29 @@ function buildImportCampaignRawPayload(rawPayload: unknown, campaignMode: Alibab
   };
 }
 
+function normalizeSearchImportCandidate(product: ProductCatalogItem, query: string): ProductCatalogItem {
+  const weightContext = {
+    title: product.title,
+    shortTitle: product.shortTitle,
+    query,
+    keywords: product.keywords,
+    packaging: product.packaging,
+    unit: product.unit,
+    specs: product.specs.map((spec) => `${spec.label} ${spec.value}`),
+    lotCbm: product.lotCbm,
+    moq: product.moq,
+  };
+  const packageDimensionsCm = resolveCoherentPackageDimensionsCm(product.packageDimensionsCm, weightContext);
+  const itemWeightGrams = resolveCoherentItemWeightGrams(product.itemWeightGrams, weightContext);
+
+  return {
+    ...product,
+    packageDimensionsCm,
+    itemWeightGrams,
+    weightVerified: product.weightVerified ?? itemWeightGrams > 0,
+  };
+}
+
 function toImportedProduct(product: ProductCatalogItem, query: string, publishedToSite: boolean, campaignMode: AlibabaImportCampaignMode): AlibabaImportedProduct {
   const timestamp = nowIso();
   const categoryInfo = extractAlibabaCategoryInfo({
@@ -877,6 +903,10 @@ export async function runAlibabaCatalogImport(input: {
   campaignMode?: AlibabaImportCampaignMode;
   resetImportedProducts?: boolean;
 }) {
+  if (requiresAlibabaPersistentStorage() && !hasAlibabaPersistentStorage()) {
+    throw new Error("Import AliExpress bloque: aucun stockage persistant n'est configure sur cette API. Ajoute DATABASE_URL ou BLOB_READ_WRITE_TOKEN, sinon les articles disparaitront au prochain deploiement.");
+  }
+
   const timestamp = nowIso();
   const job: AlibabaImportJob = {
     id: createSourcingIds(),
@@ -917,11 +947,12 @@ export async function runAlibabaCatalogImport(input: {
       throw new Error("Aucun produit live AliExpress n'a ete renvoye pour cette recherche.");
     }
 
-    const uniqueSearchProducts = searchResult.products.filter((product, index, products) => products.findIndex((entry) => entry.sourceProductId === product.sourceProductId) === index);
+    const uniqueSearchProducts = searchResult.products
+      .filter((product, index, products) => products.findIndex((entry) => entry.sourceProductId === product.sourceProductId) === index)
+      .map((product) => normalizeSearchImportCandidate(product, job.query));
     const relevanceRankBySourceProductId = new Map(uniqueSearchProducts.map((product, index) => [product.sourceProductId, index]));
     const productsWithRequiredData = uniqueSearchProducts.filter((product) => product.priceVerified
       && product.moqVerified
-      && product.weightVerified
       && product.itemWeightGrams > 0
       && typeof product.image === "string"
       && product.image.length > 0

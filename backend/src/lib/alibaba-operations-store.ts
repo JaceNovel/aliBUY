@@ -335,7 +335,15 @@ const DEFAULT_COUNTRY_PROFILES: AlibabaCountryProfile[] = [
 ];
 
 function resolveSourcingDir() {
-  const isServerlessRuntime = Boolean(
+  if (isPersistentServerRuntime()) {
+    return path.join(os.tmpdir(), "afripay", "data", "sourcing");
+  }
+
+  return path.join(process.cwd(), "data", "sourcing");
+}
+
+function isServerlessRuntime() {
+  return Boolean(
     process.env.VERCEL
     || process.env.VERCEL_ENV
     || process.env.VERCEL_URL
@@ -343,12 +351,10 @@ function resolveSourcingDir() {
     || process.env.AWS_LAMBDA_FUNCTION_NAME
     || process.cwd().startsWith("/var/task"),
   );
+}
 
-  if (process.env.NODE_ENV === "production" || isServerlessRuntime) {
-    return path.join(os.tmpdir(), "afripay", "data", "sourcing");
-  }
-
-  return path.join(process.cwd(), "data", "sourcing");
+function isPersistentServerRuntime() {
+  return process.env.NODE_ENV === "production" || isServerlessRuntime();
 }
 
 const ROOT_DIR = resolveSourcingDir();
@@ -411,6 +417,14 @@ async function readSeedJsonFile<T>(filePath: string, fallback: T): Promise<T> {
 
 function canUseBlobStore() {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+}
+
+export function hasAlibabaPersistentStorage() {
+  return canUseDatabase() || canUseBlobStore();
+}
+
+export function requiresAlibabaPersistentStorage() {
+  return isPersistentServerRuntime();
 }
 
 async function readJsonBlob<T>(pathname: string, fallback: T): Promise<T> {
