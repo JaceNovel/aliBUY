@@ -466,6 +466,19 @@ async function readJsonBlob<T>(pathname: string, fallback: T): Promise<T> {
     for (const target of readTargets) {
       for (const access of BLOB_READ_ACCESS_MODES) {
         try {
+          if (target.startsWith("https://")) {
+            const response = await fetch(target, {
+              cache: "no-store",
+            });
+
+            if (response.ok) {
+              const raw = await response.text();
+              return JSON.parse(raw) as T;
+            }
+
+            throw new Error(`Blob fetch failed with status ${response.status} ${response.statusText}`);
+          }
+
           const blob = await get(target, {
             access,
             useCache: false,
