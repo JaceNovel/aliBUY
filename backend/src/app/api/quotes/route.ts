@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { markAbandonedQuoteRecordCleared } from "@/lib/abandoned-quote-store";
 import { createQuoteRequest, ensureDefaultSupportConversation } from "@/lib/customer-data-store";
 import { getCurrentUser } from "@/lib/user-auth";
 
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
       userEmail: user.email,
       userDisplayName: user.displayName,
     });
+    await markAbandonedQuoteRecordCleared(user.id, "submitted");
 
     return NextResponse.json({ ok: true, request: requestRecord }, { status: 201 });
   } catch (error) {

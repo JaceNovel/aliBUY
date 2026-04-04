@@ -13,6 +13,7 @@ const STATIC_ROUTES = [
   "/quotes",
   "/application",
   "/support-center",
+  "/pourquoi-afripay",
   "/protection-commandes",
   "/decouvrir-afripay",
   "/articles-gratuits",

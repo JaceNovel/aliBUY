@@ -117,7 +117,7 @@ export default async function Home() {
       })),
     },
   ].filter((card) => card.items.length === 4);
-  const showcaseSlides = featuredProducts.slice(0, 5).map((product, index) => ({
+  const showcaseSlides = featuredProducts.slice(0, 5).map((product) => ({
     id: `slide-${product.slug}`,
     image: getProductImageUrl(product.image, { width: 1200, quality: 82 }),
     alt: product.shortTitle,
@@ -144,7 +144,7 @@ export default async function Home() {
       href: "/quotes",
     },
     {
-      title: "Support import",
+      title: "Centre de reprise",
       icon: ShieldCheck,
       href: "/support-center",
     },
@@ -172,7 +172,7 @@ export default async function Home() {
         <div className="bg-[#ff6a00] text-white">
           <div className="mx-auto flex max-w-[1580px] items-center justify-between px-4 py-2 text-[11px] sm:px-6 sm:text-[13px] xl:px-10">
             <p className="line-clamp-2 max-w-[78%] leading-4 sm:truncate sm:leading-normal">
-              <span className="sm:hidden">AfriPay Marketplace, plateforme de sourcing .</span>
+              <span className="sm:hidden">Produits, devis, paiements et suivi sur un seul parcours.</span>
               <span className="hidden sm:inline">{messages.topBar.description}</span>
             </p>
             <span className="hidden font-semibold sm:inline">

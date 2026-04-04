@@ -11,6 +11,7 @@ import {
   type AlibabaLogisticsTracking,
 } from "@/lib/alibaba-open-platform-client";
 import { getSourcingOrderMeta, withSourcingOrderMeta, type SourcingOrder, type SourcingOrderStatus } from "@/lib/alibaba-sourcing";
+import { triggerManyChatLogisticsUpdate } from "@/lib/manychat";
 import { createAlibabaIntegrationLog, saveSourcingOrder } from "@/lib/sourcing-store";
 
 type TradeAutomationSnapshot = {
@@ -198,6 +199,33 @@ function deriveStatusFromTracking(currentStatus: SourcingOrderStatus, trades: Tr
   return compareStatusPriority(currentStatus, "shipment_triggered") < 0 ? "shipment_triggered" : currentStatus;
 }
 
+function buildManyChatLogisticsUpdateForStatus(status: SourcingOrderStatus) {
+  switch (status) {
+    case "supplier_payment_requested":
+      return {
+        title: "Paiement fournisseur en cours",
+        detail: "Nous avons lance les verifications et le traitement fournisseur pour votre commande.",
+      };
+    case "supplier_paid_partial":
+      return {
+        title: "Commande fournisseur partiellement reglee",
+        detail: "Une partie de votre approvisionnement est deja reglee. Nous poursuivons le traitement.",
+      };
+    case "supplier_paid":
+      return {
+        title: "Commande fournisseur reglee",
+        detail: "Le reglement fournisseur est confirme. La preparation logistique continue.",
+      };
+    case "shipment_triggered":
+      return {
+        title: "Expedition declenchee",
+        detail: "Votre marchandise a entre dans le flux logistique et les premiers suivis sont en preparation.",
+      };
+    default:
+      return null;
+  }
+}
+
 export async function runSourcingPostPaymentAutomation(order: SourcingOrder, trigger: "moneroo-verify" | "moneroo-webhook" | "admin-order-manual" | "admin-air-batch" | "admin-sea-batch") {
   if (order.paymentStatus !== "paid" || order.alibabaTradeIds.length === 0) {
     return order;
@@ -311,5 +339,17 @@ export async function runSourcingPostPaymentAutomation(order: SourcingOrder, tri
   };
 
   await saveSourcingOrder(nextOrder);
+
+  const previousMeta = getSourcingOrderMeta(order);
+  const nextUpdate = buildManyChatLogisticsUpdateForStatus(nextOrder.status);
+  if (nextUpdate && previousMeta.manychat?.logisticsLastStatusSent !== nextUpdate.title) {
+    await triggerManyChatLogisticsUpdate(nextOrder, nextUpdate).catch((error) => {
+      console.error("[manychat] logistics update trigger failed", {
+        orderId: nextOrder.id,
+        reason: error instanceof Error ? error.message : "unknown",
+      });
+    });
+  }
+
   return nextOrder;
 }

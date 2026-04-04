@@ -89,6 +89,8 @@ type ProductDetailClientProps = {
   initialIsFavorite: boolean | null;
 };
 
+const RECENTLY_VIEWED_STORAGE_KEY = "afripay_recently_viewed_products_v1";
+
 export function ProductDetailClient({ product, relatedProducts, initialIsFavorite }: ProductDetailClientProps) {
   const selectedCurrency = CURRENCY_CONFIG[(product.currencyCode as CurrencyCode)] ?? CURRENCY_CONFIG.USD;
   const router = useRouter();
@@ -163,6 +165,36 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       isCancelled = true;
     };
   }, [initialIsFavorite, product.slug]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const viewedProduct = {
+      slug: product.slug,
+      title: product.shortTitle,
+      image: product.gallery[0],
+      price: product.formattedPriceRange,
+      viewedAt: new Date().toISOString(),
+    };
+
+    try {
+      const raw = window.localStorage.getItem(RECENTLY_VIEWED_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) as Array<typeof viewedProduct> : [];
+      const nextItems = [viewedProduct, ...parsed.filter((entry) => entry?.slug !== product.slug)].slice(0, 12);
+      window.localStorage.setItem(RECENTLY_VIEWED_STORAGE_KEY, JSON.stringify(nextItems));
+    } catch {
+      // Ignore recent view persistence failures.
+    }
+
+    void fetch(`/api/products/${encodeURIComponent(product.slug)}/view`, {
+      method: "POST",
+      credentials: "include",
+    }).catch(() => {
+      // Ignore passive view tracking failures.
+    });
+  }, [product.formattedPriceRange, product.gallery, product.shortTitle, product.slug]);
 
   const isWeakLogisticsText = (value?: string | null) => {
     if (!value) {
@@ -463,6 +495,29 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       description: product.shippingLabel || "Produit importé avec contrôle des informations clés.",
     },
   ];
+  const estimatedLeadTime = shippingMethod === "sea"
+    ? "4 à 8 semaines selon groupage"
+    : shippingMethod === "air"
+      ? "7 à 12 jours après validation"
+      : supportsDirectAliExpressDelivery
+        ? "Délais recalculés au checkout"
+        : "Choisissez avion ou bateau pour confirmer";
+  const customsRiskLabel = shippingMethod === "sea"
+    ? "Risque réduit avec passage hub AfriPay"
+    : shippingMethod === "air"
+      ? "Risque modéré, contrôle documentaire recommandé"
+      : "Risque à confirmer selon méthode";
+  const verificationLabel = product.moqVerified
+    ? `Vérification forte • MOQ confirmé • ${Math.max(product.yearsInBusiness, 3)}+ ans`
+    : `Vérification standard • fournisseur ${Math.max(product.yearsInBusiness, 3)}+ ans`;
+  const trustSignals = [
+    { label: "Délai estimé", value: estimatedLeadTime },
+    { label: "Poids colis", value: weightLabel },
+    { label: "Origine", value: product.supplierLocation || "Chine" },
+    { label: "Livraison", value: selectedShippingChoice?.summaryLabel ?? "À choisir" },
+    { label: "Risque douane", value: customsRiskLabel },
+    { label: "Niveau de vérification", value: verificationLabel },
+  ];
 
   const updateMixQuantity = (value: string, delta: number) => {
     setMixQuantities((current) => ({
@@ -667,6 +722,15 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       return undefined;
     }
 
+    const showNextImage = () => {
+      setActiveMedia("photo");
+      setActiveImage((current) => (current + 1) % product.gallery.length);
+    };
+    const showPreviousImage = () => {
+      setActiveMedia("photo");
+      setActiveImage((current) => (current - 1 + product.gallery.length) % product.gallery.length);
+    };
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsImageLightboxOpen(false);
@@ -674,12 +738,12 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       }
       if (event.key === "ArrowRight" && product.gallery.length > 1) {
         event.preventDefault();
-        goToNextImage();
+        showNextImage();
         return;
       }
       if (event.key === "ArrowLeft" && product.gallery.length > 1) {
         event.preventDefault();
-        goToPreviousImage();
+        showPreviousImage();
       }
     };
 
@@ -957,7 +1021,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                       <div className="mt-0.5 text-[#4caf50]">✓</div>
                       <div>
                         <div className="text-[14px] font-semibold text-[#191919]">Retour et securite</div>
-                        <div className="mt-1 text-[13px] text-[#666]">Paiements securises et suivi de commande AfriPay.</div>
+                        <div className="mt-1 text-[13px] text-[#666]">Paiement traçable, suivi client et preuve logistique regroupés.</div>
                       </div>
                       <ChevronRight className="ml-auto mt-0.5 h-4 w-4 text-[#888]" />
                     </div>
@@ -1090,6 +1154,19 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                   <div key={`${item.label}-${item.value}`} className="border border-[#efefef] bg-[#fafafa] px-5 py-4">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#94806f]">{item.label}</div>
                     <div className="mt-2 text-[16px] font-semibold leading-6 text-[#261d17]">{item.value}</div>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className="border border-[#e5e5e5] bg-white p-6">
+              <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#907e70]">Confiance AfriPay</div>
+              <h2 className="mt-3 text-[24px] font-bold text-[#221813] sm:text-[28px]">Ce que vous validez vraiment</h2>
+              <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {trustSignals.map((item) => (
+                  <div key={item.label} className="rounded-[18px] border border-[#efefef] bg-[linear-gradient(180deg,#ffffff_0%,#faf7f3_100%)] px-5 py-4">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#94806f]">{item.label}</div>
+                    <div className="mt-2 text-[15px] font-semibold leading-6 text-[#261d17]">{item.value}</div>
                   </div>
                 ))}
               </div>

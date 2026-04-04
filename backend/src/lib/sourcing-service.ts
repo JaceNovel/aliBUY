@@ -146,7 +146,7 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
     ? await validatePromoCodeForAmount({ code: input.promoCode, totalFcfa: baseTotalPriceFcfa })
     : null;
   const finalTotalPriceFcfa = promoAdjustment?.finalTotalFcfa ?? baseTotalPriceFcfa;
-  const paymentMethod = input.paymentMethod === "mobile" || input.paymentMethod === "bank" || input.paymentMethod === "pay_on_delivery"
+  const paymentMethod = input.paymentMethod === "mobile" || input.paymentMethod === "pay_on_delivery"
     ? input.paymentMethod
     : "card";
 

@@ -7,7 +7,7 @@ import { AlertTriangle, Check, ChevronDown, CircleHelp, LocateFixed, Minus, Plus
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useCart, useCartQuote } from "@/components/cart-provider";
-import { buildLocalUrl, createOrder, previewPromoCode } from "@/lib/api";
+import { buildLocalUrl, createOrder, initializeMonerooPayment, previewPromoCode } from "@/lib/api";
 import {
   formatShippingTradeLabel,
   formatSourcingAmount,
@@ -64,6 +64,47 @@ type ReverseGeocodeResponse = {
   countryLabel?: string;
   displayName?: string;
 };
+
+type CheckoutPaymentBadgeKey = "visa" | "mastercard" | "mobile-money" | "pay-later";
+
+function CheckoutPaymentBadge({ brand }: { brand: CheckoutPaymentBadgeKey }) {
+  if (brand === "visa") {
+    return (
+      <div className="flex h-10 min-w-[56px] items-center justify-center rounded-[12px] border border-[#dbe7ff] bg-white px-3 shadow-[0_6px_16px_rgba(17,24,39,0.04)]">
+        <span className="text-[15px] font-black italic tracking-[-0.08em] text-[#1a4fd7]">VISA</span>
+      </div>
+    );
+  }
+
+  if (brand === "mastercard") {
+    return (
+      <div className="flex h-10 min-w-[56px] items-center justify-center gap-2 rounded-[12px] border border-[#ffe4dd] bg-white px-3 shadow-[0_6px_16px_rgba(17,24,39,0.04)]">
+        <div className="relative h-5 w-8">
+          <span className="absolute left-0 top-0 h-5 w-5 rounded-full bg-[#eb001b]" />
+          <span className="absolute right-0 top-0 h-5 w-5 rounded-full bg-[#f79e1b]" />
+        </div>
+      </div>
+    );
+  }
+
+  if (brand === "mobile-money") {
+    return (
+      <div className="flex h-10 min-w-[56px] items-center justify-center gap-2 rounded-[12px] border border-[#d6f5df] bg-white px-3 shadow-[0_6px_16px_rgba(17,24,39,0.04)]">
+        <div className="relative h-6 w-4 rounded-[5px] border-2 border-[#16a34a]">
+          <span className="absolute inset-x-1 bottom-1 h-0.5 rounded-full bg-[#16a34a]" />
+        </div>
+        <span className="text-[9px] font-extrabold uppercase tracking-[0.08em] text-[#15803d]">MM</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-10 min-w-[56px] items-center justify-center gap-2 rounded-[12px] border border-[#dbe4ff] bg-white px-3 shadow-[0_6px_16px_rgba(17,24,39,0.04)]">
+      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#eef2ff] text-[10px] font-black text-[#4338ca]">24</div>
+      <span className="text-[9px] font-extrabold uppercase tracking-[0.08em] text-[#4338ca]">LATER</span>
+    </div>
+  );
+}
 
 function buildFormFromAddress(address: CustomerAddressRecord, initialUser: SourcingCheckoutClientProps["initialUser"]) {
   const countryCode = canonicalizeCountryCode(address.countryCode, "TG");
@@ -129,7 +170,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hasUserSelectedShipping, setHasUserSelectedShipping] = useState(false);
   const [selectedShipping, setSelectedShipping] = useState<ShippingMethodKey>("air");
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"card" | "mobile" | "bank" | "pay_on_delivery">("card");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"card" | "mobile" | "pay_on_delivery">("card");
   const [payOnDeliveryIdentityFirstName, setPayOnDeliveryIdentityFirstName] = useState("");
   const [payOnDeliveryIdentityLastName, setPayOnDeliveryIdentityLastName] = useState("");
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(savedAddresses.length === 0);
@@ -196,32 +237,41 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
     {
       key: "card" as const,
       title: "Carte bancaire",
-      subtitle: "Visa, Mastercard et cartes compatibles Moneroo",
-      logo: "CB",
-      logoClassName: "bg-[#f5f5f5] text-[#111827]",
+      subtitle: "Visa, Mastercard",
+      badges: ["visa", "mastercard"] as CheckoutPaymentBadgeKey[],
     },
     {
       key: "mobile" as const,
       title: "Mobile Money",
-      subtitle: "Paiement mobile pris en charge directement dans le checkout Moneroo",
-      logo: "MM",
-      logoClassName: "bg-[#eefcf3] text-[#15803d]",
-    },
-    {
-      key: "bank" as const,
-      title: "Virement bancaire",
-      subtitle: "Méthodes bancaires locales disponibles selon votre configuration",
-      logo: "VB",
-      logoClassName: "bg-[#fff7ed] text-[#c2410c]",
+      subtitle: "Via checkout Moneroo",
+      badges: ["mobile-money"] as CheckoutPaymentBadgeKey[],
     },
     ...(!isEuropeanUnionDestination ? [{
       key: "pay_on_delivery" as const,
       title: "Paiement après livraison",
-      subtitle: "Commande sans paiement immédiat, validation avec identité du titulaire",
-      logo: "PD",
-      logoClassName: "bg-[#eef2ff] text-[#4338ca]",
+      subtitle: "Validation avec identité",
+      badges: ["pay-later"] as CheckoutPaymentBadgeKey[],
     }] : []),
   ];
+
+  useEffect(() => {
+    if (savedAddressList.length === 0 || form.customerAddressId) {
+      return;
+    }
+
+    const fallbackAddress = savedAddressList.find((address) => address.isDefault) ?? savedAddressList[0];
+    if (!fallbackAddress) {
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      ...buildFormFromAddress(fallbackAddress, initialUser),
+      notes: current.notes,
+    }));
+    setIsAddressModalOpen(false);
+    setAddressModalView("list");
+  }, [form.customerAddressId, initialUser, savedAddressList]);
 
   useEffect(() => {
     if (!appliedPromo) {
@@ -550,10 +600,37 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
         sharedCartToken: sharedCartContext?.token,
       });
 
-      setIsSubmitting(false);
-      clearCart();
-      clearSharedCartContext();
-      router.push(selectedPaymentMethod === "pay_on_delivery" ? "/orders" : `/orders/payment?orderId=${encodeURIComponent(payload.order.id)}`);
+      if (selectedPaymentMethod === "pay_on_delivery") {
+        setIsSubmitting(false);
+        clearCart();
+        clearSharedCartContext();
+        router.push("/orders");
+        return;
+      }
+
+      try {
+        const paymentPayload = await initializeMonerooPayment(payload.order.id);
+        const checkoutUrl = paymentPayload.checkoutUrl || paymentPayload.order?.monerooCheckoutUrl;
+
+        clearCart();
+        clearSharedCartContext();
+        setIsSubmitting(false);
+
+        if (checkoutUrl) {
+          window.location.href = checkoutUrl;
+          return;
+        }
+
+        router.push(`/orders/payment?orderId=${encodeURIComponent(payload.order.id)}`);
+      } catch (paymentError) {
+        clearCart();
+        clearSharedCartContext();
+        setIsSubmitting(false);
+        setErrorMessage(paymentError instanceof Error
+          ? `${paymentError.message} La commande a ete creee, mais le checkout Moneroo ne s'est pas ouvert automatiquement.`
+          : "La commande a ete creee, mais le checkout Moneroo ne s'est pas ouvert automatiquement.");
+        router.push(`/orders/payment?orderId=${encodeURIComponent(payload.order.id)}`);
+      }
     } catch (error) {
       setIsSubmitting(false);
       setErrorMessage(error instanceof Error ? error.message : "Impossible de créer la commande sourcing.");
@@ -630,15 +707,15 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_410px] xl:gap-6">
       <div className="space-y-3 sm:space-y-4">
-        <section className="overflow-hidden rounded-[18px] bg-white px-4 py-4 shadow-[0_1px_0_rgba(0,0,0,0.06)] sm:px-7 sm:py-5">
+        <section className="overflow-hidden rounded-[18px] bg-white px-4 py-3.5 shadow-[0_1px_0_rgba(0,0,0,0.06)] sm:px-7 sm:py-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="text-[17px] font-bold tracking-[-0.03em] text-[#111827] sm:text-[20px]">Adresse de livraison</div>
-              <div className="mt-3 text-[15px] font-semibold text-[#111827] sm:mt-4 sm:text-[18px]">
+              <div className="text-[15px] font-bold tracking-[-0.03em] text-[#111827] sm:text-[20px]">Adresse de livraison</div>
+              <div className="mt-2.5 text-[14px] font-semibold text-[#111827] sm:mt-4 sm:text-[18px]">
                 {form.customerName || initialUser.displayName || "Nom du destinataire"}
-                {form.customerPhone ? <span className="ml-2 text-[13px] font-medium text-[#344054] sm:ml-4 sm:text-[18px]">{form.customerPhone}</span> : null}
+                {form.customerPhone ? <span className="ml-2 text-[12px] font-medium text-[#344054] sm:ml-4 sm:text-[18px]">{form.customerPhone}</span> : null}
               </div>
-              <div className="mt-1 max-w-[780px] text-[13px] leading-5 text-[#475467] sm:text-[15px] sm:leading-7">{activeAddressSummary}</div>
+              <div className="mt-1 max-w-[780px] text-[12px] leading-5 text-[#475467] sm:text-[15px] sm:leading-7">{activeAddressSummary}</div>
               {deliveryPlan.deliveryProfile.unsupportedCountry ? (
                 <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#fff4e8] px-3 py-1.5 text-[12px] font-semibold text-[#b45309] sm:px-4 sm:py-2 sm:text-[13px]">
                   <AlertTriangle className="h-4 w-4" />
@@ -654,7 +731,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
             <button
               type="button"
               onClick={openAddressSelector}
-              className="inline-flex shrink-0 items-center gap-2 text-[14px] font-semibold text-[#2563eb] transition hover:text-[#1d4ed8] sm:text-[16px]"
+              className="inline-flex shrink-0 items-center gap-2 text-[13px] font-semibold text-[#2563eb] transition hover:text-[#1d4ed8] sm:text-[16px]"
             >
               Changer
             </button>
@@ -664,33 +741,30 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
           {locationFeedback ? <div className="mt-4 rounded-[18px] bg-[#eef6ff] px-4 py-4 text-[13px] font-semibold text-[#1d4f91]">{locationFeedback}</div> : null}
         </section>
 
-        <section className="overflow-hidden rounded-[18px] bg-white px-4 py-4 shadow-[0_1px_0_rgba(0,0,0,0.06)] sm:px-7 sm:py-5">
+        <section className="overflow-hidden rounded-[18px] bg-white px-4 py-3.5 shadow-[0_1px_0_rgba(0,0,0,0.06)] sm:px-7 sm:py-5">
           <div className="flex items-center justify-between gap-4">
-            <div className="text-[17px] font-bold tracking-[-0.03em] text-[#111827] sm:text-[20px]">Moyens de paiement</div>
+            <div className="text-[15px] font-bold tracking-[-0.03em] text-[#111827] sm:text-[20px]">Moyens de paiement</div>
           </div>
 
-          <div className="mt-3 divide-y divide-[#eef2f6] sm:mt-4">
+          <div className="mt-2.5 divide-y divide-[#eef2f6] sm:mt-4">
             {paymentChoices.map((method) => (
               <button
                 key={method.key}
                 type="button"
                 onClick={() => setSelectedPaymentMethod(method.key)}
-                className="flex w-full items-start gap-3 py-3.5 text-left sm:gap-4 sm:py-5"
+                className="flex w-full items-start gap-3 py-3 text-left sm:gap-4 sm:py-5"
               >
                 <div className={["mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border sm:mt-1 sm:h-7 sm:w-7", selectedPaymentMethod === method.key ? "border-[#2563eb] bg-white text-[#2563eb]" : "border-[#d0d5dd] bg-white text-transparent"].join(" ")}>
                   <Check className="h-4 w-4" />
                 </div>
-                <div
-                  className={[
-                    "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black tracking-[-0.04em] ring-1 ring-black/5 sm:h-8 sm:w-8 sm:text-[12px]",
-                    method.logoClassName,
-                  ].join(" ")}
-                >
-                  <span>{method.logo}</span>
+                <div className="mt-0.5 flex shrink-0 items-center gap-1.5">
+                  {method.badges.map((badge) => (
+                    <CheckoutPaymentBadge key={`${method.key}-${badge}`} brand={badge} />
+                  ))}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[15px] font-semibold leading-5 text-[#111827] sm:text-[18px]">{method.title}</div>
-                  <div className="mt-1 text-[12px] leading-5 text-[#667085] sm:text-[13px]">{method.subtitle}</div>
+                  <div className="text-[14px] font-semibold leading-5 text-[#111827] sm:text-[18px]">{method.title}</div>
+                  <div className="mt-0.5 text-[11px] leading-5 text-[#667085] sm:text-[13px]">{method.subtitle}</div>
                 </div>
               </button>
             ))}
@@ -855,8 +929,12 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
 
           <p className="mt-3 text-[11px] leading-5 text-[#98a2b3] sm:mt-5 sm:text-[13px] sm:leading-7">
             En cliquant sur « Passer une commande », je confirme avoir lu et pris connaissance de toutes les{" "}
-            <span className="font-semibold text-[#2563eb]">conditions et politiques</span>, ainsi que les{" "}
-            <span className="font-semibold text-[#2563eb]">informations pour les consommateurs européens</span>.
+            <Link href="/protection-commandes" className="font-semibold text-[#2563eb] underline-offset-2 transition hover:underline">
+              conditions et politiques
+            </Link>, ainsi que les{" "}
+            <Link href="/protection-commandes#paiements-securises" className="font-semibold text-[#2563eb] underline-offset-2 transition hover:underline">
+              informations pour les consommateurs européens
+            </Link>.
           </p>
         </section>
 

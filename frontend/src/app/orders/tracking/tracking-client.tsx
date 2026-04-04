@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { CheckCheck, CircleAlert, ClipboardList, PackageCheck, Phone, Search, ShieldCheck, Truck } from "lucide-react";
+import { CheckCheck, ClipboardList, CreditCard, PackageCheck, Phone, Search, ShieldCheck, ShoppingBag, Truck, Warehouse } from "lucide-react";
 
 import { getOrderChatHref, getOrderTrackingNumber, type OrderRecord } from "@/lib/orders-data";
 
@@ -20,51 +20,74 @@ function resolveTrackingOrder(orders: OrderRecord[], orderId?: string, tracking?
 }
 
 function getTrackingSteps(order: OrderRecord) {
-  const currentIndex =
-    order.status === "Paiement en attente"
-      ? 0
-      : order.status === "Expedition en attente"
-        ? 1
-        : order.status === "Livraison en attente"
-          ? 2
-          : 3;
+  const paymentReceived = order.status !== "Paiement en attente" && order.status !== "Expedition en attente";
+  const supplierPurchaseStarted = order.status === "Livraison en attente" || order.status === "Commande Livree";
+  const expeditionStarted = supplierPurchaseStarted;
+  const hubArrived = Boolean(
+    order.logistics.availableForPickupAt
+    || order.logistics.relayPointAddress
+    || order.logistics.deliveredToAgentAt
+    || order.logistics.manualFulfillmentUpdatedAt
+    || order.logistics.proofs?.some((proof) => proof.role === "arrival_scan" || proof.role === "relay_release"),
+  );
+  const delivered = order.status === "Commande Livree";
 
   return [
     {
-      key: "received",
-      title: "Commande recue",
-      description: order.dateLabel.split(",")[0],
+      key: "created",
+      title: "Commande creee",
+      description: `${order.dateLabel.split(",")[0]} • dossier AfriPay ouvert`,
       icon: ClipboardList,
-      state: currentIndex >= 0 ? "done" : "pending",
+      state: "done",
     },
     {
-      key: "preparing",
-      title: "En preparation",
-      description: currentIndex >= 1 ? "Colis confirme" : "En attente",
-      icon: CircleAlert,
-      state: currentIndex >= 1 ? "done" : "pending",
+      key: "payment",
+      title: "Paiement recu",
+      description: paymentReceived ? "Le règlement est confirmé." : "En attente de validation du paiement.",
+      icon: CreditCard,
+      state: paymentReceived ? "done" : "current",
     },
     {
-      key: "shipped",
-      title: "Expedie",
-      description: currentIndex >= 2 ? order.logistics.manualFulfillmentCheckpointLabel || order.logistics.transitMode : "En attente",
+      key: "supplier",
+      title: "Achat fournisseur",
+      description: supplierPurchaseStarted ? "Le sourcing et l'achat terrain sont engagés." : "L'achat démarre après validation du paiement.",
+      icon: ShoppingBag,
+      state: supplierPurchaseStarted ? "done" : paymentReceived ? "current" : "pending",
+    },
+    {
+      key: "shipment",
+      title: "Expedition",
+      description: expeditionStarted ? order.logistics.manualFulfillmentCheckpointLabel || order.logistics.transitMode : "En attente de départ logistique.",
       icon: Truck,
-      state: currentIndex >= 2 ? "done" : "pending",
+      state: expeditionStarted ? "done" : supplierPurchaseStarted ? "current" : "pending",
+    },
+    {
+      key: "hub",
+      title: "Arrivee hub",
+      description: hubArrived
+        ? order.logistics.forwarderHubLabel
+          ? `Arrivée confirmée au hub ${order.logistics.forwarderHubLabel}.`
+          : order.logistics.relayPointAddress
+            ? "Colis disponible pour retrait."
+            : "Point de transit confirmé."
+        : "Le scan hub sera visible ici.",
+      icon: Warehouse,
+      state: hubArrived ? "done" : expeditionStarted ? "current" : "pending",
     },
     {
       key: "delivered",
       title: "Livre",
-      description: currentIndex >= 3
+      description: delivered
         ? order.logistics.deliveryRouteType === "customer-forwarder"
-          ? "Commande remise a votre agent"
-          : "Commande remise"
+          ? "Commande remise à votre agent."
+          : "Commande remise au client."
         : order.logistics.manualFulfillmentEnabled
-          ? order.logistics.manualFulfillmentEtaLabel || "Remise locale AfriPay en preparation"
-        : order.logistics.relayPointAddress
-          ? "Disponible au point relais"
-          : "En attente",
+          ? order.logistics.manualFulfillmentEtaLabel || "Remise locale en préparation."
+          : order.logistics.relayPointAddress
+            ? "Disponible au point relais."
+            : "Livraison finale en attente.",
       icon: PackageCheck,
-      state: currentIndex >= 3 ? "done" : "pending",
+      state: delivered ? "done" : hubArrived ? "current" : "pending",
     },
   ] as const;
 }
@@ -336,7 +359,7 @@ export function TrackingClient({ orders, initialOrderId, initialTracking }: Trac
             {selectedOrder.logistics.manualFulfillmentAgentPhone ? (
               <a href={`tel:${selectedOrder.logistics.manualFulfillmentAgentPhone}`} className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[#1d4f91] px-4 text-[13px] font-semibold text-white transition hover:bg-[#174079]">
                 <Phone className="h-4 w-4" />
-                Appeler l'agent
+                Appeler l&apos;agent
               </a>
             ) : null}
             <Link href={getOrderChatHref(selectedOrder)} className="inline-flex h-10 items-center justify-center rounded-full border border-[#b8cef3] bg-white px-4 text-[13px] font-semibold text-[#1d4f91] transition hover:border-[#1d4f91]">

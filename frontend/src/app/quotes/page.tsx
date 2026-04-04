@@ -2,6 +2,7 @@ import { Sparkles } from "lucide-react";
 
 import { QuoteRequestForm } from "@/components/quote-request-form";
 import { InternalPageShell } from "@/components/internal-page-shell";
+import { getUserAbandonedQuoteRecord } from "@/lib/abandoned-quote-store";
 import { getUserQuoteRequests } from "@/lib/customer-data-store";
 import { getPricingContext } from "@/lib/pricing";
 import { getCurrentUser } from "@/lib/user-auth";
@@ -9,7 +10,12 @@ import { getCurrentUser } from "@/lib/user-auth";
 export default async function QuotesPage() {
   const pricing = await getPricingContext();
   const user = await getCurrentUser();
-  const recentRequests = user ? await getUserQuoteRequests(user.id) : [];
+  const [recentRequests, abandonedQuote] = user
+    ? await Promise.all([
+        getUserQuoteRequests(user.id),
+        getUserAbandonedQuoteRecord(user.id),
+      ])
+    : [[], null];
 
   return (
     <InternalPageShell pricing={pricing}>
@@ -21,9 +27,28 @@ export default async function QuotesPage() {
           </div>
           <h1 className="mt-4 text-[26px] font-bold tracking-[-0.05em] text-[#222] sm:mt-5 sm:text-[42px]">Decrivez votre besoin produit</h1>
           <p className="mt-2.5 max-w-[760px] text-[14px] leading-6 text-[#555] sm:mt-3 sm:text-[17px] sm:leading-8">
-            Envoyez une demande claire a plusieurs partenaires en une seule fois. AfriPay regroupe vos specifications, votre cible prix et votre fenetre logistique.
+            Préparez votre demande une fois, reprenez-la depuis votre compte si vous quittez la page, puis envoyez-la quand tout est prêt.
           </p>
-          <QuoteRequestForm currencyCode={pricing.currency.code} shippingWindow={pricing.shippingWindow} />
+          {abandonedQuote && abandonedQuote.status === "active" ? (
+            <div className="mt-5 rounded-[18px] border border-[#dbe6ff] bg-[#f5f9ff] px-4 py-4 text-[14px] leading-6 text-[#35518a]">
+              Brouillon retrouvé: <span className="font-semibold text-[#15356f]">{abandonedQuote.productName || "Demande devis"}</span>
+              {abandonedQuote.quantity ? ` • ${abandonedQuote.quantity}` : ""}
+            </div>
+          ) : null}
+          <QuoteRequestForm
+            currencyCode={pricing.currency.code}
+            shippingWindow={pricing.shippingWindow}
+            initialDraft={abandonedQuote && abandonedQuote.status === "active"
+              ? {
+                  productName: abandonedQuote.productName,
+                  quantity: abandonedQuote.quantity,
+                  specifications: abandonedQuote.specifications,
+                  budget: abandonedQuote.budget,
+                  shippingWindow: abandonedQuote.shippingWindow,
+                  notes: abandonedQuote.notes,
+                }
+              : null}
+          />
         </section>
 
         <aside className="space-y-4 sm:space-y-6">
@@ -32,7 +57,7 @@ export default async function QuotesPage() {
             <div className="mt-4 text-[24px] font-bold tracking-[-0.05em] sm:mt-5 sm:text-[32px]">{pricing.flagEmoji} {pricing.countryLabel}</div>
             <div className="mt-2 text-[13px] text-white/78 sm:mt-3 sm:text-[16px]">{pricing.languageLabel} · {pricing.currency.code}</div>
             <div className="mt-4 rounded-[16px] bg-white/10 px-3.5 py-3 text-[13px] leading-5 text-white/86 sm:mt-6 sm:rounded-[18px] sm:px-4 sm:py-4 sm:text-[15px] sm:leading-7">
-              Vos devis utilisent automatiquement votre contexte pays, devise et delai logistique.
+              Votre pays, votre devise et votre fenêtre logistique sont repris automatiquement dans chaque devis.
             </div>
           </article>
 

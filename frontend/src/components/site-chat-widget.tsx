@@ -73,10 +73,45 @@ export function SiteChatWidget() {
           isFreeDealRoute ? "hidden sm:inline-flex" : "",
         ].join(" ")}
       >
-        <span className="flex h-full w-full items-center justify-center bg-white">
+        <span className="pointer-events-none absolute inset-0 rounded-full bg-[#16a34a]/12 animate-[chatPulse_2.8s_ease-in-out_infinite]" />
+        <span className="relative z-[1] flex h-full w-full items-center justify-center bg-white animate-[chatBuzz_3.6s_ease-in-out_infinite]">
           <Image src={WHATSAPP_ICON_PATH} alt={`${SITE_NAME} WhatsApp`} width={64} height={64} className="h-9 w-9 object-contain object-center sm:h-11 sm:w-11" />
         </span>
       </button>
+      <style jsx>{`
+        @keyframes chatPulse {
+          0%, 82%, 100% {
+            transform: scale(1);
+            opacity: 0;
+          }
+          10% {
+            transform: scale(1.08);
+            opacity: 1;
+          }
+          24% {
+            transform: scale(1.18);
+            opacity: 0;
+          }
+        }
+
+        @keyframes chatBuzz {
+          0%, 84%, 100% {
+            transform: translate3d(0, 0, 0) rotate(0deg);
+          }
+          86% {
+            transform: translate3d(-1px, 0, 0) rotate(-7deg);
+          }
+          89% {
+            transform: translate3d(1px, 0, 0) rotate(7deg);
+          }
+          92% {
+            transform: translate3d(-1px, 0, 0) rotate(-6deg);
+          }
+          95% {
+            transform: translate3d(1px, 0, 0) rotate(6deg);
+          }
+        }
+      `}</style>
     </>
   );
 }

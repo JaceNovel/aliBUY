@@ -2,28 +2,12 @@ import { NextResponse } from "next/server";
 
 import { clerkClient } from "@clerk/nextjs/server";
 
+import { getManyChatAccountProfile } from "@/lib/account-manychat";
 import { syncUserPhoneChannels } from "@/lib/account-contact-sync";
 import { getAccountSettings, updateAccountSettings } from "@/lib/account-settings-store";
 import { parseDisplayName } from "@/lib/user-session";
 import { getCurrentUser } from "@/lib/user-auth";
 import { updateStoredUserProfile } from "@/lib/user-store";
-
-type ClerkAccountMetadata = {
-  phone?: string;
-  connectedWhatsapp?: string;
-};
-
-function readClerkAccountMetadata(input: unknown): ClerkAccountMetadata {
-  if (!input || typeof input !== "object") {
-    return {};
-  }
-
-  const candidate = input as Record<string, unknown>;
-  return {
-    phone: typeof candidate.phone === "string" ? candidate.phone.trim() || undefined : undefined,
-    connectedWhatsapp: typeof candidate.connectedWhatsapp === "string" ? candidate.connectedWhatsapp.trim() || undefined : undefined,
-  };
-}
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -32,28 +16,11 @@ export async function GET() {
   }
 
   const storedSettings = await getAccountSettings(user.id);
-  let settings = storedSettings;
-
-  if (user.clerkUserId) {
-    const client = await clerkClient();
-    const clerkUser = await client.users.getUser(user.clerkUserId).catch(() => null);
-    const clerkMetadata = readClerkAccountMetadata(clerkUser?.unsafeMetadata);
-    const mergedPhone = clerkMetadata.phone ?? storedSettings.phone;
-    const mergedWhatsapp = clerkMetadata.connectedWhatsapp ?? storedSettings.connectedWhatsapp;
-
-    if (mergedPhone !== storedSettings.phone || mergedWhatsapp !== storedSettings.connectedWhatsapp) {
-      settings = await updateAccountSettings(user.id, {
-        phone: mergedPhone,
-        connectedWhatsapp: mergedWhatsapp,
-      });
-    } else {
-      settings = {
-        ...storedSettings,
-        phone: mergedPhone,
-        connectedWhatsapp: mergedWhatsapp,
-      };
-    }
-  }
+  const manychatProfile = await getManyChatAccountProfile(user);
+  const settings = {
+    ...storedSettings,
+    ...manychatProfile,
+  };
 
   return NextResponse.json({
     user: {
@@ -77,6 +44,9 @@ export async function PATCH(request: Request) {
   try {
     const nextPhone = typeof body?.phone === "string" ? body.phone.trim() || undefined : undefined;
     const nextConnectedWhatsapp = typeof body?.connectedWhatsapp === "string" ? body.connectedWhatsapp.trim() || undefined : undefined;
+    const nextManychatSubscriberId = typeof body?.manychatSubscriberId === "string" ? body.manychatSubscriberId.trim() || undefined : undefined;
+    const nextManychatFlowId = typeof body?.manychatFlowId === "string" ? body.manychatFlowId.trim() || undefined : undefined;
+    const nextManychatPaidTagId = typeof body?.manychatPaidTagId === "string" ? body.manychatPaidTagId.trim() || undefined : undefined;
 
     if (typeof body?.displayName === "string" && body.displayName.trim().length >= 2) {
       if (user.clerkUserId) {
@@ -107,6 +77,9 @@ export async function PATCH(request: Request) {
       connectedGoogleEmail: typeof body?.connectedGoogleEmail === "string" ? body.connectedGoogleEmail.trim() || undefined : undefined,
       connectedAppleEmail: typeof body?.connectedAppleEmail === "string" ? body.connectedAppleEmail.trim() || undefined : undefined,
       connectedWhatsapp: nextConnectedWhatsapp,
+      manychatSubscriberId: nextManychatSubscriberId,
+      manychatFlowId: nextManychatFlowId,
+      manychatPaidTagId: nextManychatPaidTagId,
       taxId: typeof body?.taxId === "string" ? body.taxId.trim() || undefined : undefined,
       businessId: typeof body?.businessId === "string" ? body.businessId.trim() || undefined : undefined,
       billingAddress: typeof body?.billingAddress === "string" ? body.billingAddress.trim() || undefined : undefined,

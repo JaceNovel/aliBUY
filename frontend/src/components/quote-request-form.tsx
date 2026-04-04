@@ -2,24 +2,118 @@
 
 import { FileUp, PackageSearch, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type QuoteRequestFormProps = {
   currencyCode: string;
   shippingWindow: string;
+  initialDraft?: {
+    productName?: string;
+    quantity?: string;
+    specifications?: string;
+    budget?: string;
+    shippingWindow?: string;
+    notes?: string;
+  } | null;
 };
 
-export function QuoteRequestForm({ currencyCode, shippingWindow }: QuoteRequestFormProps) {
+const QUOTE_DRAFT_STORAGE_KEY = "afripay_quote_draft_v1";
+
+export function QuoteRequestForm({ currencyCode, shippingWindow, initialDraft = null }: QuoteRequestFormProps) {
   const router = useRouter();
-  const [productName, setProductName] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [specifications, setSpecifications] = useState("");
-  const [budget, setBudget] = useState(`${currencyCode} `);
-  const [windowValue, setWindowValue] = useState(shippingWindow);
-  const [notes, setNotes] = useState("");
+  const syncTimeoutRef = useRef<number | null>(null);
+  const hydratedRef = useRef(false);
+  const [productName, setProductName] = useState(initialDraft?.productName ?? "");
+  const [quantity, setQuantity] = useState(initialDraft?.quantity ?? "");
+  const [specifications, setSpecifications] = useState(initialDraft?.specifications ?? "");
+  const [budget, setBudget] = useState(initialDraft?.budget ?? `${currencyCode} `);
+  const [windowValue, setWindowValue] = useState(initialDraft?.shippingWindow ?? shippingWindow);
+  const [notes, setNotes] = useState(initialDraft?.notes ?? "");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (hydratedRef.current || typeof window === "undefined") {
+      return;
+    }
+
+    hydratedRef.current = true;
+
+    try {
+      const raw = window.localStorage.getItem(QUOTE_DRAFT_STORAGE_KEY);
+      if (!raw) {
+        return;
+      }
+
+      const draft = JSON.parse(raw) as QuoteRequestFormProps["initialDraft"];
+      if (!draft) {
+        return;
+      }
+
+      setProductName((current) => current || draft.productName || "");
+      setQuantity((current) => current || draft.quantity || "");
+      setSpecifications((current) => current || draft.specifications || "");
+      setBudget((current) => current.trim() !== `${currencyCode}` ? current : draft.budget || `${currencyCode} `);
+      setWindowValue((current) => current || draft.shippingWindow || shippingWindow);
+      setNotes((current) => current || draft.notes || "");
+    } catch {
+      // Ignore local draft parsing issues.
+    }
+  }, [currencyCode, shippingWindow]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const draft = {
+      productName,
+      quantity,
+      specifications,
+      budget,
+      shippingWindow: windowValue,
+      notes,
+    };
+    const hasMeaningfulDraft = Boolean(productName.trim() || quantity.trim() || specifications.trim() || notes.trim());
+
+    try {
+      if (hasMeaningfulDraft) {
+        window.localStorage.setItem(QUOTE_DRAFT_STORAGE_KEY, JSON.stringify(draft));
+      } else {
+        window.localStorage.removeItem(QUOTE_DRAFT_STORAGE_KEY);
+      }
+    } catch {
+      // Ignore localStorage failures.
+    }
+
+    if (syncTimeoutRef.current !== null) {
+      window.clearTimeout(syncTimeoutRef.current);
+    }
+
+    syncTimeoutRef.current = window.setTimeout(() => {
+      void fetch("/api/quotes/draft", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(hasMeaningfulDraft
+          ? draft
+          : {
+              action: "clear",
+            }),
+      }).catch(() => {
+        // Ignore sync failures for draft state.
+      });
+    }, 1200);
+
+    return () => {
+      if (syncTimeoutRef.current !== null) {
+        window.clearTimeout(syncTimeoutRef.current);
+      }
+    };
+  }, [budget, notes, productName, quantity, specifications, windowValue]);
 
   const handleSubmit = async () => {
     setError(null);
@@ -51,8 +145,23 @@ export function QuoteRequestForm({ currencyCode, shippingWindow }: QuoteRequestF
       setProductName("");
       setQuantity("");
       setSpecifications("");
+      setBudget(`${currencyCode} `);
+      setWindowValue(shippingWindow);
       setNotes("");
       setSuccess("Votre demande a bien ete enregistree.");
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(QUOTE_DRAFT_STORAGE_KEY);
+      }
+      void fetch("/api/quotes/draft", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ action: "clear" }),
+      }).catch(() => {
+        // Ignore cleanup failures.
+      });
       router.refresh();
     } catch {
       setError("Impossible d'envoyer la demande.");

@@ -1,5 +1,8 @@
 import { syncUserPhoneChannels } from "@/lib/account-contact-sync";
+import { markAbandonedCartRecordCleared } from "@/lib/abandoned-cart-store";
+import { getManyChatAccountProfile } from "@/lib/account-manychat";
 import { createCheckoutOrder } from "@/lib/sourcing-service";
+import { triggerManyChatLogisticsUpdate } from "@/lib/manychat";
 import { getCurrentUser } from "@/lib/user-auth";
 
 export async function POST(request: Request) {
@@ -11,6 +14,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const persistedUserId = user.id.startsWith("admin:") ? undefined : user.id;
+    const manychatProfile = await getManyChatAccountProfile(user);
 
     const customerPhone = String(body?.customerPhone ?? "");
     const order = await createCheckoutOrder({
@@ -28,7 +32,7 @@ export async function POST(request: Request) {
       countryCode: String(body?.countryCode ?? "CI"),
       deliveryProfile: typeof body?.deliveryProfile === "object" && body.deliveryProfile ? body.deliveryProfile : undefined,
       shippingMethod: body?.shippingMethod === "sea" ? "sea" : body?.shippingMethod === "freight" ? "freight" : "air",
-      paymentMethod: body?.paymentMethod === "mobile" || body?.paymentMethod === "bank" || body?.paymentMethod === "pay_on_delivery" ? body.paymentMethod : "card",
+      paymentMethod: body?.paymentMethod === "mobile" || body?.paymentMethod === "pay_on_delivery" ? body.paymentMethod : "card",
       payOnDeliveryIdentityFirstName: body?.payOnDeliveryIdentityFirstName ? String(body.payOnDeliveryIdentityFirstName) : undefined,
       payOnDeliveryIdentityLastName: body?.payOnDeliveryIdentityLastName ? String(body.payOnDeliveryIdentityLastName) : undefined,
       notes: body?.notes ? String(body.notes) : undefined,
@@ -36,9 +40,9 @@ export async function POST(request: Request) {
       sharedCartToken: body?.sharedCartToken ? String(body.sharedCartToken) : undefined,
       payerDisplayName: user.displayName,
       payerEmail: user.email,
-      manychatSubscriberId: body?.manychatSubscriberId ? String(body.manychatSubscriberId) : undefined,
-      manychatFlowId: body?.manychatFlowId ? String(body.manychatFlowId) : undefined,
-      manychatPaidTagId: body?.manychatPaidTagId ? String(body.manychatPaidTagId) : undefined,
+      manychatSubscriberId: manychatProfile.manychatSubscriberId,
+      manychatFlowId: manychatProfile.manychatFlowId,
+      manychatPaidTagId: manychatProfile.manychatPaidTagId,
       items: Array.isArray(body?.items) ? body.items : [],
     });
 
@@ -46,6 +50,11 @@ export async function POST(request: Request) {
       phone: customerPhone,
       usePhoneAsWhatsappByDefault: true,
     });
+    await markAbandonedCartRecordCleared(user.id, "converted").catch(() => null);
+    await triggerManyChatLogisticsUpdate(order, {
+      title: "Commande creee",
+      detail: "Votre commande a ete enregistree. Nous preparons maintenant la suite du traitement et de la logistique.",
+    }).catch(() => null);
 
     return Response.json({ order });
   } catch (error) {

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { CreditCard, Landmark, Smartphone, WalletCards } from "lucide-react";
+import { CreditCard, Smartphone, WalletCards } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { applyOrderPromoCode, initializeMonerooPayment, verifyMonerooPayment } from "@/lib/api";
@@ -53,7 +53,6 @@ type PaymentClientProps = {
 
 const methods = [
   { key: "card", label: "Carte bancaire", icon: CreditCard, detail: "Visa, Mastercard et cartes compatibles Moneroo" },
-  { key: "bank", label: "Virement bancaire", icon: Landmark, detail: "Methodes bancaires locales disponibles selon votre configuration" },
   { key: "mobile", label: "Mobile Money", icon: Smartphone, detail: "Paiement mobile pris en charge directement dans le checkout heberge" },
 ];
 

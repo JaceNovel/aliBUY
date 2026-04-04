@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   buildCartItemKey,
@@ -109,6 +109,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       return null;
     }
   });
+  const reminderTimerRef = useRef<number | null>(null);
+  const syncTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
@@ -122,6 +124,65 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     window.localStorage.setItem(SHARED_CART_STORAGE_KEY, JSON.stringify(sharedCartContext));
   }, [sharedCartContext]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    if (syncTimerRef.current !== null) {
+      window.clearTimeout(syncTimerRef.current);
+      syncTimerRef.current = null;
+    }
+    if (reminderTimerRef.current !== null) {
+      window.clearTimeout(reminderTimerRef.current);
+      reminderTimerRef.current = null;
+    }
+
+    const sendCartActivity = async (action: "sync" | "clear", triggerReminderNow = false) => {
+      try {
+        await fetch("/api/cart/activity", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          credentials: "include",
+          keepalive: action === "clear",
+          body: JSON.stringify({
+            action,
+            items,
+            triggerReminderNow,
+          }),
+        });
+      } catch {
+        // Intentionally ignore silent sync failures for anonymous users or offline cases.
+      }
+    };
+
+    if (items.length === 0) {
+      void sendCartActivity("clear");
+      return undefined;
+    }
+
+    syncTimerRef.current = window.setTimeout(() => {
+      void sendCartActivity("sync");
+    }, 1200);
+
+    reminderTimerRef.current = window.setTimeout(() => {
+      void sendCartActivity("sync", true);
+    }, 30_000);
+
+    return () => {
+      if (syncTimerRef.current !== null) {
+        window.clearTimeout(syncTimerRef.current);
+        syncTimerRef.current = null;
+      }
+      if (reminderTimerRef.current !== null) {
+        window.clearTimeout(reminderTimerRef.current);
+        reminderTimerRef.current = null;
+      }
+    };
+  }, [items]);
 
   const value = useMemo<CartContextValue>(() => ({
     items,

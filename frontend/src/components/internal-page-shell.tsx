@@ -34,8 +34,8 @@ type InternalPageShellProps = {
 const MOBILE_NAV_SHORTCUTS: ReadonlyArray<{ label: string; href: string }> = [
   { label: "Produits", href: "/products" },
   { label: "Devis", href: "/quotes" },
-  { label: "Tarifs", href: "/pricing" },
-  { label: "Messages", href: "/messages" },
+  { label: "Reprise", href: "/support-center" },
+  { label: "Commandes", href: "/orders" },
 ];
 
 export async function InternalPageShell({ pricing, children }: InternalPageShellProps) {

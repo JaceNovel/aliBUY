@@ -188,7 +188,7 @@ export type SourcingPaymentContext = {
   payerUserId?: string;
   payerDisplayName: string;
   payerEmail: string;
-  paymentMethod?: "card" | "mobile" | "bank" | "pay_on_delivery";
+  paymentMethod?: "card" | "mobile" | "pay_on_delivery";
   payOnDeliveryIdentityFirstName?: string;
   payOnDeliveryIdentityLastName?: string;
   createdFromSharedCart: boolean;
@@ -205,6 +205,7 @@ export type SourcingManyChatContext = {
   cartReminderSentAt?: string;
   lastCartReminderResponse?: unknown;
   logisticsLastSentAt?: string;
+  logisticsLastStatusSent?: string;
   lastLogisticsResponse?: unknown;
 };
 
@@ -268,7 +269,7 @@ export type SourcingCheckoutInput = SourcingCheckoutAddress & {
   userId?: string;
   items: CartInputItem[];
   shippingMethod: ShippingMethodKey;
-  paymentMethod?: "card" | "mobile" | "bank" | "pay_on_delivery";
+  paymentMethod?: "card" | "mobile" | "pay_on_delivery";
   payOnDeliveryIdentityFirstName?: string;
   payOnDeliveryIdentityLastName?: string;
   notes?: string;
@@ -628,7 +629,7 @@ function normalizePaymentContext(value: unknown): SourcingPaymentContext | undef
     payerUserId: typeof value.payerUserId === "string" ? value.payerUserId : undefined,
     payerDisplayName,
     payerEmail,
-    paymentMethod: value.paymentMethod === "mobile" || value.paymentMethod === "bank" || value.paymentMethod === "pay_on_delivery" ? value.paymentMethod : "card",
+    paymentMethod: value.paymentMethod === "mobile" || value.paymentMethod === "pay_on_delivery" ? value.paymentMethod : "card",
     payOnDeliveryIdentityFirstName: typeof value.payOnDeliveryIdentityFirstName === "string" ? value.payOnDeliveryIdentityFirstName : undefined,
     payOnDeliveryIdentityLastName: typeof value.payOnDeliveryIdentityLastName === "string" ? value.payOnDeliveryIdentityLastName : undefined,
     createdFromSharedCart: value.createdFromSharedCart === true,
@@ -656,6 +657,7 @@ function normalizeManyChatContext(value: unknown): SourcingManyChatContext | und
     cartReminderSentAt: typeof value.cartReminderSentAt === "string" ? value.cartReminderSentAt : undefined,
     lastCartReminderResponse: "lastCartReminderResponse" in value ? value.lastCartReminderResponse : undefined,
     logisticsLastSentAt: typeof value.logisticsLastSentAt === "string" ? value.logisticsLastSentAt : undefined,
+    logisticsLastStatusSent: typeof value.logisticsLastStatusSent === "string" ? value.logisticsLastStatusSent : undefined,
     lastLogisticsResponse: "lastLogisticsResponse" in value ? value.lastLogisticsResponse : undefined,
   };
 }

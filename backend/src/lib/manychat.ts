@@ -1,4 +1,9 @@
 import { getSourcingOrderMeta, type SourcingOrder, withSourcingOrderMeta } from "@/lib/alibaba-sourcing";
+import { getAbandonedCartRecords, markAbandonedCartReminderSent, type AbandonedCartRecord } from "@/lib/abandoned-cart-store";
+import { getAbandonedQuoteRecords, markAbandonedQuoteReminderSent, type AbandonedQuoteRecord } from "@/lib/abandoned-quote-store";
+import { getCatalogProductsBySlugs } from "@/lib/catalog-service";
+import { createSharedCart } from "@/lib/cart-share-store";
+import { SITE_NAME, SITE_URL } from "@/lib/site-config";
 import { getSourcingOrders, saveSourcingOrder } from "@/lib/sourcing-store";
 
 type ManyChatApiResponse<T = unknown> = {
@@ -35,6 +40,16 @@ function normalizeMessageTag(messageTag?: string) {
 function getCartReminderDelayMinutes() {
   const parsed = Number(process.env.MANYCHAT_CART_ABANDONED_DELAY_MINUTES ?? "60");
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 60;
+}
+
+function getLocalCartReminderDelaySeconds() {
+  const parsed = Number(process.env.MANYCHAT_LOCAL_CART_ABANDONED_DELAY_SECONDS ?? "30");
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 30;
+}
+
+function getLocalQuoteReminderDelaySeconds() {
+  const parsed = Number(process.env.MANYCHAT_LOCAL_QUOTE_ABANDONED_DELAY_SECONDS ?? "45");
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 45;
 }
 
 function getCartReminderBatchSize() {
@@ -237,6 +252,47 @@ function buildLogisticsMessage(order: SourcingOrder, input: {
   return lines.join("\n");
 }
 
+function buildAbandonedCartMessage(input: {
+  userDisplayName: string;
+  productLabel: string;
+  shareUrl: string;
+  itemCount: number;
+}) {
+  const greeting = input.userDisplayName.trim() ? `${input.userDisplayName},` : "Bonjour,";
+  const itemLabel = input.itemCount > 1 ? `${input.itemCount} articles` : `${input.itemCount} article`;
+
+  return [
+    `${greeting} votre panier AfriPay vous attend toujours.`,
+    `${itemLabel}: ${input.productLabel}`,
+    `Reprendre mon panier: ${input.shareUrl}`,
+  ].join("\n");
+}
+
+function buildAbandonedQuoteMessage(record: AbandonedQuoteRecord) {
+  const greeting = record.userDisplayName.trim() ? `${record.userDisplayName},` : "Bonjour,";
+  const productLabel = record.productName || "votre demande";
+  const quantityLabel = record.quantity ? `Quantite: ${record.quantity}` : undefined;
+  const budgetLabel = record.budget ? `Budget: ${record.budget}` : undefined;
+
+  return [
+    `${greeting} votre demande de devis AfriPay n'est pas encore envoyee.`,
+    `Produit: ${productLabel}`,
+    quantityLabel,
+    budgetLabel,
+    `${SITE_URL.replace(/\/$/, "")}/quotes`,
+  ].filter(Boolean).join("\n");
+}
+
+async function buildAbandonedCartProductsLabel(record: AbandonedCartRecord) {
+  const products = await getCatalogProductsBySlugs(record.items.map((item) => item.slug));
+  const titleMap = new Map(products.map((product) => [product.slug, product.title] as const));
+
+  return record.items
+    .slice(0, 4)
+    .map((item) => `${titleMap.get(item.slug) ?? item.slug} x${item.quantity}`)
+    .join(", ");
+}
+
 async function maybeSetOrderCustomField(subscriberId: string, fieldId: string | undefined, value: ManyChatFieldValue) {
   const normalizedFieldId = normalizeOptionalString(fieldId);
   if (!normalizedFieldId || value === null || value === "") {
@@ -369,6 +425,7 @@ export async function triggerManyChatLogisticsUpdate(order: SourcingOrder, input
     manychat: {
       ...manychat,
       logisticsLastSentAt: new Date().toISOString(),
+      logisticsLastStatusSent: input.title,
       lastLogisticsResponse: response,
     },
   });
@@ -376,15 +433,161 @@ export async function triggerManyChatLogisticsUpdate(order: SourcingOrder, input
   return updatedOrder;
 }
 
+function isAbandonedCartEligibleForReminder(record: AbandonedCartRecord) {
+  if (!process.env.MANYCHAT_API_KEY?.trim()) {
+    return false;
+  }
+
+  if (record.status !== "active" || record.items.length === 0 || record.itemCount === 0) {
+    return false;
+  }
+
+  if (!record.manychatSubscriberId || record.reminderSentAt) {
+    return false;
+  }
+
+  const elapsedMs = Date.now() - new Date(record.lastActivityAt).getTime();
+  return Number.isFinite(elapsedMs) && elapsedMs >= getLocalCartReminderDelaySeconds() * 1000;
+}
+
+function isAbandonedQuoteEligibleForReminder(record: AbandonedQuoteRecord) {
+  if (!process.env.MANYCHAT_API_KEY?.trim()) {
+    return false;
+  }
+
+  if (record.status !== "active") {
+    return false;
+  }
+
+  if (!record.manychatSubscriberId || record.reminderSentAt) {
+    return false;
+  }
+
+  if (!record.productName && !record.specifications && !record.notes) {
+    return false;
+  }
+
+  const elapsedMs = Date.now() - new Date(record.lastActivityAt).getTime();
+  return Number.isFinite(elapsedMs) && elapsedMs >= getLocalQuoteReminderDelaySeconds() * 1000;
+}
+
+export async function triggerManyChatAbandonedCartReminder(record: AbandonedCartRecord) {
+  if (!process.env.MANYCHAT_API_KEY?.trim() || !record.manychatSubscriberId || record.items.length === 0) {
+    return null;
+  }
+
+  const sharedCart = await createSharedCart({
+    ownerUserId: record.userId,
+    ownerEmail: record.userEmail,
+    ownerDisplayName: record.userDisplayName,
+    message: "Votre panier AfriPay vous attend",
+    items: record.items,
+  });
+  const shareUrl = `${SITE_URL.replace(/\/$/, "")}/cart/shared/${encodeURIComponent(sharedCart.token)}`;
+  const productLabel = await buildAbandonedCartProductsLabel(record);
+
+  await Promise.all([
+    maybeSetOrderCustomField(record.manychatSubscriberId, process.env.MANYCHAT_CF_PRODUCT_ID, productLabel),
+    maybeSetOrderCustomField(record.manychatSubscriberId, process.env.MANYCHAT_CF_ORDER_NUMBER_ID, `PANIER-${record.itemCount}`),
+  ]);
+
+  const flowId = record.manychatFlowId || normalizeOptionalString(process.env.MANYCHAT_CART_ABANDONED_FLOW_ID);
+  let flowResponse: unknown = null;
+  if (flowId) {
+    flowResponse = await sendFlow(record.manychatSubscriberId, flowId);
+  }
+
+  const messageResponse = await sendMessage(
+    record.manychatSubscriberId,
+    buildAbandonedCartMessage({
+      userDisplayName: record.userDisplayName,
+      productLabel: productLabel || `${record.itemCount} article(s)`,
+      shareUrl,
+      itemCount: record.itemCount,
+    }),
+    "ACCOUNT_UPDATE",
+  );
+
+  await markAbandonedCartReminderSent({
+    userId: record.userId,
+    response: {
+      flowResponse,
+      messageResponse,
+      shareUrl,
+      siteName: SITE_NAME,
+    },
+    shareToken: sharedCart.token,
+  });
+
+  return {
+    flowResponse,
+    messageResponse,
+    shareToken: sharedCart.token,
+    shareUrl,
+  };
+}
+
+export async function triggerManyChatAbandonedQuoteReminder(record: AbandonedQuoteRecord) {
+  if (!process.env.MANYCHAT_API_KEY?.trim() || !record.manychatSubscriberId) {
+    return null;
+  }
+
+  await Promise.all([
+    maybeSetOrderCustomField(record.manychatSubscriberId, process.env.MANYCHAT_CF_PRODUCT_ID, record.productName || record.specifications || "Devis AfriPay"),
+    maybeSetOrderCustomField(record.manychatSubscriberId, process.env.MANYCHAT_CF_ORDER_NUMBER_ID, "DEVIS-AFRIPAY"),
+  ]);
+
+  const flowId = record.manychatFlowId || normalizeOptionalString(process.env.MANYCHAT_CART_ABANDONED_FLOW_ID);
+  let flowResponse: unknown = null;
+  if (flowId) {
+    flowResponse = await sendFlow(record.manychatSubscriberId, flowId);
+  }
+
+  const messageResponse = await sendMessage(
+    record.manychatSubscriberId,
+    buildAbandonedQuoteMessage(record),
+    "ACCOUNT_UPDATE",
+  );
+
+  await markAbandonedQuoteReminderSent({
+    userId: record.userId,
+    response: {
+      flowResponse,
+      messageResponse,
+      productName: record.productName,
+      siteName: SITE_NAME,
+    },
+  });
+
+  return {
+    flowResponse,
+    messageResponse,
+  };
+}
+
 export async function processManyChatCartAbandonmentQueue() {
   const orders = await getSourcingOrders();
+  const carts = await getAbandonedCartRecords();
+  const quotes = await getAbandonedQuoteRecords();
   const eligibleOrders = orders
     .filter(isOrderEligibleForCartReminder)
     .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
     .slice(0, getCartReminderBatchSize());
+  const eligibleCarts = carts
+    .filter(isAbandonedCartEligibleForReminder)
+    .sort((left, right) => left.lastActivityAt.localeCompare(right.lastActivityAt))
+    .slice(0, getCartReminderBatchSize());
+  const eligibleQuotes = quotes
+    .filter(isAbandonedQuoteEligibleForReminder)
+    .sort((left, right) => left.lastActivityAt.localeCompare(right.lastActivityAt))
+    .slice(0, getCartReminderBatchSize());
 
   const processed: Array<{ orderId: string; orderNumber: string }> = [];
   const skipped: Array<{ orderId: string; reason: string }> = [];
+  const processedCarts: Array<{ userId: string; itemCount: number }> = [];
+  const skippedCarts: Array<{ userId: string; reason: string }> = [];
+  const processedQuotes: Array<{ userId: string; productName: string }> = [];
+  const skippedQuotes: Array<{ userId: string; reason: string }> = [];
 
   for (const order of eligibleOrders) {
     try {
@@ -398,11 +601,48 @@ export async function processManyChatCartAbandonmentQueue() {
     }
   }
 
+  for (const cart of eligibleCarts) {
+    try {
+      await triggerManyChatAbandonedCartReminder(cart);
+      processedCarts.push({ userId: cart.userId, itemCount: cart.itemCount });
+    } catch (error) {
+      skippedCarts.push({
+        userId: cart.userId,
+        reason: error instanceof Error ? error.message : "unknown",
+      });
+    }
+  }
+
+  for (const quote of eligibleQuotes) {
+    try {
+      await triggerManyChatAbandonedQuoteReminder(quote);
+      processedQuotes.push({
+        userId: quote.userId,
+        productName: quote.productName || "Devis AfriPay",
+      });
+    } catch (error) {
+      skippedQuotes.push({
+        userId: quote.userId,
+        reason: error instanceof Error ? error.message : "unknown",
+      });
+    }
+  }
+
   return {
     scanned: orders.length,
     eligible: eligibleOrders.length,
     processed,
     skipped,
+    scannedCarts: carts.length,
+    eligibleCarts: eligibleCarts.length,
+    processedCarts,
+    skippedCarts,
+    scannedQuotes: quotes.length,
+    eligibleQuotes: eligibleQuotes.length,
+    processedQuotes,
+    skippedQuotes,
     delayMinutes: getCartReminderDelayMinutes(),
+    localCartDelaySeconds: getLocalCartReminderDelaySeconds(),
+    localQuoteDelaySeconds: getLocalQuoteReminderDelaySeconds(),
   };
 }

@@ -76,9 +76,9 @@ export default async function RootLayout({
     { name: "Tous les produits", url: `${SITE_URL}/products` },
     { name: "Categories", url: `${SITE_URL}/categories` },
     { name: "Tarifs", url: `${SITE_URL}/pricing` },
-    { name: "Centre d'assistance", url: `${SITE_URL}/support-center` },
+    { name: "Centre de reprise", url: `${SITE_URL}/support-center` },
     { name: "Protection des commandes", url: `${SITE_URL}/protection-commandes` },
-    { name: "Decouvrir AfriPay", url: `${SITE_URL}/decouvrir-afripay` },
+    { name: "Pourquoi AfriPay", url: `${SITE_URL}/pourquoi-afripay` },
     { name: "Devis", url: `${SITE_URL}/quotes` },
   ];
 

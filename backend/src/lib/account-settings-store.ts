@@ -14,6 +14,9 @@ export type AccountSettingsRecord = {
   connectedGoogleEmail?: string;
   connectedAppleEmail?: string;
   connectedWhatsapp?: string;
+  manychatSubscriberId?: string;
+  manychatFlowId?: string;
+  manychatPaidTagId?: string;
   taxId?: string;
   businessId?: string;
   billingAddress?: string;

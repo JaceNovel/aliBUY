@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { BadgeHelp, CheckCircle2, Circle, Heart, LockKeyhole, MapPin, Minus, Package, Plus, Share2, ShieldCheck, ShoppingCart, Sparkles, Star, TicketPercent, Trash2, Truck } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useCart, useCartQuote } from "@/components/cart-provider";
@@ -20,9 +20,52 @@ type SharedCartSummary = {
   updatedAt: string;
 };
 
+type PaymentSecurityBadgeKey = "visa" | "mastercard" | "mobile-money" | "moneroo";
+
+function PaymentSecurityBadge({ brand }: { brand: PaymentSecurityBadgeKey }) {
+  if (brand === "visa") {
+    return (
+      <div className="flex h-14 items-center justify-center rounded-[14px] border border-[#d7e3ff] bg-white px-4 shadow-[0_8px_22px_rgba(17,24,39,0.04)]">
+        <span className="text-[18px] font-black italic tracking-[-0.08em] text-[#1a4fd7]">VISA</span>
+      </div>
+    );
+  }
+
+  if (brand === "mastercard") {
+    return (
+      <div className="flex h-14 items-center justify-center gap-3 rounded-[14px] border border-[#ffe4dd] bg-white px-4 shadow-[0_8px_22px_rgba(17,24,39,0.04)]">
+        <div className="relative h-6 w-10">
+          <span className="absolute left-0 top-0 h-6 w-6 rounded-full bg-[#eb001b]" />
+          <span className="absolute right-0 top-0 h-6 w-6 rounded-full bg-[#f79e1b]" />
+        </div>
+        <span className="text-[12px] font-bold tracking-[-0.02em] text-[#1f2937]">mastercard</span>
+      </div>
+    );
+  }
+
+  if (brand === "mobile-money") {
+    return (
+      <div className="flex h-14 items-center justify-center gap-2 rounded-[14px] border border-[#d6f5df] bg-white px-4 shadow-[0_8px_22px_rgba(17,24,39,0.04)]">
+        <div className="relative h-7 w-5 rounded-[6px] border-2 border-[#16a34a]">
+          <span className="absolute inset-x-1.5 bottom-1 h-0.5 rounded-full bg-[#16a34a]" />
+        </div>
+        <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#15803d]">Mobile Money</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-14 items-center justify-center gap-2 rounded-[14px] border border-[#d9def7] bg-[linear-gradient(135deg,#111827_0%,#324156_100%)] px-4 shadow-[0_8px_22px_rgba(17,24,39,0.08)]">
+      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-[11px] font-black text-[#111827]">M</div>
+      <span className="text-[12px] font-extrabold uppercase tracking-[0.08em] text-white">Moneroo</span>
+    </div>
+  );
+}
+
 export function CartPageClient({ currencyCode, locale, initialCountryCode, isAuthenticated, initialSharedCartSummaries }: { currencyCode: string; locale: string; initialCountryCode: string; isAuthenticated: boolean; initialSharedCartSummaries: SharedCartSummary[] }) {
   const router = useRouter();
   const { items, updateItem, removeItem, clearCart, sharedCartContext } = useCart();
+  const deliveryInfoRef = useRef<HTMLElement | null>(null);
   const cartKeys = useMemo(() => items.map((item) => buildCartItemKey(item.slug, item.selectedVariants)), [items]);
   const deliveryPlan = useMemo(() => resolveSourcingDeliveryPlan({
     countryCode: initialCountryCode,
@@ -70,6 +113,7 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
       accent: "bg-[#eef6ff] text-[#1457d8]",
     },
   ]), [currencyCode, locale, securePaymentBonusFcfa, welcomeCouponDiscountFcfa, welcomeCouponThresholdFcfa]);
+  const paymentSecurityBadges: PaymentSecurityBadgeKey[] = ["visa", "mastercard", "mobile-money", "moneroo"];
   const localizedRemainingFreeShippingLabel = formatSourcingAmount(quote.freeAirRemainingFcfa, { currencyCode, locale });
   const shippingThresholdMessage = deliveryPlan.workflow.freeDeliveryEligible
     ? quote.recommendedMethod === "sea"
@@ -202,6 +246,14 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
     }
   };
 
+  const goToFavorites = () => {
+    router.push("/favorites");
+  };
+
+  const scrollToDeliveryInfo = () => {
+    deliveryInfoRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   if (items.length === 0) {
     return (
       <section className="rounded-[28px] border border-[#ece7df] bg-white px-5 py-10 text-center shadow-[0_16px_40px_rgba(17,24,39,0.05)] sm:px-8">
@@ -240,13 +292,19 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
         <div className="mb-4 flex items-center justify-between sm:hidden">
           <div className="text-[26px] font-black tracking-[-0.05em] text-[#111827]">Panier ({items.length})</div>
           <div className="flex items-center gap-3 text-[#111827]">
-            <div className="inline-flex items-center gap-1 text-[13px] font-medium">
+            <button type="button" onClick={scrollToDeliveryInfo} className="inline-flex items-center gap-1 rounded-full px-1 py-1 text-[13px] font-medium transition hover:bg-[#f8fafc]" aria-label="Voir les informations de livraison">
               <MapPin className="h-5 w-5" />
               <span>{initialCountryCode}</span>
-            </div>
-            <Package className="h-6 w-6" />
-            <Heart className="h-6 w-6" />
-            <Trash2 className="h-6 w-6" />
+            </button>
+            <button type="button" onClick={shareCart} disabled={isSharing} className="inline-flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-[#f8fafc] disabled:opacity-60" aria-label="Partager le panier">
+              <Package className="h-6 w-6" />
+            </button>
+            <button type="button" onClick={goToFavorites} className="inline-flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-[#f8fafc]" aria-label="Voir les favoris">
+              <Heart className="h-6 w-6" />
+            </button>
+            <button type="button" onClick={removeSelectedItems} disabled={selectedCount === 0} className="inline-flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-[#fff5f5] disabled:opacity-40" aria-label="Supprimer la sélection">
+              <Trash2 className="h-6 w-6" />
+            </button>
           </div>
         </div>
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -303,6 +361,31 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
             <input value={shareMessage} onChange={(event) => setShareMessage(event.target.value)} placeholder="Ex: valide ce panier pour moi" className="mt-3 h-10 w-full rounded-[14px] border border-[#e4e7ec] bg-[#fbfbfb] px-4 text-[13px] text-[#111827] outline-none placeholder:text-[#98a2b3] focus:border-[#f80632] sm:h-11 sm:text-[14px]" />
             {shareFeedback ? <div className="mt-3 rounded-[14px] bg-[#f8fafc] px-4 py-3 text-[13px] font-medium text-[#475467]">{shareFeedback}</div> : null}
           </div>
+        </div>
+        <div className="mt-4 rounded-[16px] border border-[#d8e5fb] bg-[linear-gradient(135deg,#eef6ff_0%,#ffffff_100%)] px-4 py-4 shadow-[0_10px_24px_rgba(29,79,145,0.08)] sm:hidden">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#1d4f91] ring-1 ring-[#d8e5fb]">
+                <Share2 className="h-3.5 w-3.5" />
+                Partage panier
+              </div>
+              <div className="mt-3 text-[15px] font-bold text-[#1f2937] sm:text-[17px]">Un tiers peut ouvrir ce panier et le valider pour vous</div>
+              <div className="mt-1 text-[12px] leading-5 text-[#50637d] sm:text-[13px] sm:leading-6">Partagez ce panier avec un proche ou un client. Le lien ouvre les articles déjà préparés, puis la personne peut confirmer et payer la commande depuis son compte.</div>
+            </div>
+            <button
+              type="button"
+              onClick={shareCart}
+              disabled={isSharing || !isAuthenticated}
+              className={[
+                "inline-flex h-10 shrink-0 items-center justify-center rounded-full px-4 text-[13px] font-semibold text-white transition",
+                sharePulse ? "bg-[#ff4d4f] shadow-[0_14px_30px_rgba(255,77,79,0.24)]" : "bg-[#f80632] hover:bg-[#db042c]",
+              ].join(" ")}
+            >
+              {isAuthenticated ? (isSharing ? "Préparation..." : "Partager") : "Connexion requise"}
+            </button>
+          </div>
+          <input value={shareMessage} onChange={(event) => setShareMessage(event.target.value)} placeholder="Ex: peux-tu valider ce panier pour moi ?" className="mt-3 h-10 w-full rounded-[14px] border border-[#d8e5fb] bg-white px-4 text-[13px] text-[#111827] outline-none placeholder:text-[#98a2b3] focus:border-[#1d4f91]" />
+          {shareFeedback ? <div className="mt-3 rounded-[14px] bg-white px-4 py-3 text-[13px] font-medium text-[#475467] ring-1 ring-[#e4e7ec]">{shareFeedback}</div> : null}
         </div>
         <div className="mt-5 overflow-hidden rounded-[14px] border border-[#84c4ff] bg-white shadow-[0_12px_28px_rgba(47,103,246,0.12)]">
           <div className="flex items-center justify-between gap-3 rounded-t-[14px] bg-[linear-gradient(90deg,#30a3ff_0%,#2f67f6_100%)] px-4 py-3 text-white">
@@ -544,7 +627,7 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
           {isLoading ? <div className="mt-3 text-[12px] text-[#98a2b3]">Mise à jour du devis sourcing...</div> : null}
         </section>
 
-        <section className="rounded-[20px] border border-[#ededed] bg-white p-6 shadow-[0_10px_28px_rgba(17,24,39,0.04)]">
+        <section ref={deliveryInfoRef} className="rounded-[20px] border border-[#ededed] bg-white p-6 shadow-[0_10px_28px_rgba(17,24,39,0.04)]">
           <div className="flex items-start gap-4">
             <div className="inline-flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#fff7e8] text-[#8d5a00]">
               <Truck className="h-5 w-5" />
@@ -581,6 +664,11 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
             <div>
               <div className="text-[18px] font-bold text-[#1f2937]">Paiements sûrs</div>
               <div className="mt-2 text-[14px] leading-6 text-[#667085]">Avec les partenaires de paiement populaires, vos données personnelles sont en sécurité.</div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                {paymentSecurityBadges.map((entry) => (
+                  <PaymentSecurityBadge key={entry} brand={entry} />
+                ))}
+              </div>
             </div>
           </div>
         </section>
@@ -612,11 +700,9 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
             <LockKeyhole className="h-5 w-5" />
             Paiements sûrs
           </div>
-          <div className="mt-4 grid grid-cols-3 gap-3">
-            {["Visa Secure", "ID Check", "SafeKey", "ProtectBuy", "J/Secure"].map((entry) => (
-              <div key={entry} className="rounded-[12px] border border-[#e5e7eb] bg-white px-3 py-4 text-center text-[11px] font-semibold text-[#344054]">
-                {entry}
-              </div>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            {paymentSecurityBadges.map((entry) => (
+              <PaymentSecurityBadge key={entry} brand={entry} />
             ))}
           </div>
         </section>
