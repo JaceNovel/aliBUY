@@ -3444,6 +3444,34 @@ function shouldAllowLooseAliExpressMatches(query: string) {
   return queryTokens.length <= 1;
 }
 
+function buildAliExpressNoResultMessage(input: {
+  query: string;
+  preferredShipToCountry?: string;
+  strictMatchCount: number;
+  looseMatchCount: number;
+  directProductId?: string;
+  fallbackMessage?: string;
+}) {
+  const fallbackMessage = input.fallbackMessage?.trim();
+  if (fallbackMessage) {
+    return fallbackMessage;
+  }
+
+  if (input.directProductId) {
+    return "Le lien ou l'identifiant AliExpress fourni ne renvoie plus un produit exploitable. Reessaie avec un autre lien produit ou relance une recherche par mots-clés.";
+  }
+
+  if (input.looseMatchCount > 0 && input.strictMatchCount === 0) {
+    return `Des produits proches ont ete trouves pour "${input.query}", mais aucun ne passe encore le filtre de pertinence. Essaie un mot-clé plus court, retire les dimensions trop précises, ou recherche seulement la famille produit.`;
+  }
+
+  if (input.preferredShipToCountry?.trim()) {
+    return `Aucun produit AliExpress exploitable n'a ete trouve pour "${input.query}" avec le pays ${input.preferredShipToCountry.trim().toUpperCase()}. Essaie un mot-clé plus simple, ou verifie si la destination choisie bloque cette offre.`;
+  }
+
+  return `Aucun produit AliExpress exploitable n'a ete trouve pour "${input.query}". Essaie un mot-clé plus simple, le nom générique du produit, ou un lien produit direct.`;
+}
+
 function mapAliExpressProductDetailToProduct(
   searchItem: Record<string, unknown>,
   detailResponseBody: unknown,
@@ -3896,7 +3924,14 @@ async function searchAliExpressProducts(input: {
     products: foundProducts,
     errorMessage: foundProducts.length > 0
       ? undefined
-      : lastSearchError?.errorMessage ?? "Aucun produit AliExpress exploitable n'a été trouvé. Essaie un mot-cle plus simple ou verifie le pays de destination configure.",
+      : buildAliExpressNoResultMessage({
+          query: input.query,
+          preferredShipToCountry: input.preferredShipToCountry,
+          strictMatchCount: strictMatches.length,
+          looseMatchCount: looseMatches.length,
+          directProductId,
+          fallbackMessage: lastSearchError?.errorMessage,
+        }),
   };
 }
 
