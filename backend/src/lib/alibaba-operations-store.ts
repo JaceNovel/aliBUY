@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { Prisma } from "@prisma/client";
-import { list, put } from "@vercel/blob";
+import { get, put } from "@vercel/blob";
 
 import type {
   AlibabaCountryProfile,
@@ -19,6 +19,7 @@ import { prisma } from "@/lib/prisma";
 import { getOrSetCatalogRuntimeCache, invalidateCatalogRuntimeCache } from "@/lib/catalog-runtime-cache";
 import { resolveProductPriceSummaryUsd } from "@/lib/product-variant-pricing";
 import { resolveCoherentItemWeightGrams, resolveCoherentPackageDimensionsCm, sanitizeItemWeightGrams } from "@/lib/product-weight";
+import { getVercelBlobAccessMode } from "@/lib/vercel-blob-access";
 
 const DEFAULT_COUNTRY_PROFILES: AlibabaCountryProfile[] = [
   {
@@ -365,6 +366,7 @@ const PURCHASE_ORDERS_PATH = path.join(ROOT_DIR, "alibaba-purchase-orders.json")
 const PURCHASE_ORDERS_BLOB_PATHNAME = "sourcing/alibaba-purchase-orders.json";
 const RECEPTIONS_PATH = path.join(ROOT_DIR, "alibaba-receptions.json");
 const RECEPTIONS_BLOB_PATHNAME = "sourcing/alibaba-receptions.json";
+const BLOB_ACCESS_MODE = getVercelBlobAccessMode();
 type EncryptedField = "appSecret" | "accessToken" | "refreshToken";
 
 type EncryptedPayload = {
@@ -415,22 +417,18 @@ async function readJsonBlob<T>(pathname: string, fallback: T): Promise<T> {
   }
 
   try {
-    const { blobs } = await list({ prefix: pathname, limit: 10 });
-    const candidate = blobs
-      .filter((blob) => blob.pathname === pathname)
-      .sort((left, right) => right.uploadedAt.getTime() - left.uploadedAt.getTime())[0];
+    const blob = await get(pathname, {
+      access: BLOB_ACCESS_MODE,
+      useCache: false,
+    });
 
-    if (!candidate?.url) {
+    if (!blob?.stream) {
       await writeJsonBlob(pathname, fallback);
       return fallback;
     }
 
-    const response = await fetch(candidate.url, { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error(`Blob read failed with status ${response.status}.`);
-    }
-
-    return await response.json() as T;
+    const raw = await new Response(blob.stream).text();
+    return JSON.parse(raw) as T;
   } catch (error) {
     console.warn(`[alibaba-operations-store] unable to read blob snapshot ${pathname}`, error);
     return fallback;
@@ -443,7 +441,7 @@ async function writeJsonBlob<T>(pathname: string, value: T) {
   }
 
   await put(pathname, `${JSON.stringify(value, null, 2)}\n`, {
-    access: "public",
+    access: BLOB_ACCESS_MODE,
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: "application/json; charset=utf-8",
