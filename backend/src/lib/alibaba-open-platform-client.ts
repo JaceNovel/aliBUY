@@ -567,6 +567,48 @@ function getAliExpressOAuthResponseMessage(responseBody: unknown) {
     ?? getStringValue(response?.rsp_msg);
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getAliExpressApiErrorRecord(responseBody: unknown) {
+  if (!isRecord(responseBody) || !isRecord((responseBody as Record<string, unknown>).error_response)) {
+    return null;
+  }
+
+  return (responseBody as Record<string, unknown>).error_response as Record<string, unknown>;
+}
+
+function getAliExpressApiErrorCode(responseBody: unknown) {
+  const errorRecord = getAliExpressApiErrorRecord(responseBody);
+  return getStringValue(errorRecord?.code)?.trim();
+}
+
+function getAliExpressApiErrorMessage(responseBody: unknown) {
+  const errorRecord = getAliExpressApiErrorRecord(responseBody);
+  return getStringValue(errorRecord?.msg)
+    ?? getStringValue(errorRecord?.message)
+    ?? getStringValue(errorRecord?.sub_msg)
+    ?? getStringValue(errorRecord?.en_desc)
+    ?? getStringValue(errorRecord?.zh_desc);
+}
+
+function parseAliExpressRateLimitDelayMs(responseBody: unknown) {
+  const code = getAliExpressApiErrorCode(responseBody)?.toUpperCase();
+  const message = getAliExpressApiErrorMessage(responseBody) ?? "";
+  if (code !== "APPAPICALLLIMIT") {
+    return null;
+  }
+
+  const match = message.match(/(\d+)\s*seconds?/i);
+  const seconds = match?.[1] ? Number(match[1]) : 15;
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return 15_000;
+  }
+
+  return Math.min(30_000, Math.max(5_000, seconds * 1000 + 1000));
+}
+
 function isAliExpressOAuthTokenResponseSuccessful(responseBody: unknown) {
   const body = getAliExpressOAuthResponseBody(responseBody);
   const accessToken = getStringValue(body?.access_token);
@@ -2798,30 +2840,48 @@ async function callAliExpressTopEndpoint(apiMethod: string, payload: Record<stri
   query.set("sign", signAliExpressTopRequest(apiMethod, query, credentials.appSecret));
 
   const requestUrl = `${normalizeBaseUrl(credentials.apiBaseUrl)}/sync`;
-  const response = await fetch((options?.method ?? "POST") === "GET" ? `${requestUrl}?${query.toString()}` : requestUrl, {
-    method: options?.method ?? "POST",
-    headers: (options?.method ?? "POST") === "POST"
-      ? { "content-type": "application/x-www-form-urlencoded;charset=UTF-8" }
-      : undefined,
-    body: (options?.method ?? "POST") === "POST" ? query.toString() : undefined,
-    cache: "no-store",
-  });
-  const text = await response.text();
 
-  let parsed: unknown = text;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    // keep raw response
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const response = await fetch((options?.method ?? "POST") === "GET" ? `${requestUrl}?${query.toString()}` : requestUrl, {
+      method: options?.method ?? "POST",
+      headers: (options?.method ?? "POST") === "POST"
+        ? { "content-type": "application/x-www-form-urlencoded;charset=UTF-8" }
+        : undefined,
+      body: (options?.method ?? "POST") === "POST" ? query.toString() : undefined,
+      cache: "no-store",
+    });
+    const text = await response.text();
+
+    let parsed: unknown = text;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      // keep raw response
+    }
+
+    const apiLevelError = response.ok && isRecord(parsed) && isRecord((parsed as Record<string, unknown>).error_response);
+    const result = {
+      ok: response.ok && !apiLevelError,
+      endpoint: apiMethod,
+      requestBody: payload,
+      responseBody: parsed,
+      status: response.status,
+    } satisfies AliExpressTopCallResult;
+    const retryDelayMs = parseAliExpressRateLimitDelayMs(parsed);
+
+    if (!retryDelayMs || attempt >= 2) {
+      return result;
+    }
+
+    await sleep(retryDelayMs);
   }
 
-  const apiLevelError = response.ok && isRecord(parsed) && isRecord((parsed as Record<string, unknown>).error_response);
   return {
-    ok: response.ok && !apiLevelError,
+    ok: false,
     endpoint: apiMethod,
     requestBody: payload,
-    responseBody: parsed,
-    status: response.status,
+    responseBody: { message: "AliExpress DS retry exhausted." },
+    status: 429,
   };
 }
 
@@ -3241,6 +3301,12 @@ const ALIEXPRESS_SEARCH_TOKEN_TRANSLATIONS: Record<string, string> = {
   jeu: "gaming",
   jeux: "gaming",
   gamer: "gaming",
+  temperature: "temperature",
+  temperaturee: "temperature",
+  thermometre: "thermometer",
+  thermometres: "thermometers",
+  anneau: "ring",
+  anneaux: "rings",
   gant: "glove",
   gants: "gloves",
   ordinateur: "computer",
@@ -3265,6 +3331,10 @@ const ALIEXPRESS_SEARCH_PHRASE_TRANSLATIONS: Array<[string, string[]]> = [
   ["ecran pc", ["computer monitor", "pc monitor"]],
   ["friteuse a air", ["air fryer", "airfryer"]],
   ["friteuse air", ["air fryer", "airfryer"]],
+  ["bague a temperature", ["temperature ring", "mood ring", "thermometer ring"]],
+  ["anneau a temperature", ["temperature ring", "mood ring", "thermometer ring"]],
+  ["bague temperature", ["temperature ring", "mood ring"]],
+  ["anneau temperature", ["temperature ring", "mood ring"]],
   ["gant de jeu", ["gaming glove", "game glove", "finger sleeve", "gaming finger sleeve"]],
   ["gants de jeu", ["gaming gloves", "game gloves", "finger sleeves", "gaming finger sleeves"]],
   ["gant gaming", ["gaming glove", "gaming finger sleeve"]],
@@ -3342,6 +3412,26 @@ function buildAliExpressQueryCandidates(query: string) {
     ...informativeTokens,
     shortestUsefulTranslation,
     longestUsefulTranslation,
+  ]).filter((entry) => entry.length > 0);
+}
+
+function buildAliExpressFallbackQueryCandidates(query: string) {
+  const normalized = normalizeAliExpressHardwareTerms(normalizeAliExpressSearchTerm(query.trim()));
+  const stripped = normalized
+    .replace(/\b(a|de|des|du|la|le|les|pour|avec|sur)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const tokens = stripped.split(/\s+/g).filter((token) => token.length >= 3);
+  const translatedTokens = tokens.map((token) => ALIEXPRESS_SEARCH_TOKEN_TRANSLATIONS[token] ?? token);
+  const phraseTranslations = ALIEXPRESS_SEARCH_PHRASE_TRANSLATIONS
+    .filter(([phrase]) => normalized.includes(phrase))
+    .flatMap(([, translations]) => translations);
+
+  return uniqueStrings([
+    ...phraseTranslations,
+    translatedTokens.join(" ").trim(),
+    ...translatedTokens,
+    ...tokens,
   ]).filter((entry) => entry.length > 0);
 }
 
@@ -3536,8 +3626,19 @@ function buildAliExpressNoResultMessage(input: {
   looseMatchCount: number;
   directProductId?: string;
   fallbackMessage?: string;
+  fallbackCode?: string;
 }) {
+  const fallbackCode = input.fallbackCode?.trim().toUpperCase();
   const fallbackMessage = input.fallbackMessage?.trim();
+
+  if (fallbackCode === "APPAPICALLLIMIT") {
+    return "AliExpress limite temporairement les requetes de cette application. Attends quelques secondes puis relance l'import.";
+  }
+
+  if (fallbackCode === "EXCEPTION_TEXT_SEARCH_FOR_DS") {
+    return `AliExpress DS n'accepte pas cette formulation pour "${input.query}". Essaie un mot-clé plus simple comme "ring", "temperature ring" ou un lien produit direct.`;
+  }
+
   if (fallbackMessage) {
     return fallbackMessage;
   }
@@ -3821,7 +3922,10 @@ async function searchAliExpressProducts(input: {
     score: number;
     strictMatch: boolean;
   }>();
-  const queryCandidates = buildAliExpressQueryCandidates(input.query);
+  const queryCandidates = uniqueStrings([
+    ...buildAliExpressQueryCandidates(input.query),
+    ...buildAliExpressFallbackQueryCandidates(input.query),
+  ]);
   const directProductId = extractAliExpressProductId(input.query);
   let lastResponse: unknown = null;
   let lastSearchError: AlibabaProductSearchResult | null = null;
@@ -3897,6 +4001,9 @@ async function searchAliExpressProducts(input: {
           const apiError = isRecord(searchResult.responseBody) && isRecord((searchResult.responseBody as Record<string, unknown>).error_response)
             ? searchResult.responseBody.error_response as Record<string, unknown>
             : null;
+          const apiErrorCode = apiError
+            ? getStringValue(apiError.code)
+            : undefined;
           const apiErrorMsg = apiError
             ? (getStringValue(apiError.en_desc) ?? getStringValue(apiError.sub_msg) ?? getStringValue(apiError.zh_desc))
             : undefined;
@@ -3908,6 +4015,7 @@ async function searchAliExpressProducts(input: {
             errorMessage: apiErrorMsg
               ? `AliExpress DS: ${apiErrorMsg}`
               : "Recherche AliExpress DS impossible.",
+            errorCode: apiErrorCode,
           };
 
           continue;
@@ -4024,6 +4132,7 @@ async function searchAliExpressProducts(input: {
           looseMatchCount: looseMatches.length,
           directProductId,
           fallbackMessage: lastSearchError?.errorMessage,
+          fallbackCode: lastSearchError?.errorCode,
         }),
   };
 }
