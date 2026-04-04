@@ -6330,6 +6330,8 @@ export async function exchangeAlibabaOAuthCode(input: {
         countryCode: input.fallbackAccount.countryCode ?? "CI",
         defaultDispatchLocation: input.fallbackAccount.defaultDispatchLocation ?? "CN",
         status: "needs_auth" as const,
+        memberId: undefined,
+        resourceOwner: undefined,
         appKey: input.fallbackAccount.appKey,
         appSecret: undefined,
         accessToken: undefined,
