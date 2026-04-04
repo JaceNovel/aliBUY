@@ -5056,11 +5056,26 @@ export async function searchAlibabaProducts(input: {
     });
   }
 
-  return searchAliExpressProducts({
+  const dsResult = await searchAliExpressProducts({
     query: input.query,
     limit: input.limit,
     preferredShipToCountry: input.preferredShipToCountry,
   });
+
+  const allowAffiliateFallback = importProvider !== "ds-only";
+
+  if (dsResult.ok || !allowAffiliateFallback) {
+    return dsResult;
+  }
+
+  const affiliateResult = await searchAliExpressAffiliateProducts({
+    query: input.query,
+    limit: input.limit,
+    credentials,
+    preferredShipToCountry: input.preferredShipToCountry,
+  });
+
+  return affiliateResult.ok ? affiliateResult : dsResult;
 }
 
 export async function createAlibabaBuyNowOrder(payload: Record<string, unknown>) {
