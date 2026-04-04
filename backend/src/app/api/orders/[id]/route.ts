@@ -1,5 +1,10 @@
 import { getSourcingOrderById } from "@/lib/sourcing-store";
+import { getSourcingOrderMeta } from "@/lib/alibaba-sourcing";
 import { getCurrentUser } from "@/lib/user-auth";
+
+function normalizeEmail(value?: string) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -14,7 +19,16 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     return Response.json({ message: "Commande sourcing introuvable." }, { status: 404 });
   }
 
-  if (!(order.userId === user.id || order.customerEmail.toLowerCase() === user.email.toLowerCase())) {
+  const meta = getSourcingOrderMeta(order);
+  const normalizedUserEmail = normalizeEmail(user.email);
+  const viewerMatchesSharedCart = Boolean(
+    meta.sharedCart?.ownerUserId === user.id
+    || normalizeEmail(meta.sharedCart?.ownerEmail) === normalizedUserEmail
+    || meta.paymentContext?.payerUserId === user.id
+    || normalizeEmail(meta.paymentContext?.payerEmail) === normalizedUserEmail
+  );
+
+  if (!(order.userId === user.id || normalizeEmail(order.customerEmail) === normalizedUserEmail || viewerMatchesSharedCart)) {
     return Response.json({ message: "Acces refuse." }, { status: 403 });
   }
 

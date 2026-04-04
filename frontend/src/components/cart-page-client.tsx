@@ -79,6 +79,8 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
   const [sharePulse, setSharePulse] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  const [favoriteSlugs, setFavoriteSlugs] = useState<string[]>([]);
+  const [favoriteBusySlug, setFavoriteBusySlug] = useState<string | null>(null);
   const [selectedCartKeys, setSelectedCartKeys] = useState<string[]>([]);
   const [selectionPulse, setSelectionPulse] = useState(false);
   const shipping = useMemo(() => quote.shippingOptions.find((option) => option.key === quote.recommendedMethod) ?? quote.shippingOptions[0], [quote.recommendedMethod, quote.shippingOptions]);
@@ -143,6 +145,48 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
       return next;
     });
   }, [cartKeys]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setFavoriteSlugs([]);
+      return;
+    }
+
+    let isCancelled = false;
+    const uniqueSlugs = [...new Set(items.map((item) => item.slug))];
+
+    if (uniqueSlugs.length === 0) {
+      setFavoriteSlugs([]);
+      return;
+    }
+
+    const hydrateFavorites = async () => {
+      try {
+        const results = await Promise.all(uniqueSlugs.map(async (slug) => {
+          const response = await fetch(`/api/favorites?productSlug=${encodeURIComponent(slug)}`, {
+            method: "GET",
+            cache: "no-store",
+          });
+          const payload = await response.json().catch(() => null);
+          return response.ok && payload?.isFavorite === true ? slug : null;
+        }));
+
+        if (!isCancelled) {
+          setFavoriteSlugs(results.filter((value): value is string => Boolean(value)));
+        }
+      } catch {
+        if (!isCancelled) {
+          setFavoriteSlugs([]);
+        }
+      }
+    };
+
+    void hydrateFavorites();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isAuthenticated, items]);
 
   const triggerShareFeedback = (message: string) => {
     setSharePulse(true);
@@ -248,6 +292,103 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
 
   const goToFavorites = () => {
     router.push("/favorites");
+  };
+
+  const shareProduct = async (slug: string, title: string) => {
+    type ShareCapableNavigator = Navigator & {
+      clipboard?: Clipboard;
+      share?: (data?: ShareData) => Promise<void>;
+    };
+
+    const shareUrl = typeof window !== "undefined"
+      ? `${window.location.origin}/products/${encodeURIComponent(slug)}`
+      : `/products/${slug}`;
+    const browserNavigator: ShareCapableNavigator | undefined = typeof window !== "undefined"
+      ? (window.navigator as ShareCapableNavigator)
+      : undefined;
+
+    try {
+      if (browserNavigator?.share) {
+        await browserNavigator.share({
+          title,
+          text: title,
+          url: shareUrl,
+        });
+        triggerShareFeedback("Produit partagé");
+        return;
+      }
+
+      if (browserNavigator?.clipboard?.writeText) {
+        await browserNavigator.clipboard.writeText(shareUrl);
+        triggerShareFeedback("Lien produit copié");
+        return;
+      }
+
+      triggerShareFeedback(shareUrl);
+    } catch {
+      triggerShareFeedback("Partage annulé");
+    }
+  };
+
+  const toggleFavorite = async (slug: string) => {
+    if (favoriteBusySlug === slug) {
+      return;
+    }
+
+    if (!isAuthenticated) {
+      router.push(`/login?next=${encodeURIComponent("/cart")}`);
+      return;
+    }
+
+    const wasFavorite = favoriteSlugs.includes(slug);
+    setFavoriteBusySlug(slug);
+    setFavoriteSlugs((current) => (
+      wasFavorite
+        ? current.filter((entry) => entry !== slug)
+        : [...current, slug]
+    ));
+
+    try {
+      const response = await fetch("/api/favorites", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ productSlug: slug }),
+      });
+
+      if (response.status === 401) {
+        router.push(`/login?next=${encodeURIComponent("/cart")}`);
+        return;
+      }
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || typeof payload?.isFavorite !== "boolean") {
+        setFavoriteSlugs((current) => (
+          wasFavorite
+            ? [...current, slug]
+            : current.filter((entry) => entry !== slug)
+        ));
+        triggerShareFeedback("Favori indisponible");
+        return;
+      }
+
+      setFavoriteSlugs((current) => (
+        payload.isFavorite
+          ? current.includes(slug) ? current : [...current, slug]
+          : current.filter((entry) => entry !== slug)
+      ));
+      triggerShareFeedback(payload.isFavorite ? "Ajouté aux favoris" : "Retiré des favoris");
+    } catch {
+      setFavoriteSlugs((current) => (
+        wasFavorite
+          ? [...current, slug]
+          : current.filter((entry) => entry !== slug)
+      ));
+      triggerShareFeedback("Favori indisponible");
+    } finally {
+      setFavoriteBusySlug(null);
+    }
   };
 
   const scrollToDeliveryInfo = () => {
@@ -472,6 +613,7 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
             const volumeLabel = item.volumeCbm > 0 ? `${item.volumeCbm.toFixed(4)} CBM` : totalVolumeLabel;
             const cartKey = item.cartKey ?? item.slug;
             const isSelected = selectedCartKeys.includes(cartKey);
+            const isFavorite = favoriteSlugs.includes(item.slug);
             const primaryVariantLabel = variantEntries.length > 0
               ? variantEntries.map(([label, value]) => `${label}: ${value}`).join(" · ")
               : null;
@@ -568,12 +710,12 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
                   </button>
                 </div>
                 <div className="hidden grid-cols-3 gap-2 pt-1 sm:col-span-4 sm:ml-[calc(24px+132px+16px)] sm:grid sm:max-w-[440px]">
-                  <button type="button" className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#eceff3] bg-[#fafbfc] text-[13px] font-medium text-[#1f2937] transition hover:-translate-y-0.5 hover:border-[#d0d5dd]">
+                  <button type="button" onClick={() => void shareProduct(item.slug, item.title)} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#eceff3] bg-[#fafbfc] text-[13px] font-medium text-[#1f2937] transition hover:-translate-y-0.5 hover:border-[#d0d5dd]">
                     <Share2 className="h-4 w-4" />
                     Partager
                   </button>
-                  <button type="button" className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#eceff3] bg-[#fafbfc] text-[13px] font-medium text-[#1f2937] transition hover:-translate-y-0.5 hover:border-[#d0d5dd]">
-                    <Heart className="h-4 w-4" />
+                  <button type="button" onClick={() => void toggleFavorite(item.slug)} disabled={favoriteBusySlug === item.slug} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#eceff3] bg-[#fafbfc] text-[13px] font-medium text-[#1f2937] transition hover:-translate-y-0.5 hover:border-[#d0d5dd] disabled:opacity-60">
+                    <Heart className={["h-4 w-4", isFavorite ? "fill-current text-[#f06f12]" : ""].join(" ")} />
                     Favori
                   </button>
                   <div className="inline-flex h-10 items-center justify-center gap-1 rounded-[12px] border border-[#eceff3] bg-[#fafbfc] text-[13px] font-medium text-[#1f2937]">

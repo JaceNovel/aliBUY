@@ -3,15 +3,36 @@ import { PaymentClient } from "@/app/orders/payment/payment-client";
 import { formatFcfa, getSourcingOrderMeta } from "@/lib/alibaba-sourcing";
 import { getUserOrderRecordById } from "@/lib/order-service";
 import { getPricingContext } from "@/lib/pricing";
-import { getSourcingOrderById } from "@/lib/sourcing-store";
 import { getCurrentUser } from "@/lib/user-auth";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 function normalizeEmail(value?: string) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
 
-function resolveThirdPartyCartNotice(userId: string, userEmail: string, sourcingOrder: Awaited<ReturnType<typeof getSourcingOrderById>>) {
+type ApiSourcingOrder = {
+  id: string;
+  orderNumber: string;
+  userId?: string | null;
+  customerEmail: string;
+  totalPriceFcfa: number;
+  shippingMethod: "air" | "sea" | "freight";
+  paymentStatus: "unpaid" | "initialized" | "pending" | "paid" | "failed" | "cancelled";
+  monerooPaymentId?: string;
+  monerooCheckoutUrl?: string;
+  monerooPaymentStatus?: string;
+  paymentCurrency: string;
+  items: Array<{
+    title: string;
+    image?: string;
+  }>;
+  createdAt: string;
+  updatedAt: string;
+  [key: string]: unknown;
+};
+
+function resolveThirdPartyCartNotice(userId: string, userEmail: string, sourcingOrder: ApiSourcingOrder | null) {
   if (!sourcingOrder) {
     return undefined;
   }
@@ -40,6 +61,39 @@ function resolveThirdPartyCartNotice(userId: string, userEmail: string, sourcing
   return undefined;
 }
 
+async function getRequestOrigin() {
+  const headerList = await headers();
+  const host = headerList.get("x-forwarded-host") ?? headerList.get("host");
+  const protocol = headerList.get("x-forwarded-proto") ?? (process.env.NODE_ENV === "production" ? "https" : "http");
+
+  if (!host) {
+    return "http://localhost:3000";
+  }
+
+  return `${protocol}://${host}`;
+}
+
+async function getSourcingOrderFromApi(orderId?: string) {
+  if (!orderId) {
+    return null;
+  }
+
+  const [origin, cookieStore] = await Promise.all([getRequestOrigin(), cookies()]);
+  const cookieHeader = cookieStore.getAll().map((cookie) => `${cookie.name}=${cookie.value}`).join("; ");
+  const response = await fetch(`${origin}/api/orders/${encodeURIComponent(orderId)}`, {
+    method: "GET",
+    headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = await response.json().catch(() => null) as { order?: ApiSourcingOrder } | null;
+  return payload?.order ?? null;
+}
+
 export default async function OrderPaymentPage({
   searchParams,
 }: {
@@ -53,9 +107,7 @@ export default async function OrderPaymentPage({
   }
 
   const resolvedSearchParams = await searchParams;
-  const sourcingOrder = resolvedSearchParams.orderId
-    ? await getSourcingOrderById(resolvedSearchParams.orderId)
-    : null;
+  const sourcingOrder = await getSourcingOrderFromApi(resolvedSearchParams.orderId);
 
   const meta = sourcingOrder ? getSourcingOrderMeta(sourcingOrder) : null;
   const viewerMatchesSharedCart = Boolean(

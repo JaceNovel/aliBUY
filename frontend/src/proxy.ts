@@ -24,6 +24,10 @@ function shouldAttachFreeDealDeviceCookie(pathname: string) {
     || pathname.startsWith("/api/free-deals/");
 }
 
+function isCronRoute(pathname: string) {
+  return pathname === "/api/cron/manychat-cart-abandonment";
+}
+
 function finalizeResponse(request: NextRequest, response: NextResponse) {
   if (!shouldAttachFreeDealDeviceCookie(request.nextUrl.pathname)) {
     return response;
@@ -49,6 +53,10 @@ function finalizeResponse(request: NextRequest, response: NextResponse) {
 async function handleRequest(request: NextRequest, getClerkUserId?: () => Promise<string | null>) {
   const isAdminPageRequest = request.nextUrl.pathname === "/admin" || request.nextUrl.pathname.startsWith("/admin/");
   const isAdminApiRequest = request.nextUrl.pathname.startsWith("/api/admin");
+
+  if (isCronRoute(request.nextUrl.pathname)) {
+    return finalizeResponse(request, NextResponse.next());
+  }
 
   if (request.nextUrl.pathname === "/admin/login") {
     return finalizeResponse(request, new NextResponse("Not Found", { status: 404 }));

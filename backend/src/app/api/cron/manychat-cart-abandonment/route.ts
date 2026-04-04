@@ -4,17 +4,24 @@ export const dynamic = "force-dynamic";
 
 function isAuthorized(request: Request) {
   const secret = process.env.MANYCHAT_CRON_SECRET?.trim();
-  if (!secret) {
-    return false;
-  }
-
-  const authorization = request.headers.get("authorization")?.trim();
-  if (authorization === `Bearer ${secret}`) {
+  const userAgent = request.headers.get("user-agent")?.trim().toLowerCase() ?? "";
+  if (userAgent.startsWith("vercel-cron/")) {
     return true;
   }
 
-  const url = new URL(request.url);
-  return url.searchParams.get("secret") === secret;
+  if (secret) {
+    const authorization = request.headers.get("authorization")?.trim();
+    if (authorization === `Bearer ${secret}`) {
+      return true;
+    }
+
+    const url = new URL(request.url);
+    if (url.searchParams.get("secret") === secret) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export async function GET(request: Request) {
