@@ -3238,6 +3238,11 @@ const ALIEXPRESS_SEARCH_TOKEN_TRANSLATIONS: Record<string, string> = {
   friteuses: "fryers",
   air: "air",
   gaming: "gaming",
+  jeu: "gaming",
+  jeux: "gaming",
+  gamer: "gaming",
+  gant: "glove",
+  gants: "gloves",
   ordinateur: "computer",
   informatique: "computer",
   femme: "women",
@@ -3260,6 +3265,10 @@ const ALIEXPRESS_SEARCH_PHRASE_TRANSLATIONS: Array<[string, string[]]> = [
   ["ecran pc", ["computer monitor", "pc monitor"]],
   ["friteuse a air", ["air fryer", "airfryer"]],
   ["friteuse air", ["air fryer", "airfryer"]],
+  ["gant de jeu", ["gaming glove", "game glove", "finger sleeve", "gaming finger sleeve"]],
+  ["gants de jeu", ["gaming gloves", "game gloves", "finger sleeves", "gaming finger sleeves"]],
+  ["gant gaming", ["gaming glove", "gaming finger sleeve"]],
+  ["gants gaming", ["gaming gloves", "gaming finger sleeves"]],
   ["case computer", ["computer case", "pc case"]],
 ];
 
@@ -3498,7 +3507,14 @@ function shouldFallbackToLooseAliExpressMatches(input: {
   strictMatchCount: number;
   looseMatchCount: number;
 }) {
+  const normalizedQuery = normalizeAliExpressRelevanceText(input.query);
+  const hasGamingIntent = ALIEXPRESS_GAMING_TERMS.some((term) => normalizedQuery.includes(term));
+
   if (shouldAllowLooseAliExpressMatches(input.query)) {
+    return true;
+  }
+
+  if (hasGamingIntent && input.looseMatchCount > 0) {
     return true;
   }
 
