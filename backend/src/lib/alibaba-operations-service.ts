@@ -867,6 +867,8 @@ function toImportedProduct(product: ProductCatalogItem, query: string, published
 }
 
 export async function getAlibabaOperationsDashboardData(panel?: string) {
+  const persistentStorageAvailable = hasAlibabaPersistentStorage();
+  const persistentStorageRequired = requiresAlibabaPersistentStorage();
   const [
     settingsMappings,
     importJobs,
@@ -905,6 +907,13 @@ export async function getAlibabaOperationsDashboardData(panel?: string) {
     countries,
     addresses,
     receptions,
+    storage: {
+      persistentAvailable: persistentStorageAvailable,
+      persistentRequired: persistentStorageRequired,
+      issue: persistentStorageRequired && !persistentStorageAvailable
+        ? "Cette API tourne en environnement serveur temporaire sans DATABASE_URL ni BLOB_READ_WRITE_TOKEN. Les comptes AliExpress, imports et lots peuvent disparaitre au redéploiement."
+        : null,
+    },
     stats: {
       importedCount: importedProducts.length,
       publishedCount: importedProducts.filter((item) => item.publishedToSite).length,
@@ -1373,6 +1382,10 @@ export async function reenrichAllImportedProducts() {
 }
 
 export async function saveAlibabaSupplierAccountInput(input: Omit<AlibabaSupplierAccount, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
+  if (requiresAlibabaPersistentStorage() && !hasAlibabaPersistentStorage()) {
+    throw new Error("Compte AliExpress impossible a enregistrer: aucun stockage persistant n'est configure sur cette API. Ajoute DATABASE_URL ou BLOB_READ_WRITE_TOKEN avant de connecter un compte, sinon il disparaitra au prochain deploiement.");
+  }
+
   const timestamp = nowIso();
   const existing = input.id ? (await getAlibabaSupplierAccounts()).find((account) => account.id === input.id) : undefined;
   const accountId = input.id?.trim() || createSourcingIds();

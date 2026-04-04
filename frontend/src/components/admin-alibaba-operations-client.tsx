@@ -31,6 +31,11 @@ type DashboardData = {
   countries: AlibabaCountryProfile[];
   addresses: AlibabaReceptionAddress[];
   receptions: AlibabaReceptionRecord[];
+  storage: {
+    persistentAvailable: boolean;
+    persistentRequired: boolean;
+    issue: string | null;
+  };
   stats: {
     importedCount: number;
     publishedCount: number;
@@ -478,7 +483,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     const payload = await response.json().catch(() => null);
 
     if (!response.ok) {
-      setFeedback("Compte partenaire impossible a enregistrer.");
+      setFeedback(payload?.message ?? "Compte partenaire impossible a enregistrer.");
       return;
     }
 
@@ -614,6 +619,11 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
               <span className="font-semibold text-[#1f2937]">Compte selectionne:</span>
               <span>{selectedSupplierAccount ? `${selectedSupplierAccount.name} · ${selectedSupplierAccount.accountLogin ?? selectedSupplierAccount.email} · ${selectedSupplierAccountStatusMeta?.label.toLowerCase() ?? "a autoriser"}` : "aucun compte configure"}</span>
             </div>
+            {initialDashboard.storage.issue ? (
+              <div className="mt-4 rounded-[16px] border border-[#fed7aa] bg-[#fff7ed] px-4 py-3 text-[13px] font-medium text-[#9a3412] shadow-[0_8px_18px_rgba(17,24,39,0.05)]">
+                {initialDashboard.storage.issue}
+              </div>
+            ) : null}
             {activeFeedback ? <div className="mt-4 rounded-[16px] bg-white px-4 py-3 text-[13px] font-semibold text-[#1f2937] shadow-[0_8px_18px_rgba(17,24,39,0.05)]">{activeFeedback}</div> : null}
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[320px] xl:grid-cols-1">

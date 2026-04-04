@@ -453,7 +453,8 @@ async function readJsonBlob<T>(pathname: string, fallback: T): Promise<T> {
       }
     }
 
-    await writeJsonBlob(pathname, fallback);
+    const details = readErrors.length > 0 ? readErrors : [new Error(`Blob snapshot unavailable for ${pathname}`)];
+    console.warn(`[alibaba-operations-store] blob snapshot missing or unreadable ${pathname}`, details);
     return fallback;
   } catch (error) {
     const details = readErrors.length > 0 ? readErrors : [error];
