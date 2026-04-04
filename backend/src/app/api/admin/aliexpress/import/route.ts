@@ -57,6 +57,7 @@ export async function POST(request: Request) {
       autoPublish: campaignMode === "free-deal" ? true : Boolean(body?.autoPublish),
       campaignMode,
       resetImportedProducts: Boolean(body?.resetImportedProducts),
+      manualProductMode: Boolean(body?.manualProductMode),
     });
 
     let freeDealProductSlugs: string[] | undefined;

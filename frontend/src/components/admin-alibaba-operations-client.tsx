@@ -74,6 +74,30 @@ const IMPORT_CAMPAIGN_OPTIONS: Array<{ value: AlibabaImportCampaignMode; label: 
   { value: "free-deal", label: "Articles gratuits", description: "Publie la sélection et alimente automatiquement la campagne Articles gratuits." },
 ];
 
+function extractAliExpressProductIdFromInput(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  const directMatch = trimmed.match(/(?:^|\D)(\d{12,20})(?:\D|$)/);
+  if (directMatch?.[1]) {
+    return directMatch[1];
+  }
+
+  try {
+    const url = new URL(trimmed);
+    const pathnameMatch = url.pathname.match(/\/item\/(\d{12,20})\.html/i);
+    if (pathnameMatch?.[1]) {
+      return pathnameMatch[1];
+    }
+  } catch {
+    return "";
+  }
+
+  return "";
+}
+
 function getSupplierAccountStatusMeta(status: AlibabaSupplierAccount["status"]) {
   if (status === "connected") {
     return {
@@ -201,7 +225,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [importForm, setImportForm] = useState<{ query: string; limit: number; fulfillmentChannel: string; campaignMode: AlibabaImportCampaignMode; autoPublish: boolean; resetImportedProducts: boolean }>({ query: "", limit: 24, fulfillmentChannel: "crossborder", campaignMode: "standard", autoPublish: true, resetImportedProducts: false });
+  const [importForm, setImportForm] = useState<{ query: string; limit: number; fulfillmentChannel: string; campaignMode: AlibabaImportCampaignMode; autoPublish: boolean; resetImportedProducts: boolean; manualProductMode: boolean }>({ query: "", limit: 24, fulfillmentChannel: "crossborder", campaignMode: "standard", autoPublish: true, resetImportedProducts: false, manualProductMode: false });
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [quantityByProduct, setQuantityByProduct] = useState<Record<string, number>>({});
   const [accountForm, setAccountForm] = useState({
@@ -263,12 +287,16 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     () => importForm.query.trim() || !seededQuery ? importForm : { ...importForm, query: seededQuery },
     [importForm, seededQuery],
   );
+  const manualProductId = useMemo(
+    () => activeImportForm.manualProductMode ? extractAliExpressProductIdFromInput(activeImportForm.query) : "",
+    [activeImportForm.manualProductMode, activeImportForm.query],
+  );
   const activeFeedback = feedback
     ?? getOauthFeedback(oauthStatus, oauthMessage)
     ?? (seededSource === "image-search" && seededQuery
       ? "Recherche image liee a l'import IA AliExpress. Verifie la requete puis lance l'import."
       : null);
-  const importButtonDisabled = isPending || !activeImportForm.query.trim();
+  const importButtonDisabled = isPending || !activeImportForm.query.trim() || (activeImportForm.manualProductMode && !manualProductId);
 
   const refresh = () => {
     startTransition(() => {
@@ -285,7 +313,10 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     const response = await fetch("/api/admin/aliexpress/import", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(activeImportForm),
+      body: JSON.stringify({
+        ...activeImportForm,
+        limit: activeImportForm.manualProductMode ? 1 : activeImportForm.limit,
+      }),
     });
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
@@ -736,22 +767,33 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
         <section className="grid gap-4 xl:grid-cols-[0.88fr_1.12fr]">
           <article className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
             <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Import catalogue</div>
-            <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Recherche AliExpress par mot-cle, SKU ou modele</div>
+            <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Recherche AliExpress par mot-cle, SKU, modele ou ID produit</div>
             <div className="mt-3 rounded-[14px] bg-[#f8fafc] px-4 py-3 text-[13px] text-[#667085]">
               {activeSupplierAccount
-                ? `Import live via ${activeSupplierAccount.name} (${activeSupplierAccount.accountLogin ?? activeSupplierAccount.email}). Les references exactes interrogent d'abord AfriPay+ puis enrichissent la fiche detail avec variantes, attributs et medias.`
+                ? `Import live via ${activeSupplierAccount.name} (${activeSupplierAccount.accountLogin ?? activeSupplierAccount.email}). Les references exactes interrogent d'abord AfriPay+ puis enrichissent la fiche detail avec variantes, attributs et medias. Tu peux aussi coller un lien AliExpress ou un product_id pour un import manuel unique.`
                 : selectedSupplierAccount
                   ? `Le compte selectionne est ${selectedSupplierAccount.status === "connected" ? "connecte" : "en attente d'autorisation"}. Termine OAuth dans l'onglet Comptes partenaires avant l'import.`
                   : "Aucun compte AliExpress configure. Ajoute et autorise un compte dans l'onglet Comptes partenaires avant l'import."}
             </div>
+            <label className="mt-4 inline-flex items-center gap-3 text-[13px] font-semibold text-[#344054]">
+              <input checked={activeImportForm.manualProductMode} onChange={(event) => setImportForm((current) => ({ ...current, manualProductMode: event.target.checked, limit: event.target.checked ? 1 : Math.max(current.limit, 1) }))} type="checkbox" className="h-4 w-4 rounded border-[#d7dce5] text-[#ff6a00] focus:ring-[#ff6a00]" />
+              Import manuel d&apos;un produit par lien AliExpress ou ID produit
+            </label>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">
-                Mot-cle ou reference exacte
-                <input value={activeImportForm.query} onChange={(event) => setImportForm((current) => ({ ...current, query: event.target.value }))} placeholder="3523LDS, BCD126748, bague, piercing..." className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+                {activeImportForm.manualProductMode ? "Lien AliExpress ou product_id" : "Mot-cle ou reference exacte"}
+                <input value={activeImportForm.query} onChange={(event) => setImportForm((current) => ({ ...current, query: event.target.value }))} placeholder={activeImportForm.manualProductMode ? "https://fr.aliexpress.com/item/1005010812705425.html ou 1005010812705425" : "3523LDS, BCD126748, bague, piercing..."} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
               </label>
+              {activeImportForm.manualProductMode ? (
+                <div className="sm:col-span-2 rounded-[14px] bg-[#fff7ed] px-4 py-3 text-[13px] text-[#9a3412]">
+                  {manualProductId
+                    ? <>Produit detecte: <span className="font-semibold">{manualProductId}</span>. L&apos;import manuel forcera 1 seul article avec ses variantes/attributs.</>
+                    : "Colle un lien AliExpress complet ou un product_id numerique valide pour activer l'import manuel."}
+                </div>
+              ) : null}
               <label className="text-[13px] font-semibold text-[#344054]">
                 Nombre a importer
-                <input value={activeImportForm.limit} onChange={(event) => setImportForm((current) => ({ ...current, limit: Number(event.target.value) }))} type="number" min={1} max={100} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+                <input value={activeImportForm.manualProductMode ? 1 : activeImportForm.limit} onChange={(event) => setImportForm((current) => ({ ...current, limit: Number(event.target.value) }))} type="number" min={1} max={100} disabled={activeImportForm.manualProductMode} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00] disabled:bg-[#f8fafc] disabled:text-[#98a2b3]" />
               </label>
               <label className="text-[13px] font-semibold text-[#344054]">
                 Flux d&apos;achat

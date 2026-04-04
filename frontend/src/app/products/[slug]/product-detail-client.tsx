@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { useCart } from "@/components/cart-provider";
 import { isSupportedDirectDeliveryCountry } from "@/lib/alibaba-sourcing";
 import { CURRENCY_CONFIG, type CurrencyCode } from "@/lib/pricing-options";
-import { getApplicableVariantPricing, getDisplayPriceTiers, resolveProductPriceSummaryUsd, resolveProductUnitPriceUsd } from "@/lib/product-variant-pricing";
+import { getDisplayPriceTiers, resolveProductPriceSummaryUsd, resolveProductUnitPriceUsd, resolveVariantSku } from "@/lib/product-variant-pricing";
 
 type DetailVariantGroup = {
   label: string;
@@ -32,6 +32,14 @@ type DetailVariantPrice = {
   maximumQuantity?: number;
   quantityLabel?: string;
   note?: string;
+};
+
+type DetailVariantSku = {
+  selections: Record<string, string>;
+  skuId: string;
+  skuCode?: string;
+  inventory?: number;
+  image?: string;
 };
 
 type DetailSpec = {
@@ -80,6 +88,7 @@ type ProductDetailClientProps = {
     tiers: DetailTier[];
     variantGroups: DetailVariantGroup[];
     variantPricing: DetailVariantPrice[];
+    variantSkus?: DetailVariantSku[];
     specs: DetailSpec[];
     formattedPriceRange: string;
     badge?: string;
@@ -95,8 +104,6 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const selectedCurrency = CURRENCY_CONFIG[(product.currencyCode as CurrencyCode)] ?? CURRENCY_CONFIG.USD;
   const router = useRouter();
   const { addItem } = useCart();
-  const mixGroup = product.variantGroups[0];
-  const modalGroups = product.variantGroups.slice(1);
   const hasVariantChoices = product.variantGroups.length > 0;
   const requiredVariantLabels = product.variantGroups.map((group) => group.label);
   const variantSelectionInstruction = requiredVariantLabels.join(", ");
@@ -113,9 +120,6 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const [shippingMethod, setShippingMethod] = useState<"air" | "sea" | null>(null);
   const [orderQuantity, setOrderQuantity] = useState(Math.max(product.moq, 1));
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
-  const [mixQuantities, setMixQuantities] = useState<Record<string, number>>(() => (
-    Object.fromEntries((mixGroup?.values ?? []).map((value) => [value, 0]))
-  ));
   const touchStartXRef = useRef<number | null>(null);
   const cartAnimationTimeoutRef = useRef<number | null>(null);
   const cartToastTimeoutRef = useRef<number | null>(null);
@@ -331,31 +335,25 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     return singleMatch ? Number(singleMatch[1]) : 0;
   };
 
-  const totalSelectedQuantity = mixGroup
-    ? Object.values(mixQuantities).reduce((sum, quantity) => sum + quantity, 0)
-    : orderQuantity;
+  const totalSelectedQuantity = orderQuantity;
   const totalWeightKg = (product.itemWeightGrams * totalSelectedQuantity) / 1000;
   const totalWeightLabel = product.itemWeightGrams > 0 ? `${totalWeightKg.toFixed(totalWeightKg >= 10 ? 0 : 2)} kg` : "Selon catalogue";
   const exceedsSeaThreshold = product.itemWeightGrams > 0 && totalWeightKg > 5;
   const modalSelections = Object.fromEntries(
-    modalGroups.flatMap((group) => {
+    product.variantGroups.flatMap((group) => {
       const value = resolveVariantGroupSelection(group);
       return value ? [[group.label, value] as const] : [];
     }),
   );
   const previewModalSelections = Object.fromEntries(
-    modalGroups.flatMap((group) => {
+    product.variantGroups.flatMap((group) => {
       const value = resolveVariantGroupSelection(group, true);
       return value ? [[group.label, value] as const] : [];
     }),
   );
-  const previewSelection = mixGroup
-    ? {
-        [mixGroup.label]: Object.entries(mixQuantities).find(([, quantity]) => quantity > 0)?.[0] ?? mixGroup.values[0] ?? "",
-        ...previewModalSelections,
-      }
-    : previewModalSelections;
-  const missingVariantGroups = modalGroups.filter((group) => !resolveVariantGroupSelection(group));
+  const previewSelection = previewModalSelections;
+  const selectedVariantSku = resolveVariantSku({ variantSkus: product.variantSkus ?? [] }, previewSelection);
+  const missingVariantGroups = product.variantGroups.filter((group) => !resolveVariantGroupSelection(group));
   const hasAllRequiredVariantSelections = missingVariantGroups.length === 0;
   const displayTiers = getDisplayPriceTiers(productWithNormalizedTiers, previewSelection).map((tier) => ({
     ...tier,
@@ -363,60 +361,19 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   }));
   const sortedTiers = [...displayTiers].sort((left, right) => getTierMinimum(left.quantityLabel) - getTierMinimum(right.quantityLabel));
   const activeTier = [...sortedTiers].reverse().find((tier) => totalSelectedQuantity >= getTierMinimum(tier.quantityLabel)) ?? sortedTiers[0];
-  const hasVariantSpecificPricing = getApplicableVariantPricing(productWithNormalizedTiers, previewSelection).length > 0;
   const currentPriceSummary = resolveProductPriceSummaryUsd(productWithNormalizedTiers, {
-    quantity: hasVariantSpecificPricing ? Math.max(1, mixGroup ? (mixQuantities[previewSelection[mixGroup.label]] ?? 1) : totalSelectedQuantity) : totalSelectedQuantity,
+    quantity: totalSelectedQuantity,
     selection: previewSelection,
   });
   const currentUnitPrice = resolveProductUnitPriceUsd(productWithNormalizedTiers, {
-    quantity: hasVariantSpecificPricing ? Math.max(1, mixGroup ? (mixQuantities[previewSelection[mixGroup.label]] ?? 1) : totalSelectedQuantity) : totalSelectedQuantity,
+    quantity: totalSelectedQuantity,
     selection: previewSelection,
   });
-  const subtotal = mixGroup
-    ? mixGroup.values.reduce((sum, value) => {
-        const quantity = mixQuantities[value] ?? 0;
-        if (quantity <= 0) {
-          return sum;
-        }
-
-        const selection = {
-          [mixGroup.label]: value,
-          ...modalSelections,
-        };
-        const variantRules = getApplicableVariantPricing(productWithNormalizedTiers, selection);
-        const unitPrice = resolveProductUnitPriceUsd(productWithNormalizedTiers, {
-          quantity: variantRules.length > 0 ? quantity : totalSelectedQuantity,
-          selection,
-        });
-
-        return sum + (unitPrice * quantity);
-      }, 0)
-    : currentUnitPrice * totalSelectedQuantity;
-  const subtotalRange = mixGroup
-    ? mixGroup.values.reduce((acc, value) => {
-        const quantity = mixQuantities[value] ?? 0;
-        if (quantity <= 0) {
-          return acc;
-        }
-
-        const selection = {
-          [mixGroup.label]: value,
-          ...modalSelections,
-        };
-        const summary = resolveProductPriceSummaryUsd(productWithNormalizedTiers, {
-          quantity: getApplicableVariantPricing(productWithNormalizedTiers, selection).length > 0 ? Math.max(1, quantity) : Math.max(1, totalSelectedQuantity),
-          selection,
-        });
-
-        return {
-          minUsd: acc.minUsd + (summary.minUsd * quantity),
-          maxUsd: acc.maxUsd + ((summary.maxUsd ?? summary.minUsd) * quantity),
-        };
-      }, { minUsd: 0, maxUsd: 0 })
-    : {
-        minUsd: currentPriceSummary.minUsd * totalSelectedQuantity,
-        maxUsd: (currentPriceSummary.maxUsd ?? currentPriceSummary.minUsd) * totalSelectedQuantity,
-      };
+  const subtotal = currentUnitPrice * totalSelectedQuantity;
+  const subtotalRange = {
+    minUsd: currentPriceSummary.minUsd * totalSelectedQuantity,
+    maxUsd: (currentPriceSummary.maxUsd ?? currentPriceSummary.minUsd) * totalSelectedQuantity,
+  };
   const hasSubtotalRange = subtotalRange.maxUsd > subtotalRange.minUsd;
   const promoCurrentMinUsd = hasSubtotalRange ? subtotalRange.minUsd : subtotal;
   const promoCurrentMaxUsd = hasSubtotalRange ? subtotalRange.maxUsd : subtotal;
@@ -519,22 +476,25 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     { label: "Niveau de vérification", value: verificationLabel },
   ];
 
-  const updateMixQuantity = (value: string, delta: number) => {
-    setMixQuantities((current) => ({
-      ...current,
-      [value]: Math.max(0, (current[value] ?? 0) + delta),
-    }));
-  };
   const updateOrderQuantity = (delta: number) => {
     setOrderQuantity((current) => Math.max(product.moq, current + delta));
   };
   const handleVariantPreviewSelection = (group: DetailVariantGroup, value: string) => {
-    if (mixGroup && group.label === mixGroup.label) {
-      setMixQuantities(Object.fromEntries(mixGroup.values.map((entry) => [entry, entry === value ? Math.max(orderQuantity, product.moq, 1) : 0])));
-      setIsOrderModalOpen(true);
-      return;
-    }
     setSelectedVariants((current) => ({ ...current, [group.label]: value }));
+
+    const nextSelection = {
+      ...selectedVariants,
+      [group.label]: value,
+    };
+    const nextSku = resolveVariantSku({ variantSkus: product.variantSkus ?? [] }, nextSelection);
+    if (nextSku?.image) {
+      const normalizedImage = nextSku.image.startsWith("//") ? `https:${nextSku.image}` : nextSku.image;
+      const galleryIndex = product.gallery.findIndex((entry) => entry === normalizedImage);
+      if (galleryIndex >= 0) {
+        setActiveMedia("photo");
+        setActiveImage(galleryIndex);
+      }
+    }
   };
   const toggleFavorite = async () => {
     if (favoriteBusy) {
@@ -573,20 +533,9 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   };
 
   const canSubmitOrder = totalSelectedQuantity > 0 && shippingMethod !== null && hasAllRequiredVariantSelections;
+  const shouldOpenOrderModalFirst = hasVariantChoices || shippingMethod === null;
   const buildOrderSelections = () => {
-    if (!mixGroup) {
-      return [{ quantity: orderQuantity, selectedVariants: modalSelections }];
-    }
-
-    return mixGroup.values
-      .map((value) => ({
-        quantity: mixQuantities[value] ?? 0,
-        selectedVariants: {
-          [mixGroup.label]: value,
-          ...modalSelections,
-        },
-      }))
-      .filter((entry) => entry.quantity > 0);
+    return [{ quantity: orderQuantity, selectedVariants: modalSelections }];
   };
   const triggerCartAnimation = () => {
     if (cartAnimationTimeoutRef.current !== null) {
@@ -629,6 +578,23 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     });
     triggerCartAnimation();
     setShareFeedback("Produit ajouté au panier sourcing.");
+  };
+  const openOrderModal = () => {
+    setIsOrderModalOpen(true);
+  };
+  const handlePrimaryBuyNow = () => {
+    if (shouldOpenOrderModalFirst) {
+      openOrderModal();
+      return;
+    }
+    proceedToCheckout();
+  };
+  const handlePrimaryAddToCart = () => {
+    if (shouldOpenOrderModalFirst) {
+      openOrderModal();
+      return;
+    }
+    addSelectionToCart();
   };
   const proceedToCheckout = () => {
     if (!canSubmitOrder) {
@@ -961,9 +927,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {group.values.map((value) => {
-                          const isSelected = mixGroup && group.label === mixGroup.label
-                            ? (mixQuantities[value] ?? 0) > 0
-                            : selectedVariants[group.label] === value;
+                          const isSelected = selectedVariants[group.label] === value;
 
                           return (
                             <button
@@ -1056,25 +1020,25 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     ) : null}
                   </div>
 
-                  {!mixGroup ? (
-                    <div className="border-t border-[#efefef] pt-4">
-                      <div className="text-[14px] font-semibold text-[#191919]">Quantité</div>
-                      <div className="mt-3 flex items-center gap-3">
-                        <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f5f5f5] text-[#55473b] transition hover:bg-[#ebebeb] disabled:cursor-not-allowed disabled:opacity-40">
-                          <Minus className="h-4 w-4" />
-                        </button>
-                        <div className="min-w-[24px] text-center text-[20px] font-semibold tracking-[-0.04em] text-[#1e1712]">{orderQuantity}</div>
-                        <button type="button" onClick={() => updateOrderQuantity(1)} className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f5f5f5] text-[#55473b] transition hover:bg-[#ebebeb]">
-                          <Plus className="h-4 w-4" />
-                        </button>
+                  <div className="border-t border-[#efefef] pt-4">
+                    <div className="text-[14px] font-semibold text-[#191919]">Quantité</div>
+                    <div className="mt-3 flex items-center gap-3">
+                      <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f5f5f5] text-[#55473b] transition hover:bg-[#ebebeb] disabled:cursor-not-allowed disabled:opacity-40">
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <div className="min-w-[24px] text-center text-[20px] font-semibold tracking-[-0.04em] text-[#1e1712]">{orderQuantity}</div>
+                      <button type="button" onClick={() => updateOrderQuantity(1)} className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f5f5f5] text-[#55473b] transition hover:bg-[#ebebeb]">
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="mt-2 text-[12px] text-[#6c5c50]">{product.moqVerified ? `Minimum ${product.moq} pièce${product.moq > 1 ? "s" : ""}` : "Minimum à confirmer"}</div>
+                    {selectedVariantSku?.skuCode || typeof selectedVariantSku?.inventory === "number" ? (
+                      <div className="mt-3 rounded-[12px] border border-[#ececec] bg-[#fafafa] px-3 py-3 text-[12px] text-[#5f5145]">
+                        {selectedVariantSku?.skuCode ? <div>SKU: <span className="font-semibold text-[#221813]">{selectedVariantSku.skuCode}</span></div> : null}
+                        {typeof selectedVariantSku?.inventory === "number" ? <div>Stock variant: <span className="font-semibold text-[#221813]">{selectedVariantSku.inventory}</span></div> : null}
                       </div>
-                      <div className="mt-2 text-[12px] text-[#6c5c50]">{product.moqVerified ? `Minimum ${product.moq} pièce${product.moq > 1 ? "s" : ""}` : "Minimum à confirmer"}</div>
-                    </div>
-                  ) : (
-                    <div className="rounded-[14px] border border-[#f2d0b1] bg-[#fff7ef] px-4 py-4 text-[13px] leading-6 text-[#6d5744]">
-                      La sélection mixte se règle dans la fenêtre de commande.
-                    </div>
-                  )}
+                    ) : null}
+                  </div>
 
                   {missingVariantGroups.length > 0 ? (
                     <div className="rounded-[12px] border border-[#f2d0b1] bg-[#fff5ea] px-4 py-3 text-[13px] font-medium text-[#d15f12]">
@@ -1085,8 +1049,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                   <div className="grid gap-3">
                     <button
                       type="button"
-                      onClick={proceedToCheckout}
-                      disabled={!canSubmitOrder}
+                      onClick={handlePrimaryBuyNow}
+                      disabled={shouldOpenOrderModalFirst ? false : !canSubmitOrder}
                       className="inline-flex h-14 items-center justify-center gap-3 bg-[#d8001f] px-6 text-[17px] font-bold text-white transition hover:bg-[#bf001c]"
                     >
                       <ShoppingCart className="h-4.5 w-4.5" />
@@ -1094,8 +1058,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     </button>
                     <button
                       type="button"
-                      onClick={addSelectionToCart}
-                      disabled={!canSubmitOrder}
+                      onClick={handlePrimaryAddToCart}
+                      disabled={shouldOpenOrderModalFirst ? false : !canSubmitOrder}
                       className={[
                         "inline-flex h-14 items-center justify-center border border-[#1f1f1f] bg-white px-6 text-[17px] font-semibold text-[#221813] transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:border-[#d9d0c8] disabled:text-[#aaa29a]",
                         isCartAnimating ? "animate-[cartButtonPulse_680ms_ease-out]" : "",
@@ -1343,7 +1307,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 })}
               </div>
 
-              {modalGroups.map((group) => (
+              {product.variantGroups.map((group) => (
                 <div key={group.label} className="mt-5 sm:mt-7">
                   <div className="text-[14px] font-semibold text-[#222] sm:text-[16px]">{group.label}: <span className="font-medium">{resolveVariantGroupSelection(group) || "Choisir"}</span></div>
                   <div className="mt-2 flex flex-wrap gap-2 sm:mt-3 sm:gap-2.5">
@@ -1354,7 +1318,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                         <button
                           key={value}
                           type="button"
-                          onClick={() => setSelectedVariants((current) => ({ ...current, [group.label]: value }))}
+                          onClick={() => handleVariantPreviewSelection(group, value)}
                           className={[
                             "rounded-[10px] border px-3 py-1.5 text-[13px] transition sm:rounded-[12px] sm:px-4 sm:py-2 sm:text-[15px]",
                             isSelected ? "border-[#222] bg-white text-[#111] shadow-[inset_0_0_0_1px_#111]" : "border-[#d7dbe2] bg-white text-[#444] hover:border-[#ffb48a]",
@@ -1400,63 +1364,31 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 ) : null}
               </div>
 
-              {mixGroup ? (
-                <div className="mt-6 sm:mt-8">
-                  <div className="text-[16px] font-semibold text-[#222] sm:text-[18px]">{mixGroup.label}</div>
-                  <div className="mt-3 space-y-2.5 sm:mt-4 sm:space-y-4">
-                    {mixGroup.values.map((value, index) => (
-                      <div key={value} className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[14px] border border-[#ececec] px-2.5 py-2.5 sm:grid-cols-[60px_minmax(0,1fr)_110px_126px] sm:gap-4 sm:rounded-[18px] sm:px-3 sm:py-3">
-                        <div className="relative h-[44px] w-[44px] overflow-hidden rounded-[10px] bg-[#f4f4f4] ring-1 ring-black/5 sm:h-[52px] sm:w-[52px] sm:rounded-[12px]">
-                          <Image src={product.gallery[index % product.gallery.length] ?? product.gallery[0]} alt={value} fill sizes="52px" className="object-cover" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-[14px] font-medium text-[#222] sm:text-[18px]">{value}</div>
-                          <div className="mt-0.5 text-[12px] font-semibold tracking-[-0.03em] text-[#222] sm:hidden">{formatPriceSummary(resolveProductPriceSummaryUsd(productWithNormalizedTiers, {
-                            quantity: getApplicableVariantPricing(productWithNormalizedTiers, { [mixGroup.label]: value, ...modalSelections }).length > 0
-                              ? Math.max(1, mixQuantities[value] ?? 1)
-                              : Math.max(1, totalSelectedQuantity),
-                            selection: { [mixGroup.label]: value, ...modalSelections },
-                          }))}</div>
-                        </div>
-                        <div className="hidden text-left text-[18px] font-semibold tracking-[-0.03em] text-[#222] sm:block sm:text-right sm:text-[20px]">{formatPriceSummary(resolveProductPriceSummaryUsd(productWithNormalizedTiers, {
-                          quantity: getApplicableVariantPricing(productWithNormalizedTiers, { [mixGroup.label]: value, ...modalSelections }).length > 0
-                            ? Math.max(1, mixQuantities[value] ?? 1)
-                            : Math.max(1, totalSelectedQuantity),
-                          selection: { [mixGroup.label]: value, ...modalSelections },
-                        }))}</div>
-                        <div className="flex items-center justify-start gap-1.5 sm:justify-end sm:gap-2">
-                          <button type="button" onClick={() => updateMixQuantity(value, -1)} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-40 sm:h-10 sm:w-10" disabled={(mixQuantities[value] ?? 0) <= 0}>
-                            <Minus className="h-4 w-4" />
-                          </button>
-                          <div className="min-w-[20px] text-center text-[18px] font-medium text-[#222] sm:min-w-[24px] sm:text-[22px]">{mixQuantities[value] ?? 0}</div>
-                          <button type="button" onClick={() => updateMixQuantity(value, 1)} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-10 sm:w-10">
-                            <Plus className="h-4 w-4" />
-                          </button>
-                        </div>
+              <div className="mt-6 rounded-[14px] border border-[#ececec] bg-[#fafafa] px-3 py-3 sm:mt-8 sm:rounded-[18px] sm:px-4 sm:py-4">
+                <div className="text-[16px] font-semibold text-[#222] sm:text-[18px]">Quantité</div>
+                <div className="mt-2.5 flex items-center justify-between gap-3 sm:mt-3 sm:gap-4">
+                  <div>
+                    <div className="text-[13px] text-[#555] sm:text-[15px]">Commande minimale</div>
+                    <div className="mt-1 text-[12px] text-[#777] sm:text-[14px]">{product.moqVerified ? `${product.moq} ${product.moq > 1 ? "pièces" : "pièce"}` : "À confirmer"}</div>
+                    {selectedVariantSku?.skuCode || typeof selectedVariantSku?.inventory === "number" ? (
+                      <div className="mt-2 text-[12px] text-[#555] sm:text-[14px]">
+                        {selectedVariantSku?.skuCode ? <>SKU <span className="font-semibold text-[#222]">{selectedVariantSku.skuCode}</span></> : null}
+                        {selectedVariantSku?.skuCode && typeof selectedVariantSku?.inventory === "number" ? " · " : null}
+                        {typeof selectedVariantSku?.inventory === "number" ? <>Stock <span className="font-semibold text-[#222]">{selectedVariantSku.inventory}</span></> : null}
                       </div>
-                    ))}
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-40 sm:h-10 sm:w-10">
+                      <Minus className="h-4 w-4" />
+                    </button>
+                    <div className="min-w-[24px] text-center text-[18px] font-medium text-[#222] sm:min-w-[28px] sm:text-[22px]">{orderQuantity}</div>
+                    <button type="button" onClick={() => updateOrderQuantity(1)} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-10 sm:w-10">
+                      <Plus className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
-              ) : (
-                <div className="mt-6 rounded-[14px] border border-[#ececec] bg-[#fafafa] px-3 py-3 sm:mt-8 sm:rounded-[18px] sm:px-4 sm:py-4">
-                  <div className="text-[16px] font-semibold text-[#222] sm:text-[18px]">Quantité</div>
-                  <div className="mt-2.5 flex items-center justify-between gap-3 sm:mt-3 sm:gap-4">
-                    <div>
-                      <div className="text-[13px] text-[#555] sm:text-[15px]">Commande minimale</div>
-                      <div className="mt-1 text-[12px] text-[#777] sm:text-[14px]">{product.moqVerified ? `${product.moq} ${product.moq > 1 ? "pièces" : "pièce"}` : "À confirmer"}</div>
-                    </div>
-                    <div className="flex items-center gap-1.5 sm:gap-2">
-                      <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-40 sm:h-10 sm:w-10">
-                        <Minus className="h-4 w-4" />
-                      </button>
-                      <div className="min-w-[24px] text-center text-[18px] font-medium text-[#222] sm:min-w-[28px] sm:text-[22px]">{orderQuantity}</div>
-                      <button type="button" onClick={() => updateOrderQuantity(1)} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-10 sm:w-10">
-                        <Plus className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
 
             <div className="border-t border-[#ececec] bg-white px-3 py-3 sm:px-6 sm:py-4">

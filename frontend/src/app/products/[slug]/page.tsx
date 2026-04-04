@@ -147,6 +147,7 @@ export default async function ProductPage({
           })),
           variantGroups: product.variantGroups,
           variantPricing: product.variantPricing ?? [],
+          variantSkus: product.variantSkus ?? [],
           specs: product.specs.map((spec) => ({
             ...spec,
             value: normalizeStorefrontText(spec.value),

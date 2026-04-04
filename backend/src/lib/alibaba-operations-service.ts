@@ -930,16 +930,24 @@ export async function runAlibabaCatalogImport(input: {
   autoPublish: boolean;
   campaignMode?: AlibabaImportCampaignMode;
   resetImportedProducts?: boolean;
+  manualProductMode?: boolean;
 }) {
   if (requiresAlibabaPersistentStorage() && !hasAlibabaPersistentStorage()) {
     throw new Error("Import AliExpress bloque: aucun stockage persistant n'est configure sur cette API. Ajoute DATABASE_URL ou BLOB_READ_WRITE_TOKEN, sinon les articles disparaitront au prochain deploiement.");
   }
 
+  const normalizedQuery = input.query.trim();
+  const directProductIdMatch = normalizedQuery.match(/(?:^|\D)(\d{12,20})(?:\D|$)/);
+  const manualDirectImport = Boolean(input.manualProductMode);
+  if (manualDirectImport && !directProductIdMatch?.[1]) {
+    throw new Error("Import manuel impossible: colle un lien AliExpress valide ou un product_id numerique comme 1005010812705425.");
+  }
+
   const timestamp = nowIso();
   const job: AlibabaImportJob = {
     id: createSourcingIds(),
-    query: input.query.trim(),
-    limit: Math.min(Math.max(input.limit, 1), 100),
+    query: normalizedQuery,
+    limit: manualDirectImport ? 1 : Math.min(Math.max(input.limit, 1), 100),
     fulfillmentChannel: input.fulfillmentChannel,
     autoPublish: input.autoPublish,
     status: "running",
@@ -959,7 +967,7 @@ export async function runAlibabaCatalogImport(input: {
 
     const existingImportedProducts = await getAlibabaImportedProducts();
     const existingSourceProductIds = new Set(existingImportedProducts.map((product) => product.sourceProductId));
-    const explorationLimit = Math.min(Math.max(job.limit * 2, 12), 30);
+    const explorationLimit = manualDirectImport ? 1 : Math.min(Math.max(job.limit * 2, 12), 30);
     const searchResult = await searchAlibabaProducts({
       query: job.query,
       limit: explorationLimit,
@@ -972,7 +980,9 @@ export async function runAlibabaCatalogImport(input: {
     }
 
     if (searchResult.products.length === 0) {
-      throw new Error("Aucun produit live AliExpress n'a ete renvoye pour cette recherche.");
+      throw new Error(manualDirectImport
+        ? "Aucun produit AliExpress n'a pu etre lu pour cet ID ou ce lien direct."
+        : "Aucun produit live AliExpress n'a ete renvoye pour cette recherche.");
     }
 
     const uniqueSearchProducts = searchResult.products
