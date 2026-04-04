@@ -950,7 +950,7 @@ export async function runAlibabaCatalogImport(input: {
 
     const existingImportedProducts = await getAlibabaImportedProducts();
     const existingSourceProductIds = new Set(existingImportedProducts.map((product) => product.sourceProductId));
-    const explorationLimit = Math.min(Math.max(job.limit * 4, 40), 100);
+    const explorationLimit = Math.min(Math.max(job.limit * 2, 12), 30);
     const searchResult = await searchAlibabaProducts({
       query: job.query,
       limit: explorationLimit,

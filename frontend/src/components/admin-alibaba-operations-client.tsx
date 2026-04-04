@@ -263,6 +263,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     ?? (seededSource === "image-search" && seededQuery
       ? "Recherche image liee a l'import IA AliExpress. Verifie la requete puis lance l'import."
       : null);
+  const importButtonDisabled = isPending || !activeImportForm.query.trim();
 
   const refresh = () => {
     startTransition(() => {
@@ -773,7 +774,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
               Vider le catalogue importe avant ce nouvel import
             </label>
             <div className="mt-5 flex gap-3">
-              <button type="button" onClick={runImport} disabled={isPending || !activeImportForm.query.trim() || !activeSupplierAccount} className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:opacity-60">
+              <button type="button" onClick={runImport} disabled={importButtonDisabled} className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:opacity-60">
                 <Search className="h-4 w-4" />
                 Importer maintenant
               </button>
@@ -781,6 +782,11 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                 Publier la selection
               </button>
             </div>
+            {!activeSupplierAccount ? (
+              <div className="mt-3 rounded-[14px] bg-[#fff7ed] px-4 py-3 text-[13px] font-medium text-[#9a3412]">
+                Aucun compte AliExpress connecte n&apos;est actif pour l&apos;import live. Va dans l&apos;onglet Comptes partenaires, clique sur <span className="font-semibold">Connecter</span> ou termine OAuth, puis relance l&apos;import.
+              </div>
+            ) : null}
           </article>
 
           <article className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">

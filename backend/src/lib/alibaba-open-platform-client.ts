@@ -3658,6 +3658,8 @@ function buildAliExpressNoResultMessage(input: {
   return `Aucun produit AliExpress exploitable n'a ete trouve pour "${input.query}". Essaie un mot-clé plus simple, le nom générique du produit, ou un lien produit direct.`;
 }
 
+const ALIEXPRESS_IMPORT_SEARCH_BUDGET_MS = 45_000;
+
 function mapAliExpressProductDetailToProduct(
   searchItem: Record<string, unknown>,
   detailResponseBody: unknown,
@@ -3927,6 +3929,7 @@ async function searchAliExpressProducts(input: {
     ...buildAliExpressFallbackQueryCandidates(input.query),
   ]);
   const directProductId = extractAliExpressProductId(input.query);
+  const searchDeadline = Date.now() + ALIEXPRESS_IMPORT_SEARCH_BUDGET_MS;
   let lastResponse: unknown = null;
   let lastSearchError: AlibabaProductSearchResult | null = null;
   const getStrictMatchCount = () => {
@@ -3978,8 +3981,20 @@ async function searchAliExpressProducts(input: {
   }
 
   for (const queryCandidate of queryCandidates) {
+    if (Date.now() >= searchDeadline) {
+      break;
+    }
+
     for (const context of searchContexts) {
+      if (Date.now() >= searchDeadline) {
+        break;
+      }
+
       for (let pageIndex = 1; pageIndex <= maxPages && collectedByProductId.size < maxCollectedCandidates; pageIndex += 1) {
+        if (Date.now() >= searchDeadline) {
+          break;
+        }
+
         const searchResult = await callAliExpressTopEndpoint("aliexpress.ds.text.search", {
           keyWord: queryCandidate,
           local: context.local,
@@ -4028,6 +4043,10 @@ async function searchAliExpressProducts(input: {
         }
 
         for (const searchItem of products) {
+          if (Date.now() >= searchDeadline) {
+            break;
+          }
+
           const productId = getStringValue(searchItem.itemId)
             ?? getStringValue(searchItem.item_id)
             ?? getStringValue(searchItem.product_id)
@@ -4813,12 +4832,25 @@ async function searchAliExpressAffiliateProducts(input: {
     item: Record<string, unknown>;
     context: { shipToCountry: string; local: string; currency: string };
   }>();
+  const searchDeadline = Date.now() + ALIEXPRESS_IMPORT_SEARCH_BUDGET_MS;
   let lastResponse: unknown = null;
   let lastSearchError: AlibabaProductSearchResult | null = null;
 
   for (const queryCandidate of queryCandidates) {
+    if (Date.now() >= searchDeadline) {
+      break;
+    }
+
     for (const context of searchContexts) {
+      if (Date.now() >= searchDeadline) {
+        break;
+      }
+
       for (let pageNo = 1; pageNo <= maxPages && collectedByProductId.size < maxCollectedCandidates; pageNo += 1) {
+        if (Date.now() >= searchDeadline) {
+          break;
+        }
+
         const searchResult = await callAliExpressTopEndpoint("aliexpress.affiliate.product.query", {
           keywords: queryCandidate,
           ...(categoryIds ? { category_ids: categoryIds } : {}),
