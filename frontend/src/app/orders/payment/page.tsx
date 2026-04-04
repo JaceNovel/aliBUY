@@ -16,6 +16,7 @@ type ApiSourcingOrder = {
   orderNumber: string;
   userId?: string | null;
   customerEmail: string;
+  supplierOrderPayload?: unknown;
   totalPriceFcfa: number;
   shippingMethod: "air" | "sea" | "freight";
   paymentStatus: "unpaid" | "initialized" | "pending" | "paid" | "failed" | "cancelled";
