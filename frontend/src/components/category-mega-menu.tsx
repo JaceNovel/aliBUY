@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
+  ArrowUpRight,
   Diamond,
   Headphones,
   Menu,
@@ -116,7 +117,7 @@ export function CategoryMegaMenu({
     router.prefetch(activeCategory.href ?? `/products?category=${encodeURIComponent(activeCategory.slug)}`);
   }, [activeCategory, router]);
 
-  const categoryLinks: CategoryLink[] = categories.slice(0, 9).map((category, index) => ({
+  const categoryLinks: CategoryLink[] = categories.slice(0, 9).map((category) => ({
     slug: category.slug,
     title: category.title,
     icon: resolveCategoryIcon(category.slug, category.title),
@@ -142,7 +143,7 @@ export function CategoryMegaMenu({
           widthClassName,
         ].join(" ")}
       >
-        <div className="grid min-h-[470px] grid-cols-[430px_minmax(0,1fr)]">
+        <div className="grid min-h-[470px] grid-cols-[minmax(320px,380px)_minmax(0,1fr)] 2xl:grid-cols-[430px_minmax(0,1fr)]">
           <div className="border-r border-[#ececec] bg-white px-4 py-6">
             <div className="max-h-[422px] overflow-y-auto pr-2">
               {categoryLinks.map((item) => {
@@ -163,7 +164,7 @@ export function CategoryMegaMenu({
                     ].join(" ")}
                   >
                     <Icon className="h-6 w-6 shrink-0 text-[#333]" />
-                    <span>{item.title}</span>
+                    <span className="line-clamp-2">{item.title}</span>
                   </Link>
                 );
               })}
@@ -176,7 +177,7 @@ export function CategoryMegaMenu({
               <Sparkles className="h-5 w-5 text-[#888]" />
             </div>
 
-            <div className="grid grid-cols-5 gap-x-8 gap-y-8">
+            <div className="grid grid-cols-4 gap-x-6 gap-y-8 2xl:grid-cols-5 2xl:gap-x-8">
               {categoryProducts.map((item) => (
                 <Link key={item.slug} href={`/products/${item.slug}`} className="group/item flex flex-col items-center text-center">
                   <div className="relative h-[126px] w-[126px] overflow-hidden rounded-full bg-[#f6f6f6]">
@@ -188,7 +189,7 @@ export function CategoryMegaMenu({
                       className="object-contain p-3 transition-transform duration-200 group-hover/item:scale-105"
                     />
                     <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-[#1a73e8] text-white">
-                      ↗
+                      <ArrowUpRight className="h-3.5 w-3.5" />
                     </div>
                   </div>
                   <div className="mt-4 line-clamp-2 max-w-[132px] text-[16px] leading-6 text-[#222]">

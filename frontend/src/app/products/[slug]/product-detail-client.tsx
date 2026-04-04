@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronRight, ExternalLink, Heart, Minus, Play, Plus, Share2, ShieldCheck, ShoppingCart, Star, X } from "lucide-react";
+import { ArrowLeft, BadgeDollarSign, ChevronRight, CreditCard, ExternalLink, Heart, Minus, Play, Plus, Share2, ShieldCheck, ShoppingCart, Smartphone, Star, X, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
@@ -240,20 +240,17 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const paymentMethods = [
     {
       label: "PayPal",
-      icon: "https://img.icons8.com/?size=100&id=13611&format=png&color=000000",
-      alt: "Icône PayPal",
+      icon: BadgeDollarSign,
     },
     {
       label: "Mobile Money",
-      icon: "https://img.icons8.com/?size=100&id=YsVvEs0F7slI&format=png&color=000000",
-      alt: "Icône Mobile Money",
+      icon: Smartphone,
     },
     {
       label: "Carte bancaire",
-      icon: "https://img.icons8.com/?size=100&id=44779&format=png&color=000000",
-      alt: "Icône carte bancaire",
+      icon: CreditCard,
     },
-  ];
+  ] satisfies Array<{ label: string; icon: LucideIcon }>;
   const formatMoney = (amount: number) => {
     const localizedAmount = amount * selectedCurrency.rateFromUsd;
 
@@ -1131,8 +1128,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               <div className="mt-5 grid gap-3">
                 {paymentMethods.map((method) => (
                   <div key={method.label} className="flex items-center gap-3 bg-[#fafafa] px-4 py-3">
-                    <div className="relative h-8 w-8 overflow-hidden rounded-full bg-white">
-                      <Image src={method.icon} alt={method.alt} fill sizes="32px" className="object-contain p-1" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#221813] ring-1 ring-[#ece8e2]">
+                      <method.icon className="h-4.5 w-4.5" />
                     </div>
                     <div className="text-[14px] font-semibold text-[#221813]">{method.label}</div>
                   </div>

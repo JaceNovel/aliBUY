@@ -50,19 +50,24 @@ export function ScrollNavbar({ countryCode, countryLabel, currencyCode, flagEmoj
         isVisible ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-full opacity-0",
       ].join(" ")}
     >
-      <div className="mx-auto max-w-[1880px] px-5 lg:px-8">
-        <div className="flex min-h-[64px] items-center justify-between gap-4 border-b border-[#dadada] sm:min-h-[78px] sm:gap-6">
-          <div className="flex min-w-0 items-center gap-4 sm:gap-10">
-            <Link href="/" className="inline-flex shrink-0 items-center gap-3 text-[#ff6a00]">
+      <div className="mx-auto max-w-[1880px] px-4 lg:px-6 xl:px-8">
+        <div className="flex min-h-[64px] items-center justify-between gap-3 border-b border-[#dadada] sm:min-h-[78px] xl:gap-5 2xl:gap-6">
+          <div className="flex min-w-0 flex-1 items-center gap-4 xl:gap-6 2xl:gap-10">
+            <Link href="/" className="inline-flex shrink-0 items-center gap-2.5 text-[#ff6a00] xl:gap-3">
               <Image src={SITE_LOGO_PATH} alt={`${SITE_NAME} logo`} width={44} height={44} className="h-10 w-10 object-contain sm:h-11 sm:w-11" priority />
-              <span className="text-[20px] font-bold tracking-[-0.05em] sm:text-[28px]">AfriPay</span>
+              <span className="text-[20px] font-bold tracking-[-0.05em] sm:text-[24px] 2xl:text-[28px]">AfriPay</span>
             </Link>
-            <nav className="hidden items-center gap-10 text-[16px] font-medium text-[#222] xl:flex">
-              <CategoryMegaMenu categories={categories} languageCode={languageCode} triggerClassName="inline-flex h-[78px] items-center gap-3 border-b-2 border-transparent pr-2 hover:border-[#222]" />
+            <nav className="hidden min-w-0 flex-1 items-center gap-3 text-[14px] font-medium text-[#222] xl:flex xl:gap-4 2xl:gap-8 2xl:text-[16px]">
+              <CategoryMegaMenu
+                categories={categories}
+                languageCode={languageCode}
+                triggerClassName="inline-flex h-[78px] min-w-0 shrink items-center gap-2 border-b-2 border-transparent pr-2 whitespace-nowrap hover:border-[#222] xl:max-w-[260px] 2xl:max-w-none"
+                widthClassName="w-[min(1220px,calc(100vw-48px))]"
+              />
               <OrderProtectionMenu
                 languageCode={languageCode}
-                triggerClassName="inline-flex h-[78px] items-center border-b-2 border-transparent hover:border-[#222]"
-                widthClassName="w-[1120px]"
+                triggerClassName="inline-flex h-[78px] min-w-0 items-center border-b-2 border-transparent whitespace-nowrap hover:border-[#222]"
+                widthClassName="w-[min(1120px,calc(100vw-48px))]"
               />
             </nav>
           </div>
@@ -76,7 +81,7 @@ export function ScrollNavbar({ countryCode, countryLabel, currencyCode, flagEmoj
             </Link>
           </div>
 
-          <div className="hidden items-center gap-7 xl:flex">
+          <div className="hidden shrink-0 items-center gap-4 xl:flex 2xl:gap-7">
             <DeliveryAddressPopover
               countryCode={countryCode}
               countryLabel={countryLabel}
@@ -88,15 +93,15 @@ export function ScrollNavbar({ countryCode, countryLabel, currencyCode, flagEmoj
 
             <LanguageSelectorPopover languageCode={languageCode} languageLabel={languageLabel} />
 
-            <HeaderActionGroup className="flex items-center gap-6 text-[#222]" iconClassName="h-6 w-6" user={user} />
+            <HeaderActionGroup className="flex items-center gap-4 text-[#222] 2xl:gap-6" iconClassName="h-5 w-5 2xl:h-6 2xl:w-6" user={user} />
           </div>
         </div>
 
-        <div className="hidden min-h-[54px] items-center justify-between gap-6 border-t border-[#efefef] text-[16px] text-[#222] xl:flex">
+        <div className="hidden min-h-[50px] items-center justify-between gap-6 border-t border-[#efefef] text-[15px] text-[#222] xl:flex 2xl:min-h-[54px] 2xl:text-[16px]">
           <div />
-          <div className="flex items-center gap-10">
+          <div className="flex items-center gap-6 2xl:gap-10">
             <SupportMenu triggerLabel={messages.nav.support} className="transition hover:text-[#ff6a00]" />
-            <UnavailableLink label={messages.nav.appExtension} message={messages.unavailable.message} className="text-[16px] text-[#222]" />
+            <UnavailableLink label={messages.nav.appExtension} message={messages.unavailable.message} className="text-[15px] text-[#222] 2xl:text-[16px]" />
           </div>
         </div>
       </div>
