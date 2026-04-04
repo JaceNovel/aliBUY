@@ -367,6 +367,8 @@ const PURCHASE_ORDERS_BLOB_PATHNAME = "sourcing/alibaba-purchase-orders.json";
 const RECEPTIONS_PATH = path.join(ROOT_DIR, "alibaba-receptions.json");
 const RECEPTIONS_BLOB_PATHNAME = "sourcing/alibaba-receptions.json";
 const BLOB_ACCESS_MODE = getVercelBlobAccessMode();
+const BLOB_READ_ACCESS_MODES: Array<"public" | "private"> =
+  BLOB_ACCESS_MODE === "private" ? ["private", "public"] : ["public", "private"];
 type EncryptedField = "appSecret" | "accessToken" | "refreshToken";
 
 type EncryptedPayload = {
@@ -416,21 +418,32 @@ async function readJsonBlob<T>(pathname: string, fallback: T): Promise<T> {
     return fallback;
   }
 
-  try {
-    const blob = await get(pathname, {
-      access: BLOB_ACCESS_MODE,
-      useCache: false,
-    });
+  const readErrors: unknown[] = [];
 
-    if (!blob?.stream) {
-      await writeJsonBlob(pathname, fallback);
-      return fallback;
+  try {
+    for (const access of BLOB_READ_ACCESS_MODES) {
+      try {
+        const blob = await get(pathname, {
+          access,
+          useCache: false,
+        });
+
+        if (!blob?.stream) {
+          continue;
+        }
+
+        const raw = await new Response(blob.stream).text();
+        return JSON.parse(raw) as T;
+      } catch (error) {
+        readErrors.push(error);
+      }
     }
 
-    const raw = await new Response(blob.stream).text();
-    return JSON.parse(raw) as T;
+    await writeJsonBlob(pathname, fallback);
+    return fallback;
   } catch (error) {
-    console.warn(`[alibaba-operations-store] unable to read blob snapshot ${pathname}`, error);
+    const details = readErrors.length > 0 ? readErrors : [error];
+    console.warn(`[alibaba-operations-store] unable to read blob snapshot ${pathname}`, details);
     return fallback;
   }
 }
