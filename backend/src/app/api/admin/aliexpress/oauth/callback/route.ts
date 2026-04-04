@@ -33,6 +33,7 @@ export async function GET(request: Request) {
       accountId,
       code,
       redirectUri: oauthState?.redirectUri,
+      fallbackAccount: oauthState?.fallbackAccount,
     });
     adminUrl.searchParams.set("oauth", "success");
     return Response.redirect(adminUrl, 302);

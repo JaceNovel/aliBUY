@@ -634,13 +634,59 @@ function shouldTryAliExpressOAuthAlternateEndpoint(responseBody: unknown) {
     || message === "creation failed";
 }
 
-function encodeAlibabaOAuthState(input: { accountId: string; redirectUri: string }) {
-  return `${encodeURIComponent(input.accountId)}|${encodeURIComponent(input.redirectUri)}`;
+type AlibabaOAuthStateFallbackAccount = {
+  id: string;
+  name: string;
+  email: string;
+  accountPlatform: AlibabaSupplierAccount["accountPlatform"];
+  countryCode: string;
+  defaultDispatchLocation: string;
+  appKey?: string;
+  authorizeUrl?: string;
+  tokenUrl?: string;
+  refreshUrl?: string;
+  apiBaseUrl?: string;
+};
+
+type AlibabaOAuthStatePayload = {
+  version: 2;
+  accountId: string;
+  redirectUri?: string;
+  fallbackAccount?: AlibabaOAuthStateFallbackAccount;
+};
+
+function encodeAlibabaOAuthState(input: {
+  accountId: string;
+  redirectUri: string;
+  fallbackAccount?: AlibabaOAuthStateFallbackAccount;
+}) {
+  const payload: AlibabaOAuthStatePayload = {
+    version: 2,
+    accountId: input.accountId,
+    redirectUri: input.redirectUri,
+    fallbackAccount: input.fallbackAccount,
+  };
+
+  return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
 }
 
 export function decodeAlibabaOAuthState(state?: string | null) {
   if (!state) {
     return null;
+  }
+
+  try {
+    const decoded = Buffer.from(state, "base64url").toString("utf8");
+    const parsed = JSON.parse(decoded) as Partial<AlibabaOAuthStatePayload>;
+    if (parsed && typeof parsed.accountId === "string") {
+      return {
+        accountId: parsed.accountId,
+        redirectUri: typeof parsed.redirectUri === "string" ? parsed.redirectUri : undefined,
+        fallbackAccount: parsed.fallbackAccount,
+      };
+    }
+  } catch {
+    // Fall back to the legacy pipe-delimited state format.
   }
 
   const [encodedAccountId, ...encodedRedirectUriParts] = state.split("|");
@@ -652,11 +698,13 @@ export function decodeAlibabaOAuthState(state?: string | null) {
     return {
       accountId: decodeURIComponent(encodedAccountId),
       redirectUri: encodedRedirectUriParts.length > 0 ? decodeURIComponent(encodedRedirectUriParts.join("|")) : undefined,
+      fallbackAccount: undefined,
     };
   } catch {
     return {
       accountId: state,
       redirectUri: undefined,
+      fallbackAccount: undefined,
     };
   }
 }
@@ -3444,6 +3492,27 @@ function shouldAllowLooseAliExpressMatches(query: string) {
   return queryTokens.length <= 1;
 }
 
+function shouldFallbackToLooseAliExpressMatches(input: {
+  query: string;
+  desiredCount: number;
+  strictMatchCount: number;
+  looseMatchCount: number;
+}) {
+  if (shouldAllowLooseAliExpressMatches(input.query)) {
+    return true;
+  }
+
+  if (input.looseMatchCount < 3) {
+    return false;
+  }
+
+  if (input.strictMatchCount === 0) {
+    return true;
+  }
+
+  return input.strictMatchCount < Math.min(3, input.desiredCount) && input.looseMatchCount >= input.desiredCount;
+}
+
 function buildAliExpressNoResultMessage(input: {
   query: string;
   preferredShipToCountry?: string;
@@ -3903,19 +3972,27 @@ async function searchAliExpressProducts(input: {
     .filter((entry) => !entry.strictMatch)
     .sort((left, right) => right.score - left.score)
     .map((entry) => entry.product);
-  const foundProducts = shouldAllowLooseAliExpressMatches(input.query)
+  const allowLooseMatches = shouldFallbackToLooseAliExpressMatches({
+    query: input.query,
+    desiredCount,
+    strictMatchCount: strictMatches.length,
+    looseMatchCount: looseMatches.length,
+  });
+  const foundProducts = allowLooseMatches
     ? [...strictMatches, ...looseMatches].slice(0, desiredCount)
     : strictMatches.slice(0, desiredCount);
 
-  console.error("[aliexpress/import] no usable DS products", {
-    query: input.query,
-    queryCandidates,
-    directProductId,
-    searchContexts,
-    lastResponse,
-    strictMatches: strictMatches.length,
-    looseMatches: looseMatches.length,
-  });
+  if (foundProducts.length === 0) {
+    console.error("[aliexpress/import] no usable DS products", {
+      query: input.query,
+      queryCandidates,
+      directProductId,
+      searchContexts,
+      lastResponse,
+      strictMatches: strictMatches.length,
+      looseMatches: looseMatches.length,
+    });
+  }
 
   return {
     ok: foundProducts.length > 0,
@@ -6088,6 +6165,19 @@ export async function buildAlibabaAuthorizationUrl(input: {
   authorizeUrl.searchParams.set("state", encodeAlibabaOAuthState({
     accountId: input.account.id,
     redirectUri: input.redirectUri,
+    fallbackAccount: {
+      id: input.account.id,
+      name: input.account.name,
+      email: input.account.email,
+      accountPlatform: input.account.accountPlatform,
+      countryCode: input.account.countryCode,
+      defaultDispatchLocation: input.account.defaultDispatchLocation,
+      appKey: input.account.appKey,
+      authorizeUrl: input.account.authorizeUrl,
+      tokenUrl: input.account.tokenUrl,
+      refreshUrl: input.account.refreshUrl,
+      apiBaseUrl: input.account.apiBaseUrl,
+    },
   }));
   if (isAliExpressAccount(input.account)) {
     authorizeUrl.searchParams.set("force_auth", "true");
@@ -6096,38 +6186,67 @@ export async function buildAlibabaAuthorizationUrl(input: {
   return authorizeUrl.toString();
 }
 
-export async function exchangeAlibabaOAuthCode(input: { accountId: string; code: string; redirectUri?: string }) {
+export async function exchangeAlibabaOAuthCode(input: {
+  accountId: string;
+  code: string;
+  redirectUri?: string;
+  fallbackAccount?: Partial<AlibabaSupplierAccount>;
+}) {
   const accounts = await getAlibabaSupplierAccounts();
   const persistedAccount = accounts.find((entry) => entry.id === input.accountId);
   const envCredentials = getEnvCredentials();
-  let account = persistedAccount;
-  let credentials = getAccountCredentials(account);
+  const timestamp = new Date().toISOString();
+  const restoredAccount = !persistedAccount && input.fallbackAccount
+    ? {
+        id: input.accountId,
+        name: input.fallbackAccount.name ?? "AliExpress OAuth",
+        email: input.fallbackAccount.email ?? "oauth@aliexpress.local",
+        accountPlatform: input.fallbackAccount.accountPlatform ?? "seller",
+        countryCode: input.fallbackAccount.countryCode ?? "CI",
+        defaultDispatchLocation: input.fallbackAccount.defaultDispatchLocation ?? "CN",
+        status: "needs_auth" as const,
+        appKey: input.fallbackAccount.appKey,
+        appSecret: undefined,
+        authorizeUrl: input.fallbackAccount.authorizeUrl,
+        tokenUrl: input.fallbackAccount.tokenUrl,
+        refreshUrl: input.fallbackAccount.refreshUrl,
+        apiBaseUrl: input.fallbackAccount.apiBaseUrl,
+        isActive: true,
+        hasAppSecret: false,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      } satisfies AlibabaSupplierAccount
+    : null;
+  let account = persistedAccount ?? restoredAccount ?? null;
+  let credentials = getAccountCredentials(account ?? undefined);
 
   if ((!account || !credentials) && envCredentials) {
-    const timestamp = new Date().toISOString();
     account = {
+      ...(account ?? {}),
       id: input.accountId,
-      name: "AliExpress OAuth",
-      email: "oauth@aliexpress.local",
-      accountPlatform: "seller",
-      countryCode: "CI",
-      defaultDispatchLocation: "CN",
+      name: account?.name ?? "AliExpress OAuth",
+      email: account?.email ?? "oauth@aliexpress.local",
+      accountPlatform: account?.accountPlatform ?? "seller",
+      countryCode: account?.countryCode ?? "CI",
+      defaultDispatchLocation: account?.defaultDispatchLocation ?? "CN",
       status: "needs_auth",
-      appKey: envCredentials.appKey,
+      appKey: account?.appKey ?? envCredentials.appKey,
       appSecret: envCredentials.appSecret,
-      authorizeUrl: envCredentials.authorizeUrl,
-      tokenUrl: envCredentials.tokenUrl,
-      refreshUrl: envCredentials.refreshUrl,
-      apiBaseUrl: envCredentials.apiBaseUrl,
+      authorizeUrl: account?.authorizeUrl ?? envCredentials.authorizeUrl,
+      tokenUrl: account?.tokenUrl ?? envCredentials.tokenUrl,
+      refreshUrl: account?.refreshUrl ?? envCredentials.refreshUrl,
+      apiBaseUrl: account?.apiBaseUrl ?? envCredentials.apiBaseUrl,
       isActive: true,
       hasAppSecret: Boolean(envCredentials.appSecret),
-      createdAt: timestamp,
+      createdAt: account?.createdAt ?? timestamp,
       updatedAt: timestamp,
     };
     credentials = getAccountCredentials(account);
-    console.warn("[aliexpress/oauth] supplier account missing at callback; using env credential fallback", {
-      accountId: input.accountId,
-    });
+    if (!persistedAccount && !restoredAccount) {
+      console.warn("[aliexpress/oauth] supplier account missing at callback; using env credential fallback", {
+        accountId: input.accountId,
+      });
+    }
   }
 
   if (!account || !credentials) {
