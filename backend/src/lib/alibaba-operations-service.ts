@@ -58,6 +58,24 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+const IMPORT_CATEGORY_ENRICHMENT_LIMIT = 8;
+const IMPORT_CATEGORY_ENRICHMENT_TIMEOUT_MS = 1500;
+
+async function resolveAlibabaCategoryInfoForImport(rawPayload: unknown, index: number) {
+  if (index >= IMPORT_CATEGORY_ENRICHMENT_LIMIT) {
+    return null;
+  }
+
+  return await Promise.race([
+    resolveAlibabaIcbuCategoryInfo({
+      rawPayload,
+    }).catch(() => null),
+    new Promise<null>((resolve) => {
+      setTimeout(() => resolve(null), IMPORT_CATEGORY_ENRICHMENT_TIMEOUT_MS);
+    }),
+  ]);
+}
+
 function formatAliExpressDsOrderCreateFailure(errorCode?: string, errorMessage?: string) {
   const code = String(errorCode ?? "").trim();
   const message = String(errorMessage ?? "").trim();
@@ -1006,10 +1024,8 @@ export async function runAlibabaCatalogImport(input: {
       return counts;
     }, { price: 0, moq: 0, weight: 0, dimensions: 0 });
 
-    const importedProducts = await Promise.all(freshProducts.map(async (product) => {
-      const liveCategoryInfo = await resolveAlibabaIcbuCategoryInfo({
-        rawPayload: product.rawPayload,
-      });
+    const importedProducts = await Promise.all(freshProducts.map(async (product, index) => {
+      const liveCategoryInfo = await resolveAlibabaCategoryInfoForImport(product.rawPayload, index);
       const enrichedRawPayload = product.rawPayload && typeof product.rawPayload === "object" && !Array.isArray(product.rawPayload)
         ? {
             ...(product.rawPayload as Record<string, unknown>),
