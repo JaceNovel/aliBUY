@@ -18,6 +18,26 @@ export type DraftOrderInput = {
   items?: DraftOrderItem[];
 };
 
+export type AliExpressDsDraft = {
+  ds_extend_request: {
+    payment: {
+      pay_currency: string;
+      try_to_pay: string;
+    };
+  };
+  param_place_order_request4_open_api_d_t_o: {
+    out_order_id: string;
+    logistics_address: Record<string, string>;
+    product_items: Array<{
+      product_id: string;
+      sku_attr: string;
+      product_count: string;
+      logistics_service_name: string;
+      order_memo: string;
+    }>;
+  };
+};
+
 function asString(value: unknown) {
   return typeof value === "string" ? value : value == null ? "" : String(value);
 }
@@ -55,7 +75,7 @@ export function normalizeAliExpressDsAddress(address: Record<string, unknown> | 
   }).filter(([, value]) => value !== ""));
 }
 
-export function buildAliExpressDsDraft(order: DraftOrderInput) {
+export function buildAliExpressDsDraft(order: DraftOrderInput): AliExpressDsDraft {
   const items = Array.isArray(order.items) ? order.items : [];
   if (items.length === 0) {
     throw new Error("Aucun item a commander.");
@@ -222,4 +242,40 @@ export function applyResolvedAliExpressDsLogistics(
       product_items: items,
     },
   };
+}
+
+export function isAliExpressDsDraft(value: unknown): value is AliExpressDsDraft {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  const dsExtendRequest = record.ds_extend_request;
+  const placeOrderRequest = record.param_place_order_request4_open_api_d_t_o;
+
+  if (!dsExtendRequest || typeof dsExtendRequest !== "object" || Array.isArray(dsExtendRequest)) {
+    return false;
+  }
+
+  if (!placeOrderRequest || typeof placeOrderRequest !== "object" || Array.isArray(placeOrderRequest)) {
+    return false;
+  }
+
+  const payment = (dsExtendRequest as Record<string, unknown>).payment;
+  const outOrderId = (placeOrderRequest as Record<string, unknown>).out_order_id;
+  const logisticsAddress = (placeOrderRequest as Record<string, unknown>).logistics_address;
+  const productItems = (placeOrderRequest as Record<string, unknown>).product_items;
+
+  return Boolean(
+    payment
+      && typeof payment === "object"
+      && !Array.isArray(payment)
+      && typeof (payment as Record<string, unknown>).pay_currency === "string"
+      && typeof (payment as Record<string, unknown>).try_to_pay === "string"
+      && typeof outOrderId === "string"
+      && logisticsAddress
+      && typeof logisticsAddress === "object"
+      && !Array.isArray(logisticsAddress)
+      && Array.isArray(productItems),
+  );
 }

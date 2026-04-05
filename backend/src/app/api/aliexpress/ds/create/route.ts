@@ -1,8 +1,10 @@
 import type { AlibabaPurchaseOrder } from "../../../../../lib/alibaba-operations";
 import {
   applyResolvedAliExpressDsLogistics,
+  type AliExpressDsDraft,
   buildAliExpressDsDraft,
   getAliExpressDsFreightFailure,
+  isAliExpressDsDraft,
   type DraftOrderInput,
   runAliExpressDsFreightPrecheck,
 } from "../../../../../lib/aliexpress-ds-automation";
@@ -64,8 +66,8 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const order = body?.order && typeof body.order === "object" ? body.order as DraftOrderInput : null;
-    const customDraft = body?.custom_draft && typeof body.custom_draft === "object"
-      ? body.custom_draft as Record<string, unknown>
+    const customDraft = isAliExpressDsDraft(body?.custom_draft)
+      ? body.custom_draft as AliExpressDsDraft
       : null;
 
     if (!order) {
