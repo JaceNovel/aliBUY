@@ -2130,7 +2130,7 @@ export async function getAlibabaIcbuProduct(input: {
 
   const credentials = await resolveAlibabaCredentialsForLiveCall();
   if (isAliExpressCredentials(credentials) && input.productId) {
-    return callAliExpressTopEndpoint("aliexpress.ds.product.get", {
+    const detailPayload = {
       ship_to_country: String(input.shipToCountry ?? process.env.ALIEXPRESS_DEFAULT_SHIP_TO_COUNTRY ?? "US").trim().toUpperCase(),
       product_id: String(input.productId),
       target_currency: String(input.targetCurrency ?? process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD").trim().toUpperCase(),
@@ -2139,10 +2139,33 @@ export async function getAlibabaIcbuProduct(input: {
       ...(String(input.provinceCode ?? "").trim() ? { province_code: String(input.provinceCode).trim() } : {}),
       ...(String(input.cityCode ?? "").trim() ? { city_code: String(input.cityCode).trim() } : {}),
       ...(String(input.bizModel ?? process.env.ALIEXPRESS_DS_BIZ_MODEL ?? "").trim() ? { biz_model: String(input.bizModel ?? process.env.ALIEXPRESS_DS_BIZ_MODEL).trim() } : {}),
+    };
+    const primaryResult = await callAliExpressTopEndpoint("aliexpress.ds.product.get", detailPayload, {
+      credentials,
+      method: "POST",
+    });
+
+    if (primaryResult.ok) {
+      return primaryResult;
+    }
+
+    const wholesaleLanguage = String(input.targetLanguage ?? process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "en_US")
+      .trim()
+      .split(/[_-]/)[0]
+      ?.toLowerCase() || "en";
+
+    const wholesaleResult = await callAliExpressTopEndpoint("aliexpress.ds.product.wholesale.get", {
+      ship_to_country: String(input.shipToCountry ?? process.env.ALIEXPRESS_DEFAULT_SHIP_TO_COUNTRY ?? "US").trim().toUpperCase(),
+      product_id: String(input.productId),
+      target_currency: String(input.targetCurrency ?? process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD").trim().toUpperCase(),
+      target_language: wholesaleLanguage,
+      remove_personal_benefit: String(input.removePersonalBenefit ?? false),
     }, {
       credentials,
       method: "POST",
     });
+
+    return wholesaleResult.ok ? wholesaleResult : primaryResult;
   }
 
   return callAlibabaEndpoint("/alibaba/icbu/product/get/v2", {

@@ -976,17 +976,33 @@ export async function runAlibabaCatalogImport(input: {
       preferredShipToCountry: "FR",
     });
 
-    if (!searchResult.ok) {
+    let resolvedProducts = searchResult.products;
+
+    if (manualDirectImport && resolvedProducts.length === 0 && directProductIdMatch?.[1]) {
+      const directSnapshot = await fetchAlibabaProductSnapshot({
+        sourceProductId: directProductIdMatch[1],
+        query: job.query,
+        shipToCountry: "FR",
+        targetCurrency: process.env.ALIEXPRESS_TARGET_CURRENCY ?? process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD",
+        targetLanguage: process.env.ALIEXPRESS_TARGET_LANGUAGE ?? process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "fr_FR",
+      }).catch(() => null);
+
+      if (directSnapshot) {
+        resolvedProducts = [directSnapshot];
+      }
+    }
+
+    if (!searchResult.ok && resolvedProducts.length === 0) {
       throw new Error(searchResult.errorMessage ?? "Recherche AliExpress impossible.");
     }
 
-    if (searchResult.products.length === 0) {
+    if (resolvedProducts.length === 0) {
       throw new Error(manualDirectImport
         ? "Aucun produit AliExpress n'a pu etre lu pour cet ID ou ce lien direct."
         : "Aucun produit live AliExpress n'a ete renvoye pour cette recherche.");
     }
 
-    const uniqueSearchProducts = searchResult.products
+    const uniqueSearchProducts = resolvedProducts
       .filter((product, index, products) => products.findIndex((entry) => entry.sourceProductId === product.sourceProductId) === index)
       .map((product) => normalizeSearchImportCandidate(product, job.query));
     const relevanceRankBySourceProductId = new Map(uniqueSearchProducts.map((product, index) => [product.sourceProductId, index]));
