@@ -62,7 +62,7 @@ export default async function LoginPage({
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_36%,#e8edf4_100%)] px-4 py-6 text-[#1d2738] sm:px-6 sm:py-10">
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-[1180px] items-center justify-center">
-        <section className="w-full max-w-[560px] rounded-[34px] border border-white/70 bg-white/88 px-6 py-8 shadow-[0_30px_90px_rgba(15,23,42,0.10)] backdrop-blur sm:px-10 sm:py-10">
+        <section className="w-full max-w-[560px] px-2 py-4 sm:px-0 sm:py-0">
           <div className="flex justify-center">
             <Link href="/" className="inline-flex flex-col items-center text-center">
               <Image src={SITE_LOGO_PATH} alt={`${SITE_NAME} logo`} width={82} height={82} className="h-20 w-20 object-contain" priority />

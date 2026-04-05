@@ -794,8 +794,8 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
                   : "Votre panier est bien conserve, mais vous devez vous inscrire avec le bouton Inscription ou vous connecter avant de continuer."}
               </div>
               <div className="mt-4 grid gap-3">
-                <Link href={registerBeforeCheckoutHref} className="inline-flex h-11 items-center justify-center rounded-full bg-[#ff6a00] px-5 text-[14px] font-semibold text-white transition hover:bg-[#eb6100]">
-                  {isEnglish ? "Sign up" : "Inscription"}
+                <Link href={loginBeforeCheckoutHref} className="inline-flex h-11 items-center justify-center rounded-full bg-[#ff6a00] px-5 text-[14px] font-semibold text-white transition hover:bg-[#eb6100]">
+                  {isEnglish ? "Sign in" : "Connexion"}
                 </Link>
                 <Link href={loginBeforeCheckoutHref} className="inline-flex h-11 items-center justify-center rounded-full border border-[#f2c6a5] bg-white px-5 text-[14px] font-semibold text-[#b45309] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
                   {isEnglish ? "I already have an account" : "J&apos;ai deja un compte"}
@@ -901,7 +901,7 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
             <div className="text-[11px] text-[#667085]">{selectedCount} article(s) · {selectedWeightKg.toFixed(2)} kg</div>
           </div>
           <Link href={isAuthenticated ? checkoutPath : registerBeforeCheckoutHref} className="inline-flex h-11 min-w-[128px] items-center justify-center rounded-full bg-[#f80632] px-4 text-[15px] font-bold text-white transition hover:bg-[#dc042c]">
-            {isAuthenticated ? `${isEnglish ? "Payment" : "Paiement"} (${selectedCount})` : isEnglish ? "Sign up" : "Inscription"}
+            {isAuthenticated ? `${isEnglish ? "Payment" : "Paiement"} (${selectedCount})` : isEnglish ? "Sign in" : "Connexion"}
           </Link>
         </div>
       </div>
