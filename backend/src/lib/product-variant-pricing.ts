@@ -628,6 +628,24 @@ export function deriveVariantGroupsFromPricing(rules: ProductVariantPrice[]) {
     .filter((group) => group.values.length > 1);
 }
 
+export function deriveVariantGroupsFromSkus(skus: ProductVariantSku[]) {
+  const groups = new Map<string, string[]>();
+
+  skus.forEach((sku) => {
+    Object.entries(normalizeSelection(sku.selections)).forEach(([label, value]) => {
+      const existing = groups.get(label) ?? [];
+      if (!existing.includes(value)) {
+        existing.push(value);
+        groups.set(label, existing);
+      }
+    });
+  });
+
+  return [...groups.entries()]
+    .map(([label, values]) => ({ label, values }))
+    .filter((group) => group.values.length > 1);
+}
+
 export function resolveVariantSku(product: Pick<ProductCatalogItem, "variantSkus">, selection?: VariantSelection) {
   const normalizedSelection = normalizeSelection(selection);
   const variantSkus = product.variantSkus ?? [];

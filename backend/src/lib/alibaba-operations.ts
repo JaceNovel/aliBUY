@@ -1,5 +1,5 @@
 import type { ProductCatalogItem, ProductPackageDimensions, ProductVariantPrice, ProductVariantSku } from "@/lib/products-data";
-import { deriveVariantGroupsFromPricing, extractAlibabaVariantPricing, extractAlibabaVariantSkus } from "@/lib/product-variant-pricing";
+import { deriveVariantGroupsFromPricing, deriveVariantGroupsFromSkus, extractAlibabaVariantPricing, extractAlibabaVariantSkus } from "@/lib/product-variant-pricing";
 import { resolveAlibabaMoq } from "@/lib/product-moq";
 import { sanitizeItemWeightGrams } from "@/lib/product-weight";
 import { convertUsdToFcfa } from "@/lib/alibaba-sourcing";
@@ -866,7 +866,12 @@ export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogIt
     fallback: item.moq,
   });
   const fallbackVariantGroups = deriveVariantGroupsFromPricing(variantPricing);
-  const resolvedVariantGroups = item.variantGroups.length > 0 ? item.variantGroups : fallbackVariantGroups;
+  const fallbackVariantGroupsFromSkus = deriveVariantGroupsFromSkus(variantSkus);
+  const resolvedVariantGroups = item.variantGroups.length > 0
+    ? item.variantGroups
+    : fallbackVariantGroups.length > 0
+      ? fallbackVariantGroups
+      : fallbackVariantGroupsFromSkus;
   const resolvedShortTitle = resolveAlibabaDisplayTitle({
     title: item.title,
     shortTitle: item.shortTitle,

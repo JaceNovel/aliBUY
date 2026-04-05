@@ -617,6 +617,8 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
             const primaryVariantLabel = variantEntries.length > 0
               ? variantEntries.map(([label, value]) => `${label}: ${value}`).join(" · ")
               : null;
+            const missingVariantLabels = item.missingVariantLabels ?? [];
+            const needsVariantSelection = missingVariantLabels.length > 0;
 
             return (
               <article key={cartKey} className={[
@@ -653,6 +655,11 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
                         <div className="mt-1 truncate text-[12px] text-[#667085]">{primaryVariantLabel} ›</div>
                       ) : null}
                       <div className="mt-1.5 text-[14px] font-black tracking-[-0.03em] text-[#1f2937]">{formatSourcingAmount(item.finalLinePriceFcfa, { currencyCode, locale })}</div>
+                      {needsVariantSelection ? (
+                        <Link href={`/products/${encodeURIComponent(item.slug)}`} className="mt-1 inline-flex w-fit items-center rounded-[8px] border border-[#ffd4b5] bg-[#fff4ea] px-2 py-1 text-[10px] font-bold text-[#c85a11]">
+                          Choisir les options: {missingVariantLabels.join(", ")}
+                        </Link>
+                      ) : null}
                       <div className="mt-1 inline-flex w-fit items-center gap-1 rounded-[8px] border border-[#ffd5dc] bg-[#fff7f8] px-2 py-0.5 text-[10px] font-bold text-[#f80632]">
                         <TicketPercent className="h-3 w-3" />
                         Éligible coupons
@@ -689,6 +696,16 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
                     <div className="text-[12px] text-[#667085] sm:text-[14px]">Livraison : {shipping?.deliveryWindow ?? "5-10 jours"}</div>
                     <div className="text-[12px] text-[#667085] sm:text-[14px]">Courrier : Colissimo, Mondial Relay, Colis Privé, etc.</div>
                     <div className="text-[12px] text-[#475467] sm:text-[14px]">Poids : {weightLabel} · Volume : {volumeLabel}</div>
+                    {needsVariantSelection ? (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <div className="rounded-full bg-[#fff4ea] px-3 py-1 text-[12px] font-semibold text-[#c85a11] ring-1 ring-[#ffd4b5]">
+                          Options requises: {missingVariantLabels.join(", ")}
+                        </div>
+                        <Link href={`/products/${encodeURIComponent(item.slug)}`} className="inline-flex h-8 items-center justify-center rounded-full border border-[#f2c6a5] bg-white px-3 text-[12px] font-semibold text-[#b45309] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
+                          Choisir maintenant
+                        </Link>
+                      </div>
+                    ) : null}
                     {variantEntries.length > 0 ? (
                       <div className="mt-1 flex flex-wrap gap-2">
                         {variantEntries.map(([label, value]) => (

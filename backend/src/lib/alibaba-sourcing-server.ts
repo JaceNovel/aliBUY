@@ -98,6 +98,8 @@ export async function createAlibabaSourcingQuote(
 
       const selectedVariants = resolveProductVariantSelection(product, item.selectedVariants);
       const selectionLabel = formatVariantSelection(selectedVariants);
+      const requiredVariantLabels = product.variantGroups.map((group) => group.label);
+      const missingVariantLabels = requiredVariantLabels.filter((label) => !selectedVariants[label]);
       const metrics = getProductSourcingMetrics(product, {
         quantity: (product.variantPricing?.some((rule) => Object.entries(rule.selections).every(([label, value]) => selectedVariants[label] === value)) ?? false)
           ? item.quantity
@@ -114,6 +116,8 @@ export async function createAlibabaSourcingQuote(
         quantity: item.quantity,
         selectedVariants,
         selectionLabel,
+        requiredVariantLabels,
+        missingVariantLabels,
         matchedVariantSku,
         ...metrics,
         marginAmountFcfa,
@@ -133,6 +137,9 @@ export async function createAlibabaSourcingQuote(
     quantity: item.quantity,
     selectedVariants: item.selectedVariants,
     selectionLabel: item.selectionLabel,
+    requiredVariantLabels: item.requiredVariantLabels,
+    missingVariantLabels: item.missingVariantLabels,
+    variantSelectionComplete: item.missingVariantLabels.length === 0,
     supplierSkuId: item.matchedVariantSku?.skuId,
     supplierSkuCode: item.matchedVariantSku?.skuCode,
     weightKg: item.weightKg,

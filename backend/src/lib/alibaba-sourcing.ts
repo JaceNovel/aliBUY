@@ -46,6 +46,9 @@ export type CartComputedItem = {
   quantity: number;
   selectedVariants?: VariantSelection;
   selectionLabel?: string;
+  requiredVariantLabels?: string[];
+  missingVariantLabels?: string[];
+  variantSelectionComplete?: boolean;
   supplierSkuId?: string;
   supplierSkuCode?: string;
   weightKg: number;

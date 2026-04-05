@@ -226,6 +226,10 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
 
   const selectedOption = useMemo(() => shippingOptions.find((option) => option.key === selectedShipping) ?? shippingOptions[0] ?? null, [selectedShipping, shippingOptions]);
   const baseTotalPrice = quote.cartProductsTotalFcfa + (selectedOption?.priceFcfa ?? 0);
+  const itemsMissingVariants = useMemo(
+    () => quote.items.filter((item) => (item.missingVariantLabels?.length ?? 0) > 0),
+    [quote.items],
+  );
   const totalPrice = appliedPromo?.baseTotalFcfa === baseTotalPrice ? appliedPromo.finalTotalFcfa : baseTotalPrice;
   const quickAddress = useMemo(() => buildAddressQuickInput(form), [form]);
   const activeAddressSummary = quickAddress || "Ajoutez une adresse de livraison";
@@ -561,6 +565,11 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
       return;
     }
 
+    if (itemsMissingVariants.length > 0) {
+      setErrorMessage(`Choisissez d'abord les variantes requises pour ${itemsMissingVariants.map((item) => item.title).join(", ")}.`);
+      return;
+    }
+
     if (selectedPaymentMethod === "pay_on_delivery") {
       if (isEuropeanUnionDestination) {
         setErrorMessage("Le paiement après livraison n'est pas disponible pour les pays de l'Union européenne.");
@@ -738,6 +747,11 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
           </div>
 
           {errorMessage ? <div className="mt-4 rounded-[18px] bg-[#fde8e8] px-4 py-4 text-[13px] font-semibold text-[#b42318]">{errorMessage}</div> : null}
+          {itemsMissingVariants.length > 0 ? (
+            <div className="mt-4 rounded-[18px] bg-[#fff4ea] px-4 py-4 text-[13px] font-semibold text-[#b45309]">
+              Variantes manquantes: {itemsMissingVariants.map((item) => `${item.title} (${(item.missingVariantLabels ?? []).join(", ")})`).join(" · ")}
+            </div>
+          ) : null}
           {locationFeedback ? <div className="mt-4 rounded-[18px] bg-[#eef6ff] px-4 py-4 text-[13px] font-semibold text-[#1d4f91]">{locationFeedback}</div> : null}
         </section>
 
@@ -834,6 +848,8 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
           <div className="mt-4 space-y-3 border-t border-[#eef2f6] pt-4 sm:mt-5 sm:space-y-4 sm:pt-5">
             {quote.items.map((item) => {
               const quantity = items.find((entry) => entry.slug === item.slug && JSON.stringify(entry.selectedVariants ?? {}) === JSON.stringify(item.selectedVariants ?? {}))?.quantity ?? item.quantity;
+              const missingVariantLabels = item.missingVariantLabels ?? [];
+              const needsVariantSelection = missingVariantLabels.length > 0;
 
               return (
                 <article key={item.cartKey ?? `${item.slug}-${item.selectionLabel ?? item.title}`} className="flex gap-3 sm:gap-4">
@@ -843,6 +859,16 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
                   <div className="min-w-0 flex-1">
                     <div className="line-clamp-2 text-[15px] font-semibold leading-5 tracking-[-0.03em] text-[#111827] sm:text-[18px] sm:leading-6">{item.title}</div>
                     {item.selectionLabel ? <div className="mt-1 line-clamp-1 text-[12px] text-[#667085] sm:text-[13px]">{item.selectionLabel}</div> : null}
+                    {needsVariantSelection ? (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <div className="rounded-full bg-[#fff4ea] px-3 py-1 text-[11px] font-semibold text-[#c85a11] ring-1 ring-[#ffd4b5] sm:text-[12px]">
+                          Choisir: {missingVariantLabels.join(", ")}
+                        </div>
+                        <Link href={`/products/${encodeURIComponent(item.slug)}`} className="inline-flex h-8 items-center justify-center rounded-full border border-[#f2c6a5] bg-white px-3 text-[11px] font-semibold text-[#b45309] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:text-[12px]">
+                          Ouvrir la fiche produit
+                        </Link>
+                      </div>
+                    ) : null}
                     <div className="mt-1.5 text-[13px] font-semibold text-[#111827] sm:mt-2 sm:text-[14px]">{formatSourcingAmount(item.finalUnitPriceFcfa, { currencyCode, locale })}</div>
                     <div className="mt-2 flex items-center gap-2.5 sm:mt-3 sm:gap-3">
                       <button type="button" onClick={() => updateItem(item.cartKey ?? item.slug, quantity - 1)} className="inline-flex h-7 w-7 items-center justify-center border border-[#d0d5dd] bg-white text-[#111827] transition hover:border-[#111827] sm:h-8 sm:w-8">
@@ -923,7 +949,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
             </div>
           </div>
 
-          <button type="button" onClick={submitOrder} disabled={isSubmitting || isLoading || !selectedOption} className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-full bg-[#f00633] px-4 text-[14px] font-bold text-white transition hover:bg-[#d9042d] disabled:cursor-not-allowed disabled:opacity-70 sm:mt-6 sm:h-14 sm:px-6 sm:text-[16px]">
+          <button type="button" onClick={submitOrder} disabled={isSubmitting || isLoading || !selectedOption || itemsMissingVariants.length > 0} className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-full bg-[#f00633] px-4 text-[14px] font-bold text-white transition hover:bg-[#d9042d] disabled:cursor-not-allowed disabled:opacity-70 sm:mt-6 sm:h-14 sm:px-6 sm:text-[16px]">
             {isSubmitting ? "Création en cours..." : selectedPaymentMethod === "pay_on_delivery" ? "Commander sans payer" : "Commander"}
           </button>
 

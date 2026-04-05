@@ -2,6 +2,7 @@ import { cache } from "react";
 
 import { API_URL, buildApiUrl } from "@/lib/api";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
+import { deriveVariantGroupsFromPricing, deriveVariantGroupsFromSkus } from "@/lib/product-variant-pricing";
 import { type ProductCatalogItem } from "@/lib/products-data";
 
 async function fetchRemoteCatalogProducts() {
@@ -36,43 +37,53 @@ export const getCatalogProducts = cache(async function getCatalogProducts(): Pro
   return importedProducts
     .filter((product) => product.publishedToSite && product.status !== "archived")
     .sort((left, right) => (right.publishedAt ?? right.updatedAt).localeCompare(left.publishedAt ?? left.updatedAt))
-    .map((product) => ({
-      slug: product.slug,
-      title: product.title,
-      shortTitle: product.shortTitle,
-      keywords: product.keywords,
-      image: product.image,
-      gallery: product.gallery,
-      videoUrl: product.videoUrl,
-      videoPoster: product.videoPoster,
-      packaging: product.packaging,
-      packageDimensionsCm: product.packageDimensionsCm,
-      itemWeightGrams: product.itemWeightGrams,
-      lotCbm: product.lotCbm,
-      minUsd: product.minUsd,
-      maxUsd: product.maxUsd,
-      moq: product.moq,
-      moqVerified: product.moqVerified,
-      unit: product.unit,
-      badge: product.badge,
-      supplierName: product.supplierName,
-      supplierLocation: product.supplierLocation,
-      responseTime: product.responseTime,
-      yearsInBusiness: product.yearsInBusiness,
-      transactionsLabel: product.transactionsLabel,
-      soldLabel: product.soldLabel,
-      customizationLabel: product.customizationLabel,
-      shippingLabel: product.shippingLabel,
-      chinaLocalFreightFcfa: product.chinaLocalFreightFcfa,
-      chinaLocalFreightLabel: product.chinaLocalFreightLabel,
-      overview: product.overview,
-      variantGroups: product.variantGroups,
-      variantPricing: product.variantPricing,
-      variantSkus: product.variantSkus,
-      tiers: product.tiers,
-      specs: product.specs,
-      rawPayload: product.rawPayload,
-    }));
+    .map((product) => {
+      const fallbackVariantGroups = deriveVariantGroupsFromPricing(product.variantPricing ?? []);
+      const fallbackVariantGroupsFromSkus = deriveVariantGroupsFromSkus(product.variantSkus ?? []);
+      const variantGroups = product.variantGroups.length > 0
+        ? product.variantGroups
+        : fallbackVariantGroups.length > 0
+          ? fallbackVariantGroups
+          : fallbackVariantGroupsFromSkus;
+
+      return {
+        slug: product.slug,
+        title: product.title,
+        shortTitle: product.shortTitle,
+        keywords: product.keywords,
+        image: product.image,
+        gallery: product.gallery,
+        videoUrl: product.videoUrl,
+        videoPoster: product.videoPoster,
+        packaging: product.packaging,
+        packageDimensionsCm: product.packageDimensionsCm,
+        itemWeightGrams: product.itemWeightGrams,
+        lotCbm: product.lotCbm,
+        minUsd: product.minUsd,
+        maxUsd: product.maxUsd,
+        moq: product.moq,
+        moqVerified: product.moqVerified,
+        unit: product.unit,
+        badge: product.badge,
+        supplierName: product.supplierName,
+        supplierLocation: product.supplierLocation,
+        responseTime: product.responseTime,
+        yearsInBusiness: product.yearsInBusiness,
+        transactionsLabel: product.transactionsLabel,
+        soldLabel: product.soldLabel,
+        customizationLabel: product.customizationLabel,
+        shippingLabel: product.shippingLabel,
+        chinaLocalFreightFcfa: product.chinaLocalFreightFcfa,
+        chinaLocalFreightLabel: product.chinaLocalFreightLabel,
+        overview: product.overview,
+        variantGroups,
+        variantPricing: product.variantPricing,
+        variantSkus: product.variantSkus,
+        tiers: product.tiers,
+        specs: product.specs,
+        rawPayload: product.rawPayload,
+      };
+    });
 });
 
 export const getCatalogProductBySlug = cache(async function getCatalogProductBySlug(slug: string) {
