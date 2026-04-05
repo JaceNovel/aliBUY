@@ -798,7 +798,7 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
                   {isEnglish ? "Sign in" : "Connexion"}
                 </Link>
                 <Link href={loginBeforeCheckoutHref} className="inline-flex h-11 items-center justify-center rounded-full border border-[#f2c6a5] bg-white px-5 text-[14px] font-semibold text-[#b45309] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
-                  {isEnglish ? "I already have an account" : "J&apos;ai deja un compte"}
+                  {isEnglish ? "I already have an account" : "J'ai deja un compte"}
                 </Link>
               </div>
             </div>
