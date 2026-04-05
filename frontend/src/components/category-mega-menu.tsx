@@ -8,6 +8,7 @@ import {
   ArrowUpRight,
   Diamond,
   Headphones,
+  Home,
   Menu,
   PencilRuler,
   Shirt,
@@ -67,12 +68,16 @@ function resolveCategoryIcon(slug: string, title: string) {
     return Headphones;
   }
 
-  if (/(mode|fashion|shirt|vetement|chaussure|sac)/.test(haystack)) {
-    return Shirt;
+  if (/(maison|home|garden|jardin|kitchen|decor|decoration)/.test(haystack)) {
+    return Home;
   }
 
-  if (/(meuble|maison|bureau|sofa|chair|table)/.test(haystack)) {
+  if (/(meuble|bureau|sofa|chair|table|desk|cabinet)/.test(haystack)) {
     return Sofa;
+  }
+
+  if (/(mode|fashion|shirt|vetement|chaussure|sac)/.test(haystack)) {
+    return Shirt;
   }
 
   if (/(jardin|garden|plante|nature)/.test(haystack)) {
@@ -94,6 +99,10 @@ function resolveCategoryIcon(slug: string, title: string) {
   return categoryIcons[Math.abs(slug.length + title.length) % categoryIcons.length] ?? Star;
 }
 
+function isDisplayableCategory(category: CategoryMegaMenuCategory) {
+  return !/^(usd|cny|eur|gbp|cad|aud|xof|fcfa)$/i.test(category.title.trim());
+}
+
 export function CategoryMegaMenu({
   triggerLabel,
   showMenuIcon = true,
@@ -106,8 +115,9 @@ export function CategoryMegaMenu({
   const messages = getMessages(languageCode);
   const router = useRouter();
   const resolvedTriggerLabel = triggerLabel ?? messages.nav.categories;
-  const [activeSlug, setActiveSlug] = useState(categories[0]?.slug ?? "");
-  const activeCategory = categories.find((category) => category.slug === activeSlug) ?? categories[0] ?? null;
+  const displayCategories = categories.filter(isDisplayableCategory);
+  const [activeSlug, setActiveSlug] = useState(displayCategories[0]?.slug ?? "");
+  const activeCategory = displayCategories.find((category) => category.slug === activeSlug) ?? displayCategories[0] ?? null;
 
   useEffect(() => {
     if (!activeCategory) {
@@ -117,7 +127,7 @@ export function CategoryMegaMenu({
     router.prefetch(activeCategory.href ?? `/products?category=${encodeURIComponent(activeCategory.slug)}`);
   }, [activeCategory, router]);
 
-  const categoryLinks: CategoryLink[] = categories.slice(0, 9).map((category) => ({
+  const categoryLinks: CategoryLink[] = displayCategories.slice(0, 9).map((category) => ({
     slug: category.slug,
     title: category.title,
     icon: resolveCategoryIcon(category.slug, category.title),
@@ -152,10 +162,10 @@ export function CategoryMegaMenu({
                 return (
                   <Link
                     key={item.title}
-                    href={categories.find((category) => category.slug === item.slug)?.href ?? `/products?category=${encodeURIComponent(item.slug)}`}
+                    href={displayCategories.find((category) => category.slug === item.slug)?.href ?? `/products?category=${encodeURIComponent(item.slug)}`}
                     onMouseEnter={() => {
                       setActiveSlug(item.slug);
-                      router.prefetch(categories.find((category) => category.slug === item.slug)?.href ?? `/products?category=${encodeURIComponent(item.slug)}`);
+                      router.prefetch(displayCategories.find((category) => category.slug === item.slug)?.href ?? `/products?category=${encodeURIComponent(item.slug)}`);
                     }}
                     onFocus={() => setActiveSlug(item.slug)}
                     className={[

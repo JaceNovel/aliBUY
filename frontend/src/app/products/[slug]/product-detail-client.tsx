@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { useCart } from "@/components/cart-provider";
 import { isSupportedDirectDeliveryCountry } from "@/lib/alibaba-sourcing";
 import { CURRENCY_CONFIG, type CurrencyCode } from "@/lib/pricing-options";
-import { getDisplayPriceTiers, resolveProductPriceSummaryUsd, resolveProductUnitPriceUsd, resolveVariantSku } from "@/lib/product-variant-pricing";
+import { resolveProductPriceSummaryUsd, resolveProductUnitPriceUsd, resolveVariantSku } from "@/lib/product-variant-pricing";
 
 type DetailVariantGroup = {
   label: string;
@@ -104,13 +104,9 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const selectedCurrency = CURRENCY_CONFIG[(product.currencyCode as CurrencyCode)] ?? CURRENCY_CONFIG.USD;
   const router = useRouter();
   const { addItem } = useCart();
-  const hasVariantChoices = product.variantGroups.length > 0;
-  const requiredVariantLabels = product.variantGroups.map((group) => group.label);
-  const variantSelectionInstruction = requiredVariantLabels.join(", ");
   const [activeImage, setActiveImage] = useState(0);
   const [activeMedia, setActiveMedia] = useState<"photo" | "video">("photo");
   const [isImageLightboxOpen, setIsImageLightboxOpen] = useState(false);
-  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isFavorite, setIsFavorite] = useState(initialIsFavorite ?? false);
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
@@ -297,12 +293,6 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       maximumFractionDigits: localizedAmount >= 100 ? 0 : 2,
     }).format(localizedAmount);
   };
-  const formatPriceSummary = (summary: { minUsd: number; maxUsd?: number; exact: boolean }) => {
-    if (typeof summary.maxUsd === "number" && summary.maxUsd > summary.minUsd) {
-      return `${formatMoney(summary.minUsd)} - ${formatMoney(summary.maxUsd)}`;
-    }
-    return formatMoney(summary.minUsd);
-  };
   const normalizeTierPriceUsd = (priceUsd: number) => {
     if (!Number.isFinite(priceUsd) || priceUsd <= 0) {
       return 0;
@@ -321,23 +311,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     tiers: normalizedProductTiers,
     variantPricing: product.variantPricing,
   };
-  const getTierMinimum = (label: string) => {
-    const normalized = label.replace(/\s/g, "");
-    if (normalized.startsWith(">=") || normalized.includes("+")) {
-      const match = normalized.match(/(\d+)/);
-      return match ? Number(match[1]) : 0;
-    }
-    const rangeMatch = normalized.match(/(\d+)-(\d+)/);
-    if (rangeMatch) {
-      return Number(rangeMatch[1]);
-    }
-    const singleMatch = normalized.match(/(\d+)/);
-    return singleMatch ? Number(singleMatch[1]) : 0;
-  };
-
   const totalSelectedQuantity = orderQuantity;
   const totalWeightKg = (product.itemWeightGrams * totalSelectedQuantity) / 1000;
-  const totalWeightLabel = product.itemWeightGrams > 0 ? `${totalWeightKg.toFixed(totalWeightKg >= 10 ? 0 : 2)} kg` : "Selon catalogue";
   const exceedsSeaThreshold = product.itemWeightGrams > 0 && totalWeightKg > 5;
   const modalSelections = Object.fromEntries(
     product.variantGroups.flatMap((group) => {
@@ -355,12 +330,6 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const selectedVariantSku = resolveVariantSku({ variantSkus: product.variantSkus ?? [] }, previewSelection);
   const missingVariantGroups = product.variantGroups.filter((group) => !resolveVariantGroupSelection(group));
   const hasAllRequiredVariantSelections = missingVariantGroups.length === 0;
-  const displayTiers = getDisplayPriceTiers(productWithNormalizedTiers, previewSelection).map((tier) => ({
-    ...tier,
-    formattedPrice: formatMoney(tier.priceUsd),
-  }));
-  const sortedTiers = [...displayTiers].sort((left, right) => getTierMinimum(left.quantityLabel) - getTierMinimum(right.quantityLabel));
-  const activeTier = [...sortedTiers].reverse().find((tier) => totalSelectedQuantity >= getTierMinimum(tier.quantityLabel)) ?? sortedTiers[0];
   const currentPriceSummary = resolveProductPriceSummaryUsd(productWithNormalizedTiers, {
     quantity: totalSelectedQuantity,
     selection: previewSelection,
@@ -533,7 +502,6 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   };
 
   const canSubmitOrder = totalSelectedQuantity > 0 && shippingMethod !== null && hasAllRequiredVariantSelections;
-  const shouldOpenOrderModalFirst = hasVariantChoices || shippingMethod === null;
   const buildOrderSelections = () => {
     return [{ quantity: orderQuantity, selectedVariants: modalSelections }];
   };
@@ -579,19 +547,27 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     triggerCartAnimation();
     setShareFeedback("Produit ajouté au panier sourcing.");
   };
-  const openOrderModal = () => {
-    setIsOrderModalOpen(true);
+  const validateSelectionBeforeOrder = () => {
+    if (missingVariantGroups.length > 0) {
+      triggerShareFeedback(`Choisissez d'abord : ${missingVariantGroups.map((group) => group.label).join(", ")}.`);
+      return false;
+    }
+
+    if (shippingMethod === null) {
+      triggerShareFeedback("Choisissez un mode de livraison.");
+      return false;
+    }
+
+    return true;
   };
   const handlePrimaryBuyNow = () => {
-    if (shouldOpenOrderModalFirst) {
-      openOrderModal();
+    if (!validateSelectionBeforeOrder()) {
       return;
     }
     proceedToCheckout();
   };
   const handlePrimaryAddToCart = () => {
-    if (shouldOpenOrderModalFirst) {
-      openOrderModal();
+    if (!validateSelectionBeforeOrder()) {
       return;
     }
     addSelectionToCart();
@@ -605,7 +581,6 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       addItem(product.slug, entry.quantity, entry.selectedVariants);
     });
     triggerCartAnimation();
-    setIsOrderModalOpen(false);
     router.push("/cart");
   };
   const goToNextImage = () => {
@@ -1045,12 +1020,17 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                       Options à choisir : {missingVariantGroups.map((group) => group.label).join(", ")}
                     </div>
                   ) : null}
+                  {shippingMethod === null ? (
+                    <div className="rounded-[12px] border border-[#d9e2f2] bg-[#f7fbff] px-4 py-3 text-[13px] font-medium text-[#305b8a]">
+                      Choisissez un mode de livraison avant d&apos;acheter.
+                    </div>
+                  ) : null}
 
                   <div className="grid gap-3">
                     <button
                       type="button"
                       onClick={handlePrimaryBuyNow}
-                      disabled={shouldOpenOrderModalFirst ? false : !canSubmitOrder}
+                      disabled={totalSelectedQuantity <= 0}
                       className="inline-flex h-14 items-center justify-center gap-3 bg-[#d8001f] px-6 text-[17px] font-bold text-white transition hover:bg-[#bf001c]"
                     >
                       <ShoppingCart className="h-4.5 w-4.5" />
@@ -1059,7 +1039,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     <button
                       type="button"
                       onClick={handlePrimaryAddToCart}
-                      disabled={shouldOpenOrderModalFirst ? false : !canSubmitOrder}
+                      disabled={totalSelectedQuantity <= 0}
                       className={[
                         "inline-flex h-14 items-center justify-center border border-[#1f1f1f] bg-white px-6 text-[17px] font-semibold text-[#221813] transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:border-[#d9d0c8] disabled:text-[#aaa29a]",
                         isCartAnimating ? "animate-[cartButtonPulse_680ms_ease-out]" : "",
@@ -1265,157 +1245,6 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               <ChevronRight className="h-5 w-5" />
             </button>
           ) : null}
-        </div>
-      ) : null}
-
-      {isOrderModalOpen ? (
-        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/35 p-2.5 sm:p-4">
-          <div className="relative flex max-h-[90vh] w-full max-w-[760px] flex-col overflow-hidden rounded-[22px] bg-white shadow-[0_30px_80px_rgba(0,0,0,0.24)] sm:max-h-[92vh] sm:rounded-[28px]">
-            <div className="flex items-start justify-between border-b border-[#ececec] px-3 py-3 sm:px-6 sm:py-5">
-              <div>
-                <h2 className="text-[19px] font-bold tracking-[-0.05em] text-[#222] sm:text-[32px]">Sélectionnez les options obligatoires et la quantité</h2>
-                <div className="mt-1 text-[12px] leading-5 text-[#666] sm:mt-2 sm:text-[14px]">
-                  {hasVariantChoices
-                    ? `Choisissez ${variantSelectionInstruction} avant la commande. Aucun attribut n'est présélectionné automatiquement.`
-                    : "Choisissez la quantité et voyez le prix unitaire évoluer selon la quantité totale."}
-                </div>
-              </div>
-              <button type="button" onClick={() => setIsOrderModalOpen(false)} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#e2e2e2] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-10 sm:w-10">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="overflow-y-auto px-3 py-3 sm:px-6 sm:py-5">
-              <div className="inline-flex rounded-[6px] bg-[#ff5b1f] px-2.5 py-1 text-[11px] font-semibold text-white sm:px-3 sm:text-[13px]">Prix inférieur à celui des produits similaires</div>
-
-              {hasVariantChoices ? (
-                <div className="mt-3 rounded-[14px] border border-[#ffd4b5] bg-[#fff4ea] px-3 py-2.5 text-[12px] font-medium leading-5 text-[#c85a11] sm:px-4 sm:py-3 sm:text-[14px]">
-                  Sélection obligatoire avant validation: <span className="font-semibold">{variantSelectionInstruction}</span>.
-                </div>
-              ) : null}
-
-              <div className="mt-3 grid gap-2.5 sm:mt-5 sm:gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {sortedTiers.map((tier) => {
-                  const isActive = activeTier?.quantityLabel === tier.quantityLabel;
-
-                  return (
-                    <div key={tier.quantityLabel} className={["rounded-[14px] border px-3 py-2.5 sm:rounded-[18px] sm:px-4 sm:py-4", isActive ? "border-[#ff6a00] bg-[#fff6ef]" : "border-[#ececec] bg-white"].join(" ")}>
-                      <div className="text-[12px] text-[#666] sm:text-[14px]">{tier.quantityLabel}</div>
-                      <div className={["mt-1 text-[18px] font-bold tracking-[-0.04em] sm:mt-2 sm:text-[22px]", isActive ? "text-[#ff5b1f]" : "text-[#222]"].join(" ")}>{tier.formattedPrice}</div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {product.variantGroups.map((group) => (
-                <div key={group.label} className="mt-5 sm:mt-7">
-                  <div className="text-[14px] font-semibold text-[#222] sm:text-[16px]">{group.label}: <span className="font-medium">{resolveVariantGroupSelection(group) || "Choisir"}</span></div>
-                  <div className="mt-2 flex flex-wrap gap-2 sm:mt-3 sm:gap-2.5">
-                    {group.values.map((value) => {
-                      const isSelected = selectedVariants[group.label] === value;
-
-                      return (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => handleVariantPreviewSelection(group, value)}
-                          className={[
-                            "rounded-[10px] border px-3 py-1.5 text-[13px] transition sm:rounded-[12px] sm:px-4 sm:py-2 sm:text-[15px]",
-                            isSelected ? "border-[#222] bg-white text-[#111] shadow-[inset_0_0_0_1px_#111]" : "border-[#d7dbe2] bg-white text-[#444] hover:border-[#ffb48a]",
-                          ].join(" ")}
-                        >
-                          {value}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-
-              <div className="mt-6 sm:mt-8">
-                <div className="text-[16px] font-semibold text-[#222] sm:text-[18px]">Mode d&apos;expédition</div>
-                <div className="mt-3 grid gap-2.5 sm:mt-4 sm:gap-3 sm:grid-cols-2">
-                  {shippingChoices.map((option) => (
-                    <button
-                      key={option.key}
-                      type="button"
-                      onClick={() => triggerShippingSelectionAnimation(option.key)}
-                      className={[
-                        "rounded-[14px] border px-3 py-3 text-left transition duration-300 sm:rounded-[18px] sm:px-4 sm:py-4",
-                        shippingMethod === option.key ? "border-[#ff6a00] bg-[#fff5ed] shadow-[inset_0_0_0_1px_#ff6a00]" : "border-[#e5e5e5] bg-white hover:border-[#ffb48a]",
-                        shippingSelectionPulse === option.key ? "scale-[1.02] -translate-y-0.5 shadow-[0_16px_34px_rgba(255,106,0,0.16)]" : "",
-                      ].join(" ")}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-[15px] font-semibold text-[#222] sm:text-[17px]">{option.title}</div>
-                        <div className="text-[13px] font-bold text-[#ff5b1f] sm:text-[15px]">{option.feeLabel}</div>
-                      </div>
-                      <div className={["mt-1 text-[12px] leading-5 text-[#666] transition sm:text-[14px]", shippingSelectionPulse === option.key ? "translate-x-0.5 text-[#4d4035]" : ""].join(" ")}>{option.description}</div>
-                    </button>
-                  ))}
-                </div>
-                <div className="mt-2.5 rounded-[14px] border border-[#ececec] bg-[#fafafa] px-3 py-2.5 text-[12px] text-[#555] sm:mt-3 sm:rounded-[16px] sm:px-4 sm:py-3 sm:text-[14px]">
-                  Poids estimé du colis: <span className="font-semibold text-[#222]">{totalWeightLabel}</span>
-                </div>
-                {exceedsSeaThreshold && !supportsDirectAliExpressDelivery ? (
-                  <div className="mt-2.5 rounded-[14px] border border-[#ffd4b5] bg-[#fff4ea] px-3 py-2.5 text-[12px] font-medium text-[#c85a11] sm:mt-3 sm:rounded-[16px] sm:px-4 sm:py-3 sm:text-[14px]">
-                    Ce colis dépasse 5 kg, expédition maritime recommandée.
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="mt-6 rounded-[14px] border border-[#ececec] bg-[#fafafa] px-3 py-3 sm:mt-8 sm:rounded-[18px] sm:px-4 sm:py-4">
-                <div className="text-[16px] font-semibold text-[#222] sm:text-[18px]">Quantité</div>
-                <div className="mt-2.5 flex items-center justify-between gap-3 sm:mt-3 sm:gap-4">
-                  <div>
-                    <div className="text-[13px] text-[#555] sm:text-[15px]">Commande minimale</div>
-                    <div className="mt-1 text-[12px] text-[#777] sm:text-[14px]">{product.moqVerified ? `${product.moq} ${product.moq > 1 ? "pièces" : "pièce"}` : "À confirmer"}</div>
-                    {selectedVariantSku?.skuCode || typeof selectedVariantSku?.inventory === "number" ? (
-                      <div className="mt-2 text-[12px] text-[#555] sm:text-[14px]">
-                        {selectedVariantSku?.skuCode ? <>SKU <span className="font-semibold text-[#222]">{selectedVariantSku.skuCode}</span></> : null}
-                        {selectedVariantSku?.skuCode && typeof selectedVariantSku?.inventory === "number" ? " · " : null}
-                        {typeof selectedVariantSku?.inventory === "number" ? <>Stock <span className="font-semibold text-[#222]">{selectedVariantSku.inventory}</span></> : null}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-40 sm:h-10 sm:w-10">
-                      <Minus className="h-4 w-4" />
-                    </button>
-                    <div className="min-w-[24px] text-center text-[18px] font-medium text-[#222] sm:min-w-[28px] sm:text-[22px]">{orderQuantity}</div>
-                    <button type="button" onClick={() => updateOrderQuantity(1)} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8dde6] text-[#444] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-10 sm:w-10">
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t border-[#ececec] bg-white px-3 py-3 sm:px-6 sm:py-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                <div>
-                  <div className="text-[12px] font-semibold text-[#666] sm:text-[14px]">Sous-total</div>
-                  <div className="mt-1 text-[22px] font-bold tracking-[-0.04em] text-[#222] sm:text-[28px]">
-                    {hasSubtotalRange ? `${formatMoney(subtotalRange.minUsd)} - ${formatMoney(subtotalRange.maxUsd)}` : formatMoney(subtotal)}
-                    <span className="ml-1.5 text-[13px] font-medium text-[#666] sm:ml-2 sm:text-[18px]">({formatPriceSummary(currentPriceSummary)}/pièce)</span>
-                  </div>
-                  <div className="mt-1 text-[12px] text-[#666] sm:text-[14px]">Quantité totale: {totalSelectedQuantity} pièce(s)</div>
-                  <div className="mt-1 text-[12px] text-[#666] sm:text-[14px]">Expédition: {selectedShippingChoice?.summaryLabel ?? "à choisir"}</div>
-                  {missingVariantGroups.length > 0 ? <div className="mt-1 text-[12px] font-medium text-[#c85a11] sm:text-[14px]">Options à choisir: {missingVariantGroups.map((group) => group.label).join(", ")}</div> : null}
-                </div>
-                <div className="grid gap-2.5 sm:min-w-[360px] sm:grid-cols-2 sm:gap-3">
-                  <button type="button" onClick={proceedToCheckout} disabled={!canSubmitOrder} className="inline-flex h-11 items-center justify-center rounded-full bg-[#ff5b1f] px-5 text-[15px] font-semibold text-white transition hover:bg-[#ec510f] disabled:cursor-not-allowed disabled:bg-[#ffc09f] sm:h-13 sm:px-6 sm:text-[18px]">
-                    Commander
-                  </button>
-                  <button type="button" onClick={addSelectionToCart} disabled={!canSubmitOrder} className="inline-flex h-11 items-center justify-center rounded-full border border-[#222] px-5 text-[15px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:border-[#d8d8d8] disabled:text-[#b0b0b0] sm:h-13 sm:px-6 sm:text-[18px]">
-                    <span className={isCartAnimating ? "animate-[cartButtonPulse_680ms_ease-out]" : ""}>
-                      Ajouter au panier
-                    </span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       ) : null}
 

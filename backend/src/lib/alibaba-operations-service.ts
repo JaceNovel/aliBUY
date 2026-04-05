@@ -966,6 +966,7 @@ export async function runAlibabaCatalogImport(input: {
     }
 
     const existingImportedProducts = await getAlibabaImportedProducts();
+    const existingImportedProductBySourceProductId = new Map(existingImportedProducts.map((product) => [product.sourceProductId, product]));
     const existingSourceProductIds = new Set(existingImportedProducts.map((product) => product.sourceProductId));
     const explorationLimit = manualDirectImport ? 1 : Math.min(Math.max(job.limit * 2, 12), 30);
     const searchResult = await searchAlibabaProducts({
@@ -1073,6 +1074,44 @@ export async function runAlibabaCatalogImport(input: {
 
     const skippedMissingRequiredDataCount = Math.max(0, uniqueSearchProducts.length - importCandidates.length);
     const skippedExistingCount = Math.max(0, prioritizedImportCandidates.length - freshProducts.length);
+
+    if (manualDirectImport && importedProducts.length === 0 && prioritizedImportCandidates.length > 0) {
+      const existingProduct = existingImportedProductBySourceProductId.get(prioritizedImportCandidates[0]?.sourceProductId);
+      if (existingProduct) {
+        const refreshedProduct = await reenrichImportedProduct(existingProduct.id);
+        const completedJob: AlibabaImportJob = {
+          ...job,
+          status: "completed",
+          importedCount: 1,
+          updatedAt: nowIso(),
+          productIds: [refreshedProduct.id],
+        };
+        await saveAlibabaImportJob(completedJob);
+        await createAlibabaIntegrationLog({
+          action: "catalog-import-manual-refresh",
+          endpoint: "internal/imported-products/reenrich",
+          status: "success",
+          requestBody: {
+            query: job.query,
+            sourceProductId: existingProduct.sourceProductId,
+            importedProductId: existingProduct.id,
+          },
+          responseBody: {
+            importedProductId: refreshedProduct.id,
+            sourceProductId: refreshedProduct.sourceProductId,
+            reusedExistingProduct: true,
+          },
+        });
+
+        return {
+          products: [refreshedProduct],
+          purgedCount,
+          warningMessage: "Produit deja importe: la fiche existante a ete re-enrichie avec les donnees live.",
+          targetImportCount: 1,
+          skippedExistingCount: 0,
+        };
+      }
+    }
 
     if (importedProducts.length > 0) {
       await saveAlibabaImportedProducts(importedProducts);

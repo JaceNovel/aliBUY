@@ -2,7 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 
-import { canonicalizeAlibabaCategory, slugifyCategoryLabel } from "@/lib/alibaba-operations";
+import { extractAlibabaCategoryInfo, slugifyCategoryLabel } from "@/lib/alibaba-operations";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { buildApiUrl } from "@/lib/api";
 import type { ProductCatalogItem } from "@/lib/products-data";
@@ -45,6 +45,11 @@ const CATEGORY_SORT_PRIORITY: Record<string, number> = {
   "sports-leisure": 9,
   "vr-gaming": 10,
 };
+
+function isNoiseCategoryTitle(value: string) {
+  const normalized = value.trim().toLowerCase();
+  return /^(usd|cny|eur|gbp|cad|aud|xof|fcfa|catalogue|autres produits)$/i.test(normalized);
+}
 
 function dedupeProducts(products: ProductCatalogItem[]) {
   const map = new Map<string, ProductCatalogItem>();
@@ -100,9 +105,13 @@ export const getCatalogCategories = cache(async function getCatalogCategories():
   const categories = new Map<string, CategoryAccumulator>();
 
   for (const product of publishedProducts) {
-    const normalizedCategory = canonicalizeAlibabaCategory({
-      title: product.categoryTitle?.trim() || product.shortTitle,
-      path: Array.isArray(product.categoryPath) ? product.categoryPath : undefined,
+    const normalizedCategory = extractAlibabaCategoryInfo({
+      rawPayload: product.rawPayload,
+      query: product.query,
+      title: product.title,
+      keywords: product.keywords,
+      categoryTitle: product.categoryTitle?.trim(),
+      categoryPath: Array.isArray(product.categoryPath) ? product.categoryPath : undefined,
     });
     const title = normalizedCategory.title;
     const sourcePath = normalizedCategory.path;
@@ -128,6 +137,7 @@ export const getCatalogCategories = cache(async function getCatalogCategories():
   }
 
   const localCategories = [...categories.values()]
+    .filter((category) => !isNoiseCategoryTitle(category.title))
     .map((category) => {
       const products = dedupeProducts(category.products);
       const count = products.length;

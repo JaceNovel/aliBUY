@@ -236,6 +236,7 @@ function isGenericCategoryLabel(value?: string) {
   const normalized = normalizeCategorySegment(value).toLowerCase();
   return !normalized
     || /^(catalogue importe|produit aliexpress|produit alibaba|aliexpress|alibaba|general|misc|other|others|undefined|null|n\/?a|na|unknown|sans nom|untitled)$/i.test(normalized)
+    || /^(usd|cny|eur|gbp|cad|aud|xof|fcfa|aed|sar|brl|rub|mxn|inr|jpy|krw|try|uah|pln|idr|thb|vnd|php|myr|sgd)$/i.test(normalized)
     || /\b(?:alibaba|aliexpress)\b/i.test(normalized)
     || /\baliexpress\s*ds\b/i.test(normalized)
     || /\b(?:ds|dropshipping)\b/i.test(normalized)
@@ -661,7 +662,10 @@ export function canonicalizeAlibabaCategory(input: {
     return matched;
   }
 
-  const title = normalizedTitle || normalizedPath[normalizedPath.length - 1] || "Catalogue";
+  const fallbackPathLeaf = [...normalizedPath].reverse().find((segment) => isUsefulCategoryCandidate(segment));
+  const title = isUsefulCategoryCandidate(normalizedTitle)
+    ? normalizedTitle
+    : fallbackPathLeaf || "Autres produits";
   const path = normalizedPath.length > 0 ? normalizedPath : [title];
 
   return {
