@@ -31,3 +31,23 @@ export const clerkAppearance = {
     otpCodeFieldInput: "h-12 rounded-[16px] border border-[#d7dce5] text-[18px] shadow-none focus:border-[#ff6a00] focus:ring-0",
   },
 };
+
+export const authPageClerkAppearance = {
+  ...clerkAppearance,
+  elements: {
+    ...clerkAppearance.elements,
+    rootBox: "w-full",
+    card: "w-full rounded-[30px] border border-white/70 bg-white/95 p-0 shadow-none",
+    cardBox: "w-full shadow-none",
+    socialButtonsBlockButton: "flex h-14 rounded-full border border-[#d8dde6] bg-white px-5 text-[15px] font-semibold text-[#111827] shadow-none transition hover:border-[#c2c9d6] hover:bg-[#fafbfc]",
+    socialButtonsBlockButtonText: "text-[15px] font-semibold text-[#111827]",
+    socialButtonsProviderIcon__google: "scale-110",
+    socialButtonsProviderIcon__apple: "scale-110",
+    dividerRow: "my-5",
+    dividerText: "text-[11px] uppercase tracking-[0.18em] text-[#98a2b3]",
+    formButtonPrimary: "h-14 rounded-full bg-[#242936] text-[15px] font-semibold text-white shadow-none transition hover:bg-[#1c212c]",
+    formFieldInput: "h-13 rounded-[18px] border border-[#d7dce5] bg-white px-4 text-[15px] text-[#1d2738] shadow-none focus:border-[#242936] focus:ring-0",
+    footer: "hidden",
+    footerAction: "hidden",
+  },
+};

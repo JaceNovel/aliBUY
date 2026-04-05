@@ -2,7 +2,7 @@
 
 import { useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useState } from "react";
 
 type UserLogoutButtonProps = {
   className?: string;
@@ -13,10 +13,6 @@ export function UserLogoutButton({ className = "", children }: UserLogoutButtonP
   const clerk = useClerk();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    router.prefetch("/");
-  }, [router]);
 
   const handleLogout = async () => {
     setIsSubmitting(true);

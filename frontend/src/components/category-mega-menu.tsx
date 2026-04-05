@@ -2,8 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   ArrowUpRight,
   Diamond,
@@ -113,19 +112,10 @@ export function CategoryMegaMenu({
   categories = [],
 }: CategoryMegaMenuProps) {
   const messages = getMessages(languageCode);
-  const router = useRouter();
   const resolvedTriggerLabel = triggerLabel ?? messages.nav.categories;
   const displayCategories = categories.filter(isDisplayableCategory);
   const [activeSlug, setActiveSlug] = useState(displayCategories[0]?.slug ?? "");
   const activeCategory = displayCategories.find((category) => category.slug === activeSlug) ?? displayCategories[0] ?? null;
-
-  useEffect(() => {
-    if (!activeCategory) {
-      return;
-    }
-
-    router.prefetch(activeCategory.href ?? `/products?category=${encodeURIComponent(activeCategory.slug)}`);
-  }, [activeCategory, router]);
 
   const categoryLinks: CategoryLink[] = displayCategories.slice(0, 9).map((category) => ({
     slug: category.slug,
@@ -165,7 +155,6 @@ export function CategoryMegaMenu({
                     href={displayCategories.find((category) => category.slug === item.slug)?.href ?? `/products?category=${encodeURIComponent(item.slug)}`}
                     onMouseEnter={() => {
                       setActiveSlug(item.slug);
-                      router.prefetch(displayCategories.find((category) => category.slug === item.slug)?.href ?? `/products?category=${encodeURIComponent(item.slug)}`);
                     }}
                     onFocus={() => setActiveSlug(item.slug)}
                     className={[

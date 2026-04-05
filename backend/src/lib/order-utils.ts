@@ -87,7 +87,7 @@ export function getOrderTrackingHref(order: Pick<OrderRecord, "id" | "orderNumbe
 }
 
 export function getOrderPaymentHref(order: Pick<OrderRecord, "id">) {
-  return `/orders/payment?orderId=${encodeURIComponent(order.id)}`;
+  return `/orders?payOrderId=${encodeURIComponent(order.id)}`;
 }
 
 export function getOrderConfirmReceiptHref(order: Pick<OrderRecord, "id">) {

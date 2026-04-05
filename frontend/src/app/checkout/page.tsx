@@ -19,7 +19,7 @@ export default async function CheckoutPage({
   const user = await getCurrentUser();
 
   if (!user) {
-    redirect(`/login?next=${encodeURIComponent(nextPath)}`);
+    redirect(`/login?next=${encodeURIComponent(nextPath)}&reason=checkout_auth_required`);
   }
 
   const addresses = await getUserAddresses(user.id);

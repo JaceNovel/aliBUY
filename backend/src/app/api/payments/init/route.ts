@@ -163,7 +163,7 @@ export async function POST(request: Request) {
       amount: order.totalPriceFcfa,
       currency: order.paymentCurrency || "XOF",
       description: `Paiement commande sourcing ${order.orderNumber}`,
-      return_url: `${siteOrigin}/orders/payment?orderId=${encodeURIComponent(order.id)}`,
+      return_url: `${siteOrigin}/orders?orderId=${encodeURIComponent(order.id)}`,
       customer: {
         email: order.customerEmail,
         first_name: customerName.firstName,

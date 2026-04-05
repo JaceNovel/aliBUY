@@ -62,7 +62,7 @@ function PaymentSecurityBadge({ brand }: { brand: PaymentSecurityBadgeKey }) {
   );
 }
 
-export function CartPageClient({ currencyCode, locale, initialCountryCode, isAuthenticated, initialSharedCartSummaries }: { currencyCode: string; locale: string; initialCountryCode: string; isAuthenticated: boolean; initialSharedCartSummaries: SharedCartSummary[] }) {
+export function CartPageClient({ currencyCode, locale, languageCode, initialCountryCode, isAuthenticated, initialSharedCartSummaries }: { currencyCode: string; locale: string; languageCode: string; initialCountryCode: string; isAuthenticated: boolean; initialSharedCartSummaries: SharedCartSummary[] }) {
   const router = useRouter();
   const { items, updateItem, removeItem, clearCart, sharedCartContext } = useCart();
   const deliveryInfoRef = useRef<HTMLElement | null>(null);
@@ -132,6 +132,10 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
   const selectedProductsTotalFcfa = selectedQuoteItems.reduce((sum, item) => sum + item.finalLinePriceFcfa, 0);
   const selectedTotalFcfa = selectedCount > 0 ? selectedProductsTotalFcfa + (shipping?.priceFcfa ?? 0) : 0;
   const selectedWeightKg = selectedQuoteItems.reduce((sum, item) => sum + item.weightKg * item.quantity, 0);
+  const isEnglish = languageCode === "en";
+  const checkoutPath = "/checkout";
+  const loginBeforeCheckoutHref = `/login?next=${encodeURIComponent(checkoutPath)}&reason=checkout_auth_required`;
+  const registerBeforeCheckoutHref = `/register?next=${encodeURIComponent(checkoutPath)}&reason=checkout_auth_required`;
 
   useEffect(() => {
     setSelectedCartKeys((current) => {
@@ -336,7 +340,7 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
     }
 
     if (!isAuthenticated) {
-      router.push(`/login?next=${encodeURIComponent("/cart")}`);
+      router.push(`/login?next=${encodeURIComponent("/cart")}&reason=cart_auth_required`);
       return;
     }
 
@@ -358,7 +362,7 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
       });
 
       if (response.status === 401) {
-        router.push(`/login?next=${encodeURIComponent("/cart")}`);
+        router.push(`/login?next=${encodeURIComponent("/cart")}&reason=cart_auth_required`);
         return;
       }
 
@@ -777,9 +781,28 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
               <span className="font-semibold text-[#1f2937]">{totalVolumeLabel}</span>
             </div>
           </div>
-          <Link href="/checkout" className="mt-6 inline-flex h-13 w-full items-center justify-center rounded-full bg-[#f80632] px-6 text-[16px] font-bold text-white transition hover:bg-[#dc042c] sm:mt-7 sm:h-14 sm:text-[17px]">
-            Paiement ({items.length})
-          </Link>
+          {isAuthenticated ? (
+            <Link href={checkoutPath} className="mt-6 inline-flex h-13 w-full items-center justify-center rounded-full bg-[#f80632] px-6 text-[16px] font-bold text-white transition hover:bg-[#dc042c] sm:mt-7 sm:h-14 sm:text-[17px]">
+              Paiement ({items.length})
+            </Link>
+          ) : (
+            <div className="mt-6 rounded-[18px] border border-[#ffd4b5] bg-[#fff4ea] px-4 py-4 text-[14px] leading-6 text-[#9a3412]">
+              <div className="font-semibold text-[#7c2d12]">{isEnglish ? "Please sign up before paying" : "Veuillez vous inscrire avant de payer"}</div>
+              <div className="mt-2">
+                {isEnglish
+                  ? "Your cart is saved, but you need to sign up with the Sign up button or sign in before continuing."
+                  : "Votre panier est bien conserve, mais vous devez vous inscrire avec le bouton Inscription ou vous connecter avant de continuer."}
+              </div>
+              <div className="mt-4 grid gap-3">
+                <Link href={registerBeforeCheckoutHref} className="inline-flex h-11 items-center justify-center rounded-full bg-[#ff6a00] px-5 text-[14px] font-semibold text-white transition hover:bg-[#eb6100]">
+                  {isEnglish ? "Sign up" : "Inscription"}
+                </Link>
+                <Link href={loginBeforeCheckoutHref} className="inline-flex h-11 items-center justify-center rounded-full border border-[#f2c6a5] bg-white px-5 text-[14px] font-semibold text-[#b45309] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
+                  {isEnglish ? "I already have an account" : "J&apos;ai deja un compte"}
+                </Link>
+              </div>
+            </div>
+          )}
           <button type="button" onClick={clearCart} className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-full border border-[#d0d5dd] px-6 text-[14px] font-semibold text-[#344054] transition hover:border-[#f80632] hover:text-[#f80632] sm:h-12 sm:text-[15px]">
             Vider le panier
           </button>
@@ -877,8 +900,8 @@ export function CartPageClient({ currencyCode, locale, initialCountryCode, isAut
             <div className="text-[24px] font-black tracking-[-0.05em] text-[#111827]">{formatSourcingAmount(selectedTotalFcfa, { currencyCode, locale })}</div>
             <div className="text-[11px] text-[#667085]">{selectedCount} article(s) · {selectedWeightKg.toFixed(2)} kg</div>
           </div>
-          <Link href="/checkout" className="inline-flex h-11 min-w-[128px] items-center justify-center rounded-full bg-[#f80632] px-4 text-[15px] font-bold text-white transition hover:bg-[#dc042c]">
-            Paiement ({selectedCount})
+          <Link href={isAuthenticated ? checkoutPath : registerBeforeCheckoutHref} className="inline-flex h-11 min-w-[128px] items-center justify-center rounded-full bg-[#f80632] px-4 text-[15px] font-bold text-white transition hover:bg-[#dc042c]">
+            {isAuthenticated ? `${isEnglish ? "Payment" : "Paiement"} (${selectedCount})` : isEnglish ? "Sign up" : "Inscription"}
           </Link>
         </div>
       </div>

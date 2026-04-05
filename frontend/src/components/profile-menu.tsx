@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { User } from "lucide-react";
 
@@ -30,7 +29,6 @@ export function ProfileMenu({ className = "", align = "right", user = null }: Pr
   const [isOpen, setIsOpen] = useState(false);
   const [resolvedUser, setResolvedUser] = useState(user);
   const closeTimeoutRef = useRef<number | null>(null);
-  const router = useRouter();
 
   useEffect(() => {
     setResolvedUser(user);
@@ -43,18 +41,6 @@ export function ProfileMenu({ className = "", align = "right", user = null }: Pr
       }
     };
   }, []);
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    profileItems.forEach((item) => {
-      router.prefetch(item.href);
-    });
-    router.prefetch("/login");
-    router.prefetch("/register");
-  }, [isOpen, router]);
 
   useEffect(() => {
     if (user !== null || !isOpen) {

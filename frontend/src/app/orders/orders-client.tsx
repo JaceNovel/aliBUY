@@ -18,11 +18,21 @@ import {
   Truck,
   Volume2,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { getOrderChatHref, getOrderConfirmReceiptHref, getOrderDeliveryProofHref, getOrderPaymentHref, getOrderTabs, getOrderTrackingHref, sidebarItems, type OrderRecord, type OrderTabKey } from "@/lib/orders-data";
+import { initializeMonerooPayment, verifyMonerooPayment } from "@/lib/api";
 
 type OrdersClientProps = {
   orders: OrderRecord[];
+  languageCode: string;
+  paymentAction?: {
+    orderId?: string;
+    paymentId?: string;
+    paymentStatus?: string;
+    payOrderId?: string;
+    payment?: string;
+  };
 };
 
 const sidebarItemMeta = {
@@ -137,11 +147,20 @@ function formatDateTimeLabel(value?: string) {
   return date.toLocaleString("fr-FR");
 }
 
-export function OrdersClient({ orders }: OrdersClientProps) {
+export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClientProps) {
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDate, setSelectedDate] = useState("all");
   const [selectedTime, setSelectedTime] = useState("all");
   const [activeTab, setActiveTab] = useState<OrderTabKey>("all");
+  const isEnglish = languageCode === "en";
+  const [paymentFeedback, setPaymentFeedback] = useState<string | null>(() => paymentAction?.payment?.trim() === "initialization_failed"
+    ? (isEnglish
+        ? "The order was created, but Moneroo could not be opened automatically. Please try again from your order."
+        : "La commande a ete creee, mais Moneroo n'a pas pu s'ouvrir automatiquement. Relancez le paiement depuis votre commande.")
+    : null);
+  const [isPaymentBusy, setIsPaymentBusy] = useState(false);
+  const handledPaymentActionRef = useRef<string | null>(null);
 
   const dateOptions = useMemo(() => [
     { value: "all", label: "Date de la commande" },
@@ -161,6 +180,84 @@ export function OrdersClient({ orders }: OrdersClientProps) {
 
   const orderTabs = useMemo(() => getOrderTabs(orders), [orders]);
   const pendingProofDefaultOrder = useMemo(() => orders.find((order) => order.status === "Paiement en attente") ?? orders[0] ?? null, [orders]);
+
+  useEffect(() => {
+    const payOrderId = paymentAction?.payOrderId?.trim();
+    const orderId = paymentAction?.orderId?.trim();
+    const paymentId = paymentAction?.paymentId?.trim();
+    const paymentStatus = paymentAction?.paymentStatus?.trim();
+    const payment = paymentAction?.payment?.trim();
+    const actionKey = [payOrderId ?? "", orderId ?? "", paymentId ?? "", paymentStatus ?? "", payment ?? ""].join("|");
+
+    if (!actionKey.replace(/\|/g, "")) {
+      return;
+    }
+
+    if (handledPaymentActionRef.current === actionKey) {
+      return;
+    }
+
+    handledPaymentActionRef.current = actionKey;
+
+    if (payment === "initialization_failed") {
+      return;
+    }
+
+    if (payOrderId) {
+      const timeoutId = window.setTimeout(() => {
+        setIsPaymentBusy(true);
+        setPaymentFeedback(isEnglish ? "Opening Moneroo checkout..." : "Ouverture du checkout Moneroo...");
+
+        void initializeMonerooPayment(payOrderId)
+          .then((payload) => {
+            if (!payload?.checkoutUrl) {
+              throw new Error(isEnglish ? "Unable to open Moneroo checkout." : "Impossible d'ouvrir le checkout Moneroo.");
+            }
+
+            window.location.href = payload.checkoutUrl;
+          })
+          .catch((error) => {
+            setPaymentFeedback(error instanceof Error ? error.message : isEnglish ? "Unable to open Moneroo checkout." : "Impossible d'ouvrir le checkout Moneroo.");
+          })
+          .finally(() => {
+            setIsPaymentBusy(false);
+          });
+      }, 0);
+
+      return () => {
+        window.clearTimeout(timeoutId);
+      };
+    }
+
+    if (orderId && paymentId) {
+      const timeoutId = window.setTimeout(() => {
+        setIsPaymentBusy(true);
+        setPaymentFeedback(paymentStatus
+          ? (isEnglish ? `Moneroo return received: ${paymentStatus}. Verifying payment...` : `Retour Moneroo recu: ${paymentStatus}. Verification du paiement en cours...`)
+          : (isEnglish ? "Verifying Moneroo payment..." : "Verification du paiement Moneroo en cours..."));
+
+        void verifyMonerooPayment(orderId, paymentId)
+          .then((payload) => {
+            setPaymentFeedback(payload.order.paymentStatus === "paid"
+              ? (isEnglish ? "Payment confirmed. Your order is now marked as paid." : "Paiement confirme. Votre commande est maintenant marquee comme payee.")
+              : (isEnglish
+                  ? `Latest Moneroo status: ${payload.order.monerooPaymentStatus || payload.order.paymentStatus}.`
+                  : `Dernier statut Moneroo: ${payload.order.monerooPaymentStatus || payload.order.paymentStatus}.`));
+            router.refresh();
+          })
+          .catch((error) => {
+            setPaymentFeedback(error instanceof Error ? error.message : isEnglish ? "Unable to verify Moneroo payment." : "Impossible de verifier le paiement Moneroo.");
+          })
+          .finally(() => {
+            setIsPaymentBusy(false);
+          });
+      }, 0);
+
+      return () => {
+        window.clearTimeout(timeoutId);
+      };
+    }
+  }, [isEnglish, paymentAction, router]);
 
   const filteredOrders = useMemo(() => {
     const normalizedQuery = searchTerm.trim().toLowerCase();
@@ -236,6 +333,12 @@ export function OrdersClient({ orders }: OrdersClientProps) {
             <span className="hidden sm:inline">Soumettre une preuve de virement</span>
           </Link>
         </div>
+
+        {paymentFeedback ? (
+          <div className={["mt-4 rounded-[16px] px-4 py-3 text-[13px] font-medium sm:text-[14px]", isPaymentBusy ? "bg-[#eef6ff] text-[#1d4f91] ring-1 ring-[#d8e5fb]" : "bg-[#fff7f1] text-[#8a4b16] ring-1 ring-[#f3d7bf]"].join(" ")}>
+            {paymentFeedback}
+          </div>
+        ) : null}
 
         <div className="mt-5 flex gap-2.5 overflow-x-auto border-b border-[#e7e7e7] pb-1 text-[12px] text-[#333] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:gap-x-7 sm:gap-y-3 sm:overflow-visible sm:pb-0 sm:text-[14px]">
           {orderTabs.map((tab) => (

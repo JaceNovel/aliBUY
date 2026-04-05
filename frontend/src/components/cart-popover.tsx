@@ -34,12 +34,6 @@ export function CartPopover({ className = "", align = "right", currencyCode, loc
     };
   }, []);
 
-  useEffect(() => {
-    if (isOpen) {
-      router.prefetch("/cart");
-    }
-  }, [isOpen, router]);
-
   const showPopover = () => {
     if (closeTimeoutRef.current) {
       window.clearTimeout(closeTimeoutRef.current);
@@ -77,7 +71,7 @@ export function CartPopover({ className = "", align = "right", currencyCode, loc
 
   const shareCart = async () => {
     if (!isAuthenticated) {
-      router.push(`/login?next=${encodeURIComponent("/cart")}`);
+      router.push(`/login?next=${encodeURIComponent("/cart")}&reason=cart_auth_required`);
       return;
     }
 

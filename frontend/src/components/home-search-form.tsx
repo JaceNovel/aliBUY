@@ -2,7 +2,7 @@
 
 import { Camera, LoaderCircle, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import { SearchSuggestionInput } from "@/components/search-suggestion-input";
 
@@ -19,11 +19,6 @@ export function HomeSearchForm({ defaultQuery, placeholderText, imageSearchLabel
   const [isUploading, setIsUploading] = useState(false);
   const [isImageButtonActive, setIsImageButtonActive] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-
-  useEffect(() => {
-    router.prefetch("/search");
-    router.prefetch("/search/image");
-  }, [router]);
 
   const triggerImagePicker = () => {
     setIsImageButtonActive(true);

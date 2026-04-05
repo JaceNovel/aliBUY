@@ -5,6 +5,7 @@ export default function RegisterSsoCallbackPage() {
     <AuthRedirectCallback
       title="Creation du compte en cours"
       description="AfriPay finalise votre inscription securisee. Vous allez etre redirige vers votre espace dans un instant."
+      defaultRedirectPath="/account"
     />
   );
 }

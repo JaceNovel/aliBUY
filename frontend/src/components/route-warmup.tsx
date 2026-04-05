@@ -12,13 +12,18 @@ export function RouteWarmup() {
   const router = useRouter();
 
   useEffect(() => {
+    const connection = navigator.connection;
+    if (connection?.saveData || connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g") {
+      return;
+    }
+
     let cancelled = false;
     const warmRoutes = () => {
       if (cancelled) {
         return;
       }
 
-      HOT_ROUTES.forEach((route) => {
+      HOT_ROUTES.slice(0, 1).forEach((route) => {
         router.prefetch(route);
       });
     };

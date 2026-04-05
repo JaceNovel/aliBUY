@@ -630,7 +630,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
           return;
         }
 
-        router.push(`/orders/payment?orderId=${encodeURIComponent(payload.order.id)}`);
+        router.push(`/orders?payment=initialization_failed&orderId=${encodeURIComponent(payload.order.id)}`);
       } catch (paymentError) {
         clearCart();
         clearSharedCartContext();
@@ -638,7 +638,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
         setErrorMessage(paymentError instanceof Error
           ? `${paymentError.message} La commande a ete creee, mais le checkout Moneroo ne s'est pas ouvert automatiquement.`
           : "La commande a ete creee, mais le checkout Moneroo ne s'est pas ouvert automatiquement.");
-        router.push(`/orders/payment?orderId=${encodeURIComponent(payload.order.id)}`);
+        router.push(`/orders?payment=initialization_failed&orderId=${encodeURIComponent(payload.order.id)}`);
       }
     } catch (error) {
       setIsSubmitting(false);
