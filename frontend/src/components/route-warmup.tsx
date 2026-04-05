@@ -8,11 +8,18 @@ const HOT_ROUTES = [
   "/cart",
 ];
 
+type NetworkAwareNavigator = Navigator & {
+  connection?: {
+    saveData?: boolean;
+    effectiveType?: string;
+  };
+};
+
 export function RouteWarmup() {
   const router = useRouter();
 
   useEffect(() => {
-    const connection = navigator.connection;
+    const connection = (navigator as NetworkAwareNavigator).connection;
     if (connection?.saveData || connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g") {
       return;
     }
