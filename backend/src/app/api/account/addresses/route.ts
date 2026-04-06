@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { maybeProxyToBackend } from "@/lib/backend-route-proxy";
+import { maybeProxyToBackend, requireExternalBackend } from "@/lib/backend-route-proxy";
 import { syncUserPhoneChannels } from "@/lib/account-contact-sync";
 import { createUserAddress, getUserAddresses } from "@/lib/customer-data-store";
 import { validateMutationOrigin } from "@/lib/request-security";
@@ -49,6 +49,11 @@ export async function GET(request: Request) {
   const proxied = await maybeProxyToBackend(request);
   if (proxied) {
     return proxied;
+  }
+
+  const backendConfigError = requireExternalBackend(request, "enregistrer une adresse de livraison");
+  if (backendConfigError) {
+    return backendConfigError;
   }
 
   const user = await getCurrentUser();

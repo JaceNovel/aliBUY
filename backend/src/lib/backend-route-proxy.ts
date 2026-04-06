@@ -1,3 +1,5 @@
+import { NextResponse } from "next/server";
+
 import { API_URL, buildApiUrl } from "@/lib/api";
 import { buildAuthenticatedProxyHeaders } from "@/lib/proxy-auth";
 
@@ -15,6 +17,43 @@ function canProxyToUpstream(request: Request, upstreamUrl: string) {
   const upstreamHost = new URL(upstreamUrl).host;
 
   return Boolean(upstreamHost) && upstreamHost !== currentUrl.host;
+}
+
+function isLocalHostname(hostname: string) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0";
+}
+
+function getCurrentAndUpstreamHosts(request: Request, targetPath?: string) {
+  const currentUrl = new URL(request.url);
+  const upstreamUrl = buildApiUrl(targetPath ?? `${currentUrl.pathname}${currentUrl.search}`);
+  const upstreamHost = new URL(upstreamUrl).host;
+
+  return {
+    currentHostname: currentUrl.hostname,
+    currentHost: currentUrl.host,
+    upstreamHost,
+  };
+}
+
+export function requireExternalBackend(request: Request, actionLabel: string, targetPath?: string) {
+  const { currentHostname, currentHost, upstreamHost } = getCurrentAndUpstreamHosts(request, targetPath);
+  if (isLocalHostname(currentHostname)) {
+    return null;
+  }
+
+  if (!API_URL) {
+    return NextResponse.json({
+      message: `Le storefront ne peut pas ${actionLabel} sans backend externe. Configurez NEXT_PUBLIC_API_BASE_URL avec l'URL du projet backend Vercel.`,
+    }, { status: 503 });
+  }
+
+  if (!upstreamHost || upstreamHost === currentHost) {
+    return NextResponse.json({
+      message: `Le storefront ne peut pas ${actionLabel} car NEXT_PUBLIC_API_BASE_URL pointe encore vers ${currentHost}. Configurez cette variable avec l'URL du projet backend Vercel.`,
+    }, { status: 503 });
+  }
+
+  return null;
 }
 
 export async function maybeProxyToBackend(request: Request, targetPath?: string) {

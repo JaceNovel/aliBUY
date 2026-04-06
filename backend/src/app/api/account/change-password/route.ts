@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { clerkClient } from "@clerk/nextjs/server";
 
-import { maybeProxyToBackend } from "@/lib/backend-route-proxy";
+import { maybeProxyToBackend, requireExternalBackend } from "@/lib/backend-route-proxy";
 import { validateMutationOrigin } from "@/lib/request-security";
 import { hashUserPassword, getCurrentUser, verifyUserPasswordById } from "@/lib/user-auth";
 import { updateStoredUserPassword } from "@/lib/user-store";
@@ -16,6 +16,11 @@ export async function POST(request: Request) {
   const proxied = await maybeProxyToBackend(request);
   if (proxied) {
     return proxied;
+  }
+
+  const backendConfigError = requireExternalBackend(request, "modifier le mot de passe du compte");
+  if (backendConfigError) {
+    return backendConfigError;
   }
 
   const user = await getCurrentUser();

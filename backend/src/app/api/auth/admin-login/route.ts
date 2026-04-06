@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { maybeProxyToBackend } from "@/lib/backend-route-proxy";
+import { maybeProxyToBackend, requireExternalBackend } from "@/lib/backend-route-proxy";
 import { getAuthorizedAdminAccessByEmail, validateAdminCredentials } from "@/lib/admin-auth";
 import { validateMutationOrigin } from "@/lib/request-security";
 import { createAuthenticatedUserSession, getUserSessionCookieConfig } from "@/lib/user-auth";
@@ -31,6 +31,11 @@ export async function POST(request: Request) {
   const proxied = await maybeProxyToBackend(request);
   if (proxied) {
     return proxied;
+  }
+
+  const backendConfigError = requireExternalBackend(request, "ouvrir une session administrateur");
+  if (backendConfigError) {
+    return backendConfigError;
   }
 
   const body = await request.json().catch(() => null);

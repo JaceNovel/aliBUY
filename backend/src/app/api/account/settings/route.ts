@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { clerkClient } from "@clerk/nextjs/server";
 
-import { maybeProxyToBackend } from "@/lib/backend-route-proxy";
+import { maybeProxyToBackend, requireExternalBackend } from "@/lib/backend-route-proxy";
 import { getManyChatAccountProfile } from "@/lib/account-manychat";
 import { syncUserPhoneChannels } from "@/lib/account-contact-sync";
 import { getAccountSettings, updateAccountSettings } from "@/lib/account-settings-store";
@@ -15,6 +15,11 @@ export async function GET(request: Request) {
   const proxied = await maybeProxyToBackend(request);
   if (proxied) {
     return proxied;
+  }
+
+  const backendConfigError = requireExternalBackend(request, "mettre a jour les parametres du compte");
+  if (backendConfigError) {
+    return backendConfigError;
   }
 
   const user = await getCurrentUser();

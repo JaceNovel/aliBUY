@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { API_URL, buildApiUrl } from "@/lib/api";
+import { requireExternalBackend } from "@/lib/backend-route-proxy";
 import { buildAuthenticatedProxyHeaders } from "@/lib/proxy-auth";
 import { updateAccountSettings } from "@/lib/account-settings-store";
 import { getCurrentUser } from "@/lib/user-auth";
@@ -80,6 +81,11 @@ export async function POST(request: Request) {
   const profilePhotoUrl = `/uploads/profile-images/${filename}`;
   const persistedRemotely = await persistProfilePhotoToBackend(request, profilePhotoUrl);
   if (!persistedRemotely) {
+    const backendConfigError = requireExternalBackend(request, "enregistrer la photo de profil", "/api/account/settings");
+    if (backendConfigError) {
+      return backendConfigError;
+    }
+
     await updateAccountSettings(user.id, { profilePhotoUrl });
   }
 
