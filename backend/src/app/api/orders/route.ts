@@ -4,6 +4,7 @@ import { markAbandonedCartRecordCleared } from "@/lib/abandoned-cart-store";
 import { getManyChatAccountProfile } from "@/lib/account-manychat";
 import { getUserOrderRecords } from "@/lib/order-service";
 import { buildAuthenticatedProxyHeaders } from "@/lib/proxy-auth";
+import { validateMutationOrigin } from "@/lib/request-security";
 import { createCheckoutOrder } from "@/lib/sourcing-service";
 import { triggerManyChatLogisticsUpdate } from "@/lib/manychat";
 import { getCurrentUser } from "@/lib/user-auth";
@@ -65,6 +66,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const originError = validateMutationOrigin(request, { allowMissingOrigin: true });
+  if (originError) {
+    return originError;
+  }
+
   const rawBody = await request.text();
   const proxied = await maybeProxy(request, rawBody);
   if (proxied) {

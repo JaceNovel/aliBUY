@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 
 import { list, put } from "@vercel/blob";
 import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { hasConfiguredDatabaseUrl, prisma } from "@/lib/prisma";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { getOrSetCatalogRuntimeCache, invalidateCatalogRuntimeCache } from "@/lib/catalog-runtime-cache";
 import type {
@@ -71,7 +71,7 @@ function getSourcingModelDelegate(modelName: "sourcingSettings" | "sourcingOrder
 }
 
 function hasDatabase() {
-  return Boolean(process.env.DATABASE_URL);
+  return hasConfiguredDatabaseUrl();
 }
 
 function canUseDatabase(modelName?: "sourcingSettings" | "sourcingOrder" | "sourcingSeaContainer" | "alibabaIntegrationLog") {

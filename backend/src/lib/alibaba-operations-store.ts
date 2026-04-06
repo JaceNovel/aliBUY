@@ -15,7 +15,7 @@ import type {
   AlibabaReceptionRecord,
   AlibabaSupplierAccount,
 } from "@/lib/alibaba-operations";
-import { prisma } from "@/lib/prisma";
+import { hasConfiguredDatabaseUrl, prisma } from "@/lib/prisma";
 import { getOrSetCatalogRuntimeCache, invalidateCatalogRuntimeCache } from "@/lib/catalog-runtime-cache";
 import { resolveProductPriceSummaryUsd } from "@/lib/product-variant-pricing";
 import { resolveCoherentItemWeightGrams, resolveCoherentPackageDimensionsCm, sanitizeItemWeightGrams } from "@/lib/product-weight";
@@ -649,7 +649,7 @@ async function readAlibabaSupplierAccountsSource() {
 }
 
 function hasDatabase() {
-  return Boolean(process.env.DATABASE_URL);
+  return hasConfiguredDatabaseUrl();
 }
 
 let databaseFallbackForced = false;

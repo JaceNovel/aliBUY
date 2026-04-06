@@ -2,6 +2,7 @@ import { API_URL, buildApiUrl } from "@/lib/api";
 import { initializeMonerooPayment } from "@/lib/moneroo";
 import { persistMonerooPaymentToOrder } from "@/lib/moneroo-sourcing";
 import { buildAuthenticatedProxyHeaders } from "@/lib/proxy-auth";
+import { validateMutationOrigin } from "@/lib/request-security";
 import { SITE_URL } from "@/lib/site-config";
 import { getSourcingOrderByReference } from "@/lib/sourcing-store";
 import { getCurrentUser } from "@/lib/user-auth";
@@ -111,6 +112,11 @@ async function maybeProxy(request: Request, rawBody: string) {
 }
 
 export async function POST(request: Request) {
+  const originError = validateMutationOrigin(request, { allowMissingOrigin: true });
+  if (originError) {
+    return originError;
+  }
+
   const rawBody = await request.text();
   const proxied = await maybeProxy(request, rawBody);
   if (proxied) {

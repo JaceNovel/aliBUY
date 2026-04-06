@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   images: {
     loader: "custom",
     loaderFile: "./src/lib/cloudflare-image-loader.ts",

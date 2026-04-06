@@ -58,10 +58,10 @@ export async function AdminSectionContent({ slug, pricing }: { slug: string; pri
     case "orders": {
       const orders = await getAdminOrders();
       summaryValue = `${orders.length} commandes enregistrées`;
-      columns = ["Commande", "Client", "Livraison", "Paiement", "Total", "Action"];
+      columns = ["Commande", "Document", "Client", "Livraison", "Paiement", "Total", "Action"];
       rows = orders.map((order) => ({
         key: order.id,
-        values: [order.orderNumber, order.customerName, `${order.shippingMethod.toUpperCase()} · ${order.countryCode}`, order.paymentStatus, pricing.formatPrice(order.totalUsd), "Voir"],
+        values: [order.orderNumber, `${order.documentNumber}${order.pdfExportsCount > 0 ? ` · ${order.pdfExportsCount} export(s)` : ""}`, order.customerName, `${order.shippingMethod.toUpperCase()} · ${order.countryCode}`, order.paymentStatus, pricing.formatPrice(order.totalUsd), "Voir"],
         href: order.href,
         actionLabel: "Voir",
         secondaryHref: order.parcelHref,

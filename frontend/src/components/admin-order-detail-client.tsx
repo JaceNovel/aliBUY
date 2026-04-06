@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { CheckCheck, ExternalLink, MessageCircle, PackageCheck, Save, ShieldCheck, Trash2, Truck } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+import { AFRIPAY_COMPANY_PHONE, getAfripayCourierFallbackName, getAfripayCourierFallbackPhone } from "@/lib/afripay-logistics";
 import type { AdminOrderParcelSnapshot } from "@/lib/admin-order-parcel";
 import {
   formatSourcingAmount,
@@ -21,6 +22,7 @@ type AdminOrderDetailClientProps = {
   parcelSnapshot: AdminOrderParcelSnapshot;
   currencyCode: string;
   locale: string;
+  defaultCourierName?: string;
 };
 
 const statusOptions = [
@@ -58,7 +60,7 @@ function buildWhatsappLogisticsMessage(order: SourcingOrder) {
   return lines.join("\n");
 }
 
-export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, currencyCode, locale }: AdminOrderDetailClientProps) {
+export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, currencyCode, locale, defaultCourierName }: AdminOrderDetailClientProps) {
   const router = useRouter();
   const initialMeta = getSourcingOrderMeta(initialOrder);
   const initialWorkflow = initialMeta.workflow;
@@ -97,12 +99,12 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
     setManualFulfillmentStatusLabel(meta.manualFulfillment?.statusLabel ?? "");
     setManualFulfillmentCheckpointLabel(meta.manualFulfillment?.checkpointLabel ?? "");
     setManualFulfillmentCheckpointNote(meta.manualFulfillment?.checkpointNote ?? "");
-    setManualFulfillmentAgentName(meta.manualFulfillment?.agentName ?? "");
-    setManualFulfillmentAgentPhone(meta.manualFulfillment?.agentPhone ?? "");
+    setManualFulfillmentAgentName(meta.manualFulfillment?.agentName ?? getAfripayCourierFallbackName(defaultCourierName));
+    setManualFulfillmentAgentPhone(meta.manualFulfillment?.agentPhone ?? getAfripayCourierFallbackPhone(undefined));
     setManualFulfillmentEtaLabel(meta.manualFulfillment?.etaLabel ?? "");
     setRelayPointAddress(meta.workflow?.relayPointAddress ?? "");
     setRelayPointLabel(meta.workflow?.relayPointLabel ?? "");
-  }, [meta]);
+  }, [defaultCourierName, meta]);
 
   const alibabaAutomation = useMemo(() => getSourcingAlibabaPostPaymentAutomationState(order), [order]);
   const payUrls = useMemo(() => getSourcingAlibabaPayUrls(order), [order]);
@@ -230,8 +232,8 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
       statusLabel: manualFulfillmentStatusLabel,
       checkpointLabel: manualFulfillmentCheckpointLabel,
       checkpointNote: manualFulfillmentCheckpointNote,
-      agentName: manualFulfillmentAgentName,
-      agentPhone: manualFulfillmentAgentPhone,
+      agentName: getAfripayCourierFallbackName(manualFulfillmentAgentName || defaultCourierName),
+      agentPhone: getAfripayCourierFallbackPhone(manualFulfillmentAgentPhone || AFRIPAY_COMPANY_PHONE),
       etaLabel: manualFulfillmentEtaLabel,
     });
   };
@@ -450,11 +452,11 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
             </label>
             <label className="text-[13px] font-semibold text-[#344054]">
               Agent / responsable
-              <input value={manualFulfillmentAgentName} onChange={(event) => setManualFulfillmentAgentName(event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a5b]" placeholder="Ex: Equipe Abidjan" />
+              <input value={manualFulfillmentAgentName} onChange={(event) => setManualFulfillmentAgentName(event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a5b]" placeholder={defaultCourierName || "Ex: Equipe Abidjan"} />
             </label>
             <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">
               Téléphone agent
-              <input value={manualFulfillmentAgentPhone} onChange={(event) => setManualFulfillmentAgentPhone(event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a5b]" placeholder="Ex: +225 ..." />
+              <input value={manualFulfillmentAgentPhone} onChange={(event) => setManualFulfillmentAgentPhone(event.target.value)} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a5b]" placeholder={AFRIPAY_COMPANY_PHONE} />
             </label>
             <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">
               Note checkpoint

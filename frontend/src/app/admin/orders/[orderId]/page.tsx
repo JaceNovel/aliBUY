@@ -3,11 +3,13 @@ import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { AdminOrderDetailClient } from "@/components/admin-order-detail-client";
+import { getCurrentUser } from "@/lib/user-auth";
 import { getAdminOrderById, getAdminOrderParcelSnapshot } from "@/lib/admin-data";
 import { getPricingContext } from "@/lib/pricing";
 
 export default async function AdminOrderDetailPage({ params }: { params: Promise<{ orderId: string }> }) {
   const pricing = await getPricingContext();
+  const currentUser = await getCurrentUser();
   const { orderId } = await params;
   const order = await getAdminOrderById(orderId);
 
@@ -31,7 +33,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
         </Link>
       </div>
 
-      <AdminOrderDetailClient order={order} parcelSnapshot={parcelSnapshot} currencyCode={pricing.currency.code} locale={pricing.locale} />
+      <AdminOrderDetailClient order={order} parcelSnapshot={parcelSnapshot} currencyCode={pricing.currency.code} locale={pricing.locale} defaultCourierName={currentUser?.displayName} />
     </div>
   );
 }

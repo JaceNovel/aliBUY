@@ -1,5 +1,7 @@
 import { API_URL, buildApiUrl } from "@/lib/api";
+import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { getFreeDealAdminSummary, saveFreeDealConfig, type FreeDealConfig } from "@/lib/free-deal-store";
+import { validateMutationOrigin } from "@/lib/request-security";
 import { POST as importFreeDealsPost } from "./import/route";
 
 function parseString(value: unknown, fallback: string) {
@@ -84,6 +86,10 @@ async function maybeProxy(request: Request, path: string, init?: RequestInit) {
 }
 
 export async function GET(request: Request) {
+  if (!(await isAdminAuthenticated())) {
+    return Response.json({ message: "Acces refuse." }, { status: 403 });
+  }
+
   const proxied = await maybeProxy(request, "/api/admin/free-deals");
   if (proxied) {
     return proxied;
@@ -94,6 +100,15 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const originError = validateMutationOrigin(request);
+  if (originError) {
+    return originError;
+  }
+
+  if (!(await isAdminAuthenticated())) {
+    return Response.json({ message: "Acces refuse." }, { status: 403 });
+  }
+
   const body = await request.json().catch(() => ({})) as Partial<FreeDealConfig>;
   const proxied = await maybeProxy(request, "/api/admin/free-deals", {
     method: "PUT",
@@ -134,6 +149,15 @@ export async function PUT(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const originError = validateMutationOrigin(request);
+  if (originError) {
+    return originError;
+  }
+
+  if (!(await isAdminAuthenticated())) {
+    return Response.json({ message: "Acces refuse." }, { status: 403 });
+  }
+
   // Use the root free-deals endpoint as a stable import fallback.
   return importFreeDealsPost(request);
 }

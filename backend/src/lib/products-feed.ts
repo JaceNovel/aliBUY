@@ -5,7 +5,7 @@ import { cache } from "react";
 
 import { getCatalogCategoryBySlug, getCatalogCategories } from "@/lib/catalog-category-service";
 import { findSimilarCatalogProducts, getCatalogProducts, searchCatalogProducts } from "@/lib/catalog-service";
-import { prisma } from "@/lib/prisma";
+import { hasConfiguredDatabaseUrl, prisma } from "@/lib/prisma";
 import { getRedisJsonCache, setRedisJsonCache } from "@/lib/redis-cache";
 
 export const PRODUCTS_FEED_PAGE_SIZE = 20;
@@ -57,7 +57,7 @@ function getAlibabaImportedProductDelegate() {
 }
 
 function canUseProductFeedDatabase() {
-  return Boolean(process.env.DATABASE_URL) && Boolean(getAlibabaImportedProductDelegate());
+  return hasConfiguredDatabaseUrl() && Boolean(getAlibabaImportedProductDelegate());
 }
 
 type ProductFeedSource = "catalog" | "search" | "category" | "featured";

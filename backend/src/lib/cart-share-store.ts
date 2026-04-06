@@ -8,7 +8,7 @@ import { Prisma } from "@prisma/client";
 import { get, put } from "@vercel/blob";
 
 import type { CartInputItem } from "@/lib/alibaba-sourcing";
-import { prisma } from "@/lib/prisma";
+import { hasConfiguredDatabaseUrl, prisma } from "@/lib/prisma";
 import { getVercelBlobAccessMode } from "@/lib/vercel-blob-access";
 
 export type SharedCartStatus = "active" | "claimed" | "ordered" | "expired";
@@ -51,7 +51,7 @@ function getSharedCartLinkDelegate() {
 }
 
 function hasDatabase() {
-  return Boolean(process.env.DATABASE_URL);
+  return hasConfiguredDatabaseUrl();
 }
 
 function canUseDatabase() {

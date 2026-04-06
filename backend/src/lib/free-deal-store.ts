@@ -15,7 +15,7 @@ import { getCatalogProductsBySlugs } from "@/lib/catalog-service";
 import { convertEurToFcfa } from "@/lib/free-deal";
 import { FREE_DEAL_ROUTE, FREE_DEAL_SHARE_ROUTE_PREFIX } from "@/lib/free-deal-constants";
 import type { ProductCatalogItem } from "@/lib/products-data";
-import { prisma } from "@/lib/prisma";
+import { hasConfiguredDatabaseUrl, prisma } from "@/lib/prisma";
 import { getVercelBlobAccessMode } from "@/lib/vercel-blob-access";
 
 export type FreeDealConfig = {
@@ -153,7 +153,7 @@ const DEFAULT_FREE_DEAL_CONFIG: FreeDealConfig = {
 };
 
 function hasDatabase() {
-  return Boolean(process.env.DATABASE_URL);
+  return hasConfiguredDatabaseUrl();
 }
 
 function canUseBlobStore() {

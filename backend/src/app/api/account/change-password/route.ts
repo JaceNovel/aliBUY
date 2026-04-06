@@ -2,10 +2,16 @@ import { NextResponse } from "next/server";
 
 import { clerkClient } from "@clerk/nextjs/server";
 
+import { validateMutationOrigin } from "@/lib/request-security";
 import { hashUserPassword, getCurrentUser, verifyUserPasswordById } from "@/lib/user-auth";
 import { updateStoredUserPassword } from "@/lib/user-store";
 
 export async function POST(request: Request) {
+  const originError = validateMutationOrigin(request);
+  if (originError) {
+    return originError;
+  }
+
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });

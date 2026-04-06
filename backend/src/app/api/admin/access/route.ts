@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { hasAdminPermission } from "@/lib/admin-auth";
 import { getAdminAccessRecords, upsertAdminAccess } from "@/lib/admin-access-store";
+import { validateMutationOrigin } from "@/lib/request-security";
 
 export async function GET() {
   if (!(await hasAdminPermission("admin.manage"))) {
@@ -12,6 +13,11 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+  const originError = validateMutationOrigin(request);
+  if (originError) {
+    return originError;
+  }
+
   if (!(await hasAdminPermission("admin.manage"))) {
     return NextResponse.json({ message: "Accès refusé." }, { status: 403 });
   }

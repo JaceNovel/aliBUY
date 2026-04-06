@@ -6,6 +6,7 @@ import { API_URL, buildApiUrl } from "@/lib/api";
 import { createAuthenticatedUserSession, getCurrentUser } from "@/lib/user-auth";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { getSourcingOrderMeta, type SourcingOrder } from "@/lib/alibaba-sourcing";
+import { getDeliveryNoteDocumentNumber, getDeliveryNoteExportHistory } from "@/lib/admin-sourcing-delivery-note-data";
 import type { AdminOrderParcelItem, AdminOrderParcelPhoto, AdminOrderParcelSnapshot } from "@/lib/admin-order-parcel";
 import { getCatalogCategories } from "@/lib/catalog-category-service";
 import { getCatalogProducts } from "@/lib/catalog-service";
@@ -92,6 +93,8 @@ export type AdminUserRecord = {
 export type AdminOrderRecord = {
   id: string;
   orderNumber: string;
+  documentNumber: string;
+  pdfExportsCount: number;
   customerName: string;
   customerEmail: string;
   customerPhone: string;
@@ -389,6 +392,8 @@ export async function getAdminOrders(options?: { preferProxy?: boolean }): Promi
     .map((order: AdminSourcingOrder) => ({
       id: order.id,
       orderNumber: order.orderNumber,
+      documentNumber: getDeliveryNoteDocumentNumber(order),
+      pdfExportsCount: getDeliveryNoteExportHistory(order).length,
       customerName: order.customerName,
       customerEmail: order.customerEmail,
       customerPhone: order.customerPhone,

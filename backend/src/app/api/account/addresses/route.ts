@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { syncUserPhoneChannels } from "@/lib/account-contact-sync";
 import { createUserAddress, getUserAddresses } from "@/lib/customer-data-store";
+import { validateMutationOrigin } from "@/lib/request-security";
 import { getCurrentUser } from "@/lib/user-auth";
 
 function getStringValue(value: unknown) {
@@ -54,6 +55,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const originError = validateMutationOrigin(request);
+  if (originError) {
+    return originError;
+  }
+
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });

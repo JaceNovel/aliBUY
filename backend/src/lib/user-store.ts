@@ -1,7 +1,7 @@
 import "server-only";
 
 import { parseDisplayName } from "@/lib/user-session";
-import { prisma } from "@/lib/prisma";
+import { hasConfiguredDatabaseUrl, prisma } from "@/lib/prisma";
 
 export type StoredUser = {
   id: string;
@@ -19,7 +19,7 @@ function normalizeEmail(email: string) {
 }
 
 function hasDatabase() {
-  return Boolean(process.env.DATABASE_URL);
+  return hasConfiguredDatabaseUrl();
 }
 
 function isPrismaDatabaseUnavailable(error: unknown) {

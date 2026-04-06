@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { deleteUserAddress, setUserDefaultAddress, updateUserAddress } from "@/lib/customer-data-store";
+import { validateMutationOrigin } from "@/lib/request-security";
 import { getCurrentUser } from "@/lib/user-auth";
 
 function getStringValue(value: unknown) {
@@ -37,6 +38,11 @@ function validateAddressPayload(body: unknown) {
 }
 
 export async function PUT(request: Request, context: { params: Promise<{ addressId: string }> }) {
+  const originError = validateMutationOrigin(request);
+  if (originError) {
+    return originError;
+  }
+
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });
@@ -60,6 +66,11 @@ export async function PUT(request: Request, context: { params: Promise<{ address
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ addressId: string }> }) {
+  const originError = validateMutationOrigin(request);
+  if (originError) {
+    return originError;
+  }
+
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });
@@ -81,7 +92,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ addre
   }
 }
 
-export async function DELETE(_request: Request, context: { params: Promise<{ addressId: string }> }) {
+export async function DELETE(request: Request, context: { params: Promise<{ addressId: string }> }) {
+  const originError = validateMutationOrigin(request);
+  if (originError) {
+    return originError;
+  }
+
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });

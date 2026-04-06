@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { getAdminOrderParcelSnapshot } from "@/lib/admin-data";
+import { validateMutationOrigin } from "@/lib/request-security";
 import {
   getSourcingOrderMeta,
   isSourcingOrderClientPaid,
@@ -105,6 +106,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const originError = validateMutationOrigin(request);
+  if (originError) {
+    return originError;
+  }
+
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ message: "Acces refuse." }, { status: 403 });
   }

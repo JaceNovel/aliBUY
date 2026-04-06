@@ -7,7 +7,7 @@ import { get, put } from "@vercel/blob";
 
 import type { CustomerAddressRecord } from "@/lib/customer-addresses";
 import { canonicalizeCountryCode } from "@/lib/country-utils";
-import { prisma } from "@/lib/prisma";
+import { hasConfiguredDatabaseUrl, prisma } from "@/lib/prisma";
 import { getVercelBlobAccessMode } from "@/lib/vercel-blob-access";
 
 const DATABASE_UNAVAILABLE_MESSAGE = "Le service de donnees n'est pas configure sur cette instance.";
@@ -335,7 +335,7 @@ function normalizeCustomerAddressInput(input: CustomerAddressInput) {
 }
 
 function hasDatabase() {
-  return Boolean(process.env.DATABASE_URL);
+  return hasConfiguredDatabaseUrl();
 }
 
 function createDatabaseUnavailableError() {

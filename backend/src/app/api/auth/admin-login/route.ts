@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getAuthorizedAdminAccessByEmail, validateAdminCredentials } from "@/lib/admin-auth";
+import { validateMutationOrigin } from "@/lib/request-security";
 import { createAuthenticatedUserSession, getUserSessionCookieConfig } from "@/lib/user-auth";
 import { createStoredUser, getStoredUserByEmail } from "@/lib/user-store";
 
@@ -21,6 +22,11 @@ function deriveAdminDisplayName(email: string) {
 }
 
 export async function POST(request: Request) {
+  const originError = validateMutationOrigin(request);
+  if (originError) {
+    return originError;
+  }
+
   const body = await request.json().catch(() => null);
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
   const password = typeof body?.password === "string" ? body.password : "";

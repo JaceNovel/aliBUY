@@ -5,6 +5,7 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { getManyChatAccountProfile } from "@/lib/account-manychat";
 import { syncUserPhoneChannels } from "@/lib/account-contact-sync";
 import { getAccountSettings, updateAccountSettings } from "@/lib/account-settings-store";
+import { validateMutationOrigin } from "@/lib/request-security";
 import { parseDisplayName } from "@/lib/user-session";
 import { getCurrentUser } from "@/lib/user-auth";
 import { updateStoredUserProfile } from "@/lib/user-store";
@@ -35,6 +36,11 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
+  const originError = validateMutationOrigin(request);
+  if (originError) {
+    return originError;
+  }
+
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });

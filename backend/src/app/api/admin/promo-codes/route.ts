@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { deletePromoCode, getPromoCodes, upsertPromoCode } from "@/lib/promo-codes-store";
+import { validateMutationOrigin } from "@/lib/request-security";
 
 export async function GET() {
   if (!(await isAdminAuthenticated())) {
@@ -12,6 +13,11 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+  const originError = validateMutationOrigin(request);
+  if (originError) {
+    return originError;
+  }
+
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ message: "Accès refusé." }, { status: 403 });
   }
@@ -31,6 +37,11 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const originError = validateMutationOrigin(request);
+  if (originError) {
+    return originError;
+  }
+
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ message: "Accès refusé." }, { status: 403 });
   }

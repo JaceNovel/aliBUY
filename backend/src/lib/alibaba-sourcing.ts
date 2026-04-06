@@ -157,6 +157,14 @@ export type SourcingManualFulfillmentMeta = {
   lastUpdatedAt?: string;
 };
 
+export type SourcingDeliveryNoteExportRecord = {
+  id: string;
+  documentNumber: string;
+  disposition: "inline" | "attachment";
+  exportedAt: string;
+  exportedByEmail?: string;
+};
+
 export type SourcingOrderWorkflow = {
   routeType: "afripay-final-mile" | "customer-forwarder";
   freeDeliveryEligible: boolean;
@@ -267,6 +275,7 @@ export type SourcingOrderMeta = {
   workflow?: SourcingOrderWorkflow;
   parcel?: SourcingParcelMeta;
   manualFulfillment?: SourcingManualFulfillmentMeta;
+  deliveryNoteExports?: SourcingDeliveryNoteExportRecord[];
   promo?: SourcingPromoAdjustment;
   sharedCart?: SourcingSharedCartContext;
   paymentContext?: SourcingPaymentContext;
@@ -547,6 +556,41 @@ function normalizeManualFulfillmentMeta(value: unknown): SourcingManualFulfillme
   };
 }
 
+function normalizeDeliveryNoteExportRecord(value: unknown): SourcingDeliveryNoteExportRecord | null {
+  if (!isObjectRecord(value)) {
+    return null;
+  }
+
+  const id = typeof value.id === "string" ? value.id.trim() : "";
+  const documentNumber = typeof value.documentNumber === "string" ? value.documentNumber.trim() : "";
+  const exportedAt = typeof value.exportedAt === "string" ? value.exportedAt : "";
+
+  if (!id || !documentNumber || !exportedAt) {
+    return null;
+  }
+
+  return {
+    id,
+    documentNumber,
+    disposition: value.disposition === "inline" ? "inline" : "attachment",
+    exportedAt,
+    exportedByEmail: typeof value.exportedByEmail === "string" && value.exportedByEmail.trim().length > 0 ? value.exportedByEmail.trim() : undefined,
+  };
+}
+
+function normalizeDeliveryNoteExportHistory(value: unknown): SourcingDeliveryNoteExportRecord[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const history = value
+    .map(normalizeDeliveryNoteExportRecord)
+    .filter((entry): entry is SourcingDeliveryNoteExportRecord => Boolean(entry))
+    .sort((left, right) => right.exportedAt.localeCompare(left.exportedAt));
+
+  return history.length > 0 ? history : undefined;
+}
+
 function normalizeDeliveryProfile(value: unknown): SourcingDeliveryProfile | undefined {
   if (!isObjectRecord(value)) {
     return undefined;
@@ -815,6 +859,7 @@ export function getSourcingOrderMeta(order: Pick<SourcingOrder, "supplierOrderPa
     workflow: normalizeOrderWorkflow(meta.workflow),
     parcel: normalizeParcelMeta(meta.parcel),
     manualFulfillment: normalizeManualFulfillmentMeta(meta.manualFulfillment),
+    deliveryNoteExports: normalizeDeliveryNoteExportHistory(meta.deliveryNoteExports),
     promo: normalizePromoAdjustment(meta.promo),
     sharedCart: normalizeSharedCartContext(meta.sharedCart),
     paymentContext: normalizePaymentContext(meta.paymentContext),
@@ -964,6 +1009,7 @@ export function withSourcingOrderMeta(order: SourcingOrder, metaUpdate: Sourcing
     workflow: metaUpdate.workflow ?? currentMeta.workflow,
     parcel: metaUpdate.parcel ?? currentMeta.parcel,
     manualFulfillment: metaUpdate.manualFulfillment ?? currentMeta.manualFulfillment,
+    deliveryNoteExports: metaUpdate.deliveryNoteExports ?? currentMeta.deliveryNoteExports,
     promo: metaUpdate.promo ?? currentMeta.promo,
     sharedCart: metaUpdate.sharedCart ?? currentMeta.sharedCart,
     paymentContext: metaUpdate.paymentContext ?? currentMeta.paymentContext,

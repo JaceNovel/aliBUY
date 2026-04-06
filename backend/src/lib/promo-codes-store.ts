@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import { get, put } from "@vercel/blob";
 import { Prisma } from "@prisma/client";
 
-import { prisma } from "@/lib/prisma";
+import { hasConfiguredDatabaseUrl, prisma } from "@/lib/prisma";
 import { getVercelBlobAccessMode } from "@/lib/vercel-blob-access";
 
 export type PromoCodeAmountType = "fixed_fcfa" | "percent";
@@ -72,7 +72,7 @@ function canUseBlobStore() {
 }
 
 function hasDatabase() {
-  return Boolean(process.env.DATABASE_URL);
+  return hasConfiguredDatabaseUrl();
 }
 
 function canUseDatabase() {
