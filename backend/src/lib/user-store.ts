@@ -1,7 +1,7 @@
 import "server-only";
 
 import { parseDisplayName } from "@/lib/user-session";
-import { hasConfiguredDatabaseUrl, prisma } from "@/lib/prisma";
+import { getConfiguredDatabaseUrl, hasConfiguredDatabaseUrl, prisma } from "@/lib/prisma";
 
 export type StoredUser = {
   id: string;
@@ -29,7 +29,7 @@ function ensureDatabaseConfigured() {
 }
 
 function getConfiguredDatabaseTarget() {
-  const raw = process.env.DATABASE_URL?.trim();
+  const raw = getConfiguredDatabaseUrl();
 
   if (!raw) {
     return null;
