@@ -22,6 +22,12 @@ function hasDatabase() {
   return hasConfiguredDatabaseUrl();
 }
 
+function ensureDatabaseConfigured() {
+  if (!hasDatabase()) {
+    throw new Error("La base de donnees n'est pas configuree. Ajoutez DATABASE_URL pour activer les comptes persistants.");
+  }
+}
+
 function isPrismaDatabaseUnavailable(error: unknown) {
   if (!error || typeof error !== "object") {
     return false;
@@ -126,6 +132,8 @@ export async function createStoredUser(input: {
   passwordSalt?: string | null;
   clerkUserId?: string | null;
 }) {
+  ensureDatabaseConfigured();
+
   const normalizedEmail = normalizeEmail(input.email);
 
   const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
@@ -153,6 +161,8 @@ export async function upsertStoredUserFromClerk(input: {
   email: string;
   displayName: string;
 }) {
+  ensureDatabaseConfigured();
+
   const normalizedEmail = normalizeEmail(input.email);
   const parsedName = parseDisplayName(input.displayName);
 
@@ -194,6 +204,8 @@ export async function updateStoredUserProfile(input: {
   id: string;
   displayName?: string;
 }) {
+  ensureDatabaseConfigured();
+
   const current = await prisma.user.findUnique({ where: { id: input.id } });
   if (!current) {
     throw new Error("Utilisateur introuvable.");
@@ -215,6 +227,8 @@ export async function updateStoredUserEmail(input: {
   id: string;
   email: string;
 }) {
+  ensureDatabaseConfigured();
+
   const normalizedEmail = normalizeEmail(input.email);
   const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (existing && existing.id !== input.id) {
@@ -234,6 +248,8 @@ export async function updateStoredUserPassword(input: {
   passwordHash: string;
   passwordSalt: string;
 }) {
+  ensureDatabaseConfigured();
+
   const updated = await prisma.user.update({
     where: { id: input.id },
     data: {
@@ -246,5 +262,7 @@ export async function updateStoredUserPassword(input: {
 }
 
 export async function deleteStoredUser(id: string) {
+  ensureDatabaseConfigured();
+
   await prisma.user.delete({ where: { id } });
 }
