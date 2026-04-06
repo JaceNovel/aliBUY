@@ -26,15 +26,34 @@ function collectAllowedOrigins(request: Request) {
   return origins;
 }
 
-export function validateMutationOrigin(request: Request, options?: { allowMissingOrigin?: boolean }) {
-  const origin = request.headers.get("origin")?.trim();
-  if (!origin) {
-    return options?.allowMissingOrigin === true
-      ? null
-      : NextResponse.json({ message: "Origine de requete manquante." }, { status: 403 });
+function isAllowedFallbackMutationRequest(request: Request, allowedOrigins: Set<string>) {
+  const referer = request.headers.get("referer")?.trim();
+  if (referer) {
+    try {
+      if (allowedOrigins.has(new URL(referer).origin)) {
+        return true;
+      }
+    } catch {
+      // Ignore malformed referer.
+    }
   }
 
+  const fetchSite = request.headers.get("sec-fetch-site")?.trim().toLowerCase();
+  return fetchSite === "same-origin" || fetchSite === "same-site" || fetchSite === "none";
+}
+
+export function validateMutationOrigin(request: Request, options?: { allowMissingOrigin?: boolean }) {
+  const origin = request.headers.get("origin")?.trim();
   const allowedOrigins = collectAllowedOrigins(request);
+
+  if (!origin) {
+    if (options?.allowMissingOrigin === true || isAllowedFallbackMutationRequest(request, allowedOrigins)) {
+      return null;
+    }
+
+    return NextResponse.json({ message: "Origine de requete manquante." }, { status: 403 });
+  }
+
   if (allowedOrigins.has(origin)) {
     return null;
   }
