@@ -2741,6 +2741,59 @@ async function searchAlibabaIcbuProducts(input: {
   };
 }
 
+function matchesAlibabaExactIdentifier(product: AlibabaSearchProduct, identifier: string) {
+  const normalizedIdentifier = identifier.trim().toLowerCase();
+  if (!normalizedIdentifier) {
+    return false;
+  }
+
+  const rawPayload = product.rawPayload && typeof product.rawPayload === "object" && !Array.isArray(product.rawPayload)
+    ? product.rawPayload as Record<string, unknown>
+    : null;
+  const basicInfo = rawPayload?.basic_info && typeof rawPayload.basic_info === "object"
+    ? rawPayload.basic_info as Record<string, unknown>
+    : {};
+  const tradeInfo = rawPayload?.trade_info && typeof rawPayload.trade_info === "object"
+    ? rawPayload.trade_info as Record<string, unknown>
+    : {};
+  const skuInfo = Array.isArray(rawPayload?.sku_info)
+    ? rawPayload?.sku_info as Array<Record<string, unknown>>
+    : Array.isArray(tradeInfo.sku_info)
+      ? tradeInfo.sku_info as Array<Record<string, unknown>>
+      : [];
+
+  const candidateValues = [
+    product.sourceProductId,
+    getStringValue(basicInfo.model_number),
+    getStringValue(rawPayload?.model_number),
+    ...skuInfo.map((sku) => getStringValue(sku.sku_code)),
+  ];
+
+  return candidateValues.some((value) => value?.trim().toLowerCase() === normalizedIdentifier);
+}
+
+export async function searchAlibabaExactIdentifierProducts(input: {
+  identifier: string;
+  limit: number;
+}): Promise<AlibabaProductSearchResult> {
+  const normalizedIdentifier = input.identifier.trim();
+  const result = await searchAlibabaIcbuProducts({
+    query: normalizedIdentifier,
+    limit: Math.min(Math.max(input.limit, 1), 20),
+  });
+
+  if (!result.ok) {
+    return result;
+  }
+
+  const exactProducts = result.products.filter((product) => matchesAlibabaExactIdentifier(product, normalizedIdentifier));
+
+  return {
+    ...result,
+    products: exactProducts.slice(0, input.limit),
+  };
+}
+
 async function callAlibabaEndpoint(pathOrUrl: string, payload: Record<string, unknown>, options?: {
   accessToken?: string;
   includeAccessToken?: boolean;

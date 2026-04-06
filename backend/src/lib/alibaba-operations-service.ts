@@ -49,6 +49,7 @@ import {
   queryAlibabaPaymentResult,
   queryAliExpressDsAddress,
   resolveAlibabaIcbuCategoryInfo,
+  searchAlibabaExactIdentifierProducts,
   searchAlibabaProducts,
   type AlibabaSearchProduct,
 } from "@/lib/alibaba-open-platform-client";
@@ -939,8 +940,8 @@ export async function runAlibabaCatalogImport(input: {
   const normalizedQuery = input.query.trim();
   const directProductIdMatch = normalizedQuery.match(/(?:^|\D)(\d{12,20})(?:\D|$)/);
   const manualDirectImport = Boolean(input.manualProductMode);
-  if (manualDirectImport && !directProductIdMatch?.[1]) {
-    throw new Error("Import manuel impossible: colle un lien AliExpress valide ou un product_id numerique comme 1005010812705425.");
+  if (manualDirectImport && !normalizedQuery) {
+    throw new Error("Import manuel impossible: saisis un SKU exact, un lien AliExpress ou un product_id.");
   }
 
   const timestamp = nowIso();
@@ -968,28 +969,45 @@ export async function runAlibabaCatalogImport(input: {
     const existingImportedProducts = await getAlibabaImportedProducts();
     const existingImportedProductBySourceProductId = new Map(existingImportedProducts.map((product) => [product.sourceProductId, product]));
     const existingSourceProductIds = new Set(existingImportedProducts.map((product) => product.sourceProductId));
-    const explorationLimit = manualDirectImport ? 1 : Math.min(Math.max(job.limit * 2, 12), 30);
-    const searchResult = await searchAlibabaProducts({
-      query: job.query,
-      limit: explorationLimit,
-      fulfillmentChannel: job.fulfillmentChannel,
-      preferredShipToCountry: "FR",
-    });
+    let searchResult: { ok: boolean; errorMessage?: string; endpoint: string };
+    let resolvedProducts: AlibabaSearchProduct[] = [];
 
-    let resolvedProducts = searchResult.products;
+    if (manualDirectImport) {
+      if (directProductIdMatch?.[1]) {
+        const directSnapshot = await fetchAlibabaProductSnapshot({
+          sourceProductId: directProductIdMatch[1],
+          query: job.query,
+          shipToCountry: "FR",
+          targetCurrency: process.env.ALIEXPRESS_TARGET_CURRENCY ?? process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD",
+          targetLanguage: process.env.ALIEXPRESS_TARGET_LANGUAGE ?? process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "fr_FR",
+        }).catch(() => null);
 
-    if (manualDirectImport && resolvedProducts.length === 0 && directProductIdMatch?.[1]) {
-      const directSnapshot = await fetchAlibabaProductSnapshot({
-        sourceProductId: directProductIdMatch[1],
-        query: job.query,
-        shipToCountry: "FR",
-        targetCurrency: process.env.ALIEXPRESS_TARGET_CURRENCY ?? process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD",
-        targetLanguage: process.env.ALIEXPRESS_TARGET_LANGUAGE ?? process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "fr_FR",
-      }).catch(() => null);
+        resolvedProducts = directSnapshot ? [directSnapshot] : [];
+        searchResult = {
+          ok: Boolean(directSnapshot),
+          endpoint: "/aliexpress/ds/product/get",
+          errorMessage: directSnapshot ? undefined : "Aucun produit AliExpress n'a pu etre lu pour cet ID ou ce lien direct.",
+        };
+      } else {
+        const exactSearchResult = await searchAlibabaExactIdentifierProducts({
+          identifier: job.query,
+          limit: 1,
+        });
 
-      if (directSnapshot) {
-        resolvedProducts = [directSnapshot];
+        resolvedProducts = exactSearchResult.products;
+        searchResult = exactSearchResult;
       }
+    } else {
+      const explorationLimit = Math.min(Math.max(job.limit * 2, 12), 30);
+      const catalogSearchResult = await searchAlibabaProducts({
+        query: job.query,
+        limit: explorationLimit,
+        fulfillmentChannel: job.fulfillmentChannel,
+        preferredShipToCountry: "FR",
+      });
+
+      resolvedProducts = catalogSearchResult.products;
+      searchResult = catalogSearchResult;
     }
 
     if (!searchResult.ok && resolvedProducts.length === 0) {
@@ -998,7 +1016,7 @@ export async function runAlibabaCatalogImport(input: {
 
     if (resolvedProducts.length === 0) {
       throw new Error(manualDirectImport
-        ? "Aucun produit AliExpress n'a pu etre lu pour cet ID ou ce lien direct."
+        ? "Aucun produit exact n'a ete trouve pour ce SKU, ce lien AliExpress ou ce product_id."
         : "Aucun produit live AliExpress n'a ete renvoye pour cette recherche.");
     }
 

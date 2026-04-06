@@ -1,5 +1,3 @@
-import { cache } from "react";
-
 import { API_URL, buildApiUrl } from "@/lib/api";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { deriveVariantGroupsFromPricing, deriveVariantGroupsFromSkus } from "@/lib/product-variant-pricing";
@@ -26,7 +24,7 @@ async function fetchRemoteCatalogProducts() {
   }
 }
 
-export const getCatalogProducts = cache(async function getCatalogProducts(): Promise<ProductCatalogItem[]> {
+async function readCatalogProductsSource(): Promise<ProductCatalogItem[]> {
   const remoteProducts = await fetchRemoteCatalogProducts();
   if (remoteProducts && remoteProducts.length > 0) {
     return remoteProducts;
@@ -84,15 +82,23 @@ export const getCatalogProducts = cache(async function getCatalogProducts(): Pro
         rawPayload: product.rawPayload,
       };
     });
-});
+}
 
-export const getCatalogProductBySlug = cache(async function getCatalogProductBySlug(slug: string) {
+export async function getCatalogProducts(options?: { fresh?: boolean }): Promise<ProductCatalogItem[]> {
+  if (options?.fresh) {
+    return readCatalogProductsSource();
+  }
+
+  return readCatalogProductsSource();
+}
+
+export async function getCatalogProductBySlug(slug: string) {
   const products = await getCatalogProducts();
   return products.find((product) => product.slug === slug) ?? null;
-});
+}
 
-export async function getCatalogProductsBySlugs(slugs: string[]) {
-  const products = await getCatalogProducts();
+export async function getCatalogProductsBySlugs(slugs: string[], options?: { fresh?: boolean }) {
+  const products = await getCatalogProducts(options);
   const map = new Map(products.map((product) => [product.slug, product]));
   return slugs.flatMap((slug) => {
     const product = map.get(slug);
@@ -100,10 +106,10 @@ export async function getCatalogProductsBySlugs(slugs: string[]) {
   });
 }
 
-export const getCatalogRelatedProducts = cache(async function getCatalogRelatedProducts(currentSlug: string, limit = 4) {
+export async function getCatalogRelatedProducts(currentSlug: string, limit = 4) {
   const products = await getCatalogProducts();
   return products.filter((product) => product.slug !== currentSlug).slice(0, limit);
-});
+}
 
 function normalizeSearchText(value: string) {
   return value

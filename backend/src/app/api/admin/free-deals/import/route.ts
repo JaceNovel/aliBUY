@@ -148,6 +148,7 @@ export async function POST(request: Request) {
       limit,
       fulfillmentChannel: "crossborder",
       autoPublish: true,
+      campaignMode: "free-deal",
       resetImportedProducts: Boolean((body as Record<string, unknown>)?.resetImportedProducts),
     });
     const importedProducts = await getAlibabaImportedProducts();

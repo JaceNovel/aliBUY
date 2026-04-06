@@ -780,7 +780,7 @@ export async function saveFreeDealConfig(input: Partial<FreeDealConfig>) {
 
 export async function getFreeDealProducts(config?: FreeDealConfig): Promise<ProductCatalogItem[]> {
   const resolvedConfig = config ?? await getFreeDealConfig();
-  return getCatalogProductsBySlugs(resolvedConfig.productSlugs);
+  return getCatalogProductsBySlugs(resolvedConfig.productSlugs, { fresh: true });
 }
 
 export async function getFreeDealClaimByOrderId(orderId: string) {

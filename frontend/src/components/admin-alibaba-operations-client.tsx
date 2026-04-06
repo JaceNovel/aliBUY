@@ -287,6 +287,10 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     () => importForm.query.trim() || !seededQuery ? importForm : { ...importForm, query: seededQuery },
     [importForm, seededQuery],
   );
+  const manualIdentifier = useMemo(
+    () => activeImportForm.manualProductMode ? activeImportForm.query.trim() : "",
+    [activeImportForm.manualProductMode, activeImportForm.query],
+  );
   const manualProductId = useMemo(
     () => activeImportForm.manualProductMode ? extractAliExpressProductIdFromInput(activeImportForm.query) : "",
     [activeImportForm.manualProductMode, activeImportForm.query],
@@ -296,7 +300,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     ?? (seededSource === "image-search" && seededQuery
       ? "Recherche image liee a l'import IA AliExpress. Verifie la requete puis lance l'import."
       : null);
-  const importButtonDisabled = isPending || !activeImportForm.query.trim() || (activeImportForm.manualProductMode && !manualProductId);
+  const importButtonDisabled = isPending || !activeImportForm.query.trim();
 
   const refresh = () => {
     startTransition(() => {
@@ -767,28 +771,30 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
         <section className="grid gap-4 xl:grid-cols-[0.88fr_1.12fr]">
           <article className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
             <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Import catalogue</div>
-            <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Recherche AliExpress par mot-cle, SKU, modele ou ID produit</div>
+            <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Recherche AliExpress par mot-cle, reference exacte, modele ou ID du lien produit</div>
             <div className="mt-3 rounded-[14px] bg-[#f8fafc] px-4 py-3 text-[13px] text-[#667085]">
               {activeSupplierAccount
-                ? `Import live via ${activeSupplierAccount.name} (${activeSupplierAccount.accountLogin ?? activeSupplierAccount.email}). Les references exactes interrogent d'abord AfriPay+ puis enrichissent la fiche detail avec variantes, attributs et medias. Tu peux aussi coller un lien AliExpress ou un product_id pour un import manuel unique.`
+                ? `Import live via ${activeSupplierAccount.name} (${activeSupplierAccount.accountLogin ?? activeSupplierAccount.email}). Les references exactes interrogent d'abord AfriPay+ puis enrichissent la fiche detail avec variantes, attributs et medias. En mode manuel, colle l'ID du lien produit AliExpress, un lien AliExpress ou un product_id pour n'importer qu'un seul produit precis.`
                 : selectedSupplierAccount
                   ? `Le compte selectionne est ${selectedSupplierAccount.status === "connected" ? "connecte" : "en attente d'autorisation"}. Termine OAuth dans l'onglet Comptes partenaires avant l'import.`
                   : "Aucun compte AliExpress configure. Ajoute et autorise un compte dans l'onglet Comptes partenaires avant l'import."}
             </div>
             <label className="mt-4 inline-flex items-center gap-3 text-[13px] font-semibold text-[#344054]">
               <input checked={activeImportForm.manualProductMode} onChange={(event) => setImportForm((current) => ({ ...current, manualProductMode: event.target.checked, limit: event.target.checked ? 1 : Math.max(current.limit, 1) }))} type="checkbox" className="h-4 w-4 rounded border-[#d7dce5] text-[#ff6a00] focus:ring-[#ff6a00]" />
-              Import manuel d&apos;un produit par lien AliExpress ou ID produit
+              Import manuel d&apos;un produit par ID du lien, lien AliExpress ou ID produit
             </label>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">
-                {activeImportForm.manualProductMode ? "Lien AliExpress ou product_id" : "Mot-cle ou reference exacte"}
-                <input value={activeImportForm.query} onChange={(event) => setImportForm((current) => ({ ...current, query: event.target.value }))} placeholder={activeImportForm.manualProductMode ? "https://fr.aliexpress.com/item/1005010812705425.html ou 1005010812705425" : "3523LDS, BCD126748, bague, piercing..."} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+                {activeImportForm.manualProductMode ? "ID du lien AliExpress, lien AliExpress ou product_id" : "Mot-cle ou reference exacte"}
+                <input value={activeImportForm.query} onChange={(event) => setImportForm((current) => ({ ...current, query: event.target.value }))} placeholder={activeImportForm.manualProductMode ? "1005010812705425 ou https://fr.aliexpress.com/item/1005010812705425.html" : "1005010812705425, BCD126748, bague, piercing..."} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
               </label>
               {activeImportForm.manualProductMode ? (
                 <div className="sm:col-span-2 rounded-[14px] bg-[#fff7ed] px-4 py-3 text-[13px] text-[#9a3412]">
                   {manualProductId
                     ? <>Produit detecte: <span className="font-semibold">{manualProductId}</span>. L&apos;import manuel forcera 1 seul article avec ses variantes/attributs.</>
-                    : "Colle un lien AliExpress complet ou un product_id numerique valide pour activer l'import manuel."}
+                    : manualIdentifier
+                      ? <>Mode manuel actif pour l&apos;identifiant exact <span className="font-semibold">{manualIdentifier}</span>. Aucun autre produit ne doit etre importe.</>
+                      : "Saisis l'ID du lien produit, un lien AliExpress complet ou un product_id numerique valide pour activer l'import manuel."}
                 </div>
               ) : null}
               <label className="text-[13px] font-semibold text-[#344054]">
