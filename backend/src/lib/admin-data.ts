@@ -1,12 +1,17 @@
 import "server-only";
 
+import { cookies } from "next/headers";
+
+import { API_URL, buildApiUrl } from "@/lib/api";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { getSourcingOrderMeta, type SourcingOrder } from "@/lib/alibaba-sourcing";
 import type { AdminOrderParcelItem, AdminOrderParcelPhoto, AdminOrderParcelSnapshot } from "@/lib/admin-order-parcel";
 import { getCatalogCategories } from "@/lib/catalog-category-service";
 import { getCatalogProducts } from "@/lib/catalog-service";
 import { getQuoteRequests, getSupportConversations, getUserAddresses, getUserFavoriteSlugs, getUserSupportConversations } from "@/lib/customer-data-store";
+import { SITE_URL } from "@/lib/site-config";
 import { getSourcingOrders } from "@/lib/sourcing-store";
+import { USER_SESSION_COOKIE } from "@/lib/user-session";
 import { getStoredUserById, getStoredUsers } from "@/lib/user-store";
 
 type AdminStoredUser = Awaited<ReturnType<typeof getStoredUsers>>[number];
@@ -15,6 +20,39 @@ type AdminQuoteRecord = Awaited<ReturnType<typeof getQuoteRequests>>[number];
 type AdminSupportConversation = Awaited<ReturnType<typeof getSupportConversations>>[number];
 type AdminUserSupportConversation = Awaited<ReturnType<typeof getUserSupportConversations>>[number];
 type AdminCatalogProduct = Awaited<ReturnType<typeof getCatalogProducts>>[number];
+
+function hasExternalAdminApi() {
+  if (!API_URL) {
+    return false;
+  }
+
+  try {
+    return new URL(API_URL).host !== new URL(SITE_URL).host;
+  } catch {
+    return false;
+  }
+}
+
+async function fetchAdminOrdersFromApi() {
+  const sessionToken = (await cookies()).get(USER_SESSION_COOKIE)?.value;
+  if (!sessionToken) {
+    return null;
+  }
+
+  const response = await fetch(buildApiUrl("/api/admin/orders"), {
+    headers: {
+      Cookie: `${USER_SESSION_COOKIE}=${encodeURIComponent(sessionToken)}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = await response.json().catch(() => null) as { orders?: AdminOrderRecord[] } | null;
+  return Array.isArray(payload?.orders) ? payload.orders : null;
+}
 
 export type AdminUserRecord = {
   id: string;
@@ -307,7 +345,18 @@ export async function getAdminRecentOrders(limit = 5) {
     }));
 }
 
-export async function getAdminOrders(): Promise<AdminOrderRecord[]> {
+export async function getAdminOrders(options?: { preferProxy?: boolean }): Promise<AdminOrderRecord[]> {
+  if (options?.preferProxy !== false && hasExternalAdminApi()) {
+    try {
+      const proxiedOrders = await fetchAdminOrdersFromApi();
+      if (proxiedOrders) {
+        return proxiedOrders;
+      }
+    } catch {
+      // Fall back to the local store when the backend API is unreachable.
+    }
+  }
+
   const orders = await getSourcingOrders();
 
   return [...orders]

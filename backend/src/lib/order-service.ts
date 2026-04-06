@@ -1,10 +1,15 @@
 import "server-only";
 
+import { cookies } from "next/headers";
+
+import { API_URL, buildApiUrl } from "@/lib/api";
 import type { AuthenticatedUser } from "@/lib/user-auth";
 import { type OrderRecord, type OrderStatus, type OrderTabKey } from "@/lib/order-utils";
 import { ensureOrderSupportConversation } from "@/lib/customer-data-store";
 import { formatFcfa, getSourcingOrderMeta, type SourcingOrder } from "@/lib/alibaba-sourcing";
+import { SITE_URL } from "@/lib/site-config";
 import { getUserSourcingOrders } from "@/lib/sourcing-store";
+import { USER_SESSION_COOKIE } from "@/lib/user-session";
 
 const countryLabels: Record<string, string> = {
   CI: "Cote d'Ivoire",
@@ -16,6 +21,39 @@ const countryLabels: Record<string, string> = {
 
 function normalizeEmail(value?: string) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function hasExternalOrdersApi() {
+  if (!API_URL) {
+    return false;
+  }
+
+  try {
+    return new URL(API_URL).host !== new URL(SITE_URL).host;
+  } catch {
+    return false;
+  }
+}
+
+async function fetchUserOrderRecordsFromApi() {
+  const sessionToken = (await cookies()).get(USER_SESSION_COOKIE)?.value;
+  if (!sessionToken) {
+    return null;
+  }
+
+  const response = await fetch(buildApiUrl("/api/orders"), {
+    headers: {
+      Cookie: `${USER_SESSION_COOKIE}=${encodeURIComponent(sessionToken)}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = await response.json().catch(() => null) as { orders?: OrderRecord[] } | null;
+  return Array.isArray(payload?.orders) ? payload.orders : null;
 }
 
 function resolveThirdPartyCartNotice(order: SourcingOrder, user: AuthenticatedUser) {
@@ -223,7 +261,18 @@ async function mapOrderRecord(order: SourcingOrder, user: AuthenticatedUser): Pr
   };
 }
 
-export async function getUserOrderRecords(user: AuthenticatedUser) {
+export async function getUserOrderRecords(user: AuthenticatedUser, options?: { preferProxy?: boolean }) {
+  if (options?.preferProxy !== false && hasExternalOrdersApi()) {
+    try {
+      const proxiedOrders = await fetchUserOrderRecordsFromApi();
+      if (proxiedOrders) {
+        return proxiedOrders;
+      }
+    } catch {
+      // Fall back to the local store when the backend API is unreachable.
+    }
+  }
+
   const orders: Awaited<ReturnType<typeof getUserSourcingOrders>> = await getUserSourcingOrders({ userId: user.id, email: user.email });
   const records: OrderRecord[] = await Promise.all(orders.map((order: SourcingOrder) => mapOrderRecord(order, user)));
   return records.sort((left: OrderRecord, right: OrderRecord) => right.dateValue.localeCompare(left.dateValue) || right.timeValue.localeCompare(left.timeValue));

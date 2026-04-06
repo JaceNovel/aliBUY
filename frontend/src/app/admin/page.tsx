@@ -4,6 +4,7 @@ import { ArrowUpRight, Boxes, DollarSign, Package, ShoppingCart, Users } from "l
 
 import { adminNavItems, type AdminSectionSlug } from "@/lib/admin-config";
 import { buildApiUrl } from "@/lib/api";
+import { getAdminMetrics, getAdminMonthlyRevenue, getAdminRecentOrders } from "@/lib/admin-data";
 import { getPricingContext } from "@/lib/pricing";
 import { USER_SESSION_COOKIE } from "@/lib/user-session";
 
@@ -39,6 +40,25 @@ const EMPTY_DASHBOARD_DATA: AdminDashboardPayload = {
   monthlyRevenue: ["Jan", "Fev", "Mar", "Avr", "Mai", "Juin"].map((label) => ({ label, value: 0 })),
   recentOrders: [],
 };
+
+async function buildLocalDashboardData(): Promise<AdminDashboardPayload> {
+  const [metrics, monthlyRevenue, recentOrders] = await Promise.all([
+    getAdminMetrics(),
+    getAdminMonthlyRevenue(),
+    getAdminRecentOrders(),
+  ]);
+
+  return {
+    metrics: {
+      revenueUsd: metrics.revenueUsd,
+      ordersCount: metrics.ordersCount,
+      productsCount: metrics.productsCount,
+      suppliersCount: metrics.suppliersCount,
+    },
+    monthlyRevenue,
+    recentOrders,
+  };
+}
 
 function normalizeNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
@@ -86,7 +106,7 @@ async function getAdminDashboardData() {
 
   if (!sessionToken) {
     return {
-      data: EMPTY_DASHBOARD_DATA,
+      data: await buildLocalDashboardData(),
       warning: "Session admin introuvable pour charger les donnees du tableau de bord.",
     };
   }
@@ -101,7 +121,7 @@ async function getAdminDashboardData() {
 
     if (!response.ok) {
       return {
-        data: EMPTY_DASHBOARD_DATA,
+        data: await buildLocalDashboardData(),
         warning: response.status === 403
           ? "Le backend a refuse l'acces aux donnees admin pour cette session."
           : "Le tableau de bord admin est temporairement indisponible.",
@@ -112,7 +132,7 @@ async function getAdminDashboardData() {
     return { data: payload, warning: null };
   } catch {
     return {
-      data: EMPTY_DASHBOARD_DATA,
+      data: await buildLocalDashboardData(),
       warning: "Impossible de recuperer les donnees admin depuis le backend.",
     };
   }

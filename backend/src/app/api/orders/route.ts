@@ -1,9 +1,20 @@
 import { syncUserPhoneChannels } from "@/lib/account-contact-sync";
 import { markAbandonedCartRecordCleared } from "@/lib/abandoned-cart-store";
 import { getManyChatAccountProfile } from "@/lib/account-manychat";
+import { getUserOrderRecords } from "@/lib/order-service";
 import { createCheckoutOrder } from "@/lib/sourcing-service";
 import { triggerManyChatLogisticsUpdate } from "@/lib/manychat";
 import { getCurrentUser } from "@/lib/user-auth";
+
+export async function GET() {
+  const user = await getCurrentUser();
+  if (!user) {
+    return Response.json({ message: "Connexion requise." }, { status: 401 });
+  }
+
+  const orders = await getUserOrderRecords(user, { preferProxy: false });
+  return Response.json({ orders });
+}
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
