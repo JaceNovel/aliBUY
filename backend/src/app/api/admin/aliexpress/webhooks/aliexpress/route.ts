@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 
 import { extractAlibabaTradeId } from "@/lib/alibaba-open-platform-client";
 import { syncAlibabaPurchaseOrderByTradeId } from "@/lib/alibaba-operations-service";
+import { syncSourcingOrderByAlibabaTradeId } from "@/lib/sourcing-batch-service";
 import { createAlibabaIntegrationLog } from "@/lib/sourcing-store";
 
 function buildSignature(body: string, appKey: string, appSecret: string) {
@@ -77,20 +78,31 @@ export async function POST(request: Request) {
   const isValid = !expectedSignature || authorization === expectedSignature;
 
   let syncedOrder: Awaited<ReturnType<typeof syncAlibabaPurchaseOrderByTradeId>> | null = null;
+  let syncedSourcingOrder: Awaited<ReturnType<typeof syncSourcingOrderByAlibabaTradeId>> | null = null;
   let syncError: string | undefined;
 
   if (isValid && tradeId) {
+    const syncErrors: string[] = [];
+
     try {
       syncedOrder = await syncAlibabaPurchaseOrderByTradeId(tradeId);
     } catch (error) {
-      syncError = error instanceof Error ? error.message : "Synchronisation DS impossible.";
+      syncErrors.push(error instanceof Error ? error.message : "Synchronisation achat AliExpress impossible.");
     }
+
+    try {
+      syncedSourcingOrder = await syncSourcingOrderByAlibabaTradeId(tradeId);
+    } catch (error) {
+      syncErrors.push(error instanceof Error ? error.message : "Synchronisation sourcing impossible.");
+    }
+
+    syncError = syncErrors.length > 0 ? syncErrors.join(" | ") : undefined;
   }
 
   await createAlibabaIntegrationLog({
     action: "aliexpress-webhook",
     endpoint: "/api/admin/aliexpress/webhooks/aliexpress",
-    status: isValid && !syncError ? "success" : "failed",
+    status: isValid && (!syncError || Boolean(syncedOrder) || Boolean(syncedSourcingOrder)) ? "success" : "failed",
     requestBody: {
       authorizationPresent: Boolean(authorization),
       eventType,
@@ -101,6 +113,8 @@ export async function POST(request: Request) {
           payload,
           syncedOrderId: syncedOrder?.id,
           syncedPaymentStatus: syncedOrder?.paymentStatus,
+          syncedSourcingOrderId: syncedSourcingOrder?.id,
+          syncedSourcingStatus: syncedSourcingOrder?.status,
           syncError,
         }
       : rawBody,
@@ -110,5 +124,12 @@ export async function POST(request: Request) {
     return new Response("invalid signature", { status: 401 });
   }
 
-  return Response.json({ ok: true, eventType, tradeId, synced: Boolean(syncedOrder), syncError }, { status: 200 });
+  return Response.json({
+    ok: true,
+    eventType,
+    tradeId,
+    syncedPurchaseOrder: Boolean(syncedOrder),
+    syncedSourcingOrder: Boolean(syncedSourcingOrder),
+    syncError,
+  }, { status: 200 });
 }

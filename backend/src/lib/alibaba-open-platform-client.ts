@@ -4744,6 +4744,156 @@ export async function getAlibabaIcbuCategories(input?: {
   });
 }
 
+function normalizeAliExpressLocalizedNames(value: unknown) {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const entries = Object.entries(value).flatMap(([key, candidate]) => {
+    const text = getStringValue(candidate);
+    return text ? [[key, text] as const] : [];
+  });
+
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function normalizeAliExpressAttributePath(value: unknown) {
+  if (Array.isArray(value)) {
+    const parts = value.flatMap((entry) => collectStrings(entry));
+    return parts.length > 0 ? parts.join(",") : undefined;
+  }
+
+  const text = getStringValue(value);
+  return text || undefined;
+}
+
+export async function getAliExpressPostCategoryChildAttributes(input: {
+  postCategoryId?: string | number;
+  attributePath?: string | string[];
+  locale?: string;
+  channelSellerId?: string | number;
+  channel?: string;
+  productType?: string | number;
+}) {
+  const credentials = await resolveAlibabaCredentialsForLiveCall();
+
+  return callAliExpressTopEndpoint("aliexpress.category.redefining.getchildattributesresultbypostcateidandpath", {
+    ...(typeof input.channelSellerId !== "undefined" && input.channelSellerId !== null && String(input.channelSellerId).trim().length > 0
+      ? { channel_seller_id: String(input.channelSellerId).trim() }
+      : {}),
+    ...(String(input.channel ?? "").trim() ? { channel: String(input.channel).trim() } : {}),
+    ...(String(input.locale ?? "").trim() ? { locale: String(input.locale).trim() } : {}),
+    ...(typeof input.productType !== "undefined" && input.productType !== null && String(input.productType).trim().length > 0
+      ? { product_type: String(input.productType).trim() }
+      : {}),
+    ...(typeof input.postCategoryId !== "undefined" && input.postCategoryId !== null && String(input.postCategoryId).trim().length > 0
+      ? { param1: String(input.postCategoryId).trim() }
+      : {}),
+    ...(normalizeAliExpressAttributePath(input.attributePath)
+      ? { param2: normalizeAliExpressAttributePath(input.attributePath) }
+      : {}),
+  }, {
+    credentials,
+    method: "GET",
+  });
+}
+
+export async function getAliExpressPostCategoryTree(input?: {
+  categoryId?: string | number;
+  onlyWithPermission?: boolean;
+  channelSellerId?: string | number;
+  channel?: string;
+}) {
+  const credentials = await resolveAlibabaCredentialsForLiveCall();
+
+  return callAliExpressTopEndpoint("aliexpress.category.tree.list", {
+    ...(typeof input?.channelSellerId !== "undefined" && input.channelSellerId !== null && String(input.channelSellerId).trim().length > 0
+      ? { channel_seller_id: String(input.channelSellerId).trim() }
+      : {}),
+    ...(String(input?.channel ?? "").trim() ? { channel: String(input?.channel).trim() } : {}),
+    ...(typeof input?.onlyWithPermission === "boolean" ? { only_with_permission: input.onlyWithPermission } : {}),
+    ...(typeof input?.categoryId !== "undefined" && input.categoryId !== null && String(input.categoryId).trim().length > 0
+      ? { category_id: String(input.categoryId).trim() }
+      : {}),
+  }, {
+    credentials,
+    method: "GET",
+  });
+}
+
+export async function getAliExpressCategoryItemQualifications(input: {
+  categoryId: string | number;
+  locale?: string;
+  channelSellerId?: string | number;
+}) {
+  const credentials = await resolveAlibabaCredentialsForLiveCall();
+
+  return callAliExpressTopEndpoint("aliexpress.category.itemQualification.list", {
+    category_id: String(input.categoryId).trim(),
+    ...(String(input.locale ?? "").trim() ? { local: String(input.locale).trim() } : {}),
+    ...(typeof input.channelSellerId !== "undefined" && input.channelSellerId !== null && String(input.channelSellerId).trim().length > 0
+      ? { channel_seller_id: String(input.channelSellerId).trim() }
+      : {}),
+  }, {
+    credentials,
+    method: "GET",
+  });
+}
+
+export async function queryAliExpressCategoryCascadeProperties(input: {
+  categoryId: string | number;
+  locale: string;
+}) {
+  const credentials = await resolveAlibabaCredentialsForLiveCall();
+
+  return callAliExpressTopEndpoint("aliexpress.category.redefining.queryCascadeProperties", {
+    category_id: String(input.categoryId).trim(),
+    locale: String(input.locale).trim(),
+  }, {
+    credentials,
+    method: "GET",
+  });
+}
+
+export async function queryAliExpressSkuAttributes(input: {
+  categoryId?: string | number;
+  aliexpressCategoryId?: string | number;
+  request?: Record<string, unknown>;
+}) {
+  const credentials = await resolveAlibabaCredentialsForLiveCall();
+
+  return callAliExpressTopEndpoint("aliexpress.solution.sku.attribute.query", {
+    query_sku_attribute_info_request: isRecord(input.request)
+      ? input.request
+      : {
+          ...(typeof input.categoryId !== "undefined" && input.categoryId !== null && String(input.categoryId).trim().length > 0
+            ? { category_id: String(input.categoryId).trim() }
+            : {}),
+          ...(typeof input.aliexpressCategoryId !== "undefined" && input.aliexpressCategoryId !== null && String(input.aliexpressCategoryId).trim().length > 0
+            ? { aliexpress_category_id: String(input.aliexpressCategoryId).trim() }
+            : {}),
+        },
+  }, {
+    credentials,
+    method: "GET",
+  });
+}
+
+export async function queryAliExpressSellerCategoryTree(input: {
+  categoryId: string | number;
+  filterNoPermission?: boolean;
+}) {
+  const credentials = await resolveAlibabaCredentialsForLiveCall();
+
+  return callAliExpressTopEndpoint("aliexpress.solution.seller.category.tree.query", {
+    category_id: String(input.categoryId).trim(),
+    filter_no_permission: input.filterNoPermission,
+  }, {
+    credentials,
+    method: "GET",
+  });
+}
+
 export function normalizeAlibabaIcbuCategories(responseBody: unknown): AlibabaIcbuCategorySummary[] {
   const response = isRecord(responseBody) ? responseBody : null;
   const sellerPayload = getAliExpressSellerPayload(responseBody);
@@ -4776,6 +4926,237 @@ export function normalizeAlibabaIcbuCategories(responseBody: unknown): AlibabaIc
         : isTruthyAlibabaFlag(entry.leaf_category),
     } satisfies AlibabaIcbuCategorySummary];
   });
+}
+
+export function normalizeAliExpressSellerCategoryTree(responseBody: unknown) {
+  return normalizeAlibabaIcbuCategories(responseBody);
+}
+
+export function normalizeAliExpressPostCategoryTree(responseBody: unknown) {
+  const response = isRecord(responseBody) ? responseBody : null;
+  const sellerPayload = getAliExpressSellerPayload(responseBody);
+  const entries = Array.isArray(response?.aeop_post_category_list)
+    ? response.aeop_post_category_list
+    : Array.isArray(sellerPayload?.aeop_post_category_list)
+      ? sellerPayload.aeop_post_category_list
+      : Array.isArray(sellerPayload?.categories)
+        ? sellerPayload.categories
+        : [];
+
+  return entries.flatMap((entry) => {
+    if (!isRecord(entry)) {
+      return [] as Array<Record<string, unknown>>;
+    }
+
+    const categoryId = getStringValue(entry.id) ?? getStringValue(entry.children_category_id);
+    const names = normalizeAliExpressLocalizedNames(entry.names) ?? normalizeAliExpressLocalizedNames(entry.multi_language_names);
+    const categoryName = names?.en ?? names?.fr ?? getStringValue(entry.category_name) ?? getStringValue(entry.title) ?? getStringValue(entry.name);
+    if (!categoryId || !categoryName) {
+      return [] as Array<Record<string, unknown>>;
+    }
+
+    return [{
+      categoryId,
+      categoryName,
+      level: getNumberValue(entry.level),
+      leafCategory: typeof entry.isleaf !== "undefined"
+        ? isTruthyAlibabaFlag(entry.isleaf)
+        : isTruthyAlibabaFlag(entry.is_leaf_category),
+      features: uniqueStrings(collectStrings(entry.features)),
+      names,
+    }];
+  });
+}
+
+export function normalizeAliExpressPostCategoryChildAttributes(responseBody: unknown) {
+  const sellerPayload = getAliExpressSellerPayload(responseBody);
+  const entries = Array.isArray(sellerPayload?.attributes) ? sellerPayload.attributes : [];
+
+  return entries.flatMap((entry) => {
+    if (!isRecord(entry)) {
+      return [] as Array<Record<string, unknown>>;
+    }
+
+    const attributeId = getStringValue(entry.id) ?? getStringValue(entry.attr_id) ?? getStringValue(entry.attribute_id);
+    if (!attributeId) {
+      return [] as Array<Record<string, unknown>>;
+    }
+
+    const names = normalizeAliExpressLocalizedNames(entry.names);
+    const values = Array.isArray(entry.values)
+      ? entry.values.flatMap((value) => {
+          if (!isRecord(value)) {
+            return [] as Array<Record<string, unknown>>;
+          }
+
+          const valueId = getStringValue(value.id) ?? getStringValue(value.value_id);
+          if (!valueId) {
+            return [] as Array<Record<string, unknown>>;
+          }
+
+          const valueNames = normalizeAliExpressLocalizedNames(value.names);
+          return [{
+            valueId,
+            valueName: valueNames?.en ?? valueNames?.fr ?? getStringValue(value.name) ?? getStringValue(value.label),
+            names: valueNames,
+            hasSubAttributes: isTruthyAlibabaFlag(value.has_sub_attr),
+            valueTags: uniqueStrings(collectStrings(value.value_tags)),
+            afId: getStringValue(value.af_id),
+          }];
+        })
+      : [];
+    const units = Array.isArray(entry.units)
+      ? entry.units.flatMap((unit) => {
+          if (!isRecord(unit)) {
+            return [] as Array<Record<string, unknown>>;
+          }
+
+          const unitName = getStringValue(unit.unit_name);
+          return unitName ? [{ unitName, rate: getNumberValue(unit.rate) }] : [];
+        })
+      : [];
+
+    return [{
+      attributeId,
+      attributeName: names?.en ?? names?.fr ?? getStringValue(entry.attribute_name) ?? getStringValue(entry.name),
+      names,
+      inputType: getStringValue(entry.input_type),
+      skuStyleValue: getStringValue(entry.sku_style_value),
+      attributeShowTypeValue: getStringValue(entry.attribute_show_type_value),
+      visible: typeof entry.visible === "undefined" ? true : isTruthyAlibabaFlag(entry.visible),
+      required: isTruthyAlibabaFlag(entry.required),
+      keyAttribute: isTruthyAlibabaFlag(entry.key_attribute),
+      customizedName: isTruthyAlibabaFlag(entry.customized_name),
+      customizedPic: isTruthyAlibabaFlag(entry.customized_pic),
+      values,
+      units,
+    }];
+  });
+}
+
+export function normalizeAliExpressCategoryQualifications(responseBody: unknown) {
+  const response = isRecord(responseBody) ? responseBody : null;
+  const sellerPayload = getAliExpressSellerPayload(responseBody);
+  const entries = Array.isArray(response?.qualification_module_list)
+    ? response.qualification_module_list
+    : Array.isArray(sellerPayload?.qualification_module_list)
+      ? sellerPayload.qualification_module_list
+      : [];
+
+  return entries.flatMap((entry) => {
+    if (!isRecord(entry)) {
+      return [] as Array<Record<string, unknown>>;
+    }
+
+    return [{
+      key: getStringValue(entry.key),
+      label: getStringValue(entry.label),
+      type: getStringValue(entry.type),
+      tips: getStringValue(entry.tips),
+      parentName: getStringValue(entry.parentName),
+      countryCode: getStringValue(entry.countryCode),
+      required: isTruthyAlibabaFlag(entry.required),
+    }];
+  });
+}
+
+export function normalizeAliExpressCategoryCascadeProperties(responseBody: unknown) {
+  const sellerPayload = getAliExpressSellerPayload(responseBody);
+  const entries = Array.isArray(sellerPayload?.category_cascade_properties)
+    ? sellerPayload.category_cascade_properties
+    : [];
+
+  const normalizeEntry = (entry: unknown): Record<string, unknown> | null => {
+    if (!isRecord(entry)) {
+      return null;
+    }
+
+    return {
+      propId: getStringValue(entry.prop_id),
+      propName: getStringValue(entry.prop_name),
+      valueId: getStringValue(entry.value_id),
+      label: getStringValue(entry.label),
+      level: getNumberValue(entry.level),
+      parentPropId: getStringValue(entry.parent_prop_id),
+      parentValueId: getStringValue(entry.parent_value_id),
+      groupId: getStringValue(entry.group_id),
+      features: getStringValue(entry.features),
+      valueName: getStringValue(entry.value_name),
+      required: isTruthyAlibabaFlag(entry.required),
+      subValues: Array.isArray(entry.sub_values)
+        ? entry.sub_values.flatMap((subValue) => {
+            const normalized = normalizeEntry(subValue);
+            return normalized ? [normalized] : [];
+          })
+        : [],
+    };
+  };
+
+  return entries.flatMap((entry) => {
+    const normalized = normalizeEntry(entry);
+    return normalized ? [normalized] : [];
+  });
+}
+
+export function normalizeAliExpressSkuAttributeInfo(responseBody: unknown) {
+  const sellerPayload = getAliExpressSellerPayload(responseBody);
+  const commonEntries = Array.isArray(sellerPayload?.supporting_common_attribute_list)
+    ? sellerPayload.supporting_common_attribute_list
+    : [];
+  const skuEntries = Array.isArray(sellerPayload?.supporting_sku_attribute_list)
+    ? sellerPayload.supporting_sku_attribute_list
+    : [];
+
+  return {
+    commonAttributes: commonEntries.flatMap((entry) => {
+      if (!isRecord(entry)) {
+        return [] as Array<Record<string, unknown>>;
+      }
+
+      return [{
+        attributeNameId: getStringValue(entry.aliexpress_common_attribute_name_id),
+        attributeName: getStringValue(entry.aliexpress_common_attribute_name),
+        required: isTruthyAlibabaFlag(entry.required),
+        values: Array.isArray(entry.aliexpress_common_attribute_value_list)
+          ? entry.aliexpress_common_attribute_value_list.flatMap((value) => {
+              if (!isRecord(value)) {
+                return [] as Array<Record<string, unknown>>;
+              }
+
+              return [{
+                valueId: getStringValue(value.aliexpress_common_attribute_value_id),
+                valueName: getStringValue(value.aliexpress_common_attribute_value),
+              }];
+            })
+          : [],
+      }];
+    }),
+    skuAttributes: skuEntries.flatMap((entry) => {
+      if (!isRecord(entry)) {
+        return [] as Array<Record<string, unknown>>;
+      }
+
+      return [{
+        skuNameId: getStringValue(entry.aliexpress_sku_name_id),
+        skuName: getStringValue(entry.aliexpress_sku_name),
+        required: isTruthyAlibabaFlag(entry.required),
+        supportCustomizedPicture: isTruthyAlibabaFlag(entry.support_customized_picture),
+        supportCustomizedName: isTruthyAlibabaFlag(entry.support_customized_name),
+        values: Array.isArray(entry.aliexpress_sku_value_list)
+          ? entry.aliexpress_sku_value_list.flatMap((value) => {
+              if (!isRecord(value)) {
+                return [] as Array<Record<string, unknown>>;
+              }
+
+              return [{
+                valueId: getStringValue(value.aliexpress_sku_value_id),
+                valueName: getStringValue(value.aliexpress_sku_value_name),
+              }];
+            })
+          : [],
+      }];
+    }),
+  };
 }
 
 export async function queryAliExpressDsFreight(input: {

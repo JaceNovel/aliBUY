@@ -498,7 +498,7 @@ export async function getAdminOrderParcelSnapshot(order: SourcingOrder): Promise
 
   return {
     parcelHref: `/admin/orders/${encodeURIComponent(order.id)}/parcel`,
-    printHref: `/admin/orders/${encodeURIComponent(order.id)}/parcel`,
+    printHref: `/admin/orders/${encodeURIComponent(order.id)}/parcel/print`,
     totalItems: items.length,
     totalUnits: order.items.reduce((sum, item) => sum + item.quantity, 0),
     supplierNames: dedupeStrings(items.map((item) => item.supplierName)),

@@ -293,6 +293,21 @@ export async function syncSourcingOrderForDeferredSupplierPayment(order: Sourcin
   return nextOrder;
 }
 
+export async function syncSourcingOrderByAlibabaTradeId(tradeId: string, trigger: "aliexpress-webhook" = "aliexpress-webhook") {
+  const normalizedTradeId = String(tradeId).trim();
+  if (!normalizedTradeId) {
+    throw new Error("tradeId AliExpress introuvable.");
+  }
+
+  const orders = await getSourcingOrders();
+  const order = orders.find((entry: SourcingOrder) => entry.alibabaTradeIds.some((candidate) => candidate.trim() === normalizedTradeId));
+  if (!order) {
+    return null;
+  }
+
+  return runSourcingPostPaymentAutomation(order, trigger);
+}
+
 export async function repairBlockedSourcingOrderForSupplierPayment(orderId: string) {
   const order = await getSourcingOrderById(orderId);
   if (!order) {

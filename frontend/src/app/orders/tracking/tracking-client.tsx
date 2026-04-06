@@ -15,11 +15,88 @@ type TrackingClientProps = {
 function resolveTrackingOrder(orders: OrderRecord[], orderId?: string, tracking?: string) {
   return orders.find((order) => order.id === orderId)
     ?? orders.find((order) => getOrderTrackingNumber(order) === tracking)
+    ?? orders.find((order) => order.logistics.supplierTracking?.trackingNumber === tracking)
     ?? orders[0]
     ?? null;
 }
 
+function isDirectSupplierTrackingOrder(order: OrderRecord) {
+  return Boolean(
+    order.logistics.supplierTracking
+    && !order.logistics.manualFulfillmentEnabled
+    && !order.logistics.relayPointAddress
+    && order.logistics.deliveryRouteType !== "customer-forwarder",
+  );
+}
+
+function isSupplierTrackingDelivered(order: OrderRecord) {
+  const tracking = order.logistics.supplierTracking;
+  if (!tracking) {
+    return false;
+  }
+
+  const candidates = [
+    tracking.currentEventCode,
+    ...tracking.events.flatMap((event) => [event.eventCode, event.eventName]),
+  ].filter((value): value is string => Boolean(value));
+
+  return candidates.some((value) => /deliver|delivered|accept_goods|received|signed/i.test(value));
+}
+
+function getDirectSupplierTrackingSteps(order: OrderRecord) {
+  const tracking = order.logistics.supplierTracking;
+  const latestEvent = tracking?.events[0];
+  const shipmentStarted = Boolean(tracking?.trackingNumber || latestEvent);
+  const delivered = order.status === "Commande Livree" || isSupplierTrackingDelivered(order);
+
+  return [
+    {
+      key: "created",
+      title: "Commande creee",
+      description: `${order.dateLabel.split(",")[0]} • dossier AfriPay ouvert`,
+      icon: ClipboardList,
+      state: "done",
+    },
+    {
+      key: "payment",
+      title: "Paiement recu",
+      description: order.status === "Paiement en attente" ? "En attente de validation du paiement." : "Le règlement est confirmé.",
+      icon: CreditCard,
+      state: order.status === "Paiement en attente" ? "current" : "done",
+    },
+    {
+      key: "supplier",
+      title: "Achat fournisseur",
+      description: order.status === "Paiement en attente" ? "L'achat démarre après validation du paiement." : "La commande fournisseur AliExpress est prise en charge.",
+      icon: ShoppingBag,
+      state: order.status === "Paiement en attente" ? "pending" : "done",
+    },
+    {
+      key: "shipment",
+      title: "Suivi transporteur",
+      description: latestEvent?.eventName || latestEvent?.eventCode || order.logistics.lastUpdate,
+      icon: Truck,
+      state: shipmentStarted ? "done" : order.status === "Paiement en attente" ? "pending" : "current",
+    },
+    {
+      key: "delivered",
+      title: "Livraison finale",
+      description: delivered
+        ? "Le suivi fournisseur indique une remise finale accomplie."
+        : latestEvent?.eventLocation
+          ? `Dernière localisation: ${latestEvent.eventLocation}`
+          : "La livraison finale est en cours de confirmation.",
+      icon: PackageCheck,
+      state: delivered ? "done" : shipmentStarted ? "current" : "pending",
+    },
+  ] as const;
+}
+
 function getTrackingSteps(order: OrderRecord) {
+  if (isDirectSupplierTrackingOrder(order)) {
+    return getDirectSupplierTrackingSteps(order);
+  }
+
   const paymentReceived = order.status !== "Paiement en attente" && order.status !== "Expedition en attente";
   const supplierPurchaseStarted = order.status === "Livraison en attente" || order.status === "Commande Livree";
   const expeditionStarted = supplierPurchaseStarted;
@@ -110,6 +187,10 @@ function getEstimatedDeliveryLabel(order: OrderRecord) {
     return order.dateLabel.split(",")[0];
   }
 
+  if (isDirectSupplierTrackingOrder(order) && order.logistics.supplierTracking?.syncedAt) {
+    return formatDateTimeLabel(order.logistics.supplierTracking.syncedAt) || "Suivi AliExpress actif";
+  }
+
   if (order.logistics.availableForPickupAt) {
     return new Date(order.logistics.availableForPickupAt).toLocaleDateString("fr-FR");
   }
@@ -126,6 +207,16 @@ function getNextAction(order: OrderRecord) {
     return {
       title: "Valider le paiement",
       description: "Le dossier logistique AfriPay sera lance des validation du paiement.",
+    };
+  }
+
+  if (isDirectSupplierTrackingOrder(order) && order.logistics.supplierTracking) {
+    const latestEvent = order.logistics.supplierTracking.events[0];
+    return {
+      title: latestEvent?.eventName || latestEvent?.eventCode || "Suivi AliExpress actif",
+      description: latestEvent?.eventLocation
+        ? `${latestEvent.eventLocation}${latestEvent.eventTime ? ` · ${formatDateTimeLabel(latestEvent.eventTime)}` : ""}`
+        : order.logistics.lastUpdate,
     };
   }
 
@@ -207,6 +298,7 @@ export function TrackingClient({ orders, initialOrderId, initialTracking }: Trac
 
   const handleSearch = () => {
     const nextOrder = orders.find((order) => getOrderTrackingNumber(order) === trackingValue)
+      ?? orders.find((order) => order.logistics.supplierTracking?.trackingNumber === trackingValue)
       ?? orders.find((order) => order.id === trackingValue);
 
     if (nextOrder) {
@@ -271,6 +363,7 @@ export function TrackingClient({ orders, initialOrderId, initialTracking }: Trac
         <article className="rounded-[18px] bg-[#f8fafc] px-4 py-4 ring-1 ring-[#e5eaf0]">
           <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Tracking</div>
           <div className="mt-1 text-[15px] font-semibold text-[#111]">{selectedOrder.logistics.trackingCode}</div>
+          {selectedOrder.logistics.supplierTracking?.trackingNumber ? <div className="mt-1 text-[12px] text-[#667085]">AliExpress: {selectedOrder.logistics.supplierTracking.trackingNumber}</div> : null}
         </article>
         <article className="rounded-[18px] bg-[#f8fafc] px-4 py-4 ring-1 ring-[#e5eaf0]">
           <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Corridor</div>
@@ -291,6 +384,55 @@ export function TrackingClient({ orders, initialOrderId, initialTracking }: Trac
           <h2 className="text-[18px] font-bold tracking-[-0.04em] text-[#8a4b16] sm:text-[22px]">Prochaine etape</h2>
           <div className="mt-3 text-[15px] font-semibold text-[#8a4b16]">{nextAction.title}</div>
           <div className="mt-2 text-[14px] leading-7 text-[#9d6434]">{nextAction.description}</div>
+        </article>
+      ) : null}
+
+      {isDirectSupplierTrackingOrder(selectedOrder) && selectedOrder.logistics.supplierTracking ? (
+        <article className="mt-4 rounded-[20px] bg-[#eef6ff] px-4 py-5 ring-1 ring-[#d8e5fb] sm:px-6 sm:py-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-[18px] font-bold tracking-[-0.04em] text-[#1d4f91] sm:text-[22px]">Suivi transporteur AliExpress</h2>
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-[12px] font-semibold text-[#1d4f91] ring-1 ring-[#d8e5fb]">
+              <Truck className="h-4 w-4" />
+              Mise à jour automatique
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#6b85a8]">Transporteur</div>
+              <div className="mt-1 text-[14px] font-semibold text-[#1d4f91]">{selectedOrder.logistics.supplierTracking.carrier || "AliExpress Logistics"}</div>
+            </div>
+            <div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#6b85a8]">Numéro fournisseur</div>
+              <div className="mt-1 break-all text-[14px] font-semibold text-[#1d4f91]">{selectedOrder.logistics.supplierTracking.trackingNumber || "En attente"}</div>
+            </div>
+            <div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#6b85a8]">Trade AliExpress</div>
+              <div className="mt-1 break-all text-[14px] font-semibold text-[#1d4f91]">{selectedOrder.logistics.supplierTracking.tradeId || "n/a"}</div>
+            </div>
+            <div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#6b85a8]">Dernière synchro</div>
+              <div className="mt-1 text-[14px] font-semibold text-[#1d4f91]">{formatDateTimeLabel(selectedOrder.logistics.supplierTracking.syncedAt) || "En attente"}</div>
+            </div>
+          </div>
+          {selectedOrder.logistics.supplierTracking.trackingUrl ? (
+            <a href={selectedOrder.logistics.supplierTracking.trackingUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center justify-center rounded-full border border-[#b8cef3] bg-white px-4 py-2 text-[13px] font-semibold text-[#1d4f91] transition hover:border-[#1d4f91]">
+              Ouvrir le suivi transporteur
+            </a>
+          ) : null}
+          {selectedOrder.logistics.supplierTracking.events.length > 0 ? (
+            <div className="mt-4 space-y-3">
+              {selectedOrder.logistics.supplierTracking.events.slice(0, 6).map((event, index) => (
+                <div key={`${event.eventTime || event.eventCode || "event"}-${index}`} className="rounded-[16px] bg-white px-4 py-4 ring-1 ring-[#d8e5fb]">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-[14px] font-semibold text-[#1d4f91]">{event.eventName || event.eventCode || "Mise à jour transporteur"}</div>
+                    {event.eventTime ? <div className="text-[12px] text-[#4f6f99]">{formatDateTimeLabel(event.eventTime)}</div> : null}
+                  </div>
+                  {event.eventLocation ? <div className="mt-1 text-[13px] text-[#355d8e]">{event.eventLocation}</div> : null}
+                  {event.eventCode && event.eventName && event.eventCode !== event.eventName ? <div className="mt-1 text-[12px] text-[#6b85a8]">Code: {event.eventCode}</div> : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
         </article>
       ) : null}
 

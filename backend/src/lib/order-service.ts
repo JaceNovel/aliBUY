@@ -6,7 +6,7 @@ import { API_URL, buildApiUrl } from "@/lib/api";
 import type { AuthenticatedUser } from "@/lib/user-auth";
 import { type OrderRecord, type OrderStatus, type OrderTabKey } from "@/lib/order-utils";
 import { ensureOrderSupportConversation } from "@/lib/customer-data-store";
-import { formatFcfa, getSourcingOrderMeta, type SourcingOrder } from "@/lib/alibaba-sourcing";
+import { formatFcfa, getSourcingAlibabaPostPaymentAutomationState, getSourcingOrderMeta, type SourcingOrder } from "@/lib/alibaba-sourcing";
 import { SITE_URL } from "@/lib/site-config";
 import { getUserSourcingOrders } from "@/lib/sourcing-store";
 import { USER_SESSION_COOKIE } from "@/lib/user-session";
@@ -149,12 +149,102 @@ function buildTrackingNumber(order: Pick<OrderRecord, "id" | "orderNumber">) {
   return `AFP-${base}`;
 }
 
+function toSortableTimestamp(value?: string) {
+  if (!value) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
+}
+
+function formatTrackingEventTime(value?: string) {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString("fr-FR");
+}
+
+function sortSupplierTrackingEvents(events: NonNullable<NonNullable<OrderRecord["logistics"]["supplierTracking"]>["events"]>) {
+  return [...events].sort((left, right) => {
+    const diff = toSortableTimestamp(right.eventTime) - toSortableTimestamp(left.eventTime);
+    if (diff !== 0) {
+      return diff;
+    }
+
+    return (right.eventName || right.eventCode || "").localeCompare(left.eventName || left.eventCode || "");
+  });
+}
+
+function buildSupplierTracking(order: SourcingOrder): OrderRecord["logistics"]["supplierTracking"] | undefined {
+  const automation = getSourcingAlibabaPostPaymentAutomationState(order);
+  if (!automation) {
+    return undefined;
+  }
+
+  const trade = automation.trades.find((entry) => entry.tracking.some((tracking) => Boolean(tracking.trackingNumber) || tracking.eventList.length > 0 || Boolean(tracking.carrier) || Boolean(tracking.trackingUrl)));
+  if (!trade) {
+    return undefined;
+  }
+
+  const primaryTracking = trade.tracking.find((entry) => Boolean(entry.trackingNumber) || entry.eventList.length > 0) ?? trade.tracking[0];
+  if (!primaryTracking) {
+    return undefined;
+  }
+
+  const events = sortSupplierTrackingEvents(primaryTracking.eventList.map((entry) => ({ ...entry })));
+
+  return {
+    source: "aliexpress",
+    tradeId: trade.tradeId,
+    carrier: primaryTracking.carrier,
+    trackingNumber: primaryTracking.trackingNumber,
+    trackingUrl: primaryTracking.trackingUrl,
+    currentEventCode: events[0]?.eventCode ?? primaryTracking.currentEventCode,
+    syncedAt: trade.trackingCheckedAt,
+    paymentStatus: trade.paymentResultStatus,
+    events,
+  };
+}
+
+function buildSupplierTrackingUpdate(supplierTracking?: OrderRecord["logistics"]["supplierTracking"]) {
+  if (!supplierTracking) {
+    return null;
+  }
+
+  const latestEvent = supplierTracking.events[0];
+  if (latestEvent) {
+    const parts = [
+      latestEvent.eventName || latestEvent.eventCode,
+      latestEvent.eventLocation,
+      formatTrackingEventTime(latestEvent.eventTime),
+    ].filter((entry): entry is string => Boolean(entry));
+
+    if (parts.length > 0) {
+      return parts.join(" · ");
+    }
+  }
+
+  if (supplierTracking.trackingNumber) {
+    return supplierTracking.carrier
+      ? `Suivi AliExpress actif via ${supplierTracking.carrier} · ${supplierTracking.trackingNumber}`
+      : `Suivi AliExpress actif · ${supplierTracking.trackingNumber}`;
+  }
+
+  return null;
+}
+
 function buildLogistics(order: SourcingOrder, status: OrderStatus) {
   const meta = getSourcingOrderMeta(order);
   const workflow = meta.workflow;
   const profile = meta.deliveryProfile;
   const manualFulfillment = meta.manualFulfillment;
   const usesInternalReceptionAddress = profile?.usesInternalReceptionAddress === true;
+  const hasDirectSupplierTracking = !usesInternalReceptionAddress && workflow?.routeType !== "customer-forwarder";
+  const supplierTracking = hasDirectSupplierTracking ? buildSupplierTracking(order) : undefined;
+  const supplierTrackingUpdate = buildSupplierTrackingUpdate(supplierTracking);
   const forwarderHubLabel = profile?.forwarder?.hub === "china" || order.countryCode === "CN"
     ? "Hub AfriPay"
     : profile?.forwarder?.hub === "lome"
@@ -180,18 +270,18 @@ function buildLogistics(order: SourcingOrder, status: OrderStatus) {
       ? "Paiement en attente de validation avant lancement logistique."
       : status === "Expedition en attente"
         ? !usesInternalReceptionAddress && workflow?.routeType !== "customer-forwarder"
-          ? "Commande confirmee. La preparation d'expedition vers votre adresse est en cours."
+          ? supplierTrackingUpdate ?? "Commande confirmee. La preparation d'expedition vers votre adresse est en cours."
           : "Commande confirmee. Le dossier est en preparation logistique."
         : workflow?.routeType === "customer-forwarder" && order.status === "delivered_to_agent"
           ? "Le colis a ete remis a votre agent. La commande est cloturee avec preuve de remise."
           : order.status === "relay_ready" && workflow?.relayPointAddress
             ? `Votre colis est disponible au point relais ${workflow.relayPointAddress}.`
             : status === "Livraison en attente"
-              ? "Le transport est en cours. La remise finale est en attente de confirmation."
+              ? supplierTrackingUpdate ?? "Le transport est en cours. La remise finale est en attente de confirmation."
               : "Commande remise et archivee dans votre historique.";
   const effectiveLastUpdate = manualFulfillment?.enabled && manualFulfillment.checkpointNote
     ? manualFulfillment.checkpointNote
-    : lastUpdate;
+    : supplierTrackingUpdate ?? lastUpdate;
 
   return {
     agentName: workflow?.routeType === "customer-forwarder"
@@ -223,6 +313,7 @@ function buildLogistics(order: SourcingOrder, status: OrderStatus) {
     manualFulfillmentAgentPhone: manualFulfillment?.agentPhone,
     manualFulfillmentEtaLabel: manualFulfillment?.etaLabel,
     manualFulfillmentUpdatedAt: manualFulfillment?.lastUpdatedAt,
+    supplierTracking,
     proofs: workflow?.proofs,
   };
 }

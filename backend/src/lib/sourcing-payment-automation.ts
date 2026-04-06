@@ -226,7 +226,7 @@ function buildManyChatLogisticsUpdateForStatus(status: SourcingOrderStatus) {
   }
 }
 
-export async function runSourcingPostPaymentAutomation(order: SourcingOrder, trigger: "moneroo-verify" | "moneroo-webhook" | "admin-order-manual" | "admin-air-batch" | "admin-sea-batch") {
+export async function runSourcingPostPaymentAutomation(order: SourcingOrder, trigger: "moneroo-verify" | "moneroo-webhook" | "admin-order-manual" | "admin-air-batch" | "admin-sea-batch" | "aliexpress-webhook") {
   if (order.paymentStatus !== "paid" || order.alibabaTradeIds.length === 0) {
     return order;
   }

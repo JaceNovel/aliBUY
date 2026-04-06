@@ -45,6 +45,22 @@ export type OrderRecord = {
     manualFulfillmentAgentPhone?: string;
     manualFulfillmentEtaLabel?: string;
     manualFulfillmentUpdatedAt?: string;
+    supplierTracking?: {
+      source: "aliexpress";
+      tradeId?: string;
+      carrier?: string;
+      trackingNumber?: string;
+      trackingUrl?: string;
+      currentEventCode?: string;
+      syncedAt?: string;
+      paymentStatus?: string;
+      events: Array<{
+        eventCode?: string;
+        eventLocation?: string;
+        eventName?: string;
+        eventTime?: string;
+      }>;
+    };
     proofs?: Array<{
       id: string;
       role: string;

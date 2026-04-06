@@ -37,6 +37,27 @@ const statusOptions = [
   { value: "completed", label: "Acheminement terminé" },
 ] as const;
 
+function normalizeWhatsappPhone(value?: string) {
+  const digits = String(value ?? "").replace(/\D+/g, "");
+  return digits.length >= 8 ? digits : "";
+}
+
+function buildWhatsappLogisticsMessage(order: SourcingOrder) {
+  const meta = getSourcingOrderMeta(order);
+  const checkpoint = meta.manualFulfillment?.checkpointLabel?.trim();
+  const checkpointNote = meta.manualFulfillment?.checkpointNote?.trim();
+  const status = meta.manualFulfillment?.statusLabel?.trim() || order.status;
+  const lines = [
+    "AfriPay - Mise a jour logistique",
+    `Commande: ${order.orderNumber}`,
+    `Statut: ${status}`,
+    checkpoint ? `Checkpoint: ${checkpoint}` : undefined,
+    checkpointNote || "Nous vous confirmons que votre commande est bien suivie par notre equipe.",
+  ].filter((entry): entry is string => Boolean(entry));
+
+  return lines.join("\n");
+}
+
 export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, currencyCode, locale }: AdminOrderDetailClientProps) {
   const router = useRouter();
   const initialMeta = getSourcingOrderMeta(initialOrder);
@@ -90,6 +111,8 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
   const deliveryProfile = meta.deliveryProfile;
   const whatsappLinked = Boolean(meta.manychat?.subscriberId);
   const whatsappSyncDate = meta.manychat?.logisticsLastSentAt;
+  const whatsappPhone = normalizeWhatsappPhone(order.customerPhone);
+  const whatsappFallbackHref = whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(buildWhatsappLogisticsMessage(order))}` : null;
 
   const submitPatch = async (payload: Record<string, unknown>) => {
     setFeedback(null);
@@ -370,20 +393,38 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
             >
               Lié WhatsApp : {whatsappLinked ? "oui" : "non"}
             </span>
-            <button
-              type="button"
-              onClick={() => void submitPatch({ action: "send-whatsapp-update-now" })}
-              disabled={isPending || !whatsappLinked}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-[#16a34a] px-5 text-[14px] font-semibold text-white transition hover:bg-[#12833b] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <MessageCircle className="h-4 w-4" />
-              Envoyer mise à jour WhatsApp maintenant
-            </button>
+            {whatsappLinked ? (
+              <button
+                type="button"
+                onClick={() => void submitPatch({ action: "send-whatsapp-update-now" })}
+                disabled={isPending}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-[#16a34a] px-5 text-[14px] font-semibold text-white transition hover:bg-[#12833b] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Envoyer mise à jour WhatsApp maintenant
+              </button>
+            ) : whatsappFallbackHref ? (
+              <Link href={whatsappFallbackHref} target="_blank" className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-[#16a34a] px-5 text-[14px] font-semibold text-white transition hover:bg-[#12833b]">
+                <MessageCircle className="h-4 w-4" />
+                Ouvrir WhatsApp client
+              </Link>
+            ) : (
+              <button
+                type="button"
+                disabled
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-[#16a34a] px-5 text-[14px] font-semibold text-white opacity-60"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Envoyer mise à jour WhatsApp maintenant
+              </button>
+            )}
           </div>
           <div className="mt-4 rounded-[16px] bg-[#fafbfd] px-4 py-4 text-[13px] leading-6 text-[#667085] ring-1 ring-[#edf1f6]">
             {whatsappLinked
               ? `Les mises à jour logistiques peuvent partir automatiquement et manuellement sur WhatsApp.${whatsappSyncDate ? ` Dernier envoi: ${new Date(whatsappSyncDate).toLocaleString("fr-FR")}.` : ""}`
-              : "Cette commande n'est pas encore reliée à un subscriber WhatsApp. Le numéro client seul ne suffit pas encore pour pousser un message sortant."}
+              : whatsappFallbackHref
+                ? "Aucun subscriber ManyChat n'est relié. Un fallback d'ouverture directe WhatsApp vers le numéro client est disponible avec message prérempli."
+                : "Cette commande n'est pas encore reliée à un subscriber WhatsApp et aucun numéro client exploitable n'est disponible pour ouvrir WhatsApp."}
           </div>
         </article>
 

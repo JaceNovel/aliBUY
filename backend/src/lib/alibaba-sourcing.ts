@@ -229,6 +229,12 @@ export type SourcingAlibabaTrackingSnapshot = {
   trackingNumber?: string;
   trackingUrl?: string;
   currentEventCode?: string;
+  eventList: Array<{
+    eventCode?: string;
+    eventLocation?: string;
+    eventName?: string;
+    eventTime?: string;
+  }>;
   eventCount: number;
 };
 
@@ -385,12 +391,28 @@ function normalizeAlibabaTrackingSnapshot(value: unknown): SourcingAlibabaTracki
     return null;
   }
 
+  const eventList = Array.isArray(value.eventList)
+    ? value.eventList.flatMap((event) => {
+        if (!isObjectRecord(event)) {
+          return [] as SourcingAlibabaTrackingSnapshot["eventList"];
+        }
+
+        return [{
+          eventCode: typeof event.eventCode === "string" ? event.eventCode : undefined,
+          eventLocation: typeof event.eventLocation === "string" ? event.eventLocation : undefined,
+          eventName: typeof event.eventName === "string" ? event.eventName : undefined,
+          eventTime: typeof event.eventTime === "string" ? event.eventTime : undefined,
+        }];
+      })
+    : [];
+
   return {
     carrier: typeof value.carrier === "string" ? value.carrier : undefined,
     trackingNumber: typeof value.trackingNumber === "string" ? value.trackingNumber : undefined,
     trackingUrl: typeof value.trackingUrl === "string" ? value.trackingUrl : undefined,
     currentEventCode: typeof value.currentEventCode === "string" ? value.currentEventCode : undefined,
-    eventCount: Array.isArray(value.eventList) ? value.eventList.length : 0,
+    eventList,
+    eventCount: eventList.length,
   };
 }
 
