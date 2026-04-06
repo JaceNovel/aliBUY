@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 
 import { API_URL, buildApiUrl } from "@/lib/api";
 import type { AuthenticatedUser } from "@/lib/user-auth";
+import { createAuthenticatedUserSession } from "@/lib/user-auth";
 import { type OrderRecord, type OrderStatus, type OrderTabKey } from "@/lib/order-utils";
 import { ensureOrderSupportConversation } from "@/lib/customer-data-store";
 import { formatFcfa, getSourcingAlibabaPostPaymentAutomationState, getSourcingOrderMeta, type SourcingOrder } from "@/lib/alibaba-sourcing";
@@ -35,15 +36,20 @@ function hasExternalOrdersApi() {
   }
 }
 
-async function fetchUserOrderRecordsFromApi() {
-  const sessionToken = (await cookies()).get(USER_SESSION_COOKIE)?.value;
+function buildSessionCookieHeader(sessionToken: string) {
+  return `${USER_SESSION_COOKIE}=${encodeURIComponent(sessionToken)}`;
+}
+
+async function fetchUserOrderRecordsFromApi(user: AuthenticatedUser) {
+  const sessionToken = (await cookies()).get(USER_SESSION_COOKIE)?.value
+    ?? await createAuthenticatedUserSession(user).catch(() => null);
   if (!sessionToken) {
     return null;
   }
 
   const response = await fetch(buildApiUrl("/api/orders"), {
     headers: {
-      Cookie: `${USER_SESSION_COOKIE}=${encodeURIComponent(sessionToken)}`,
+      Cookie: buildSessionCookieHeader(sessionToken),
     },
     cache: "no-store",
   });
@@ -355,7 +361,7 @@ async function mapOrderRecord(order: SourcingOrder, user: AuthenticatedUser): Pr
 export async function getUserOrderRecords(user: AuthenticatedUser, options?: { preferProxy?: boolean }) {
   if (options?.preferProxy !== false && hasExternalOrdersApi()) {
     try {
-      const proxiedOrders = await fetchUserOrderRecordsFromApi();
+      const proxiedOrders = await fetchUserOrderRecordsFromApi(user);
       if (proxiedOrders) {
         return proxiedOrders;
       }
