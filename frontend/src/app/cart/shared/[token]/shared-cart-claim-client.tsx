@@ -6,13 +6,28 @@ import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, LoaderCircle, Share2 } from "lucide-react";
 
 import { useCart, type SharedCartImportContext } from "@/components/cart-provider";
+import type { CartInputItem } from "@/lib/alibaba-sourcing";
 
-export function SharedCartClaimClient({ token, ownerDisplayName, message, itemCount }: { token: string; ownerDisplayName: string; message?: string; itemCount: number }) {
+export function SharedCartClaimClient({
+  token,
+  ownerDisplayName,
+  message,
+  itemCount,
+  cartItems,
+  sharedContext,
+}: {
+  token: string;
+  ownerDisplayName: string;
+  message?: string;
+  itemCount: number;
+  cartItems: CartInputItem[];
+  sharedContext: SharedCartImportContext;
+}) {
   const router = useRouter();
   const { replaceItems, setSharedCartContext } = useCart();
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedback] = useState<string | null>(`Le panier de ${ownerDisplayName} a été importé dans votre compte.`);
   const [isLoading, setIsLoading] = useState(true);
-  const [isImported, setIsImported] = useState(false);
+  const [isImported] = useState(true);
   const claimedRef = useRef(false);
 
   useEffect(() => {
@@ -22,34 +37,32 @@ export function SharedCartClaimClient({ token, ownerDisplayName, message, itemCo
 
     claimedRef.current = true;
 
+    replaceItems(cartItems);
+    setSharedCartContext(sharedContext);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("afripay_cart_v1", JSON.stringify(cartItems));
+      window.localStorage.setItem("afripay_cart_shared_v1", JSON.stringify(sharedContext));
+    }
+
     void fetch(`/api/cart/shares/${encodeURIComponent(token)}/claim`, {
       method: "POST",
     })
       .then(async (response) => {
         const payload = await response.json().catch(() => null);
-        if (!response.ok || !payload?.cartItems || !payload?.sharedContext) {
-          throw new Error(payload?.message || "Impossible d'importer ce panier partagé.");
+        if (!response.ok) {
+          throw new Error(payload?.message || "Impossible de confirmer l'import du panier partagé.");
         }
-
-        replaceItems(payload.cartItems);
-        setSharedCartContext(payload.sharedContext as SharedCartImportContext);
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem("afripay_cart_v1", JSON.stringify(payload.cartItems));
-          window.localStorage.setItem("afripay_cart_shared_v1", JSON.stringify(payload.sharedContext));
-        }
-        setIsImported(true);
-        setFeedback(`Le panier de ${ownerDisplayName} a été importé dans votre compte.`);
-        window.setTimeout(() => {
-          router.push("/cart");
-        }, 500);
       })
-      .catch((error) => {
-        setFeedback(error instanceof Error ? error.message : "Impossible d'importer ce panier partagé.");
+      .catch(() => {
+        // Le panier est deja importe localement; un echec de marquage ne doit pas bloquer l'utilisateur.
       })
       .finally(() => {
         setIsLoading(false);
+        window.setTimeout(() => {
+          router.push("/cart");
+        }, 500);
       });
-  }, [ownerDisplayName, replaceItems, router, setSharedCartContext, token]);
+  }, [cartItems, ownerDisplayName, replaceItems, router, setSharedCartContext, sharedContext, token]);
 
   return (
     <section className="mx-auto max-w-[760px] rounded-[28px] border border-[#ece7df] bg-white px-6 py-8 text-center shadow-[0_16px_40px_rgba(17,24,39,0.05)]">

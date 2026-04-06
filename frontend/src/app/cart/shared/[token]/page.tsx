@@ -66,6 +66,15 @@ export default async function SharedCartPage({ params }: { params: Promise<{ tok
         ownerDisplayName={sharedCart.ownerDisplayName}
         message={sharedCart.message}
         itemCount={sharedCart.items.length}
+        cartItems={sharedCart.items}
+        sharedContext={{
+          token: sharedCart.token,
+          ownerUserId: sharedCart.ownerUserId,
+          ownerEmail: sharedCart.ownerEmail,
+          ownerDisplayName: sharedCart.ownerDisplayName,
+          message: sharedCart.message,
+          importedAt: new Date().toISOString(),
+        }}
       />
     </InternalPageShell>
   );
