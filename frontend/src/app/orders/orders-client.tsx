@@ -147,6 +147,11 @@ function formatDateTimeLabel(value?: string) {
   return date.toLocaleString("fr-FR");
 }
 
+function isMissingSourcingOrderError(message: string | null | undefined) {
+  const normalized = String(message ?? "").trim().toLowerCase();
+  return normalized === "commande sourcing introuvable." || normalized === "commande sourcing introuvable";
+}
+
 export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClientProps) {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
@@ -252,7 +257,14 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
             router.refresh();
           })
           .catch((error) => {
-            setPaymentFeedback(error instanceof Error ? error.message : isEnglish ? "Unable to verify Moneroo payment." : "Impossible de verifier le paiement Moneroo.");
+            const message = error instanceof Error ? error.message : undefined;
+            if (isMissingSourcingOrderError(message)) {
+              setPaymentFeedback(null);
+              router.replace("/orders");
+              return;
+            }
+
+            setPaymentFeedback(message || (isEnglish ? "Unable to verify Moneroo payment." : "Impossible de verifier le paiement Moneroo."));
           })
           .finally(() => {
             setIsPaymentBusy(false);

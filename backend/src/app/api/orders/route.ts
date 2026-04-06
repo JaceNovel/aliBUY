@@ -1,3 +1,4 @@
+import { API_URL, buildApiUrl } from "@/lib/api";
 import { syncUserPhoneChannels } from "@/lib/account-contact-sync";
 import { markAbandonedCartRecordCleared } from "@/lib/abandoned-cart-store";
 import { getManyChatAccountProfile } from "@/lib/account-manychat";
@@ -5,6 +6,65 @@ import { getUserOrderRecords } from "@/lib/order-service";
 import { createCheckoutOrder } from "@/lib/sourcing-service";
 import { triggerManyChatLogisticsUpdate } from "@/lib/manychat";
 import { getCurrentUser } from "@/lib/user-auth";
+
+function buildProxyHeaders(request: Request) {
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+  };
+
+  for (const headerName of ["cookie", "user-agent", "x-forwarded-for", "x-real-ip", "x-forwarded-proto", "x-forwarded-host"]) {
+    const value = request.headers.get(headerName);
+    if (value) {
+      headers[headerName] = value;
+    }
+  }
+
+  return headers;
+}
+
+async function maybeProxy(request: Request, rawBody: string) {
+  if (!API_URL) {
+    return null;
+  }
+
+  const upstreamUrl = buildApiUrl("/api/orders");
+  const currentUrl = new URL(request.url);
+  const upstreamHost = new URL(upstreamUrl).host;
+
+  if (!upstreamHost || upstreamHost === currentUrl.host) {
+    return null;
+  }
+
+  try {
+    const upstreamResponse = await fetch(upstreamUrl, {
+      method: "POST",
+      headers: buildProxyHeaders(request),
+      body: rawBody || "{}",
+      cache: "no-store",
+    });
+
+    const rawPayload = await upstreamResponse.text();
+    let payload: unknown = null;
+
+    if (rawPayload) {
+      try {
+        payload = JSON.parse(rawPayload) as unknown;
+      } catch {
+        payload = null;
+      }
+    }
+
+    if (payload && typeof payload === "object") {
+      return Response.json(payload, { status: upstreamResponse.status });
+    }
+
+    return Response.json({
+      message: rawPayload.trim() || `Orders API request failed with status ${upstreamResponse.status}.`,
+    }, { status: upstreamResponse.status });
+  } catch {
+    return null;
+  }
+}
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -17,13 +77,19 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const rawBody = await request.text();
+  const proxied = await maybeProxy(request, rawBody);
+  if (proxied) {
+    return proxied;
+  }
+
   const user = await getCurrentUser();
   if (!user) {
     return Response.json({ message: "Connexion requise." }, { status: 401 });
   }
 
   try {
-    const body = await request.json();
+    const body = rawBody ? JSON.parse(rawBody) : {};
     const persistedUserId = user.id.startsWith("admin:") ? undefined : user.id;
     const manychatProfile = await getManyChatAccountProfile(user);
 
