@@ -794,8 +794,8 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
                   : "Votre panier est bien conserve, mais vous devez vous inscrire avec le bouton Inscription ou vous connecter avant de continuer."}
               </div>
               <div className="mt-4 grid gap-3">
-                <Link href={loginBeforeCheckoutHref} className="inline-flex h-11 items-center justify-center rounded-full bg-[#ff6a00] px-5 text-[14px] font-semibold text-white transition hover:bg-[#eb6100]">
-                  {isEnglish ? "Sign in" : "Connexion"}
+                <Link href={registerBeforeCheckoutHref} className="inline-flex h-11 items-center justify-center rounded-full bg-[#ff6a00] px-5 text-[14px] font-semibold text-white transition hover:bg-[#eb6100]">
+                  {isEnglish ? "Sign up" : "Inscription"}
                 </Link>
                 <Link href={loginBeforeCheckoutHref} className="inline-flex h-11 items-center justify-center rounded-full border border-[#f2c6a5] bg-white px-5 text-[14px] font-semibold text-[#b45309] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
                   {isEnglish ? "I already have an account" : "J'ai deja un compte"}

@@ -47,6 +47,13 @@ export function AccountPhoneRequiredModal() {
       return undefined;
     }
 
+    const isAdminRoute = pathname.startsWith("/admin");
+    const isAccountSettingsRoute = pathname.startsWith("/account/compte");
+    if (isAdminRoute || isAccountSettingsRoute) {
+      setIsOpen(false);
+      return undefined;
+    }
+
     const controller = new AbortController();
 
     const loadSettings = async () => {
@@ -72,11 +79,12 @@ export function AccountPhoneRequiredModal() {
         const settings = payload.settings ?? {};
         const existingPhone = typeof settings.phone === "string" ? normalizePhone(settings.phone) : "";
         const existingWhatsapp = typeof settings.connectedWhatsapp === "string" ? normalizePhone(settings.connectedWhatsapp) : "";
+        const hasExistingPhoneChannel = existingPhone.length > 0 || existingWhatsapp.length > 0;
 
         setSettingsSnapshot(settings);
         setPhone((current) => current || existingPhone || existingWhatsapp);
         setUseForWhatsapp(existingWhatsapp ? existingWhatsapp === (existingPhone || existingWhatsapp) : true);
-        setIsOpen(existingPhone.length === 0);
+        setIsOpen(!hasExistingPhoneChannel);
         setErrorMessage(null);
       } catch (error) {
         if ((error as Error).name !== "AbortError") {
