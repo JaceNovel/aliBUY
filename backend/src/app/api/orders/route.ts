@@ -3,24 +3,10 @@ import { syncUserPhoneChannels } from "@/lib/account-contact-sync";
 import { markAbandonedCartRecordCleared } from "@/lib/abandoned-cart-store";
 import { getManyChatAccountProfile } from "@/lib/account-manychat";
 import { getUserOrderRecords } from "@/lib/order-service";
+import { buildAuthenticatedProxyHeaders } from "@/lib/proxy-auth";
 import { createCheckoutOrder } from "@/lib/sourcing-service";
 import { triggerManyChatLogisticsUpdate } from "@/lib/manychat";
 import { getCurrentUser } from "@/lib/user-auth";
-
-function buildProxyHeaders(request: Request) {
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-  };
-
-  for (const headerName of ["cookie", "user-agent", "x-forwarded-for", "x-real-ip", "x-forwarded-proto", "x-forwarded-host"]) {
-    const value = request.headers.get(headerName);
-    if (value) {
-      headers[headerName] = value;
-    }
-  }
-
-  return headers;
-}
 
 async function maybeProxy(request: Request, rawBody: string) {
   if (!API_URL) {
@@ -38,7 +24,9 @@ async function maybeProxy(request: Request, rawBody: string) {
   try {
     const upstreamResponse = await fetch(upstreamUrl, {
       method: "POST",
-      headers: buildProxyHeaders(request),
+      headers: await buildAuthenticatedProxyHeaders(request, {
+        "content-type": "application/json",
+      }),
       body: rawBody || "{}",
       cache: "no-store",
     });
