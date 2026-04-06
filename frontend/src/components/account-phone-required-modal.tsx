@@ -14,6 +14,8 @@ type AccountSettingsResponse = {
   settings?: SettingsSnapshot;
 };
 
+const PHONE_MODAL_DISMISSED_KEY = "afripay-phone-required-modal-dismissed";
+
 function normalizePhone(value: string) {
   return value.trim();
 }
@@ -41,6 +43,30 @@ export function AccountPhoneRequiredModal() {
   useEffect(() => {
     setIsHydrated(true);
   }, []);
+
+  const rememberDismissal = () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.sessionStorage.setItem(PHONE_MODAL_DISMISSED_KEY, "1");
+  };
+
+  const clearDismissal = () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.sessionStorage.removeItem(PHONE_MODAL_DISMISSED_KEY);
+  };
+
+  const wasDismissed = () => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    return window.sessionStorage.getItem(PHONE_MODAL_DISMISSED_KEY) === "1";
+  };
 
   useEffect(() => {
     if (!isHydrated) {
@@ -84,7 +110,12 @@ export function AccountPhoneRequiredModal() {
         setSettingsSnapshot(settings);
         setPhone((current) => current || existingPhone || existingWhatsapp);
         setUseForWhatsapp(existingWhatsapp ? existingWhatsapp === (existingPhone || existingWhatsapp) : true);
-        setIsOpen(!hasExistingPhoneChannel);
+        if (hasExistingPhoneChannel) {
+          clearDismissal();
+          setIsOpen(false);
+        } else {
+          setIsOpen(!wasDismissed());
+        }
         setErrorMessage(null);
       } catch (error) {
         if ((error as Error).name !== "AbortError") {
@@ -131,6 +162,7 @@ export function AccountPhoneRequiredModal() {
           return;
         }
 
+        clearDismissal();
         setIsOpen(false);
         setSettingsSnapshot(payload?.settings ?? {
           ...(settingsSnapshot ?? {}),
@@ -151,7 +183,10 @@ export function AccountPhoneRequiredModal() {
       <div className="relative w-full max-w-[540px] rounded-[28px] border border-[#f0d7c2] bg-[linear-gradient(180deg,#fff8f2_0%,#ffffff_100%)] p-6 shadow-[0_30px_90px_rgba(15,23,42,0.28)] sm:p-7">
         <button
           type="button"
-          onClick={() => setIsOpen(false)}
+          onClick={() => {
+            rememberDismissal();
+            setIsOpen(false);
+          }}
           aria-label="Fermer la fenetre"
           className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#e7d5c8] bg-white/90 text-[#667085] transition hover:border-[#ff6a00] hover:text-[#ff6a00]"
         >
@@ -204,6 +239,7 @@ export function AccountPhoneRequiredModal() {
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Link
             href={accountSettingsHref}
+            onClick={() => rememberDismissal()}
             className="inline-flex h-11 items-center justify-center rounded-full border border-[#d7dce5] px-5 text-[14px] font-semibold text-[#344054] transition hover:border-[#ff6a00] hover:text-[#ff6a00]"
           >
             Ouvrir les parametres

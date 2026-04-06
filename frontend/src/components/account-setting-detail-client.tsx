@@ -40,6 +40,7 @@ function ToggleField({ label, checked, onChange }: { label: string; checked: boo
 export function AccountSettingDetailClient({ slug, page, initialUser, initialSettings }: Props) {
   const router = useRouter();
   const [settings, setSettings] = useState(initialSettings);
+  const [persistedSettings, setPersistedSettings] = useState(initialSettings);
   const [displayName, setDisplayName] = useState(initialUser.displayName);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +91,7 @@ export function AccountSettingDetailClient({ slug, page, initialUser, initialSet
       }
       if (payload?.settings) {
         setSettings(payload.settings);
+        setPersistedSettings(payload.settings);
       }
       setFeedback("Modifications enregistrées.");
       router.refresh();
@@ -410,6 +412,41 @@ export function AccountSettingDetailClient({ slug, page, initialUser, initialSet
     }
   };
 
+  const summaryItems = page.bullets.map((item) => {
+    if (slug === "changer-numero-telephone") {
+      if (item === "Numéro actuel") {
+        return {
+          label: item,
+          value: persistedSettings.phone || settings.phone || "Non renseigné",
+          muted: !(persistedSettings.phone || settings.phone),
+        };
+      }
+
+      if (item === "Nouveau numéro") {
+        const hasDraftPhone = Boolean(settings.phone && settings.phone !== persistedSettings.phone);
+        return {
+          label: item,
+          value: hasDraftPhone ? settings.phone || "" : "Saisissez un nouveau numéro",
+          muted: !hasDraftPhone,
+        };
+      }
+
+      if (item === "Code OTP") {
+        return {
+          label: item,
+          value: "Validation après enregistrement",
+          muted: true,
+        };
+      }
+    }
+
+    return {
+      label: item,
+      value: null,
+      muted: false,
+    };
+  });
+
   const isClerkManagedCredentialPage = initialUser.authProvider === "clerk" && (slug === "modifier-mot-de-passe" || slug === "changer-adresse-email");
 
   const primaryAction = isClerkManagedCredentialPage
@@ -456,10 +493,17 @@ export function AccountSettingDetailClient({ slug, page, initialUser, initialSet
           <article className="rounded-[24px] bg-[#fafafa] px-4 py-4 ring-1 ring-black/5 sm:px-6 sm:py-6">
             <div className="text-[17px] font-semibold text-[#222] sm:text-[20px]">Résumé</div>
             <div className="mt-4 space-y-3">
-              {page.bullets.map((item) => (
-                <div key={item} className="flex items-center justify-between rounded-[16px] bg-white px-4 py-3 text-[14px] text-[#222] ring-1 ring-black/5 sm:text-[15px]">
-                  <span>{item}</span>
-                  <ChevronRight className="h-4 w-4 text-[#9b9b9b]" />
+              {summaryItems.map((item) => (
+                <div key={item.label} className="flex items-center justify-between gap-4 rounded-[16px] bg-white px-4 py-3 text-[14px] text-[#222] ring-1 ring-black/5 sm:text-[15px]">
+                  <div className="min-w-0">
+                    <div>{item.label}</div>
+                    {item.value ? (
+                      <div className={`mt-1 truncate text-[13px] ${item.muted ? "text-[#98a2b3]" : "text-[#475467]"}`}>
+                        {item.value}
+                      </div>
+                    ) : null}
+                  </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-[#9b9b9b]" />
                 </div>
               ))}
             </div>

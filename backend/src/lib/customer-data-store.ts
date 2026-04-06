@@ -342,6 +342,27 @@ function createDatabaseUnavailableError() {
   return new Error(DATABASE_UNAVAILABLE_MESSAGE);
 }
 
+function isPrismaDatabaseUnavailable(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as { code?: unknown; message?: unknown };
+  const message = typeof candidate.message === "string" ? candidate.message : "";
+  return candidate.code === "P1001"
+    || message.includes("Environment variable not found: DATABASE_URL")
+    || message.includes("Can't reach database server")
+    || message.includes("db.prisma.io:5432");
+}
+
+function throwIfPrismaDatabaseUnavailable(error: unknown): never {
+  if (isPrismaDatabaseUnavailable(error)) {
+    throw new Error("La base de donnees est configuree mais injoignable. Verifiez DATABASE_URL et l'accessibilite du serveur de base de donnees.");
+  }
+
+  throw error;
+}
+
 export async function getFavoriteRecords() {
   if (!hasDatabase()) {
     return [];
@@ -366,6 +387,8 @@ export async function getUserAddresses(userId: string) {
   const addresses = await prisma.customerAddress.findMany({
     where: { userId },
     orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+  }).catch((error) => {
+    throwIfPrismaDatabaseUnavailable(error);
   });
 
   return addresses.map(mapCustomerAddress);
@@ -380,6 +403,8 @@ export async function getUserDefaultAddress(userId: string) {
   const address = await prisma.customerAddress.findFirst({
     where: { userId, isDefault: true },
     orderBy: { updatedAt: "desc" },
+  }).catch((error) => {
+    throwIfPrismaDatabaseUnavailable(error);
   });
 
   return address ? mapCustomerAddress(address) : undefined;
@@ -393,6 +418,8 @@ export async function getUserAddressById(userId: string, addressId: string) {
 
   const address = await prisma.customerAddress.findFirst({
     where: { id: addressId, userId },
+  }).catch((error) => {
+    throwIfPrismaDatabaseUnavailable(error);
   });
 
   return address ? mapCustomerAddress(address) : undefined;
@@ -431,7 +458,9 @@ export async function createUserAddress(userId: string, input: CustomerAddressIn
   }
 
   const normalized = normalizeCustomerAddressInput(input);
-  const hasAnyAddress = (await prisma.customerAddress.count({ where: { userId } })) > 0;
+  const hasAnyAddress = (await prisma.customerAddress.count({ where: { userId } }).catch((error) => {
+    throwIfPrismaDatabaseUnavailable(error);
+  })) > 0;
   const shouldBeDefault = input.isDefault || !hasAnyAddress;
 
   const address = await prisma.$transaction(async (transaction) => {
@@ -449,6 +478,8 @@ export async function createUserAddress(userId: string, input: CustomerAddressIn
         isDefault: shouldBeDefault,
       },
     });
+  }).catch((error) => {
+    throwIfPrismaDatabaseUnavailable(error);
   });
 
   return mapCustomerAddress(address);
@@ -499,6 +530,8 @@ export async function updateUserAddress(userId: string, addressId: string, input
 
   const existing = await prisma.customerAddress.findFirst({
     where: { id: addressId, userId },
+  }).catch((error) => {
+    throwIfPrismaDatabaseUnavailable(error);
   });
 
   if (!existing) {
@@ -506,7 +539,9 @@ export async function updateUserAddress(userId: string, addressId: string, input
   }
 
   const normalized = normalizeCustomerAddressInput(input);
-  const addressCount = await prisma.customerAddress.count({ where: { userId } });
+  const addressCount = await prisma.customerAddress.count({ where: { userId } }).catch((error) => {
+    throwIfPrismaDatabaseUnavailable(error);
+  });
   const shouldBeDefault = input.isDefault || (existing.isDefault && !input.isDefault) || addressCount === 1;
 
   const address = await prisma.$transaction(async (transaction) => {
@@ -524,6 +559,8 @@ export async function updateUserAddress(userId: string, addressId: string, input
         isDefault: shouldBeDefault,
       },
     });
+  }).catch((error) => {
+    throwIfPrismaDatabaseUnavailable(error);
   });
 
   return mapCustomerAddress(address);
@@ -562,6 +599,8 @@ export async function setUserDefaultAddress(userId: string, addressId: string) {
 
   const existing = await prisma.customerAddress.findFirst({
     where: { id: addressId, userId },
+  }).catch((error) => {
+    throwIfPrismaDatabaseUnavailable(error);
   });
 
   if (!existing) {
@@ -578,6 +617,8 @@ export async function setUserDefaultAddress(userId: string, addressId: string) {
       where: { id: addressId },
       data: { isDefault: true },
     });
+  }).catch((error) => {
+    throwIfPrismaDatabaseUnavailable(error);
   });
 
   return mapCustomerAddress(address);
@@ -611,6 +652,8 @@ export async function deleteUserAddress(userId: string, addressId: string) {
 
   const existing = await prisma.customerAddress.findFirst({
     where: { id: addressId, userId },
+  }).catch((error) => {
+    throwIfPrismaDatabaseUnavailable(error);
   });
 
   if (!existing) {
@@ -635,6 +678,8 @@ export async function deleteUserAddress(userId: string, addressId: string) {
         data: { isDefault: true },
       });
     }
+  }).catch((error) => {
+    throwIfPrismaDatabaseUnavailable(error);
   });
 }
 

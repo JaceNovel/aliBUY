@@ -71,7 +71,7 @@ export async function PUT(request: Request, context: { params: Promise<{ address
     return NextResponse.json({ address: updatedAddress });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Impossible de modifier l'adresse.";
-    const status = message.includes("n'est pas configure") ? 503 : 400;
+    const status = message.includes("n'est pas configure") || message.includes("injoignable") ? 503 : 400;
     return NextResponse.json({ message }, { status });
   }
 }
@@ -108,7 +108,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ addre
     return NextResponse.json({ address: updatedAddress });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Impossible de définir l'adresse par défaut.";
-    const status = message.includes("n'est pas configure") ? 503 : 400;
+    const status = message.includes("n'est pas configure") || message.includes("injoignable") ? 503 : 400;
     return NextResponse.json({ message }, { status });
   }
 }
@@ -140,7 +140,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ addr
     return NextResponse.json({ success: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Impossible de supprimer l'adresse.";
-    const status = message.includes("n'est pas configure") ? 503 : 400;
+    const status = message.includes("n'est pas configure") || message.includes("injoignable") ? 503 : 400;
     return NextResponse.json({ message }, { status });
   }
 }
