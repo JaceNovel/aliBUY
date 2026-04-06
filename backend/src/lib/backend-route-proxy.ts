@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { API_URL, buildApiUrl } from "@/lib/api";
+import { hasConfiguredDatabaseUrl } from "@/lib/prisma";
 import { buildAuthenticatedProxyHeaders } from "@/lib/proxy-auth";
 
 const HOP_BY_HOP_HEADERS = new Set([
@@ -38,6 +39,12 @@ function getCurrentAndUpstreamHosts(request: Request, targetPath?: string) {
 export function requireExternalBackend(request: Request, actionLabel: string, targetPath?: string) {
   const { currentHostname, currentHost, upstreamHost } = getCurrentAndUpstreamHosts(request, targetPath);
   if (isLocalHostname(currentHostname)) {
+    return null;
+  }
+
+  // The dedicated backend deployment serves these routes directly and does not
+  // need a frontend-style upstream proxy configuration.
+  if (hasConfiguredDatabaseUrl()) {
     return null;
   }
 
