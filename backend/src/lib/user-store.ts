@@ -42,6 +42,14 @@ function isPrismaDatabaseUnavailable(error: unknown) {
     || message.includes("db.prisma.io:5432");
 }
 
+function throwIfPrismaDatabaseUnavailable(error: unknown): never {
+  if (isPrismaDatabaseUnavailable(error)) {
+    throw new Error("La base de donnees est configuree mais injoignable. Verifiez DATABASE_URL et l'accessibilite du serveur de base de donnees.");
+  }
+
+  throw error;
+}
+
 function toStoredUser(user: {
   id: string;
   clerkUserId?: string | null;
@@ -136,7 +144,7 @@ export async function createStoredUser(input: {
 
   const normalizedEmail = normalizeEmail(input.email);
 
-  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } }).catch(throwIfPrismaDatabaseUnavailable);
   if (existing) {
     throw new Error("Un compte existe deja avec cette adresse e-mail.");
   }
@@ -151,7 +159,7 @@ export async function createStoredUser(input: {
       passwordHash: input.passwordHash ?? null,
       passwordSalt: input.passwordSalt ?? null,
     } as never,
-  });
+  }).catch(throwIfPrismaDatabaseUnavailable);
 
   return toStoredUser(user);
 }
@@ -166,7 +174,7 @@ export async function upsertStoredUserFromClerk(input: {
   const normalizedEmail = normalizeEmail(input.email);
   const parsedName = parseDisplayName(input.displayName);
 
-  const existingByClerkUserId = await prisma.user.findFirst({ where: { clerkUserId: input.clerkUserId } as never });
+  const existingByClerkUserId = await prisma.user.findFirst({ where: { clerkUserId: input.clerkUserId } as never }).catch(throwIfPrismaDatabaseUnavailable);
   if (existingByClerkUserId) {
     const updated = await prisma.user.update({
       where: { id: existingByClerkUserId.id },
@@ -175,12 +183,12 @@ export async function upsertStoredUserFromClerk(input: {
         displayName: parsedName.displayName,
         firstName: parsedName.firstName,
       } as never,
-    });
+    }).catch(throwIfPrismaDatabaseUnavailable);
 
     return toStoredUser(updated);
   }
 
-  const existingByEmail = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  const existingByEmail = await prisma.user.findUnique({ where: { email: normalizedEmail } }).catch(throwIfPrismaDatabaseUnavailable);
   if (existingByEmail) {
     const updated = await prisma.user.update({
       where: { id: existingByEmail.id },
@@ -189,7 +197,7 @@ export async function upsertStoredUserFromClerk(input: {
         displayName: parsedName.displayName,
         firstName: parsedName.firstName,
       } as never,
-    });
+    }).catch(throwIfPrismaDatabaseUnavailable);
 
     return toStoredUser(updated);
   }
@@ -206,7 +214,7 @@ export async function updateStoredUserProfile(input: {
 }) {
   ensureDatabaseConfigured();
 
-  const current = await prisma.user.findUnique({ where: { id: input.id } });
+  const current = await prisma.user.findUnique({ where: { id: input.id } }).catch(throwIfPrismaDatabaseUnavailable);
   if (!current) {
     throw new Error("Utilisateur introuvable.");
   }
@@ -218,7 +226,7 @@ export async function updateStoredUserProfile(input: {
       displayName: parsedName?.displayName ?? current.displayName,
       firstName: parsedName?.firstName ?? current.firstName,
     },
-  });
+  }).catch(throwIfPrismaDatabaseUnavailable);
 
   return toStoredUser(updated);
 }
@@ -230,7 +238,7 @@ export async function updateStoredUserEmail(input: {
   ensureDatabaseConfigured();
 
   const normalizedEmail = normalizeEmail(input.email);
-  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } }).catch(throwIfPrismaDatabaseUnavailable);
   if (existing && existing.id !== input.id) {
     throw new Error("Un compte existe deja avec cette adresse e-mail.");
   }
@@ -238,7 +246,7 @@ export async function updateStoredUserEmail(input: {
   const updated = await prisma.user.update({
     where: { id: input.id },
     data: { email: normalizedEmail },
-  });
+  }).catch(throwIfPrismaDatabaseUnavailable);
 
   return toStoredUser(updated);
 }
@@ -256,7 +264,7 @@ export async function updateStoredUserPassword(input: {
       passwordHash: input.passwordHash,
       passwordSalt: input.passwordSalt,
     },
-  });
+  }).catch(throwIfPrismaDatabaseUnavailable);
 
   return toStoredUser(updated);
 }
@@ -264,5 +272,5 @@ export async function updateStoredUserPassword(input: {
 export async function deleteStoredUser(id: string) {
   ensureDatabaseConfigured();
 
-  await prisma.user.delete({ where: { id } });
+  await prisma.user.delete({ where: { id } }).catch(throwIfPrismaDatabaseUnavailable);
 }
