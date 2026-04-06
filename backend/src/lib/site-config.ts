@@ -3,7 +3,7 @@ export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://afr
 export const SITE_LOGO_PATH = "/WhatsApp_Image_2026-03-22_at_03.03.05-removebg-preview.png";
 export const SITE_SHARE_IMAGE_PATH = "/AfriPay%20Logo%20with%20Stylized%20Elements.png";
 export const PRODUCT_SHARE_IMAGE_PATH = "/WhatsApp_Image_2026-03-22_at_03.03.05-removebg-preview.png";
-export const CART_SHARE_IMAGE_PATH = "/AfriPay%20Logo%20with%20Stylized%20Elements.png";
+export const CART_SHARE_IMAGE_PATH = "/WhatsApp_Image_2026-03-22_at_03.03.05-removebg-preview.png";
 export const SITE_DESCRIPTION = "AfriPay est une marketplace B2B qui connecte le catalogue produit, les devis, la logistique et les paiements dans une experience unifiee.";
 export const SITE_KEYWORDS = [
   "AfriPay",

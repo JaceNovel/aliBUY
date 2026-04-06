@@ -60,13 +60,15 @@ export async function POST(request: Request) {
     const origin = buildOrigin(request);
     const shareUrl = `${origin}/cart/shared/${encodeURIComponent(sharedCart.token)}`;
     const shareText = sharedCart.message
-      ? `${sharedCart.message} ${shareUrl}`
-      : `${SITE_NAME}: valide ce panier ${shareUrl}`;
+      ? sharedCart.message
+      : `${SITE_NAME}: valide ce panier`;
+    const copyText = `${shareText} ${shareUrl}`;
 
     return NextResponse.json({
       id: sharedCart.id ?? randomUUID(),
       shareUrl,
       shareText,
+      copyText,
       token: sharedCart.token,
     });
   } catch (error) {

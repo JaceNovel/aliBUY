@@ -1,15 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, LoaderCircle, Share2 } from "lucide-react";
 
 import { useCart, type SharedCartImportContext } from "@/components/cart-provider";
 
 export function SharedCartClaimClient({ token, ownerDisplayName, message, itemCount }: { token: string; ownerDisplayName: string; message?: string; itemCount: number }) {
+  const router = useRouter();
   const { replaceItems, setSharedCartContext } = useCart();
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isImported, setIsImported] = useState(false);
   const claimedRef = useRef(false);
 
   useEffect(() => {
@@ -30,7 +33,15 @@ export function SharedCartClaimClient({ token, ownerDisplayName, message, itemCo
 
         replaceItems(payload.cartItems);
         setSharedCartContext(payload.sharedContext as SharedCartImportContext);
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("afripay_cart_v1", JSON.stringify(payload.cartItems));
+          window.localStorage.setItem("afripay_cart_shared_v1", JSON.stringify(payload.sharedContext));
+        }
+        setIsImported(true);
         setFeedback(`Le panier de ${ownerDisplayName} a été importé dans votre compte.`);
+        window.setTimeout(() => {
+          router.push("/cart");
+        }, 500);
       })
       .catch((error) => {
         setFeedback(error instanceof Error ? error.message : "Impossible d'importer ce panier partagé.");
@@ -38,7 +49,7 @@ export function SharedCartClaimClient({ token, ownerDisplayName, message, itemCo
       .finally(() => {
         setIsLoading(false);
       });
-  }, [ownerDisplayName, replaceItems, setSharedCartContext, token]);
+  }, [ownerDisplayName, replaceItems, router, setSharedCartContext, token]);
 
   return (
     <section className="mx-auto max-w-[760px] rounded-[28px] border border-[#ece7df] bg-white px-6 py-8 text-center shadow-[0_16px_40px_rgba(17,24,39,0.05)]">
@@ -51,10 +62,26 @@ export function SharedCartClaimClient({ token, ownerDisplayName, message, itemCo
       {feedback ? <div className="mt-5 rounded-[18px] bg-[#f8fafc] px-4 py-4 text-[14px] font-medium text-[#344054]">{feedback}</div> : null}
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <Link href="/cart" className="inline-flex h-12 items-center justify-center rounded-full bg-[#ff6a00] px-6 text-[15px] font-semibold text-white transition hover:bg-[#e55e00]">
+        <Link
+          href="/cart"
+          aria-disabled={isLoading}
+          className={[
+            "inline-flex h-12 items-center justify-center rounded-full px-6 text-[15px] font-semibold text-white transition",
+            isLoading ? "pointer-events-none bg-[#ffb27a]" : "bg-[#ff6a00] hover:bg-[#e55e00]",
+          ].join(" ")}
+        >
           Voir le panier importé
         </Link>
-        <Link href="/checkout" className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-[#d9dfe8] px-6 text-[15px] font-semibold text-[#344054] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
+        <Link
+          href="/checkout"
+          aria-disabled={isLoading || !isImported}
+          className={[
+            "inline-flex h-12 items-center justify-center gap-2 rounded-full px-6 text-[15px] font-semibold transition",
+            (isLoading || !isImported)
+              ? "pointer-events-none border border-[#e4e7ec] text-[#98a2b3]"
+              : "border border-[#d9dfe8] text-[#344054] hover:border-[#ff6a00] hover:text-[#ff6a00]",
+          ].join(" ")}
+        >
           <Share2 className="h-4 w-4" />
           Aller au checkout
         </Link>

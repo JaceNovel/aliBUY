@@ -281,7 +281,9 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
       }
 
       if (clipboard?.writeText) {
-        await clipboard.writeText(payload.shareText);
+        await clipboard.writeText(typeof payload.copyText === "string" && payload.copyText.trim()
+          ? payload.copyText
+          : `${payload.shareText} ${payload.shareUrl}`.trim());
         triggerShareFeedback("Message de partage copié");
         return;
       }

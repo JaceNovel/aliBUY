@@ -117,7 +117,9 @@ export function CartPopover({ className = "", align = "right", currencyCode, loc
       }
 
       if (browserNavigator?.clipboard?.writeText) {
-        await browserNavigator.clipboard.writeText(payload.shareText);
+        await browserNavigator.clipboard.writeText(typeof payload.copyText === "string" && payload.copyText.trim()
+          ? payload.copyText
+          : `${payload.shareText} ${payload.shareUrl}`.trim());
         triggerShareFeedback("Lien copié");
         return;
       }
