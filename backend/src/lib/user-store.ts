@@ -24,7 +24,7 @@ function hasDatabase() {
 
 function ensureDatabaseConfigured() {
   if (!hasDatabase()) {
-    throw new Error("La base de donnees n'est pas configuree. Ajoutez DATABASE_URL pour activer les comptes persistants.");
+    throw new Error("La base de donnees n'est pas configuree dans le backend en cours d'execution. Ajoutez DATABASE_URL a ce runtime pour activer les comptes persistants.");
   }
 }
 
@@ -265,4 +265,6 @@ export async function deleteStoredUser(id: string) {
   ensureDatabaseConfigured();
 
   await prisma.user.delete({ where: { id } });
+}
+;
 }
