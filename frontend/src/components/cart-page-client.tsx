@@ -136,6 +136,8 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
   const checkoutPath = "/checkout";
   const loginBeforeCheckoutHref = `/login?next=${encodeURIComponent(checkoutPath)}&reason=checkout_auth_required`;
   const registerBeforeCheckoutHref = `/register?next=${encodeURIComponent(checkoutPath)}&reason=checkout_auth_required`;
+  const importedPreviewItems = sharedCartContext?.previewItems ?? [];
+  const showImportedPreviewFallback = !isLoading && quote.items.length === 0 && importedPreviewItems.length > 0;
 
   useEffect(() => {
     setSelectedCartKeys((current) => {
@@ -586,6 +588,33 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
                       : "En attente d’ouverture par un tiers."}
                 </div>
                 <div className="mt-2 text-[12px] text-[#98a2b3]">{entry.claimCount} importation(s) · mise à jour {new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(entry.updatedAt))}</div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {showImportedPreviewFallback ? (
+        <section className="rounded-[20px] border border-[#f2d3b3] bg-[#fff8f1] p-5 shadow-[0_10px_28px_rgba(17,24,39,0.04)]">
+          <div className="text-[15px] font-bold text-[#9a3412]">Panier importé en attente de synchronisation</div>
+          <div className="mt-2 text-[13px] leading-6 text-[#7c2d12]">
+            Les articles ont bien été récupérés depuis le lien partagé. Si le calcul sourcing n&apos;affiche pas encore les lignes complètes, voici la sélection importée.
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {importedPreviewItems.map((item, index) => (
+              <article key={`${item.slug}-${index}`} className="flex items-center gap-3 rounded-[16px] border border-[#f6dcc4] bg-white px-4 py-4">
+                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[12px] bg-[#f5f5f5]">
+                  {item.image ? <Image src={item.image} alt={item.title} fill sizes="64px" className="object-cover" /> : null}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[14px] font-semibold text-[#1f2937]">{item.title}</div>
+                  <div className="mt-1 text-[12px] text-[#667085]">Quantité: {item.quantity}</div>
+                  {item.selectedVariants && Object.keys(item.selectedVariants).length > 0 ? (
+                    <div className="mt-1 text-[12px] text-[#667085]">
+                      {Object.entries(item.selectedVariants).map(([label, value]) => `${label}: ${value}`).join(" · ")}
+                    </div>
+                  ) : null}
+                </div>
               </article>
             ))}
           </div>

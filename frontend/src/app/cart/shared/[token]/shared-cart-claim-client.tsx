@@ -26,9 +26,11 @@ export function SharedCartClaimClient({
   const router = useRouter();
   const { replaceItems, setSharedCartContext } = useCart();
   const [feedback] = useState<string | null>(`Le panier de ${ownerDisplayName} a été importé dans votre compte.`);
-  const [isLoading, setIsLoading] = useState(true);
+  const isLoading = false;
   const [isImported] = useState(true);
   const claimedRef = useRef(false);
+  const redirectTimerRef = useRef<number | null>(null);
+  const hardRedirectTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (claimedRef.current) {
@@ -44,8 +46,16 @@ export function SharedCartClaimClient({
       window.localStorage.setItem("afripay_cart_shared_v1", JSON.stringify(sharedContext));
     }
 
+    redirectTimerRef.current = window.setTimeout(() => {
+      router.replace("/cart");
+    }, 120);
+    hardRedirectTimerRef.current = window.setTimeout(() => {
+      window.location.assign("/cart");
+    }, 900);
+
     void fetch(`/api/cart/shares/${encodeURIComponent(token)}/claim`, {
       method: "POST",
+      keepalive: true,
     })
       .then(async (response) => {
         const payload = await response.json().catch(() => null);
@@ -55,14 +65,19 @@ export function SharedCartClaimClient({
       })
       .catch(() => {
         // Le panier est deja importe localement; un echec de marquage ne doit pas bloquer l'utilisateur.
-      })
-      .finally(() => {
-        setIsLoading(false);
-        window.setTimeout(() => {
-          router.push("/cart");
-        }, 500);
       });
-  }, [cartItems, ownerDisplayName, replaceItems, router, setSharedCartContext, sharedContext, token]);
+
+    return () => {
+      if (redirectTimerRef.current !== null) {
+        window.clearTimeout(redirectTimerRef.current);
+        redirectTimerRef.current = null;
+      }
+      if (hardRedirectTimerRef.current !== null) {
+        window.clearTimeout(hardRedirectTimerRef.current);
+        hardRedirectTimerRef.current = null;
+      }
+    };
+  }, [cartItems, replaceItems, router, setSharedCartContext, sharedContext, token]);
 
   return (
     <section className="mx-auto max-w-[760px] rounded-[28px] border border-[#ece7df] bg-white px-6 py-8 text-center shadow-[0_16px_40px_rgba(17,24,39,0.05)]">

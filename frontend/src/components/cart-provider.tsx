@@ -15,6 +15,14 @@ import {
 
 type CartStateItem = CartInputItem;
 
+export type SharedCartPreviewItem = {
+  slug: string;
+  title: string;
+  image?: string;
+  quantity: number;
+  selectedVariants?: VariantSelection;
+};
+
 export type SharedCartImportContext = {
   token: string;
   ownerUserId: string;
@@ -22,6 +30,7 @@ export type SharedCartImportContext = {
   ownerDisplayName: string;
   message?: string;
   importedAt: string;
+  previewItems?: SharedCartPreviewItem[];
 };
 
 type CartContextValue = {
@@ -64,6 +73,26 @@ function normalizeSharedCartContext(value: unknown): SharedCartImportContext | n
     ownerDisplayName: record.ownerDisplayName,
     message: typeof record.message === "string" ? record.message : undefined,
     importedAt: record.importedAt,
+    previewItems: Array.isArray(record.previewItems)
+      ? record.previewItems.flatMap((entry) => {
+          if (typeof entry !== "object" || entry === null) {
+            return [];
+          }
+
+          const preview = entry as Record<string, unknown>;
+          if (typeof preview.slug !== "string" || typeof preview.title !== "string") {
+            return [];
+          }
+
+          return [{
+            slug: preview.slug,
+            title: preview.title,
+            image: typeof preview.image === "string" ? preview.image : undefined,
+            quantity: typeof preview.quantity === "number" && preview.quantity > 0 ? preview.quantity : 1,
+            selectedVariants: normalizeVariantSelection(preview.selectedVariants),
+          } satisfies SharedCartPreviewItem];
+        })
+      : undefined,
   };
 }
 
