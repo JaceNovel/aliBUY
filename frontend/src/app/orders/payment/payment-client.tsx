@@ -88,18 +88,23 @@ export function PaymentClient({ order }: PaymentClientProps) {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isApplyingPromo, setIsApplyingPromo] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
-  const verifiedPaymentIdRef = useRef<string | null>(null);
+  const verifiedReturnRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (order.kind !== "sourcing" || !order.returnPaymentId) {
+    if (order.kind !== "sourcing") {
       return;
     }
 
-    if (verifiedPaymentIdRef.current === order.returnPaymentId) {
+    const returnKey = [order.id, order.returnPaymentId ?? "", order.returnPaymentStatus ?? ""].join("|");
+    if (!order.returnPaymentId && !order.returnPaymentStatus) {
       return;
     }
 
-    verifiedPaymentIdRef.current = order.returnPaymentId;
+    if (verifiedReturnRef.current === returnKey) {
+      return;
+    }
+
+    verifiedReturnRef.current = returnKey;
     setFeedbackMessage(order.returnPaymentStatus ? `Retour Moneroo recu: ${order.returnPaymentStatus}. Verification en cours.` : "Verification du paiement Moneroo en cours.");
     setIsVerifying(true);
 

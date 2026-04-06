@@ -235,7 +235,7 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
       };
     }
 
-    if (orderId && paymentId) {
+    if (orderId) {
       const timeoutId = window.setTimeout(() => {
         setIsPaymentBusy(true);
         setPaymentFeedback(paymentStatus

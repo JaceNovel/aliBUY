@@ -346,7 +346,7 @@ export function initializeMonerooPayment(orderId: string) {
   });
 }
 
-export function verifyMonerooPayment(orderId: string, paymentId: string) {
+export function verifyMonerooPayment(orderId: string, paymentId?: string) {
   return apiFetch<{
     order: ApiOrder;
     paymentId?: string;
@@ -357,7 +357,7 @@ export function verifyMonerooPayment(orderId: string, paymentId: string) {
     headers: {
       "content-type": "application/json",
     },
-    body: JSON.stringify({ orderId, paymentId }),
+    body: JSON.stringify(paymentId ? { orderId, paymentId } : { orderId }),
   });
 }
 

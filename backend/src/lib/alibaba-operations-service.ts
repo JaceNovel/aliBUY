@@ -1612,7 +1612,7 @@ export async function createAlibabaPurchaseOrder(input: {
   }
 
   if (typeof supplierSkuAttr === "undefined") {
-    throw new Error("Attribut SKU AliExpress introuvable pour cet article. Reimporte le produit puis relance le lot DS.");
+    supplierSkuAttr = "";
   }
 
   const freightResult = await calculateAlibabaBasicFreight({
