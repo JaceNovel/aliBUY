@@ -71,6 +71,7 @@ export type AdminOrderRecord = {
   customerName: string;
   customerEmail: string;
   customerPhone: string;
+  productTitle: string;
   shippingMethod: string;
   paymentStatus: string;
   status: string;
@@ -292,13 +293,13 @@ export async function getAdminSuppliers() {
 export async function getAdminMetrics() {
   const [users, orders, products, categories] = await Promise.all([
     getStoredUsers(),
-    getSourcingOrders(),
+    getAdminOrders(),
     getCatalogProducts(),
     getCatalogCategories(),
   ]);
-  const revenueUsd = orders.reduce((sum: number, order: AdminSourcingOrder) => sum + convertFcfaToUsd(order.totalPriceFcfa), 0);
+  const revenueUsd = orders.reduce((sum: number, order: AdminOrderRecord) => sum + order.totalUsd, 0);
   const promotionsCount = products.filter((product: AdminCatalogProduct) => product.badge || product.title.toLowerCase().includes("promo")).length;
-  const pendingOrdersCount = orders.filter((order: AdminSourcingOrder) => order.paymentStatus !== "paid").length;
+  const pendingOrdersCount = orders.filter((order: AdminOrderRecord) => order.paymentStatus !== "paid").length;
 
   return {
     revenueUsd,
@@ -328,20 +329,20 @@ export async function getAdminMonthlyRevenue() {
 }
 
 export async function getAdminRecentOrders(limit = 5) {
-  const orders = await getSourcingOrders();
+  const orders = await getAdminOrders();
 
   return [...orders]
-    .sort((left: AdminSourcingOrder, right: AdminSourcingOrder) => right.createdAt.localeCompare(left.createdAt))
+    .sort((left: AdminOrderRecord, right: AdminOrderRecord) => right.createdAt.localeCompare(left.createdAt))
     .slice(0, limit)
-    .map((order: AdminSourcingOrder) => ({
+    .map((order: AdminOrderRecord) => ({
       id: order.orderNumber,
       customer: order.customerName,
-      product: order.items[0]?.title ?? `Commande ${order.orderNumber}`,
+      product: order.productTitle || `Commande ${order.orderNumber}`,
       date: order.createdAt.slice(0, 10),
-      totalUsd: convertFcfaToUsd(order.totalPriceFcfa),
+      totalUsd: order.totalUsd,
       status: order.paymentStatus,
-      href: `/admin/orders/${encodeURIComponent(order.id)}`,
-      parcelHref: `/admin/orders/${encodeURIComponent(order.id)}/parcel`,
+      href: order.href,
+      parcelHref: order.parcelHref,
     }));
 }
 
@@ -349,7 +350,7 @@ export async function getAdminOrders(options?: { preferProxy?: boolean }): Promi
   if (options?.preferProxy !== false && hasExternalAdminApi()) {
     try {
       const proxiedOrders = await fetchAdminOrdersFromApi();
-      if (proxiedOrders) {
+      if (proxiedOrders && proxiedOrders.length > 0) {
         return proxiedOrders;
       }
     } catch {
@@ -367,6 +368,7 @@ export async function getAdminOrders(options?: { preferProxy?: boolean }): Promi
       customerName: order.customerName,
       customerEmail: order.customerEmail,
       customerPhone: order.customerPhone,
+      productTitle: order.items[0]?.title ?? `Commande ${order.orderNumber}`,
       shippingMethod: order.shippingMethod,
       paymentStatus: order.paymentStatus,
       status: order.status,
