@@ -24,7 +24,22 @@ function hasDatabase() {
 
 function ensureDatabaseConfigured() {
   if (!hasDatabase()) {
-    throw new Error("La base de donnees n'est pas configuree dans le frontend en cours d'execution. Ajoutez DATABASE_URL a ce projet pour activer les comptes persistants.");
+    throw new Error("La base de donnees n'est pas configuree dans l'environnement en cours d'execution. Ajoutez DATABASE_URL a ce projet pour activer les comptes persistants.");
+  }
+}
+
+function getConfiguredDatabaseTarget() {
+  const raw = process.env.DATABASE_URL?.trim();
+
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(raw);
+    return parsed.port ? `${parsed.hostname}:${parsed.port}` : parsed.hostname;
+  } catch {
+    return null;
   }
 }
 
@@ -44,7 +59,9 @@ function isPrismaDatabaseUnavailable(error: unknown) {
 
 function throwIfPrismaDatabaseUnavailable(error: unknown): never {
   if (isPrismaDatabaseUnavailable(error)) {
-    throw new Error("La base de donnees est configuree mais injoignable. Verifiez DATABASE_URL et l'accessibilite du serveur de base de donnees.");
+    const target = getConfiguredDatabaseTarget();
+    const targetDetail = target ? ` Cible actuelle: ${target}.` : "";
+    throw new Error(`La base de donnees est configuree mais injoignable.${targetDetail} Verifiez DATABASE_URL et l'accessibilite du serveur de base de donnees.`);
   }
 
   throw error;
