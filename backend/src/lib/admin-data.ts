@@ -3,6 +3,7 @@ import "server-only";
 import { cookies } from "next/headers";
 
 import { API_URL, buildApiUrl } from "@/lib/api";
+import { createAuthenticatedUserSession, getCurrentUser } from "@/lib/user-auth";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { getSourcingOrderMeta, type SourcingOrder } from "@/lib/alibaba-sourcing";
 import type { AdminOrderParcelItem, AdminOrderParcelPhoto, AdminOrderParcelSnapshot } from "@/lib/admin-order-parcel";
@@ -34,7 +35,8 @@ function hasExternalAdminApi() {
 }
 
 async function fetchAdminOrdersFromApi() {
-  const sessionToken = (await cookies()).get(USER_SESSION_COOKIE)?.value;
+  const sessionToken = (await cookies()).get(USER_SESSION_COOKIE)?.value
+    ?? await getCurrentUser().then((user) => user ? createAuthenticatedUserSession(user) : null).catch(() => null);
   if (!sessionToken) {
     return null;
   }
@@ -52,6 +54,28 @@ async function fetchAdminOrdersFromApi() {
 
   const payload = await response.json().catch(() => null) as { orders?: AdminOrderRecord[] } | null;
   return Array.isArray(payload?.orders) ? payload.orders : null;
+}
+
+async function fetchAdminOrderByIdFromApi(orderId: string) {
+  const sessionToken = (await cookies()).get(USER_SESSION_COOKIE)?.value
+    ?? await getCurrentUser().then((user) => user ? createAuthenticatedUserSession(user) : null).catch(() => null);
+  if (!sessionToken) {
+    return null;
+  }
+
+  const response = await fetch(buildApiUrl(`/api/admin/sourcing/orders/${encodeURIComponent(orderId)}`), {
+    headers: {
+      Cookie: `${USER_SESSION_COOKIE}=${encodeURIComponent(sessionToken)}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = await response.json().catch(() => null) as { order?: SourcingOrder | null } | null;
+  return payload?.order && typeof payload.order === "object" ? payload.order : null;
 }
 
 export type AdminUserRecord = {
@@ -438,6 +462,17 @@ export async function getAdminUserDetail(userId: string) {
 }
 
 export async function getAdminOrderById(orderId: string) {
+  if (hasExternalAdminApi()) {
+    try {
+      const proxiedOrder = await fetchAdminOrderByIdFromApi(orderId);
+      if (proxiedOrder) {
+        return proxiedOrder;
+      }
+    } catch {
+      // Fall back to the local store when the backend API is unreachable.
+    }
+  }
+
   const orders = await getSourcingOrders();
   return orders.find((order: AdminSourcingOrder) => order.id === orderId || order.orderNumber === orderId) ?? null;
 }

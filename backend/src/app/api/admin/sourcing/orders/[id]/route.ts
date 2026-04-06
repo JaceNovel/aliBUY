@@ -89,6 +89,21 @@ async function buildOrderResponse(order: SourcingOrder, input?: { relaunchMessag
   });
 }
 
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ message: "Acces refuse." }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const order = await getSourcingOrderById(id);
+
+  if (!order) {
+    return NextResponse.json({ message: "Commande sourcing introuvable." }, { status: 404 });
+  }
+
+  return buildOrderResponse(order);
+}
+
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ message: "Acces refuse." }, { status: 403 });
