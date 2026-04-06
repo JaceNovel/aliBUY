@@ -2067,6 +2067,54 @@ async function fetchAlibabaProductDetail(sourceProductId: string, credentials?: 
   return extractAlibabaProductDetailRecord(response);
 }
 
+function mergeAlibabaSearchSnapshots(
+  primary: AlibabaSearchProduct | null,
+  secondary: AlibabaSearchProduct | null,
+): AlibabaSearchProduct | null {
+  if (!primary) {
+    return secondary;
+  }
+
+  if (!secondary) {
+    return primary;
+  }
+
+  const mergedGallery = uniqueStrings([
+    primary.image,
+    ...primary.gallery,
+    secondary.image,
+    ...secondary.gallery,
+  ].filter(Boolean));
+
+  return {
+    ...secondary,
+    ...primary,
+    keywords: uniqueStrings([...(primary.keywords ?? []), ...(secondary.keywords ?? [])]),
+    image: primary.image || secondary.image || mergedGallery[0] || "",
+    gallery: mergedGallery,
+    videoUrl: primary.videoUrl ?? secondary.videoUrl,
+    videoPoster: primary.videoPoster ?? secondary.videoPoster ?? primary.image ?? secondary.image,
+    packageDimensionsCm: primary.packageDimensionsCm ?? secondary.packageDimensionsCm,
+    itemWeightGrams: primary.itemWeightGrams > 0 ? primary.itemWeightGrams : secondary.itemWeightGrams,
+    lotCbm: primary.lotCbm || secondary.lotCbm,
+    supplierCompanyId: primary.supplierCompanyId ?? secondary.supplierCompanyId,
+    overview: primary.overview.length > 0 ? primary.overview : secondary.overview,
+    variantGroups: primary.variantGroups.length > 0 ? primary.variantGroups : secondary.variantGroups,
+    variantPricing: Array.isArray(primary.variantPricing) && primary.variantPricing.length > 0 ? primary.variantPricing : secondary.variantPricing,
+    variantSkus: Array.isArray(primary.variantSkus) && primary.variantSkus.length > 0 ? primary.variantSkus : secondary.variantSkus,
+    tiers: primary.tiers.length > 0 ? primary.tiers : secondary.tiers,
+    specs: primary.specs.length > 0 ? primary.specs : secondary.specs,
+    inventory: (typeof primary.inventory === "number" && primary.inventory > 0) ? primary.inventory : secondary.inventory,
+    rawPayload: {
+      primary: primary.rawPayload,
+      secondary: secondary.rawPayload,
+    },
+    moqVerified: primary.moqVerified ?? secondary.moqVerified,
+    weightVerified: primary.weightVerified ?? secondary.weightVerified,
+    priceVerified: primary.priceVerified ?? secondary.priceVerified,
+  };
+}
+
 export async function fetchAlibabaProductSnapshot(input: {
   sourceProductId: string;
   query?: string;
@@ -2077,14 +2125,29 @@ export async function fetchAlibabaProductSnapshot(input: {
   cityCode?: string;
 }): Promise<AlibabaSearchProduct | null> {
   const query = input.query?.trim() || input.sourceProductId;
-  const detailResult = await getAlibabaIcbuProduct({
-    productId: input.sourceProductId,
-    shipToCountry: input.shipToCountry,
-    targetCurrency: input.targetCurrency,
-    targetLanguage: input.targetLanguage,
-    provinceCode: input.provinceCode,
-    cityCode: input.cityCode,
-  });
+  const [affiliateSnapshot, detailResult] = await Promise.all([
+    fetchAliExpressAffiliateProductSnapshot({
+      sourceProductId: input.sourceProductId,
+      query,
+      shipToCountry: input.shipToCountry,
+      targetCurrency: input.targetCurrency,
+      targetLanguage: input.targetLanguage,
+    }).catch(() => null),
+    getAlibabaIcbuProduct({
+      productId: input.sourceProductId,
+      shipToCountry: input.shipToCountry,
+      targetCurrency: input.targetCurrency,
+      targetLanguage: input.targetLanguage,
+      provinceCode: input.provinceCode,
+      cityCode: input.cityCode,
+    }).catch(() => ({
+      ok: false,
+      endpoint: "/aliexpress/ds/product/get",
+      requestBody: {},
+      responseBody: null,
+      status: 500,
+    })),
+  ]);
 
   if (detailResult.ok) {
     const aliExpressMapped = mapAliExpressProductDetailToProduct({
@@ -2092,7 +2155,7 @@ export async function fetchAlibabaProductSnapshot(input: {
       product_id: input.sourceProductId,
     }, detailResult.responseBody, query);
     if (aliExpressMapped) {
-      return aliExpressMapped;
+      return mergeAlibabaSearchSnapshots(aliExpressMapped, affiliateSnapshot);
     }
   }
 
@@ -2107,10 +2170,10 @@ export async function fetchAlibabaProductSnapshot(input: {
     ?? mapAlibabaSearchResultToProduct(detailRecord, query);
 
   if (!mapped) {
-    return null;
+    return affiliateSnapshot;
   }
 
-  return enrichAlibabaSearchProduct(mapped, detailRecord);
+  return mergeAlibabaSearchSnapshots(enrichAlibabaSearchProduct(mapped, detailRecord), affiliateSnapshot);
 }
 
 export async function getAlibabaIcbuProduct(input: {
@@ -4482,6 +4545,8 @@ function extractAliExpressAffiliateSkuDetailProjection(
     : Array.isArray(detailResult.ae_item_sku_info_dtos)
       ? detailResult.ae_item_sku_info_dtos as Array<Record<string, unknown>>
       : [];
+  const multimedia = isRecord(detailResult.ae_multimedia_info_dto) ? detailResult.ae_multimedia_info_dto as Record<string, unknown> : {};
+  const videoDtos = Array.isArray(multimedia.ae_video_dtos) ? multimedia.ae_video_dtos as Array<Record<string, unknown>> : [];
   const title = getStringValue(itemInfo.en_title)
     ?? getStringValue(itemInfo.title)
     ?? fallback.fallbackTitle
@@ -4597,6 +4662,8 @@ function extractAliExpressAffiliateSkuDetailProjection(
     keywords,
     image,
     gallery,
+    videoUrl: getStringValue(videoDtos[0]?.media_url),
+    videoPoster: getStringValue(videoDtos[0]?.poster_url) ?? image,
     minUsd: applyAliExpressMargin(minRawPrice),
     maxUsd: typeof maxRawPrice === "number" ? applyAliExpressMargin(maxRawPrice) : undefined,
     supplierName: getStringValue(itemInfo.store_name) ?? fallback.fallbackSupplierName ?? "Boutique AliExpress",
@@ -4736,6 +4803,8 @@ async function enrichAliExpressAffiliateProduct(
     keywords: projection.keywords,
     image: projection.image,
     gallery: projection.gallery,
+    videoUrl: projection.videoUrl ?? product.videoUrl,
+    videoPoster: projection.videoPoster ?? product.videoPoster ?? projection.image,
     packaging: sellerPackageMetrics?.packaging ?? product.packaging,
     itemWeightGrams,
     lotCbm: sellerPackageMetrics?.lotCbm ?? product.lotCbm,
@@ -5096,6 +5165,8 @@ export async function fetchAliExpressAffiliateProductSnapshot(input: {
     keywords: projection.keywords,
     image: projection.image,
     gallery: projection.gallery,
+    videoUrl: projection.videoUrl,
+    videoPoster: projection.videoPoster,
     packaging: sellerPackageMetrics?.packaging ?? "Non fourni par affiliation",
     itemWeightGrams,
     lotCbm: sellerPackageMetrics?.lotCbm ?? "0.0000",

@@ -554,7 +554,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     }
 
     if (shippingMethod === null) {
-      triggerShareFeedback("Choisissez un mode de livraison.");
+      triggerShareFeedback("Choisissez un mode de livraison avant d'ajouter au panier.");
       return false;
     }
 

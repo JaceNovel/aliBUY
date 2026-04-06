@@ -982,11 +982,20 @@ export async function runAlibabaCatalogImport(input: {
           targetLanguage: process.env.ALIEXPRESS_TARGET_LANGUAGE ?? process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "fr_FR",
         }).catch(() => null);
 
-        resolvedProducts = directSnapshot ? [directSnapshot] : [];
+        if (directSnapshot) {
+          resolvedProducts = [directSnapshot];
+        } else {
+          const exactSearchResult = await searchAlibabaExactIdentifierProducts({
+            identifier: directProductIdMatch[1],
+            limit: 1,
+          });
+          resolvedProducts = exactSearchResult.products;
+        }
+
         searchResult = {
-          ok: Boolean(directSnapshot),
+          ok: resolvedProducts.length > 0,
           endpoint: "/aliexpress/ds/product/get",
-          errorMessage: directSnapshot ? undefined : "Aucun produit AliExpress n'a pu etre lu pour cet ID ou ce lien direct.",
+          errorMessage: resolvedProducts.length > 0 ? undefined : "Aucun produit AliExpress n'a pu etre lu pour cet ID ou ce lien direct.",
         };
       } else {
         const exactSearchResult = await searchAlibabaExactIdentifierProducts({
@@ -1250,7 +1259,12 @@ export async function deleteImportedProduct(importedProductId: string, sourcePro
   const product = resolveImportedProduct(products, importedProductId, sourceProductId);
 
   if (!product) {
-    throw new Error("Produit importe introuvable.");
+    return {
+      deleted: false,
+      alreadyMissing: true,
+      importedProductId,
+      sourceProductId,
+    };
   }
 
   await deleteAlibabaImportedProduct(product.id);
