@@ -182,7 +182,11 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
   const pendingProofDefaultOrder = useMemo(() => orders.find((order) => order.status === "Paiement en attente") ?? orders[0] ?? null, [orders]);
 
   useEffect(() => {
-    const payOrderId = paymentAction?.payOrderId?.trim();
+    const payOrderId = paymentAction?.payOrderId?.trim() || (
+      paymentAction?.payment?.trim() === "initialization_failed"
+        ? paymentAction?.orderId?.trim()
+        : undefined
+    );
     const orderId = paymentAction?.orderId?.trim();
     const paymentId = paymentAction?.paymentId?.trim();
     const paymentStatus = paymentAction?.paymentStatus?.trim();
@@ -199,14 +203,16 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
 
     handledPaymentActionRef.current = actionKey;
 
-    if (payment === "initialization_failed") {
-      return;
-    }
-
     if (payOrderId) {
       const timeoutId = window.setTimeout(() => {
         setIsPaymentBusy(true);
-        setPaymentFeedback(isEnglish ? "Opening Moneroo checkout..." : "Ouverture du checkout Moneroo...");
+        setPaymentFeedback(payment === "initialization_failed"
+          ? (isEnglish
+              ? "Retrying Moneroo checkout..."
+              : "Nouvelle tentative d'ouverture du checkout Moneroo...")
+          : (isEnglish
+              ? "Opening Moneroo checkout..."
+              : "Ouverture du checkout Moneroo..."));
 
         void initializeMonerooPayment(payOrderId)
           .then((payload) => {

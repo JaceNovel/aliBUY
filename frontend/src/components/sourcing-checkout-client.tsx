@@ -621,24 +621,22 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
         const paymentPayload = await initializeMonerooPayment(payload.order.id);
         const checkoutUrl = paymentPayload.checkoutUrl || paymentPayload.order?.monerooCheckoutUrl;
 
-        clearCart();
-        clearSharedCartContext();
-        setIsSubmitting(false);
-
         if (checkoutUrl) {
+          clearCart();
+          clearSharedCartContext();
+          setIsSubmitting(false);
           window.location.href = checkoutUrl;
           return;
         }
 
-        router.push(`/orders?payment=initialization_failed&orderId=${encodeURIComponent(payload.order.id)}`);
+        setIsSubmitting(false);
+        router.push(`/orders?payment=initialization_failed&payOrderId=${encodeURIComponent(payload.order.id)}&orderId=${encodeURIComponent(payload.order.id)}`);
       } catch (paymentError) {
-        clearCart();
-        clearSharedCartContext();
         setIsSubmitting(false);
         setErrorMessage(paymentError instanceof Error
           ? `${paymentError.message} La commande a ete creee, mais le checkout Moneroo ne s'est pas ouvert automatiquement.`
           : "La commande a ete creee, mais le checkout Moneroo ne s'est pas ouvert automatiquement.");
-        router.push(`/orders?payment=initialization_failed&orderId=${encodeURIComponent(payload.order.id)}`);
+        router.push(`/orders?payment=initialization_failed&payOrderId=${encodeURIComponent(payload.order.id)}&orderId=${encodeURIComponent(payload.order.id)}`);
       }
     } catch (error) {
       setIsSubmitting(false);
