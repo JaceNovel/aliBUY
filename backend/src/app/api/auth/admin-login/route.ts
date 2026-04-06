@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { maybeProxyToBackend } from "@/lib/backend-route-proxy";
 import { getAuthorizedAdminAccessByEmail, validateAdminCredentials } from "@/lib/admin-auth";
 import { validateMutationOrigin } from "@/lib/request-security";
 import { createAuthenticatedUserSession, getUserSessionCookieConfig } from "@/lib/user-auth";
@@ -25,6 +26,11 @@ export async function POST(request: Request) {
   const originError = validateMutationOrigin(request);
   if (originError) {
     return originError;
+  }
+
+  const proxied = await maybeProxyToBackend(request);
+  if (proxied) {
+    return proxied;
   }
 
   const body = await request.json().catch(() => null);

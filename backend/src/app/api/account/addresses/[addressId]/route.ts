@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { maybeProxyToBackend } from "@/lib/backend-route-proxy";
 import { deleteUserAddress, setUserDefaultAddress, updateUserAddress } from "@/lib/customer-data-store";
 import { validateMutationOrigin } from "@/lib/request-security";
 import { getCurrentUser } from "@/lib/user-auth";
@@ -43,6 +44,11 @@ export async function PUT(request: Request, context: { params: Promise<{ address
     return originError;
   }
 
+  const proxied = await maybeProxyToBackend(request);
+  if (proxied) {
+    return proxied;
+  }
+
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });
@@ -71,6 +77,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ addre
     return originError;
   }
 
+  const proxied = await maybeProxyToBackend(request);
+  if (proxied) {
+    return proxied;
+  }
+
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });
@@ -96,6 +107,11 @@ export async function DELETE(request: Request, context: { params: Promise<{ addr
   const originError = validateMutationOrigin(request);
   if (originError) {
     return originError;
+  }
+
+  const proxied = await maybeProxyToBackend(request);
+  if (proxied) {
+    return proxied;
   }
 
   const user = await getCurrentUser();

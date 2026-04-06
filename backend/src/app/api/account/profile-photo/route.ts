@@ -4,6 +4,8 @@ import { randomUUID } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
+import { API_URL, buildApiUrl } from "@/lib/api";
+import { buildAuthenticatedProxyHeaders } from "@/lib/proxy-auth";
 import { updateAccountSettings } from "@/lib/account-settings-store";
 import { getCurrentUser } from "@/lib/user-auth";
 
@@ -13,6 +15,40 @@ const ALLOWED_TYPES = new Map([
   ["image/png", ".png"],
   ["image/webp", ".webp"],
 ]);
+
+async function persistProfilePhotoToBackend(request: Request, profilePhotoUrl: string) {
+  if (!API_URL) {
+    return false;
+  }
+
+  const upstreamUrl = buildApiUrl("/api/account/settings");
+  const currentUrl = new URL(request.url);
+  const upstreamHost = new URL(upstreamUrl).host;
+  if (!upstreamHost || upstreamHost === currentUrl.host) {
+    return false;
+  }
+
+  const upstreamResponse = await fetch(upstreamUrl, {
+    method: "PATCH",
+    headers: await buildAuthenticatedProxyHeaders(request, {
+      "content-type": "application/json",
+      accept: "application/json",
+    }),
+    body: JSON.stringify({ profilePhotoUrl }),
+    cache: "no-store",
+  }).catch(() => null);
+
+  if (!upstreamResponse) {
+    throw new Error("Impossible de joindre le backend pour enregistrer la photo de profil.");
+  }
+
+  if (!upstreamResponse.ok) {
+    const payload = await upstreamResponse.text().catch(() => "");
+    throw new Error(payload || "Impossible d'enregistrer la photo de profil.");
+  }
+
+  return true;
+}
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -42,7 +78,10 @@ export async function POST(request: Request) {
   await writeFile(fullPath, buffer);
 
   const profilePhotoUrl = `/uploads/profile-images/${filename}`;
-  await updateAccountSettings(user.id, { profilePhotoUrl });
+  const persistedRemotely = await persistProfilePhotoToBackend(request, profilePhotoUrl);
+  if (!persistedRemotely) {
+    await updateAccountSettings(user.id, { profilePhotoUrl });
+  }
 
   return NextResponse.json({ profilePhotoUrl });
 }

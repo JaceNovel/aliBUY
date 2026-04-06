@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { maybeProxyToBackend } from "@/lib/backend-route-proxy";
 import { syncUserPhoneChannels } from "@/lib/account-contact-sync";
 import { createUserAddress, getUserAddresses } from "@/lib/customer-data-store";
 import { validateMutationOrigin } from "@/lib/request-security";
@@ -44,7 +45,12 @@ function validateAddressPayload(body: unknown) {
   return address;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const proxied = await maybeProxyToBackend(request);
+  if (proxied) {
+    return proxied;
+  }
+
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });
@@ -58,6 +64,11 @@ export async function POST(request: Request) {
   const originError = validateMutationOrigin(request);
   if (originError) {
     return originError;
+  }
+
+  const proxied = await maybeProxyToBackend(request);
+  if (proxied) {
+    return proxied;
   }
 
   const user = await getCurrentUser();

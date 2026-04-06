@@ -2,11 +2,17 @@ import { NextResponse } from "next/server";
 
 import { clerkClient } from "@clerk/nextjs/server";
 
+import { maybeProxyToBackend } from "@/lib/backend-route-proxy";
 import { deleteAccountSettings } from "@/lib/account-settings-store";
 import { getCurrentUser, getUserSessionCookieConfig, verifyUserPasswordById } from "@/lib/user-auth";
 import { deleteStoredUser } from "@/lib/user-store";
 
 export async function POST(request: Request) {
+  const proxied = await maybeProxyToBackend(request);
+  if (proxied) {
+    return proxied;
+  }
+
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });

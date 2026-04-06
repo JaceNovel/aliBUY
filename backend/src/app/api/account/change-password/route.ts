@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { clerkClient } from "@clerk/nextjs/server";
 
+import { maybeProxyToBackend } from "@/lib/backend-route-proxy";
 import { validateMutationOrigin } from "@/lib/request-security";
 import { hashUserPassword, getCurrentUser, verifyUserPasswordById } from "@/lib/user-auth";
 import { updateStoredUserPassword } from "@/lib/user-store";
@@ -10,6 +11,11 @@ export async function POST(request: Request) {
   const originError = validateMutationOrigin(request);
   if (originError) {
     return originError;
+  }
+
+  const proxied = await maybeProxyToBackend(request);
+  if (proxied) {
+    return proxied;
   }
 
   const user = await getCurrentUser();

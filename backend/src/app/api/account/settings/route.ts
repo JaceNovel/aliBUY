@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { clerkClient } from "@clerk/nextjs/server";
 
+import { maybeProxyToBackend } from "@/lib/backend-route-proxy";
 import { getManyChatAccountProfile } from "@/lib/account-manychat";
 import { syncUserPhoneChannels } from "@/lib/account-contact-sync";
 import { getAccountSettings, updateAccountSettings } from "@/lib/account-settings-store";
@@ -10,7 +11,12 @@ import { parseDisplayName } from "@/lib/user-session";
 import { getCurrentUser } from "@/lib/user-auth";
 import { updateStoredUserProfile } from "@/lib/user-store";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const proxied = await maybeProxyToBackend(request);
+  if (proxied) {
+    return proxied;
+  }
+
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });
@@ -39,6 +45,11 @@ export async function PATCH(request: Request) {
   const originError = validateMutationOrigin(request);
   if (originError) {
     return originError;
+  }
+
+  const proxied = await maybeProxyToBackend(request);
+  if (proxied) {
+    return proxied;
   }
 
   const user = await getCurrentUser();
