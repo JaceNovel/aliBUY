@@ -70,6 +70,14 @@ async function maybeProxy(request: Request, rawBody: string) {
       cache: "no-store",
     });
 
+    if (upstreamResponse.status === 401 || upstreamResponse.status === 403) {
+      console.warn("[payments/init] upstream auth unavailable, fallback to local handler", {
+        upstreamUrl,
+        status: upstreamResponse.status,
+      });
+      return null;
+    }
+
     if (upstreamResponse.status >= 500) {
       console.warn("[payments/init] upstream unavailable, fallback to local handler", {
         upstreamUrl,
