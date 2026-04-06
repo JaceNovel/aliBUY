@@ -50,6 +50,19 @@ const CART_STORAGE_KEY = "afripay_cart_v1";
 const SHARED_CART_STORAGE_KEY = "afripay_cart_shared_v1";
 const CartContext = createContext<CartContextValue | null>(null);
 
+function parseVariantSelection(value: unknown): VariantSelection | undefined {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+
+  const entries = Object.entries(value).filter(([, entryValue]) => typeof entryValue === "string" && entryValue.trim().length > 0);
+  if (entries.length === 0) {
+    return undefined;
+  }
+
+  return Object.fromEntries(entries) as VariantSelection;
+}
+
 function normalizeSharedCartContext(value: unknown): SharedCartImportContext | null {
   if (typeof value !== "object" || value === null) {
     return null;
@@ -89,7 +102,7 @@ function normalizeSharedCartContext(value: unknown): SharedCartImportContext | n
             title: preview.title,
             image: typeof preview.image === "string" ? preview.image : undefined,
             quantity: typeof preview.quantity === "number" && preview.quantity > 0 ? preview.quantity : 1,
-            selectedVariants: normalizeVariantSelection(preview.selectedVariants),
+            selectedVariants: normalizeVariantSelection(parseVariantSelection(preview.selectedVariants)),
           } satisfies SharedCartPreviewItem];
         })
       : undefined,
