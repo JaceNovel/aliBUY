@@ -39,6 +39,10 @@ const SETTINGS_PATH = path.join(SOURCING_DIR, "settings.json");
 const ORDERS_PATH = path.join(SOURCING_DIR, "orders.json");
 const CONTAINERS_PATH = path.join(SOURCING_DIR, "sea-containers.json");
 const LOGS_PATH = path.join(SOURCING_DIR, "alibaba-logs.json");
+const SETTINGS_BLOB_PATHNAME = "sourcing/settings.json";
+const ORDERS_BLOB_PATHNAME = "sourcing/orders.json";
+const CONTAINERS_BLOB_PATHNAME = "sourcing/sea-containers.json";
+const LOGS_BLOB_PATHNAME = "sourcing/alibaba-logs.json";
 const CATALOG_MAPPING_PATH = path.join(SOURCING_DIR, "catalog-mapping.json");
 const CATALOG_MAPPING_SEED_PATH = process.env.ALIBABA_MAPPING_PATH?.trim() || path.join(process.cwd(), "data", "sourcing", "catalog-mapping.json");
 const CATALOG_MAPPING_BLOB_PATHNAME = "sourcing/catalog-mapping.json";
@@ -103,7 +107,36 @@ async function ensureSourcingDir() {
   await mkdir(SOURCING_DIR, { recursive: true });
 }
 
+function resolveBlobPathnameForFile(filePath: string) {
+  switch (filePath) {
+    case SETTINGS_PATH:
+      return SETTINGS_BLOB_PATHNAME;
+    case ORDERS_PATH:
+      return ORDERS_BLOB_PATHNAME;
+    case CONTAINERS_PATH:
+      return CONTAINERS_BLOB_PATHNAME;
+    case LOGS_PATH:
+      return LOGS_BLOB_PATHNAME;
+    case CATALOG_MAPPING_PATH:
+      return CATALOG_MAPPING_BLOB_PATHNAME;
+    default:
+      return null;
+  }
+}
+
 async function readJsonFile<T>(filePath: string, fallback: T): Promise<T> {
+  const blobPathname = resolveBlobPathnameForFile(filePath);
+  if (blobPathname && canUseBlobStore()) {
+    const blobValue = await readJsonBlob<T>(blobPathname, fallback);
+    const shouldUseBlobValue = Array.isArray(blobValue)
+      ? blobValue.length > 0 || !Array.isArray(fallback) || fallback.length === 0
+      : blobValue !== fallback;
+
+    if (shouldUseBlobValue) {
+      return blobValue;
+    }
+  }
+
   await ensureSourcingDir();
 
   try {
@@ -118,6 +151,11 @@ async function readJsonFile<T>(filePath: string, fallback: T): Promise<T> {
 async function writeJsonFile<T>(filePath: string, value: T) {
   await ensureSourcingDir();
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+
+  const blobPathname = resolveBlobPathnameForFile(filePath);
+  if (blobPathname && canUseBlobStore()) {
+    await writeJsonBlob(blobPathname, value);
+  }
 }
 
 async function readJsonSeedFile<T>(filePath: string, fallback: T): Promise<T> {
