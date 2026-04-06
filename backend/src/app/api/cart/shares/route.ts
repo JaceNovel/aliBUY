@@ -1,57 +1,78 @@
+import { randomUUID } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
-import { API_URL, buildApiUrl } from "@/lib/api";
+import { createSharedCart } from "@/lib/cart-share-store";
+import { SITE_NAME, SITE_URL } from "@/lib/site-config";
+import { getCurrentUser } from "@/lib/user-auth";
 
-function buildProxyHeaders(request: Request) {
-  const headers = new Headers({ "content-type": "application/json" });
+type CartShareRequest = {
+  items?: unknown;
+  message?: unknown;
+};
 
-  for (const headerName of ["cookie", "authorization", "user-agent", "x-forwarded-for", "x-real-ip", "x-forwarded-proto", "x-forwarded-host"]) {
-    const value = request.headers.get(headerName);
-    if (value) {
-      headers.set(headerName, value);
-    }
-  }
+function buildOrigin(request: Request) {
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") ?? "https";
 
-  return headers;
-}
-
-export async function POST(request: Request) {
-  const rawBody = await request.text();
-
-  if (!API_URL) {
-    return NextResponse.json({ message: "Partage de panier indisponible." }, { status: 503 });
+  if (forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`;
   }
 
   try {
-    const upstreamUrl = buildApiUrl("/api/cart/shares");
-    const currentUrl = new URL(request.url);
-    const upstreamHost = new URL(upstreamUrl).host;
+    return new URL(request.url).origin;
+  } catch {
+    return SITE_URL;
+  }
+}
 
-    if (!upstreamHost || upstreamHost === currentUrl.host) {
-      return NextResponse.json({ message: "Partage de panier indisponible." }, { status: 503 });
+function sanitizeMessage(value: unknown) {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const compact = value.replace(/\s+/g, " ").trim();
+  return compact.length > 0 ? compact.slice(0, 90) : undefined;
+}
+
+export async function POST(request: Request) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ message: "Connexion requise." }, { status: 401 });
     }
 
-    const upstreamResponse = await fetch(upstreamUrl, {
-      method: "POST",
-      headers: buildProxyHeaders(request),
-      body: rawBody || "{}",
-      cache: "no-store",
+    const body = await request.json().catch(() => null) as CartShareRequest | null;
+    const items = Array.isArray(body?.items) ? body.items : [];
+
+    if (items.length === 0) {
+      return NextResponse.json({ message: "Panier vide." }, { status: 400 });
+    }
+
+    const sharedCart = await createSharedCart({
+      ownerUserId: user.id,
+      ownerEmail: user.email,
+      ownerDisplayName: user.displayName,
+      message: sanitizeMessage(body?.message),
+      items,
     });
 
-    const rawPayload = await upstreamResponse.text();
-    if (!rawPayload.trim()) {
-      return NextResponse.json({ ok: upstreamResponse.ok }, { status: upstreamResponse.status });
-    }
+    const origin = buildOrigin(request);
+    const shareUrl = `${origin}/cart/shared/${encodeURIComponent(sharedCart.token)}`;
+    const shareText = sharedCart.message
+      ? `${sharedCart.message} ${shareUrl}`
+      : `${SITE_NAME}: valide ce panier ${shareUrl}`;
 
-    try {
-      const payload = JSON.parse(rawPayload) as unknown;
-      return NextResponse.json(payload, { status: upstreamResponse.status });
-    } catch {
-      return NextResponse.json({ message: rawPayload }, { status: upstreamResponse.status });
-    }
-  } catch (error) {
     return NextResponse.json({
-      message: error instanceof Error ? error.message : "Partage de panier indisponible.",
-    }, { status: 400 });
+      id: sharedCart.id ?? randomUUID(),
+      shareUrl,
+      shareText,
+      token: sharedCart.token,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { message: error instanceof Error ? error.message : "Partage indisponible." },
+      { status: 400 },
+    );
   }
 }

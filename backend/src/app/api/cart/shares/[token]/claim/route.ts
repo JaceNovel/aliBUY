@@ -1,55 +1,43 @@
 import { NextResponse } from "next/server";
 
-import { API_URL, buildApiUrl } from "@/lib/api";
+import { getSharedCartByToken, markSharedCartClaimed } from "@/lib/cart-share-store";
+import { getCurrentUser } from "@/lib/user-auth";
 
-function buildProxyHeaders(request: Request) {
-  const headers = new Headers();
-
-  for (const headerName of ["cookie", "authorization", "user-agent", "x-forwarded-for", "x-real-ip", "x-forwarded-proto", "x-forwarded-host"]) {
-    const value = request.headers.get(headerName);
-    if (value) {
-      headers.set(headerName, value);
-    }
-  }
-
-  return headers;
-}
-
-export async function POST(request: Request, context: { params: Promise<{ token: string }> }) {
-  if (!API_URL) {
-    return NextResponse.json({ message: "Import du panier partagé indisponible." }, { status: 503 });
-  }
-
+export async function POST(_: Request, context: { params: Promise<{ token: string }> }) {
   try {
-    const { token } = await context.params;
-    const upstreamUrl = buildApiUrl(`/api/cart/shares/${encodeURIComponent(token)}/claim`);
-    const currentUrl = new URL(request.url);
-    const upstreamHost = new URL(upstreamUrl).host;
-
-    if (!upstreamHost || upstreamHost === currentUrl.host) {
-      return NextResponse.json({ message: "Import du panier partagé indisponible." }, { status: 503 });
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ message: "Connexion requise." }, { status: 401 });
     }
 
-    const upstreamResponse = await fetch(upstreamUrl, {
-      method: "POST",
-      headers: buildProxyHeaders(request),
-      cache: "no-store",
+    const { token } = await context.params;
+    const sharedCart = await getSharedCartByToken(token);
+    if (!sharedCart) {
+      return NextResponse.json({ message: "Lien panier introuvable." }, { status: 404 });
+    }
+
+    await markSharedCartClaimed({
+      token,
+      claimerUserId: user.id,
+      claimerDisplayName: user.displayName,
     });
 
-    const rawPayload = await upstreamResponse.text();
-    if (!rawPayload.trim()) {
-      return NextResponse.json({ ok: upstreamResponse.ok }, { status: upstreamResponse.status });
-    }
-
-    try {
-      const payload = JSON.parse(rawPayload) as unknown;
-      return NextResponse.json(payload, { status: upstreamResponse.status });
-    } catch {
-      return NextResponse.json({ message: rawPayload }, { status: upstreamResponse.status });
-    }
-  } catch (error) {
     return NextResponse.json({
-      message: error instanceof Error ? error.message : "Import du panier partagé indisponible.",
-    }, { status: 400 });
+      ok: true,
+      cartItems: sharedCart.items,
+      sharedContext: {
+        token: sharedCart.token,
+        ownerUserId: sharedCart.ownerUserId,
+        ownerEmail: sharedCart.ownerEmail,
+        ownerDisplayName: sharedCart.ownerDisplayName,
+        message: sharedCart.message,
+        importedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { message: error instanceof Error ? error.message : "Import du panier impossible." },
+      { status: 400 },
+    );
   }
 }
