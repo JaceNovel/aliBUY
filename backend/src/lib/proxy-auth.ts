@@ -23,7 +23,7 @@ export async function buildAuthenticatedProxyHeaders(request: Request, initialHe
     ...(initialHeaders ?? {}),
   };
 
-  for (const headerName of ["cookie", "user-agent", "x-forwarded-for", "x-real-ip", "x-forwarded-proto", "x-forwarded-host"]) {
+  for (const headerName of ["cookie", "origin", "referer", "sec-fetch-site", "sec-fetch-mode", "sec-fetch-dest", "user-agent", "x-forwarded-for", "x-real-ip", "x-forwarded-proto", "x-forwarded-host"]) {
     const value = request.headers.get(headerName);
     if (value) {
       headers[headerName] = value;

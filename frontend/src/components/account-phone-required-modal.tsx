@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Loader2, Phone, ShieldCheck } from "lucide-react";
+import { Loader2, Phone, ShieldCheck, X } from "lucide-react";
 
 type SettingsSnapshot = Record<string, unknown> & {
   phone?: string;
@@ -148,7 +148,16 @@ export function AccountPhoneRequiredModal() {
 
   return (
     <div className="fixed inset-0 z-[140] flex items-center justify-center bg-[#0f172a]/50 px-4 py-6 backdrop-blur-[3px]">
-      <div className="w-full max-w-[540px] rounded-[28px] border border-[#f0d7c2] bg-[linear-gradient(180deg,#fff8f2_0%,#ffffff_100%)] p-6 shadow-[0_30px_90px_rgba(15,23,42,0.28)] sm:p-7">
+      <div className="relative w-full max-w-[540px] rounded-[28px] border border-[#f0d7c2] bg-[linear-gradient(180deg,#fff8f2_0%,#ffffff_100%)] p-6 shadow-[0_30px_90px_rgba(15,23,42,0.28)] sm:p-7">
+        <button
+          type="button"
+          onClick={() => setIsOpen(false)}
+          aria-label="Fermer la fenetre"
+          className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#e7d5c8] bg-white/90 text-[#667085] transition hover:border-[#ff6a00] hover:text-[#ff6a00]"
+        >
+          <X className="h-5 w-5" />
+        </button>
+
         <div className="inline-flex items-center gap-2 rounded-full bg-[#fff1e7] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#dd5b00]">
           <ShieldCheck className="h-4 w-4" />
           Numero requis
