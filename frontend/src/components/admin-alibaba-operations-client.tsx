@@ -153,6 +153,73 @@ function formatUsd(value: unknown) {
   return `$${amount.toFixed(2)}`;
 }
 
+function formatAliExpressImportDebug(debug: unknown) {
+  if (!debug || typeof debug !== "object" || Array.isArray(debug)) {
+    return "";
+  }
+
+  const record = debug as Record<string, unknown>;
+  const attemptsSummary = Array.isArray(record.attempts)
+    ? record.attempts
+      .map((attempt) => {
+        if (!attempt || typeof attempt !== "object" || Array.isArray(attempt)) {
+          return null;
+        }
+
+        const attemptRecord = attempt as Record<string, unknown>;
+        const context = [
+          typeof attemptRecord.shipToCountry === "string" ? attemptRecord.shipToCountry.trim() : "",
+          typeof attemptRecord.targetLanguage === "string" ? attemptRecord.targetLanguage.trim() : "",
+          typeof attemptRecord.targetCurrency === "string" ? attemptRecord.targetCurrency.trim() : "",
+        ].filter(Boolean).join("/");
+        const code = typeof attemptRecord.providerErrorCode === "string" ? attemptRecord.providerErrorCode.trim() : "";
+        const shape = typeof attemptRecord.responseShape === "string" ? attemptRecord.responseShape.trim() : "";
+        const status = typeof attemptRecord.status === "string" ? attemptRecord.status.trim() : "";
+        return [context, code || shape || status].filter(Boolean).join(":");
+      })
+      .filter((entry): entry is string => Boolean(entry))
+      .join("; ")
+    : "";
+  const parts = [
+    typeof record.providerErrorCode === "string" && record.providerErrorCode.trim() ? `code=${record.providerErrorCode.trim()}` : null,
+    typeof record.providerMessage === "string" && record.providerMessage.trim() ? `provider=${record.providerMessage.trim()}` : null,
+    typeof record.providerRequestId === "string" && record.providerRequestId.trim() ? `request_id=${record.providerRequestId.trim()}` : null,
+    typeof record.responseShape === "string" && record.responseShape.trim() ? `shape=${record.responseShape.trim()}` : null,
+    typeof record.resolvedRemoteMode === "string" && record.resolvedRemoteMode.trim() ? `remote=${record.resolvedRemoteMode.trim()}` : null,
+    typeof record.shipToCountry === "string" && record.shipToCountry.trim() ? `ship_to=${record.shipToCountry.trim()}` : null,
+    typeof record.targetLanguage === "string" && record.targetLanguage.trim() ? `lang=${record.targetLanguage.trim()}` : null,
+    typeof record.targetCurrency === "string" && record.targetCurrency.trim() ? `currency=${record.targetCurrency.trim()}` : null,
+    typeof record.fallbackUsed === "boolean" ? `fallback=${record.fallbackUsed ? "yes" : "no"}` : null,
+    attemptsSummary ? `attempts=${attemptsSummary}` : null,
+  ].filter((entry): entry is string => Boolean(entry));
+
+  return parts.length > 0 ? ` (${parts.join(" | ")})` : "";
+}
+
+function formatAliExpressImportDebugDetails(debug: unknown) {
+  if (typeof debug === "undefined") {
+    return null;
+  }
+
+  if (typeof debug === "string") {
+    const normalized = debug.trim();
+    return normalized || null;
+  }
+
+  try {
+    return JSON.stringify(debug, null, 2);
+  } catch {
+    return String(debug);
+  }
+}
+
+function fetchAdminAliExpress(path: string, init?: RequestInit) {
+  return fetch(buildApiUrl(path), {
+    credentials: "include",
+    ...init,
+  });
+}
+
 function getPurchaseOrderActionLabel(order: AlibabaPurchaseOrder) {
   if (order.tradeId && order.paymentStatus === "failed") {
     return "Relancer le paiement DS";
@@ -225,6 +292,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedbackDebug, setFeedbackDebug] = useState<string | null>(null);
   const [importForm, setImportForm] = useState<{ query: string; limit: number; fulfillmentChannel: string; campaignMode: AlibabaImportCampaignMode; autoPublish: boolean; resetImportedProducts: boolean; manualProductMode: boolean }>({ query: "", limit: 24, fulfillmentChannel: "crossborder", campaignMode: "standard", autoPublish: true, resetImportedProducts: false, manualProductMode: false });
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [quantityByProduct, setQuantityByProduct] = useState<Record<string, number>>({});
@@ -303,6 +371,11 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       : null);
   const importButtonDisabled = isPending || !activeImportForm.query.trim() || !manualImportHasValidProductId;
 
+  const resetFeedbackState = () => {
+    setFeedback(null);
+    setFeedbackDebug(null);
+  };
+
   const refresh = () => {
     startTransition(() => {
       router.refresh();
@@ -310,7 +383,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   };
 
   const runImport = async () => {
-    setFeedback(null);
+    resetFeedbackState();
     if (!activeSupplierAccount) {
       setFeedback(selectedSupplierAccount ? "Le compte selectionne n'est pas encore autorise. Clique sur Connecter pour terminer OAuth." : "Connecte d'abord un compte AliExpress actif pour lancer l'import live.");
       return;
@@ -321,7 +394,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       return;
     }
 
-    const response = await fetch("/api/admin/aliexpress/import", {
+    const response = await fetchAdminAliExpress("/api/admin/aliexpress/import", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -332,7 +405,8 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     });
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
-      setFeedback(payload?.message ?? "Import AliExpress impossible.");
+      setFeedback(`${payload?.message ?? "Import AliExpress impossible."}${formatAliExpressImportDebug(payload?.debug)}`);
+      setFeedbackDebug(formatAliExpressImportDebugDetails(payload?.debug));
       return;
     }
     if (payload?.warningMessage) {
@@ -346,12 +420,13 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   };
 
   const publishSelection = async () => {
+    resetFeedbackState();
     if (selectedProductIds.length === 0) {
       setFeedback("Selectionne au moins un article a publier.");
       return;
     }
 
-    const response = await fetch("/api/admin/aliexpress/publish", {
+    const response = await fetchAdminAliExpress("/api/admin/aliexpress/publish", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ productIds: selectedProductIds }),
@@ -367,13 +442,13 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   };
 
   const createPurchaseOrder = async (importedProductId: string, sourceProductId?: string) => {
-    setFeedback(null);
+    resetFeedbackState();
     if (!defaultAddressId) {
       setFeedback("Ajoute d'abord une adresse de reception avant de creer un lot d'achat.");
       return;
     }
 
-    const response = await fetch("/api/admin/aliexpress/purchase-orders", {
+    const response = await fetchAdminAliExpress("/api/admin/aliexpress/purchase-orders", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -401,7 +476,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   };
 
   const deleteImportedItem = async (importedProductId: string, sourceProductId?: string) => {
-    setFeedback(null);
+    resetFeedbackState();
 
     if (!window.confirm("Supprimer cet article importé du catalogue admin ?")) {
       return;
@@ -411,7 +486,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       ? `/api/admin/aliexpress/import/${importedProductId}?sourceProductId=${encodeURIComponent(sourceProductId)}`
       : `/api/admin/aliexpress/import/${importedProductId}`;
 
-    const response = await fetch(deleteUrl, {
+    const response = await fetchAdminAliExpress(deleteUrl, {
       method: "DELETE",
     });
     const payload = await response.json().catch(() => null);
@@ -427,9 +502,9 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   };
 
   const reenrichImportedItem = async (importedProductId: string) => {
-    setFeedback(null);
+    resetFeedbackState();
 
-    const response = await fetch(`/api/admin/aliexpress/import/${importedProductId}/reenrich`, {
+    const response = await fetchAdminAliExpress(`/api/admin/aliexpress/import/${importedProductId}/reenrich`, {
       method: "POST",
     });
     const payload = await response.json().catch(() => null);
@@ -444,9 +519,9 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   };
 
   const reenrichAllImportedItems = async () => {
-    setFeedback(null);
+    resetFeedbackState();
 
-    const response = await fetch("/api/admin/aliexpress/import/reenrich", {
+    const response = await fetchAdminAliExpress("/api/admin/aliexpress/import/reenrich", {
       method: "POST",
     });
     const payload = await response.json().catch(() => null);
@@ -467,13 +542,13 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   };
 
   const deleteAllImportedItems = async () => {
-    setFeedback(null);
+    resetFeedbackState();
 
     if (!window.confirm("Supprimer tous les articles importes du catalogue admin ?")) {
       return;
     }
 
-    const response = await fetch("/api/admin/aliexpress/import", {
+    const response = await fetchAdminAliExpress("/api/admin/aliexpress/import", {
       method: "DELETE",
     });
     const payload = await response.json().catch(() => null);
@@ -489,11 +564,12 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   };
 
   const payOrder = async (order: AlibabaPurchaseOrder, action: "pay" | "refresh" | "repay") => {
+    resetFeedbackState();
     if (action !== "refresh" && !confirmAliExpressPaymentRedirect()) {
       return;
     }
 
-    const response = await fetch(`/api/admin/aliexpress/purchase-orders/${order.id}/pay`, {
+    const response = await fetchAdminAliExpress(`/api/admin/aliexpress/purchase-orders/${order.id}/pay`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action }),
@@ -517,7 +593,8 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   };
 
   const saveAccount = async () => {
-    const response = await fetch("/api/admin/aliexpress/supplier-accounts", {
+    resetFeedbackState();
+    const response = await fetchAdminAliExpress("/api/admin/aliexpress/supplier-accounts", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(accountForm),
@@ -554,7 +631,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   };
 
   const startOAuthAuthorization = async () => {
-    setFeedback(null);
+    resetFeedbackState();
 
     if (!accountForm.appKey.trim()) {
       setFeedback("Ajoutez d'abord l'App Key avant de lancer OAuth.");
@@ -590,8 +667,8 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   };
 
   const refreshAccountToken = async (accountId: string) => {
-    setFeedback(null);
-    const response = await fetch(`/api/admin/aliexpress/supplier-accounts/${accountId}/refresh`, {
+    resetFeedbackState();
+    const response = await fetchAdminAliExpress(`/api/admin/aliexpress/supplier-accounts/${accountId}/refresh`, {
       method: "POST",
     });
     const payload = await response.json().catch(() => null);
@@ -605,7 +682,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   };
 
   const connectExistingAccount = async (accountId: string) => {
-    setFeedback(null);
+    resetFeedbackState();
     submitOAuthAuthorizationForm({
       id: accountId,
       origin: window.location.origin,
@@ -614,7 +691,8 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   };
 
   const saveAddress = async () => {
-    const response = await fetch("/api/admin/aliexpress/reception-addresses", {
+    resetFeedbackState();
+    const response = await fetchAdminAliExpress("/api/admin/aliexpress/reception-addresses", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(addressForm),
@@ -630,7 +708,8 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   };
 
   const saveCountries = async () => {
-    const response = await fetch("/api/admin/aliexpress/country-profiles", {
+    resetFeedbackState();
+    const response = await fetchAdminAliExpress("/api/admin/aliexpress/country-profiles", {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ profiles: countries }),
@@ -668,6 +747,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
               </div>
             ) : null}
             {activeFeedback ? <div className="mt-4 rounded-[16px] bg-white px-4 py-3 text-[13px] font-semibold text-[#1f2937] shadow-[0_8px_18px_rgba(17,24,39,0.05)]">{activeFeedback}</div> : null}
+            {feedbackDebug ? <pre className="mt-3 overflow-x-auto rounded-[16px] border border-[#dbe2ea] bg-[#0f172a] px-4 py-3 text-[12px] font-medium text-[#e2e8f0] shadow-[0_8px_18px_rgba(17,24,39,0.05)] whitespace-pre-wrap break-words">{feedbackDebug}</pre> : null}
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[320px] xl:grid-cols-1">
             <Link href="/products" className="inline-flex h-12 items-center justify-center gap-2 rounded-[16px] bg-[#ff6a00] px-5 text-[14px] font-semibold text-white transition hover:bg-[#e55e00]">
