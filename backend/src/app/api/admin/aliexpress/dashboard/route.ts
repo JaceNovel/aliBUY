@@ -1,25 +1,20 @@
-import { API_URL, buildApiUrl } from "@/lib/api";
+import { maybeProxyAliExpressAdminRequest } from "@/app/api/admin/aliexpress/proxy";
 import { getAlibabaOperationsDashboardData } from "@/lib/alibaba-operations-service";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const panel = searchParams.get("panel") ?? undefined;
 
-  if (!API_URL) {
-    const dashboard = await getAlibabaOperationsDashboardData(panel);
-    return Response.json(dashboard);
-  }
+  const proxiedResponse = await maybeProxyAliExpressAdminRequest({
+    request,
+    path: "/api/admin/aliexpress/dashboard",
+    method: "GET",
+    query: panel ? { panel } : undefined,
+    fallbackOnResponse: (upstreamResponse) => !upstreamResponse.ok,
+  });
 
-  try {
-    const response = await fetch(buildApiUrl("/api/admin/aliexpress/dashboard", panel ? { panel } : undefined), {
-      cache: "no-store",
-    });
-
-    if (response.ok) {
-      return Response.json(await response.json());
-    }
-  } catch {
-    // Fall back to the local store when the backend API is unreachable.
+  if (proxiedResponse) {
+    return proxiedResponse;
   }
 
   const dashboard = await getAlibabaOperationsDashboardData(panel);

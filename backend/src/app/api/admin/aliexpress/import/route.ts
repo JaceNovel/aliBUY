@@ -1,17 +1,35 @@
-import { API_URL, buildApiUrl } from "@/lib/api";
+import { maybeProxyAliExpressAdminRequest } from "@/app/api/admin/aliexpress/proxy";
+import type { AlibabaFulfillmentChannel, AlibabaImportCampaignMode } from "@/lib/alibaba-operations";
 import { deleteAllImportedProducts, runAlibabaCatalogImport } from "@/lib/alibaba-operations-service";
 import { getFreeDealConfig, saveFreeDealConfig } from "@/lib/free-deal-store";
 
-function normalizeCampaignMode(value: unknown) {
-  switch (value) {
-    case "trends-promo":
-    case "trends-hot":
-    case "mode-fashion":
-    case "free-deal":
-      return value;
-    default:
-      return "standard";
-  }
+const IMPORT_FULFILLMENT_CHANNELS = new Set<AlibabaFulfillmentChannel>([
+  "standard_us",
+  "crossborder",
+  "fast_us",
+  "mexico",
+  "best_seller_us",
+  "best_seller_mexico",
+]);
+
+const IMPORT_CAMPAIGN_MODES = new Set<AlibabaImportCampaignMode>([
+  "standard",
+  "trends-promo",
+  "trends-hot",
+  "mode-fashion",
+  "free-deal",
+]);
+
+function normalizeFulfillmentChannel(value: unknown): AlibabaFulfillmentChannel {
+  return typeof value === "string" && IMPORT_FULFILLMENT_CHANNELS.has(value as AlibabaFulfillmentChannel)
+    ? (value as AlibabaFulfillmentChannel)
+    : "crossborder";
+}
+
+function normalizeCampaignMode(value: unknown): AlibabaImportCampaignMode {
+  return typeof value === "string" && IMPORT_CAMPAIGN_MODES.has(value as AlibabaImportCampaignMode)
+    ? (value as AlibabaImportCampaignMode)
+    : "standard";
 }
 
 function selectFreeDealProductSlugs(products: Array<{ slug: string; minUsd: number; updatedAt: string }>, desiredCount: number) {
@@ -26,38 +44,31 @@ export async function POST(request: Request) {
     const body = await request.json();
     const campaignMode = normalizeCampaignMode(body?.campaignMode);
 
-    try {
-      if (!API_URL) {
-        throw new Error("Local admin AliExpress execution.");
-      }
+    const proxiedResponse = await maybeProxyAliExpressAdminRequest({
+      request,
+      path: "/api/admin/aliexpress/import",
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
 
-      const upstreamUrl = buildApiUrl("/api/admin/aliexpress/import");
-      const currentUrl = new URL(request.url);
-      const upstreamHost = new URL(upstreamUrl).host;
-
-      if (upstreamHost && upstreamHost !== currentUrl.host) {
-        const upstreamResponse = await fetch(upstreamUrl, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(body),
-          cache: "no-store",
-        });
-
-        const payload = await upstreamResponse.json().catch(() => null);
-        return Response.json(payload, { status: upstreamResponse.status });
-      }
-    } catch {
-      // Fall back to the local store when the upstream backend is unreachable.
+    if (proxiedResponse) {
+      return proxiedResponse;
     }
 
     const result = await runAlibabaCatalogImport({
       query: String(body?.query ?? ""),
       limit: Number(body?.limit ?? 12),
-      fulfillmentChannel: body?.fulfillmentChannel ?? "crossborder",
+      fulfillmentChannel: normalizeFulfillmentChannel(body?.fulfillmentChannel),
       autoPublish: campaignMode === "free-deal" ? true : Boolean(body?.autoPublish),
       campaignMode,
       resetImportedProducts: Boolean(body?.resetImportedProducts),
       manualProductMode: Boolean(body?.manualProductMode),
+      destinationCountry: body?.destinationCountry ?? body?.destination_country,
+      targetCurrency: body?.targetCurrency ?? body?.target_currency,
+      targetLanguage: body?.targetLanguage ?? body?.target_language,
+      provinceCode: body?.provinceCode ?? body?.province_code,
+      cityCode: body?.cityCode ?? body?.city_code,
     });
 
     let freeDealProductSlugs: string[] | undefined;
@@ -81,29 +92,14 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    try {
-      if (!API_URL) {
-        throw new Error("Local admin AliExpress execution.");
-      }
+    const proxiedResponse = await maybeProxyAliExpressAdminRequest({
+      request,
+      path: "/api/admin/aliexpress/import",
+      method: "DELETE",
+    });
 
-      const upstreamUrl = buildApiUrl("/api/admin/aliexpress/import");
-      const currentUrl = new URL(request.url);
-      const upstreamHost = new URL(upstreamUrl).host;
-
-      if (upstreamHost && upstreamHost !== currentUrl.host) {
-        const upstreamResponse = await fetch(upstreamUrl, {
-          method: "DELETE",
-          headers: request.headers.get("cookie")
-            ? { cookie: request.headers.get("cookie") ?? "" }
-            : undefined,
-          cache: "no-store",
-        });
-
-        const payload = await upstreamResponse.json().catch(() => null);
-        return Response.json(payload, { status: upstreamResponse.status });
-      }
-    } catch {
-      // Fall back to the local store when the upstream backend is unreachable.
+    if (proxiedResponse) {
+      return proxiedResponse;
     }
 
     const result = await deleteAllImportedProducts();

@@ -1,4 +1,4 @@
-import { API_URL, buildApiUrl } from "@/lib/api";
+import { maybeProxyAliExpressAdminRequest } from "@/app/api/admin/aliexpress/proxy";
 import { payAlibabaPurchaseOrder, refreshAlibabaPaymentStatus, repayAlibabaPurchaseOrder } from "@/lib/alibaba-operations-service";
 
 export async function POST(
@@ -8,31 +8,16 @@ export async function POST(
   const body = await request.json().catch(() => ({}));
   const { id } = await params;
 
-  try {
-    if (!API_URL) {
-      throw new Error("Local admin AliExpress execution.");
-    }
+  const proxiedResponse = await maybeProxyAliExpressAdminRequest({
+    request,
+    path: `/api/admin/aliexpress/purchase-orders/${id}/pay`,
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
 
-    const upstreamUrl = buildApiUrl(`/api/admin/aliexpress/purchase-orders/${id}/pay`);
-    const currentUrl = new URL(request.url);
-    const upstreamHost = new URL(upstreamUrl).host;
-
-    if (upstreamHost && upstreamHost !== currentUrl.host) {
-      const upstreamResponse = await fetch(upstreamUrl, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          ...(request.headers.get("cookie") ? { cookie: request.headers.get("cookie") ?? "" } : {}),
-        },
-        body: JSON.stringify(body),
-        cache: "no-store",
-      });
-
-      const payload = await upstreamResponse.json().catch(() => null);
-      return Response.json(payload, { status: upstreamResponse.status });
-    }
-  } catch {
-    // Fall back to the local store when the upstream backend is unreachable.
+  if (proxiedResponse) {
+    return proxiedResponse;
   }
 
   const action = body?.action === "refresh"

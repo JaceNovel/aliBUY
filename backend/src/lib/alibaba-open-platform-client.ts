@@ -2968,10 +2968,14 @@ function mapAliExpressSearchItemFallbackToProduct(
   };
 }
 
-function buildAliExpressSearchContexts(preferredShipToCountry?: string) {
-  const configuredCountry = (preferredShipToCountry ?? process.env.ALIEXPRESS_DEFAULT_SHIP_TO_COUNTRY ?? "FR").trim().toUpperCase();
-  const configuredLanguage = (process.env.ALIEXPRESS_TARGET_LANGUAGE ?? "fr_FR").trim();
-  const configuredCurrency = (process.env.ALIEXPRESS_TARGET_CURRENCY ?? "USD").trim().toUpperCase();
+function buildAliExpressSearchContexts(input?: {
+  preferredShipToCountry?: string;
+  preferredLanguage?: string;
+  preferredCurrency?: string;
+}) {
+  const configuredCountry = (input?.preferredShipToCountry ?? process.env.ALIEXPRESS_DEFAULT_SHIP_TO_COUNTRY ?? "FR").trim().toUpperCase();
+  const configuredLanguage = (input?.preferredLanguage ?? process.env.ALIEXPRESS_TARGET_LANGUAGE ?? "fr_FR").trim();
+  const configuredCurrency = (input?.preferredCurrency ?? process.env.ALIEXPRESS_TARGET_CURRENCY ?? "USD").trim().toUpperCase();
 
   const candidates = [
     { shipToCountry: configuredCountry || "FR", local: configuredLanguage || "fr_FR", currency: configuredCurrency || "USD" },
@@ -3450,6 +3454,8 @@ async function searchAliExpressProducts(input: {
   query: string;
   limit: number;
   preferredShipToCountry?: string;
+  preferredLanguage?: string;
+  preferredCurrency?: string;
 }): Promise<AlibabaProductSearchResult> {
   const credentials = await resolveAlibabaCredentialsForLiveCall();
   if (!credentials) {
@@ -3462,7 +3468,11 @@ async function searchAliExpressProducts(input: {
     };
   }
 
-  const searchContexts = buildAliExpressSearchContexts(input.preferredShipToCountry);
+  const searchContexts = buildAliExpressSearchContexts({
+    preferredShipToCountry: input.preferredShipToCountry,
+    preferredLanguage: input.preferredLanguage,
+    preferredCurrency: input.preferredCurrency,
+  });
   const desiredCount = Math.min(Math.max(input.limit, 1), 40);
   const pageSize = Math.min(20, desiredCount);
   const maxPages = Math.max(1, Math.ceil(desiredCount / pageSize));
@@ -4229,13 +4239,19 @@ async function searchAliExpressAffiliateProducts(input: {
   limit: number;
   credentials: AlibabaCredentials;
   preferredShipToCountry?: string;
+  preferredLanguage?: string;
+  preferredCurrency?: string;
 }): Promise<AlibabaProductSearchResult> {
   const desiredCount = Math.min(Math.max(input.limit, 1), 40);
   const pageSize = Math.min(50, desiredCount);
   const maxPages = Math.max(1, Math.ceil(desiredCount / pageSize));
   const maxCollectedCandidates = Math.max(desiredCount * 4, 40);
   const queryCandidates = buildAliExpressQueryCandidates(input.query);
-  const searchContexts = buildAliExpressSearchContexts(input.preferredShipToCountry);
+  const searchContexts = buildAliExpressSearchContexts({
+    preferredShipToCountry: input.preferredShipToCountry,
+    preferredLanguage: input.preferredLanguage,
+    preferredCurrency: input.preferredCurrency,
+  });
   const allowLooseMatches = shouldAllowLooseAliExpressMatches(input.query);
   const collectedByProductId = new Map<string, {
     product: AlibabaSearchProduct;
@@ -4455,6 +4471,8 @@ export async function searchAlibabaProducts(input: {
   limit: number;
   fulfillmentChannel: AlibabaFulfillmentChannel;
   preferredShipToCountry?: string;
+  preferredLanguage?: string;
+  preferredCurrency?: string;
 }): Promise<AlibabaProductSearchResult> {
   const credentials = await resolveAlibabaCredentialsForLiveCall();
   if (!isAliExpressCredentials(credentials)) {
@@ -4475,6 +4493,8 @@ export async function searchAlibabaProducts(input: {
       query: input.query,
       limit: input.limit,
       preferredShipToCountry: input.preferredShipToCountry,
+      preferredLanguage: input.preferredLanguage,
+      preferredCurrency: input.preferredCurrency,
     });
   }
 
@@ -4483,6 +4503,8 @@ export async function searchAlibabaProducts(input: {
     limit: input.limit,
     credentials,
     preferredShipToCountry: input.preferredShipToCountry,
+    preferredLanguage: input.preferredLanguage,
+    preferredCurrency: input.preferredCurrency,
   });
 }
 

@@ -932,6 +932,11 @@ export async function runAlibabaCatalogImport(input: {
   campaignMode?: AlibabaImportCampaignMode;
   resetImportedProducts?: boolean;
   manualProductMode?: boolean;
+  destinationCountry?: string;
+  targetCurrency?: string;
+  targetLanguage?: string;
+  provinceCode?: string;
+  cityCode?: string;
 }) {
   if (requiresAlibabaPersistentStorage() && !hasAlibabaPersistentStorage()) {
     throw new Error("Import AliExpress bloque: aucun stockage persistant n'est configure sur cette API. Ajoute DATABASE_URL ou BLOB_READ_WRITE_TOKEN, sinon les articles disparaitront au prochain deploiement.");
@@ -945,6 +950,11 @@ export async function runAlibabaCatalogImport(input: {
   }
 
   const timestamp = nowIso();
+  const destinationCountry = String(input.destinationCountry ?? "FR").trim().toUpperCase() || "FR";
+  const targetCurrency = String(input.targetCurrency ?? process.env.ALIEXPRESS_TARGET_CURRENCY ?? process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD").trim().toUpperCase() || "USD";
+  const targetLanguage = String(input.targetLanguage ?? process.env.ALIEXPRESS_TARGET_LANGUAGE ?? process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "fr_FR").trim() || "fr_FR";
+  const provinceCode = String(input.provinceCode ?? "").trim() || undefined;
+  const cityCode = String(input.cityCode ?? "").trim() || undefined;
   const job: AlibabaImportJob = {
     id: createSourcingIds(),
     query: normalizedQuery,
@@ -977,9 +987,11 @@ export async function runAlibabaCatalogImport(input: {
         const directSnapshot = await fetchAlibabaProductSnapshot({
           sourceProductId: directProductIdMatch[1],
           query: job.query,
-          shipToCountry: "FR",
-          targetCurrency: process.env.ALIEXPRESS_TARGET_CURRENCY ?? process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD",
-          targetLanguage: process.env.ALIEXPRESS_TARGET_LANGUAGE ?? process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "fr_FR",
+            shipToCountry: destinationCountry,
+            targetCurrency,
+            targetLanguage,
+            provinceCode,
+            cityCode,
         }).catch(() => null);
 
         if (directSnapshot) {
@@ -1012,7 +1024,9 @@ export async function runAlibabaCatalogImport(input: {
         query: job.query,
         limit: explorationLimit,
         fulfillmentChannel: job.fulfillmentChannel,
-        preferredShipToCountry: "FR",
+        preferredShipToCountry: destinationCountry,
+        preferredLanguage: targetLanguage,
+        preferredCurrency: targetCurrency,
       });
 
       resolvedProducts = catalogSearchResult.products;

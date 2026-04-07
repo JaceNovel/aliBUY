@@ -1,30 +1,16 @@
-import { API_URL, buildApiUrl } from "@/lib/api";
+import { maybeProxyAliExpressAdminRequest } from "@/app/api/admin/aliexpress/proxy";
 import { getAlibabaPurchaseOrders } from "@/lib/alibaba-operations-store";
 import { createAlibabaPurchaseOrder } from "@/lib/alibaba-operations-service";
 
 export async function GET(request: Request) {
-  try {
-    if (!API_URL) {
-      throw new Error("Local admin AliExpress execution.");
-    }
+  const proxiedResponse = await maybeProxyAliExpressAdminRequest({
+    request,
+    path: "/api/admin/aliexpress/purchase-orders",
+    method: "GET",
+  });
 
-    const upstreamUrl = buildApiUrl("/api/admin/aliexpress/purchase-orders");
-    const currentUrl = new URL(request.url);
-    const upstreamHost = new URL(upstreamUrl).host;
-
-    if (upstreamHost && upstreamHost !== currentUrl.host) {
-      const upstreamResponse = await fetch(upstreamUrl, {
-        cache: "no-store",
-        headers: request.headers.get("cookie")
-          ? { cookie: request.headers.get("cookie") ?? "" }
-          : undefined,
-      });
-
-      const payload = await upstreamResponse.json().catch(() => null);
-      return Response.json(payload, { status: upstreamResponse.status });
-    }
-  } catch {
-    // Fall back to the local store when the upstream backend is unreachable.
+  if (proxiedResponse) {
+    return proxiedResponse;
   }
 
   const orders = await getAlibabaPurchaseOrders();
@@ -35,31 +21,16 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    try {
-      if (!API_URL) {
-        throw new Error("Local admin AliExpress execution.");
-      }
+    const proxiedResponse = await maybeProxyAliExpressAdminRequest({
+      request,
+      path: "/api/admin/aliexpress/purchase-orders",
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
 
-      const upstreamUrl = buildApiUrl("/api/admin/aliexpress/purchase-orders");
-      const currentUrl = new URL(request.url);
-      const upstreamHost = new URL(upstreamUrl).host;
-
-      if (upstreamHost && upstreamHost !== currentUrl.host) {
-        const upstreamResponse = await fetch(upstreamUrl, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            ...(request.headers.get("cookie") ? { cookie: request.headers.get("cookie") ?? "" } : {}),
-          },
-          body: JSON.stringify(body),
-          cache: "no-store",
-        });
-
-        const payload = await upstreamResponse.json().catch(() => null);
-        return Response.json(payload, { status: upstreamResponse.status });
-      }
-    } catch {
-      // Fall back to the local store when the upstream backend is unreachable.
+    if (proxiedResponse) {
+      return proxiedResponse;
     }
 
     const order = await createAlibabaPurchaseOrder({

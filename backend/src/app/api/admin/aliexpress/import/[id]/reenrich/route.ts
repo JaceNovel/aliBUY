@@ -1,29 +1,18 @@
-import { buildApiUrl } from "@/lib/api";
+import { maybeProxyAliExpressAdminRequest } from "@/app/api/admin/aliexpress/proxy";
 import { reenrichImportedProduct } from "@/lib/alibaba-operations-service";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
 
-    try {
-      const upstreamUrl = buildApiUrl(`/api/admin/aliexpress/import/${encodeURIComponent(String(id))}/reenrich`);
-      const currentUrl = new URL(request.url);
-      const upstreamHost = new URL(upstreamUrl).host;
+    const proxiedResponse = await maybeProxyAliExpressAdminRequest({
+      request,
+      path: `/api/admin/aliexpress/import/${encodeURIComponent(String(id))}/reenrich`,
+      method: "POST",
+    });
 
-      if (upstreamHost && upstreamHost !== currentUrl.host) {
-        const upstreamResponse = await fetch(upstreamUrl, {
-          method: "POST",
-          headers: request.headers.get("cookie")
-            ? { cookie: request.headers.get("cookie") ?? "" }
-            : undefined,
-          cache: "no-store",
-        });
-
-        const payload = await upstreamResponse.json().catch(() => null);
-        return Response.json(payload, { status: upstreamResponse.status });
-      }
-    } catch {
-      // Fall back to the local store when the upstream backend is unreachable.
+    if (proxiedResponse) {
+      return proxiedResponse;
     }
 
     const product = await reenrichImportedProduct(String(id));
