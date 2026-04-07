@@ -4542,11 +4542,34 @@ function matchesAlibabaExactIdentifier(product: AlibabaSearchProduct, identifier
 export async function searchAlibabaExactIdentifierProducts(input: {
   identifier: string;
   limit: number;
+  preferredShipToCountry?: string;
+  preferredLanguage?: string;
+  preferredCurrency?: string;
 }): Promise<AlibabaProductSearchResult> {
   const normalizedIdentifier = input.identifier.trim();
+  const desiredCount = Math.min(Math.max(input.limit, 1), 20);
+  const credentials = await resolveAlibabaCredentialsForLiveCall();
+
+  if (isAliExpressCredentials(credentials)) {
+    const aliExpressResult = await searchAliExpressProducts({
+      query: normalizedIdentifier,
+      limit: desiredCount,
+      preferredShipToCountry: input.preferredShipToCountry,
+      preferredLanguage: input.preferredLanguage,
+      preferredCurrency: input.preferredCurrency,
+    });
+
+    if (aliExpressResult.products.length > 0 || !aliExpressResult.ok) {
+      return {
+        ...aliExpressResult,
+        products: aliExpressResult.products.slice(0, input.limit),
+      };
+    }
+  }
+
   const result = await searchAlibabaIcbuProducts({
     query: normalizedIdentifier,
-    limit: Math.min(Math.max(input.limit, 1), 20),
+    limit: desiredCount,
   });
 
   if (!result.ok) {

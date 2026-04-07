@@ -1000,19 +1000,34 @@ export async function runAlibabaCatalogImport(input: {
           const exactSearchResult = await searchAlibabaExactIdentifierProducts({
             identifier: directProductIdMatch[1],
             limit: 1,
+            preferredShipToCountry: destinationCountry,
+            preferredLanguage: targetLanguage,
+            preferredCurrency: targetCurrency,
           });
           resolvedProducts = exactSearchResult.products;
+
+          searchResult = {
+            ok: resolvedProducts.length > 0,
+            endpoint: exactSearchResult.endpoint || "/aliexpress/ds/product/get",
+            errorMessage: resolvedProducts.length > 0
+              ? undefined
+              : exactSearchResult.errorMessage ?? "Aucun produit AliExpress n'a pu etre lu pour cet ID ou ce lien direct.",
+          };
         }
 
-        searchResult = {
-          ok: resolvedProducts.length > 0,
-          endpoint: "/aliexpress/ds/product/get",
-          errorMessage: resolvedProducts.length > 0 ? undefined : "Aucun produit AliExpress n'a pu etre lu pour cet ID ou ce lien direct.",
-        };
+        if (directSnapshot) {
+          searchResult = {
+            ok: true,
+            endpoint: "/aliexpress/ds/product/get",
+          };
+        }
       } else {
         const exactSearchResult = await searchAlibabaExactIdentifierProducts({
           identifier: job.query,
           limit: 1,
+          preferredShipToCountry: destinationCountry,
+          preferredLanguage: targetLanguage,
+          preferredCurrency: targetCurrency,
         });
 
         resolvedProducts = exactSearchResult.products;
