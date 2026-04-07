@@ -979,7 +979,13 @@ export async function runAlibabaCatalogImport(input: {
     const existingImportedProducts = await getAlibabaImportedProducts();
     const existingImportedProductBySourceProductId = new Map(existingImportedProducts.map((product) => [product.sourceProductId, product]));
     const existingSourceProductIds = new Set(existingImportedProducts.map((product) => product.sourceProductId));
-    let searchResult: { ok: boolean; errorMessage?: string; endpoint: string };
+    let searchResult: { ok: boolean; errorMessage?: string; endpoint: string } = {
+      ok: false,
+      endpoint: manualDirectImport
+        ? (directProductIdMatch?.[1] ? "/aliexpress/ds/product/get" : "/aliexpress/ds/product/search")
+        : "/aliexpress/ds/product/search",
+      errorMessage: "Recherche AliExpress impossible.",
+    };
     let resolvedProducts: AlibabaSearchProduct[] = [];
 
     if (manualDirectImport) {
@@ -996,6 +1002,10 @@ export async function runAlibabaCatalogImport(input: {
 
         if (directSnapshot) {
           resolvedProducts = [directSnapshot];
+          searchResult = {
+            ok: true,
+            endpoint: "/aliexpress/ds/product/get",
+          };
         } else {
           const exactSearchResult = await searchAlibabaExactIdentifierProducts({
             identifier: directProductIdMatch[1],
@@ -1012,13 +1022,6 @@ export async function runAlibabaCatalogImport(input: {
             errorMessage: resolvedProducts.length > 0
               ? undefined
               : exactSearchResult.errorMessage ?? "Aucun produit AliExpress n'a pu etre lu pour cet ID ou ce lien direct.",
-          };
-        }
-
-        if (directSnapshot) {
-          searchResult = {
-            ok: true,
-            endpoint: "/aliexpress/ds/product/get",
           };
         }
       } else {
