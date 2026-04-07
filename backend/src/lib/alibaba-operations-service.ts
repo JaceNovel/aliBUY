@@ -501,6 +501,18 @@ function extractAliExpressTradeOrderStatus(responseBody: unknown) {
     ?? getStringRecordValue(body, "order_status", "status");
 }
 
+function extractAliExpressRequestId(responseBody: unknown) {
+  if (!responseBody || typeof responseBody !== "object" || Array.isArray(responseBody)) {
+    return undefined;
+  }
+
+  const body = responseBody as Record<string, unknown>;
+  const errorResponse = getRecordValue(body, "error_response");
+
+  return getStringRecordValue(body, "request_id", "requestId")
+    ?? getStringRecordValue(errorResponse, "request_id", "requestId");
+}
+
 function extractAliExpressTradePayUrl(responseBody: unknown) {
   if (!responseBody || typeof responseBody !== "object" || Array.isArray(responseBody)) {
     return undefined;
@@ -594,6 +606,19 @@ async function syncAlibabaPurchaseOrderState(order: AlibabaPurchaseOrder) {
   const permissionDenied = isAliExpressPermissionError(remoteError?.code, remoteError?.subCode, payFailureReason);
   const isPaid = remoteStatus === "FINISH" || remoteStatus === "PAID";
   const isFailed = remoteStatus.includes("CANCEL") || remoteStatus.includes("CLOSE") || remoteStatus.includes("FAIL");
+
+  console.info("[aliexpress-trade-ds-order-get] result", {
+    orderId: order.id,
+    tradeId: order.tradeId,
+    remoteStatus,
+    isPaid,
+    isFailed,
+    permissionDenied,
+    payUrl,
+    providerErrorCode: remoteError?.subCode ?? remoteError?.code,
+    providerMessage: payFailureReason,
+    providerRequestId: extractAliExpressRequestId(paymentResult.responseBody),
+  });
 
   const nextOrder: AlibabaPurchaseOrder = {
     ...order,
@@ -1693,6 +1718,15 @@ export async function createAlibabaPurchaseOrder(input: {
     locale: process.env.ALIEXPRESS_DEFAULT_LOCALE ?? process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "en_US",
     currency: process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD",
   });
+  console.info("[aliexpress-ds-freight-query] result", {
+    importedProductId: input.importedProductId,
+    sourceProductId: product.sourceProductId,
+    selectedSkuId: supplierSkuId,
+    destinationCountry: address.countryCode,
+    providerErrorCode: extractAlibabaOperationCode(freightResult.responseBody),
+    providerMessage: extractAlibabaOperationMessage(freightResult.responseBody),
+    providerRequestId: extractAliExpressRequestId(freightResult.responseBody),
+  });
   const carrierCode = resolveAlibabaOrderCarrierCode(freightResult.responseBody);
   if (!carrierCode) {
     const freightMessage = extractAlibabaOperationMessage(freightResult.responseBody);
@@ -1746,7 +1780,6 @@ export async function createAlibabaPurchaseOrder(input: {
       {
         product_id: product.sourceProductId,
         product_count: quantity,
-        ...(supplierSkuId ? { sku_id: supplierSkuId } : {}),
         sku_attr: supplierSkuAttr,
         logistics_service_name: carrierCode,
         order_memo: `Batch AfriPay ${product.shortTitle}`,
@@ -1826,6 +1859,15 @@ export async function payAlibabaPurchaseOrder(orderId: string) {
     const dsErrorMessage = dsResult?.error_msg ?? extractAlibabaOperationMessage(orderResult.responseBody);
     const dsOrderCreated = orderResult.ok && dsResult?.is_success !== false;
     const dsAutoPayFailed = dsOrderCreated && isAliExpressDsAutoPayFailure(dsErrorMessage);
+    console.info("[aliexpress-ds-order-create] result", {
+      orderId,
+      tradeId,
+      success: dsOrderCreated,
+      autoPayFailed: dsAutoPayFailed,
+      providerErrorCode: dsErrorCode,
+      providerMessage: dsErrorMessage,
+      providerRequestId: extractAliExpressRequestId(orderResult.responseBody),
+    });
     const nextOrder: AlibabaPurchaseOrder = {
       ...order,
       tradeId: typeof tradeId !== "undefined" ? String(tradeId) : undefined,
@@ -1859,6 +1901,16 @@ export async function payAlibabaPurchaseOrder(orderId: string) {
   const permissionDenied = isAliExpressPermissionError(paymentError?.code, paymentError?.subCode, paymentMessage);
   const hasBusinessError = Boolean(paymentError?.subCode || paymentError?.code);
   const paymentSucceeded = paymentResult.ok && !hasBusinessError;
+  console.info("[aliexpress-ds-payment-sync] pay result", {
+    orderId,
+    tradeId: order.tradeId,
+    success: paymentSucceeded,
+    permissionDenied,
+    payUrl,
+    providerErrorCode: paymentError?.subCode ?? paymentError?.code,
+    providerMessage: paymentMessage,
+    providerRequestId: extractAliExpressRequestId(paymentResult.responseBody),
+  });
 
   const nextOrder: AlibabaPurchaseOrder = {
     ...order,
@@ -1908,6 +1960,16 @@ export async function repayAlibabaPurchaseOrder(orderId: string) {
   const permissionDenied = isAliExpressPermissionError(paymentError?.code, paymentError?.subCode, paymentMessage);
   const hasBusinessError = Boolean(paymentError?.subCode || paymentError?.code);
   const paymentSucceeded = paymentResult.ok && !hasBusinessError;
+  console.info("[aliexpress-ds-payment-sync] repay result", {
+    orderId,
+    tradeId: order.tradeId,
+    success: paymentSucceeded,
+    permissionDenied,
+    payUrl,
+    providerErrorCode: paymentError?.subCode ?? paymentError?.code,
+    providerMessage: paymentMessage,
+    providerRequestId: extractAliExpressRequestId(paymentResult.responseBody),
+  });
   const nextOrder: AlibabaPurchaseOrder = {
     ...order,
     paymentStatus: paymentSucceeded

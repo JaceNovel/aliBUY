@@ -88,6 +88,13 @@ export type AlibabaExactProductSnapshotDebug = {
   responseShape: string;
 };
 
+export type AliExpressDsMemberBenefit = {
+  code?: string;
+  title?: string;
+  canApply?: boolean;
+  canBenefit?: boolean;
+};
+
 type ExtractedPriceTier = {
   minimumQuantity: number;
   quantityLabel: string;
@@ -4867,10 +4874,33 @@ export async function createAlibabaBuyNowOrder(payload: Record<string, unknown>)
     const rawDsExtendRequest = payload.ds_extend_request ?? payload.dsExtendRequest;
     const autoPayFlag = String(process.env.ALIEXPRESS_DS_AUTO_PAY_ENABLED ?? "true").trim().toLowerCase();
     const shouldAutoPay = !(autoPayFlag === "false" || autoPayFlag === "0" || autoPayFlag === "off" || autoPayFlag === "no");
+    const memberBenefitResult = shouldAutoPay
+      ? await queryAliExpressDsMemberBenefit().catch(() => null)
+      : null;
+    const memberBenefits = memberBenefitResult
+      ? normalizeAliExpressDsMemberBenefits(memberBenefitResult.responseBody)
+      : [];
+    const autoPayBenefit = memberBenefits.find((entry) => String(entry.code ?? "").trim().toLowerCase() === "auto-pay");
+    const autoPayAllowed = shouldAutoPay
+      ? Boolean(autoPayBenefit && (autoPayBenefit.canBenefit || autoPayBenefit.canApply))
+      : false;
+    const effectiveTryToPay = shouldAutoPay && autoPayAllowed ? "true" : "false";
+
+    if (shouldAutoPay) {
+      console.info("[aliexpress-ds-member-benefit] auto-pay check", {
+        requested: true,
+        allowed: autoPayAllowed,
+        benefit: autoPayBenefit,
+        providerErrorCode: memberBenefitResult ? extractAlibabaOperationCode(memberBenefitResult.responseBody) : undefined,
+        providerMessage: memberBenefitResult ? extractAlibabaOperationMessage(memberBenefitResult.responseBody) : undefined,
+        providerRequestId: memberBenefitResult ? findAlibabaFirstStringDeep(memberBenefitResult.responseBody, ["request_id", "requestId"]) : undefined,
+      });
+    }
+
     const defaultPayment = {
       pay_currency: process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD",
       // Keep string values for broad compatibility with DS gateway payload parsing.
-      try_to_pay: shouldAutoPay ? "true" : "false",
+      try_to_pay: effectiveTryToPay,
     };
     const dsExtendRequest = typeof rawDsExtendRequest === "string"
       ? rawDsExtendRequest
@@ -4887,6 +4917,15 @@ export async function createAlibabaBuyNowOrder(payload: Record<string, unknown>)
                 payment: defaultPayment,
               },
         );
+
+    console.info("[aliexpress-ds-order-create] request", {
+      tradeId: getStringValue(rawOrderRequest.trade_id),
+      outOrderId: getStringValue(rawOrderRequest.out_order_id),
+      tryToPayRequested: shouldAutoPay,
+      tryToPayEffective: effectiveTryToPay === "true",
+      payCurrency: defaultPayment.pay_currency,
+      itemCount: Array.isArray(rawOrderRequest.product_items) ? rawOrderRequest.product_items.length : 0,
+    });
 
     return callAliExpressTopEndpoint("aliexpress.ds.order.create", {
       ds_extend_request: dsExtendRequest,
@@ -5531,6 +5570,41 @@ export async function queryAliExpressDsAddress(input: {
   }, {
     credentials: await resolveAlibabaCredentialsForLiveCall(),
     method: "POST",
+  });
+}
+
+export async function queryAliExpressDsMemberBenefit() {
+  return callAliExpressTopEndpoint("aliexpress.ds.member.benefit.get", {}, {
+    credentials: await resolveAlibabaCredentialsForLiveCall(),
+    method: "POST",
+  });
+}
+
+function normalizeAliExpressDsMemberBenefits(responseBody: unknown): AliExpressDsMemberBenefit[] {
+  if (!responseBody || typeof responseBody !== "object" || Array.isArray(responseBody)) {
+    return [];
+  }
+
+  const body = responseBody as Record<string, unknown>;
+  const wrappedEntry = Object.entries(body).find(([key, value]) => key.startsWith("aliexpress_") && key.endsWith("_response") && isRecord(value));
+  const wrapped = wrappedEntry && isRecord(wrappedEntry[1]) ? wrappedEntry[1] as Record<string, unknown> : null;
+  const result = Array.isArray(body.result)
+    ? body.result
+    : Array.isArray(wrapped?.result)
+      ? wrapped.result
+      : [];
+
+  return result.flatMap((entry) => {
+    if (!isRecord(entry)) {
+      return [] as AliExpressDsMemberBenefit[];
+    }
+
+    return [{
+      code: getStringValue(entry.code),
+      title: getStringValue(entry.title),
+      canApply: isTruthyAlibabaFlag(entry.canApply),
+      canBenefit: isTruthyAlibabaFlag(entry.canBenefit),
+    } satisfies AliExpressDsMemberBenefit];
   });
 }
 

@@ -1,4 +1,6 @@
 import {
+  extractAlibabaOperationCode,
+  extractAlibabaOperationMessage,
   normalizeAlibabaFreightOptions,
   queryAliExpressDsFreight,
 } from "@/lib/alibaba-open-platform-client";
@@ -6,6 +8,10 @@ import {
 export type DraftOrderItem = {
   product_id?: string;
   sku_attr?: string;
+  sku_id?: string;
+  skuId?: string;
+  selected_sku_id?: string;
+  selectedSkuId?: string;
   qty?: number;
   logistics_service_name?: string;
   memo?: string;
@@ -50,9 +56,22 @@ function outOrderId(source: string) {
   return `ds-${source.replace(/[^a-zA-Z0-9-]/g, "-").slice(0, 61)}`;
 }
 
-export function extractSelectedSkuId(skuAttr: string) {
-  const match = skuAttr.match(/\d+/);
-  return match?.[0];
+export function extractSelectedSkuId(item?: DraftOrderItem | null) {
+  const candidates = [
+    item?.selectedSkuId,
+    item?.selected_sku_id,
+    item?.skuId,
+    item?.sku_id,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = asString(candidate).trim();
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return undefined;
 }
 
 export function normalizeAliExpressDsAddress(address: Record<string, unknown> | undefined) {
@@ -142,10 +161,13 @@ export async function runAliExpressDsFreightPrecheck(order: DraftOrderInput, dra
   const productItems = Array.isArray(draft.param_place_order_request4_open_api_d_t_o.product_items)
     ? draft.param_place_order_request4_open_api_d_t_o.product_items
     : [];
+  const orderItems = Array.isArray(order.items) ? order.items : [];
 
   const checks = await Promise.all(productItems.map(async (item, index) => {
     const productId = asString(item.product_id).trim();
     const skuAttr = asString(item.sku_attr).trim();
+    const sourceItem = orderItems[index];
+    const selectedSkuId = extractSelectedSkuId(sourceItem);
     const requestedService = asString(item.logistics_service_name).trim();
 
     if (!productId || !skuAttr) {
@@ -161,7 +183,7 @@ export async function runAliExpressDsFreightPrecheck(order: DraftOrderInput, dra
         productId,
         quantity: asString(item.product_count || "1"),
         shipToCountry: asString((order.shipping_address as Record<string, unknown> | undefined)?.country || (order.shipping_address as Record<string, unknown> | undefined)?.countryCode || process.env.ALIEXPRESS_DS_SHIP_TO_COUNTRY || "FR"),
-        selectedSkuId: extractSelectedSkuId(skuAttr),
+        selectedSkuId,
         currency: asString(draft.ds_extend_request.payment.pay_currency || "USD"),
         locale: process.env.ALIEXPRESS_DEFAULT_LOCALE || process.env.ALIEXPRESS_DEFAULT_LANGUAGE || "fr_FR",
       });
@@ -170,6 +192,17 @@ export async function runAliExpressDsFreightPrecheck(order: DraftOrderInput, dra
         .map((entry: { vendorName?: string; shippingType?: string }) => entry.vendorName || entry.shippingType || "")
         .filter((name: string): name is string => Boolean(name));
       const resolved = resolveAliExpressDsServiceName(requestedService, available);
+
+      console.info("[aliexpress-ds-freight-precheck] item", {
+        index,
+        productId,
+        selectedSkuId,
+        requestedService,
+        resolvedService: resolved,
+        availableServices: Array.from(new Set(available)),
+        providerErrorCode: extractAlibabaOperationCode(freightResult.responseBody),
+        providerMessage: extractAlibabaOperationMessage(freightResult.responseBody),
+      });
 
       return {
         index,
@@ -180,7 +213,7 @@ export async function runAliExpressDsFreightPrecheck(order: DraftOrderInput, dra
         is_valid: resolved !== null,
         request_payload: {
           productId,
-          selectedSkuId: extractSelectedSkuId(skuAttr),
+          selectedSkuId,
           quantity: asString(item.product_count || "1"),
         },
         response: freightResult.responseBody,
@@ -226,7 +259,8 @@ export function applyResolvedAliExpressDsLogistics(
   const checks = Array.isArray(freightCheck.items) ? freightCheck.items : [];
 
   for (const [index, item] of items.entries()) {
-    const resolved = asString(checks[index]?.resolved_logistics_service_name).trim();
+    const check = checks[index];
+    const resolved = asString(check && typeof check === "object" ? check.resolved_logistics_service_name : "").trim();
     if (resolved) {
       items[index] = {
         ...item,
