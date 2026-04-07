@@ -26,6 +26,8 @@
 
 # misc
 .DS_Store
+*Zone.Identifier*
+.idea/copilotDiffState.xml
 *.pem
 .tools/
 
