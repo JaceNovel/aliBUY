@@ -84,8 +84,13 @@ export async function POST(request: Request) {
       freeDealProductSlugs,
     });
   } catch (error) {
+    const debug = error && typeof error === "object" && "debug" in error
+      ? (error as { debug?: unknown }).debug
+      : undefined;
+
     return Response.json({
       message: error instanceof Error ? error.message : "Import AliExpress impossible.",
+      ...(typeof debug === "undefined" ? {} : { debug }),
     }, { status: 400 });
   }
 }

@@ -60,6 +60,34 @@ type AlibabaProductSearchResult = {
   skipped?: boolean;
 };
 
+export type AlibabaExactProductAttemptDebug = {
+  endpoint: string;
+  shipToCountry?: string;
+  targetCurrency?: string;
+  targetLanguage?: string;
+  ok: boolean;
+  status?: number;
+  providerErrorCode?: string;
+  providerMessage?: string;
+  providerRequestId?: string;
+  responseShape: string;
+  mappingStatus: "mapped" | "provider_error" | "unmapped_payload" | "fallback_failed";
+};
+
+export type AlibabaExactProductSnapshotDebug = {
+  externalProductId: string;
+  shipToCountry?: string;
+  targetCurrency?: string;
+  targetLanguage?: string;
+  attempts: AlibabaExactProductAttemptDebug[];
+  resolvedRemoteMode?: "ds_product" | "ds_wholesale" | "affiliate_exact" | "icbu_product";
+  fallbackUsed: boolean;
+  providerErrorCode?: string;
+  providerMessage?: string;
+  providerRequestId?: string;
+  responseShape: string;
+};
+
 type ExtractedPriceTier = {
   minimumQuantity: number;
   quantityLabel: string;
@@ -407,6 +435,66 @@ function getAliExpressOAuthResponseMessage(responseBody: unknown) {
     ?? getStringValue(response?.message)
     ?? getStringValue(response?.msg)
     ?? getStringValue(response?.rsp_msg);
+}
+
+function findAlibabaFirstStringDeep(value: unknown, keys: string[]) {
+  const normalizedKeys = new Set(keys.map((entry) => entry.toLowerCase()));
+  const queue: unknown[] = [value];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || typeof current !== "object") {
+      continue;
+    }
+
+    if (Array.isArray(current)) {
+      queue.push(...current);
+      continue;
+    }
+
+    for (const [key, entryValue] of Object.entries(current)) {
+      if (normalizedKeys.has(key.toLowerCase())) {
+        const normalizedValue = typeof entryValue === "string" ? entryValue.trim() : String(entryValue ?? "").trim();
+        if (normalizedValue) {
+          return normalizedValue;
+        }
+      }
+
+      if (entryValue && typeof entryValue === "object") {
+        queue.push(entryValue);
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function describeAliExpressExactProductResponseShape(responseBody: unknown) {
+  if (!responseBody || typeof responseBody !== "object") {
+    return "empty_payload";
+  }
+
+  const result = getAliExpressSellerPayload(responseBody);
+  if (!result || typeof result !== "object") {
+    return "empty_result";
+  }
+
+  const baseInfo = isRecord(result.ae_item_base_info_dto) ? result.ae_item_base_info_dto as Record<string, unknown> : null;
+  const skuInfo = Array.isArray(result.ae_item_sku_info_dtos)
+    ? result.ae_item_sku_info_dtos as unknown[]
+    : Array.isArray(result.sku_info)
+      ? result.sku_info as unknown[]
+      : [];
+
+  if (!baseInfo || Object.keys(baseInfo).length === 0) {
+    return "result_without_base_info";
+  }
+
+  if (skuInfo.length === 0) {
+    return "result_without_skus";
+  }
+
+  return "result_with_base_info_and_skus";
 }
 
 function isAliExpressOAuthTokenResponseSuccessful(responseBody: unknown) {
@@ -1828,7 +1916,29 @@ export async function fetchAlibabaProductSnapshot(input: {
   provinceCode?: string;
   cityCode?: string;
 }): Promise<AlibabaSearchProduct | null> {
+  const snapshot = await fetchAlibabaProductSnapshotWithDebug(input);
+  return snapshot.product;
+}
+
+export async function fetchAlibabaProductSnapshotWithDebug(input: {
+  sourceProductId: string;
+  query?: string;
+  shipToCountry?: string;
+  targetCurrency?: string;
+  targetLanguage?: string;
+  provinceCode?: string;
+  cityCode?: string;
+}): Promise<{ product: AlibabaSearchProduct | null; debug: AlibabaExactProductSnapshotDebug }> {
   const query = input.query?.trim() || input.sourceProductId;
+  const debug: AlibabaExactProductSnapshotDebug = {
+    externalProductId: input.sourceProductId,
+    shipToCountry: input.shipToCountry,
+    targetCurrency: input.targetCurrency,
+    targetLanguage: input.targetLanguage,
+    attempts: [],
+    fallbackUsed: false,
+    responseShape: "empty_payload",
+  };
   const credentials = await resolveAlibabaCredentialsForLiveCall();
 
   if (isAliExpressCredentials(credentials)) {
@@ -1836,6 +1946,19 @@ export async function fetchAlibabaProductSnapshot(input: {
       itemId: input.sourceProductId,
       product_id: input.sourceProductId,
     } satisfies Record<string, unknown>;
+
+    const recordAttempt = (attempt: AlibabaExactProductAttemptDebug) => {
+      debug.attempts.push(attempt);
+      debug.providerErrorCode = attempt.providerErrorCode ?? debug.providerErrorCode;
+      debug.providerMessage = attempt.providerMessage ?? debug.providerMessage;
+      debug.providerRequestId = attempt.providerRequestId ?? debug.providerRequestId;
+      debug.responseShape = attempt.responseShape;
+
+      console.info("[aliexpress-exact-import] attempt", {
+        externalProductId: input.sourceProductId,
+        ...attempt,
+      });
+    };
 
     for (const context of buildAliExpressSearchContexts({
       preferredShipToCountry: input.shipToCountry,
@@ -1851,23 +1974,110 @@ export async function fetchAlibabaProductSnapshot(input: {
         cityCode: input.cityCode,
       });
 
+      const attemptBase = {
+        endpoint: detailResult.endpoint,
+        shipToCountry: context.shipToCountry,
+        targetCurrency: context.currency,
+        targetLanguage: context.local,
+        ok: detailResult.ok,
+        status: detailResult.status,
+        providerErrorCode: extractAlibabaOperationCode(detailResult.responseBody),
+        providerMessage: extractAlibabaOperationMessage(detailResult.responseBody),
+        providerRequestId: findAlibabaFirstStringDeep(detailResult.responseBody, ["request_id", "requestId"]),
+        responseShape: describeAliExpressExactProductResponseShape(detailResult.responseBody),
+      } satisfies Omit<AlibabaExactProductAttemptDebug, "mappingStatus">;
+
       if (!detailResult.ok || !isAlibabaOperationSuccessful(detailResult.responseBody)) {
+        recordAttempt({ ...attemptBase, mappingStatus: "provider_error" });
         continue;
       }
 
       const aliExpressMapped = mapAliExpressProductDetailToProduct(searchSeed, detailResult.responseBody, query);
       if (aliExpressMapped?.sourceProductId === input.sourceProductId) {
-        return aliExpressMapped;
+        debug.resolvedRemoteMode = "ds_product";
+        recordAttempt({ ...attemptBase, mappingStatus: "mapped" });
+        return { product: aliExpressMapped, debug };
       }
+
+      recordAttempt({ ...attemptBase, mappingStatus: "unmapped_payload" });
     }
 
-    return fetchAliExpressAffiliateProductSnapshot({
+    for (const context of buildAliExpressSearchContexts({
+      preferredShipToCountry: input.shipToCountry,
+      preferredLanguage: input.targetLanguage,
+      preferredCurrency: input.targetCurrency,
+    })) {
+      const wholesaleResult = await getAlibabaIcbuWholesaleProduct({
+        productId: input.sourceProductId,
+        shipToCountry: context.shipToCountry,
+        targetCurrency: context.currency,
+        targetLanguage: context.local,
+        provinceCode: input.provinceCode,
+        cityCode: input.cityCode,
+      });
+      const attemptBase = {
+        endpoint: wholesaleResult.endpoint,
+        shipToCountry: context.shipToCountry,
+        targetCurrency: context.currency,
+        targetLanguage: context.local,
+        ok: wholesaleResult.ok,
+        status: wholesaleResult.status,
+        providerErrorCode: extractAlibabaOperationCode(wholesaleResult.responseBody),
+        providerMessage: extractAlibabaOperationMessage(wholesaleResult.responseBody),
+        providerRequestId: findAlibabaFirstStringDeep(wholesaleResult.responseBody, ["request_id", "requestId"]),
+        responseShape: describeAliExpressExactProductResponseShape(wholesaleResult.responseBody),
+      } satisfies Omit<AlibabaExactProductAttemptDebug, "mappingStatus">;
+
+      if (!wholesaleResult.ok || !isAlibabaOperationSuccessful(wholesaleResult.responseBody)) {
+        recordAttempt({ ...attemptBase, mappingStatus: "provider_error" });
+        continue;
+      }
+
+      const wholesaleMapped = mapAliExpressProductDetailToProduct(searchSeed, wholesaleResult.responseBody, query);
+      if (wholesaleMapped?.sourceProductId === input.sourceProductId) {
+        debug.resolvedRemoteMode = "ds_wholesale";
+        debug.fallbackUsed = true;
+        recordAttempt({ ...attemptBase, mappingStatus: "mapped" });
+        return { product: wholesaleMapped, debug };
+      }
+
+      recordAttempt({ ...attemptBase, mappingStatus: "unmapped_payload" });
+    }
+
+    const affiliateSnapshot = await fetchAliExpressAffiliateProductSnapshot({
       sourceProductId: input.sourceProductId,
       query,
       shipToCountry: input.shipToCountry,
       targetCurrency: input.targetCurrency,
       targetLanguage: input.targetLanguage,
     }).catch(() => null);
+
+    if (affiliateSnapshot?.sourceProductId === input.sourceProductId) {
+      debug.resolvedRemoteMode = "affiliate_exact";
+      debug.fallbackUsed = true;
+      recordAttempt({
+        endpoint: "aliexpress.affiliate.product.sku.detail.get",
+        shipToCountry: input.shipToCountry,
+        targetCurrency: input.targetCurrency,
+        targetLanguage: input.targetLanguage,
+        ok: true,
+        responseShape: "result_with_base_info_and_skus",
+        mappingStatus: "mapped",
+      });
+      return { product: affiliateSnapshot, debug };
+    }
+
+    recordAttempt({
+      endpoint: "aliexpress.affiliate.product.sku.detail.get",
+      shipToCountry: input.shipToCountry,
+      targetCurrency: input.targetCurrency,
+      targetLanguage: input.targetLanguage,
+      ok: false,
+      responseShape: "empty_result",
+      mappingStatus: "fallback_failed",
+    });
+
+    return { product: null, debug };
   }
 
   const detailResult = await getAlibabaIcbuProduct({
@@ -1883,17 +2093,18 @@ export async function fetchAlibabaProductSnapshot(input: {
   const detailRecord = response ? extractAlibabaProductDetailRecord(response) : null;
 
   if (!detailRecord) {
-    return null;
+    return { product: null, debug };
   }
 
   const mapped = mapAlibabaIcbuProductToProduct(detailRecord, query)
     ?? mapAlibabaSearchResultToProduct(detailRecord, query);
 
   if (!mapped) {
-    return null;
+    return { product: null, debug };
   }
 
-  return enrichAlibabaSearchProduct(mapped, detailRecord);
+  debug.resolvedRemoteMode = "icbu_product";
+  return { product: enrichAlibabaSearchProduct(mapped, detailRecord), debug };
 }
 
 export async function getAlibabaIcbuProduct(input: {
@@ -1934,6 +2145,34 @@ export async function getAlibabaIcbuProduct(input: {
   }, {
     credentials,
     method: "GET",
+  });
+}
+
+async function getAlibabaIcbuWholesaleProduct(input: {
+  productId?: string | number;
+  shipToCountry?: string;
+  targetCurrency?: string;
+  targetLanguage?: string;
+  provinceCode?: string;
+  cityCode?: string;
+  bizModel?: string;
+}) {
+  if (!input.productId) {
+    throw new Error("product_id est obligatoire pour lire un produit AliExpress DS wholesale.");
+  }
+
+  const credentials = await resolveAlibabaCredentialsForLiveCall();
+  return callAliExpressTopEndpoint("aliexpress.ds.product.wholesale.get", {
+    ship_to_country: String(input.shipToCountry ?? process.env.ALIEXPRESS_DEFAULT_SHIP_TO_COUNTRY ?? "US").trim().toUpperCase(),
+    product_id: String(input.productId),
+    target_currency: String(input.targetCurrency ?? process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD").trim().toUpperCase(),
+    target_language: String(input.targetLanguage ?? process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "en_US").trim(),
+    ...(String(input.provinceCode ?? "").trim() ? { province_code: String(input.provinceCode).trim() } : {}),
+    ...(String(input.cityCode ?? "").trim() ? { city_code: String(input.cityCode).trim() } : {}),
+    ...(String(input.bizModel ?? process.env.ALIEXPRESS_DS_BIZ_MODEL ?? "").trim() ? { biz_model: String(input.bizModel ?? process.env.ALIEXPRESS_DS_BIZ_MODEL).trim() } : {}),
+  }, {
+    credentials,
+    method: "POST",
   });
 }
 
