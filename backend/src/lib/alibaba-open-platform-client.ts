@@ -1861,7 +1861,13 @@ export async function fetchAlibabaProductSnapshot(input: {
       }
     }
 
-    return null;
+    return fetchAliExpressAffiliateProductSnapshot({
+      sourceProductId: input.sourceProductId,
+      query,
+      shipToCountry: input.shipToCountry,
+      targetCurrency: input.targetCurrency,
+      targetLanguage: input.targetLanguage,
+    }).catch(() => null);
   }
 
   const detailResult = await getAlibabaIcbuProduct({
