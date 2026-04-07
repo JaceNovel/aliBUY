@@ -1829,6 +1829,41 @@ export async function fetchAlibabaProductSnapshot(input: {
   cityCode?: string;
 }): Promise<AlibabaSearchProduct | null> {
   const query = input.query?.trim() || input.sourceProductId;
+  const credentials = await resolveAlibabaCredentialsForLiveCall();
+
+  if (isAliExpressCredentials(credentials)) {
+    const searchSeed = {
+      itemId: input.sourceProductId,
+      product_id: input.sourceProductId,
+    } satisfies Record<string, unknown>;
+
+    for (const context of buildAliExpressSearchContexts({
+      preferredShipToCountry: input.shipToCountry,
+      preferredLanguage: input.targetLanguage,
+      preferredCurrency: input.targetCurrency,
+    })) {
+      const detailResult = await getAlibabaIcbuProduct({
+        productId: input.sourceProductId,
+        shipToCountry: context.shipToCountry,
+        targetCurrency: context.currency,
+        targetLanguage: context.local,
+        provinceCode: input.provinceCode,
+        cityCode: input.cityCode,
+      });
+
+      if (!detailResult.ok || !isAlibabaOperationSuccessful(detailResult.responseBody)) {
+        continue;
+      }
+
+      const aliExpressMapped = mapAliExpressProductDetailToProduct(searchSeed, detailResult.responseBody, query);
+      if (aliExpressMapped?.sourceProductId === input.sourceProductId) {
+        return aliExpressMapped;
+      }
+    }
+
+    return null;
+  }
+
   const detailResult = await getAlibabaIcbuProduct({
     productId: input.sourceProductId,
     shipToCountry: input.shipToCountry,
@@ -1837,16 +1872,6 @@ export async function fetchAlibabaProductSnapshot(input: {
     provinceCode: input.provinceCode,
     cityCode: input.cityCode,
   });
-
-  if (detailResult.ok) {
-    const aliExpressMapped = mapAliExpressProductDetailToProduct({
-      itemId: input.sourceProductId,
-      product_id: input.sourceProductId,
-    }, detailResult.responseBody, query);
-    if (aliExpressMapped) {
-      return aliExpressMapped;
-    }
-  }
 
   const response = detailResult.responseBody as Record<string, unknown> | null;
   const detailRecord = response ? extractAlibabaProductDetailRecord(response) : null;
