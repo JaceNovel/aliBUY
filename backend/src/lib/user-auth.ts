@@ -201,6 +201,25 @@ export async function createAuthenticatedUserSession(user: AuthenticatedUser) {
   });
 }
 
+export async function ensurePersistedAuthenticatedUser(user: AuthenticatedUser) {
+  if (user.clerkUserId) {
+    const persistedUser = await upsertStoredUserFromClerk({
+      clerkUserId: user.clerkUserId,
+      email: user.email,
+      displayName: user.displayName,
+    });
+
+    return toAuthenticatedUser(persistedUser);
+  }
+
+  const persistedUser = await getStoredUserById(user.id);
+  if (!persistedUser) {
+    throw new Error("Compte introuvable. Reconnectez-vous puis reessayez.");
+  }
+
+  return toAuthenticatedUser(persistedUser);
+}
+
 export const getCurrentUser = cache(async function getCurrentUser() {
   let userId: string | null = null;
   try {

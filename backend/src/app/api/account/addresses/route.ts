@@ -4,7 +4,7 @@ import { maybeProxyToBackend, requireExternalBackend } from "@/lib/backend-route
 import { syncUserPhoneChannels } from "@/lib/account-contact-sync";
 import { createUserAddress, getUserAddresses } from "@/lib/customer-data-store";
 import { validateMutationOrigin } from "@/lib/request-security";
-import { getCurrentUser } from "@/lib/user-auth";
+import { ensurePersistedAuthenticatedUser, getCurrentUser } from "@/lib/user-auth";
 
 function getStringValue(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -56,10 +56,12 @@ export async function GET(request: Request) {
     return backendConfigError;
   }
 
-  const user = await getCurrentUser();
-  if (!user) {
+  const currentUser = await getCurrentUser();
+  if (!currentUser) {
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });
   }
+
+  const user = await ensurePersistedAuthenticatedUser(currentUser);
 
   const addresses = await getUserAddresses(user.id);
   return NextResponse.json({ addresses });
@@ -76,12 +78,13 @@ export async function POST(request: Request) {
     return proxied;
   }
 
-  const user = await getCurrentUser();
-  if (!user) {
+  const currentUser = await getCurrentUser();
+  if (!currentUser) {
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });
   }
 
   try {
+    const user = await ensurePersistedAuthenticatedUser(currentUser);
     const body = await request.json();
     const address = validateAddressPayload(body);
     const createdAddress = await createUserAddress(user.id, address);

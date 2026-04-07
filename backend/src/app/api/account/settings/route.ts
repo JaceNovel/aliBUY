@@ -1,14 +1,13 @@
+import { clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-import { clerkClient } from "@clerk/nextjs/server";
-
-import { maybeProxyToBackend, requireExternalBackend } from "@/lib/backend-route-proxy";
 import { getManyChatAccountProfile } from "@/lib/account-manychat";
 import { syncUserPhoneChannels } from "@/lib/account-contact-sync";
 import { getAccountSettings, updateAccountSettings } from "@/lib/account-settings-store";
+import { maybeProxyToBackend, requireExternalBackend } from "@/lib/backend-route-proxy";
 import { validateMutationOrigin } from "@/lib/request-security";
 import { parseDisplayName } from "@/lib/user-session";
-import { getCurrentUser } from "@/lib/user-auth";
+import { ensurePersistedAuthenticatedUser, getCurrentUser } from "@/lib/user-auth";
 import { updateStoredUserProfile } from "@/lib/user-store";
 
 export async function GET(request: Request) {
@@ -22,11 +21,12 @@ export async function GET(request: Request) {
     return backendConfigError;
   }
 
-  const user = await getCurrentUser();
-  if (!user) {
+  const currentUser = await getCurrentUser();
+  if (!currentUser) {
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });
   }
 
+  const user = await ensurePersistedAuthenticatedUser(currentUser);
   const storedSettings = await getAccountSettings(user.id);
   const manychatProfile = await getManyChatAccountProfile(user);
   const settings = {
@@ -57,13 +57,15 @@ export async function PATCH(request: Request) {
     return proxied;
   }
 
-  const user = await getCurrentUser();
-  if (!user) {
+  const currentUser = await getCurrentUser();
+  if (!currentUser) {
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });
   }
 
   const body = await request.json().catch(() => null);
+
   try {
+    const user = await ensurePersistedAuthenticatedUser(currentUser);
     const nextPhone = typeof body?.phone === "string" ? body.phone.trim() || undefined : undefined;
     const nextConnectedWhatsapp = typeof body?.connectedWhatsapp === "string" ? body.connectedWhatsapp.trim() || undefined : undefined;
     const nextManychatSubscriberId = typeof body?.manychatSubscriberId === "string" ? body.manychatSubscriberId.trim() || undefined : undefined;
@@ -75,6 +77,7 @@ export async function PATCH(request: Request) {
         const parsed = parseDisplayName(body.displayName.trim());
         const [firstName, ...rest] = parsed.displayName.split(" ");
         const client = await clerkClient();
+
         await client.users.updateUser(user.clerkUserId, {
           firstName: firstName || parsed.firstName,
           lastName: rest.join(" ") || undefined,
