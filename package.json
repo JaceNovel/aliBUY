@@ -12,9 +12,9 @@
     "postinstall": "prisma generate",
     "lint": "eslint",
     "prisma:generate": "prisma generate",
-    "prisma:push": "prisma db push",
-    "prisma:migrate:deploy": "prisma migrate deploy",
-    "deploy:db": "prisma migrate deploy",
+    "prisma:push": "node scripts/run-prisma-with-fallbacks.mjs prisma db push",
+    "prisma:migrate:deploy": "node scripts/run-prisma-with-fallbacks.mjs prisma migrate deploy",
+    "deploy:db": "node scripts/run-prisma-with-fallbacks.mjs prisma migrate deploy",
     "prisma:migrate:promo-share": "prisma migrate dev --name add-promo-codes-and-shared-carts"
   },
   "dependencies": {

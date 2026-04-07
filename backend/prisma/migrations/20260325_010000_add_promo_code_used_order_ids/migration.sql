@@ -1,2 +1,2 @@
-ALTER TABLE "PromoCode"
-ADD COLUMN "usedOrderIds" JSONB;
+ALTER TABLE IF EXISTS "PromoCode"
+ADD COLUMN IF NOT EXISTS "usedOrderIds" JSONB;

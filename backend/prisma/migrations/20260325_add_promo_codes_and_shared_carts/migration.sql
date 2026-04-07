@@ -12,6 +12,7 @@ CREATE TABLE "PromoCode" (
   "endsAt" TIMESTAMP(3),
   "usageLimit" INTEGER,
   "usageCount" INTEGER NOT NULL DEFAULT 0,
+  "usedOrderIds" JSONB,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "PromoCode_pkey" PRIMARY KEY ("id")
