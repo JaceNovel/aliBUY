@@ -49,7 +49,6 @@ import {
   queryAlibabaPaymentResult,
   queryAliExpressDsAddress,
   resolveAlibabaIcbuCategoryInfo,
-  searchAlibabaExactIdentifierProducts,
   searchAlibabaProducts,
   type AlibabaSearchProduct,
 } from "@/lib/alibaba-open-platform-client";
@@ -946,7 +945,11 @@ export async function runAlibabaCatalogImport(input: {
   const directProductIdMatch = normalizedQuery.match(/(?:^|\D)(\d{12,20})(?:\D|$)/);
   const manualDirectImport = Boolean(input.manualProductMode);
   if (manualDirectImport && !normalizedQuery) {
-    throw new Error("Import manuel impossible: saisis un SKU exact, un lien AliExpress ou un product_id.");
+    throw new Error("Import manuel impossible: saisis un External product ID AliExpress ou un lien produit AliExpress.");
+  }
+
+  if (manualDirectImport && !directProductIdMatch?.[1]) {
+    throw new Error("Import manuel impossible: renseigne un External product ID AliExpress numerique valide ou un lien produit AliExpress contenant cet ID.");
   }
 
   const timestamp = nowIso();
@@ -989,53 +992,25 @@ export async function runAlibabaCatalogImport(input: {
     let resolvedProducts: AlibabaSearchProduct[] = [];
 
     if (manualDirectImport) {
-      if (directProductIdMatch?.[1]) {
-        const directSnapshot = await fetchAlibabaProductSnapshot({
-          sourceProductId: directProductIdMatch[1],
-          query: job.query,
-            shipToCountry: destinationCountry,
-            targetCurrency,
-            targetLanguage,
-            provinceCode,
-            cityCode,
-        }).catch(() => null);
+      const requestedProductId = directProductIdMatch![1];
+      const directSnapshot = await fetchAlibabaProductSnapshot({
+        sourceProductId: requestedProductId,
+        query: requestedProductId,
+        shipToCountry: destinationCountry,
+        targetCurrency,
+        targetLanguage,
+        provinceCode,
+        cityCode,
+      }).catch(() => null);
 
-        if (directSnapshot) {
-          resolvedProducts = [directSnapshot];
-          searchResult = {
-            ok: true,
-            endpoint: "/aliexpress/ds/product/get",
-          };
-        } else {
-          const exactSearchResult = await searchAlibabaExactIdentifierProducts({
-            identifier: directProductIdMatch[1],
-            limit: 1,
-            preferredShipToCountry: destinationCountry,
-            preferredLanguage: targetLanguage,
-            preferredCurrency: targetCurrency,
-          });
-          resolvedProducts = exactSearchResult.products;
-
-          searchResult = {
-            ok: resolvedProducts.length > 0,
-            endpoint: exactSearchResult.endpoint || "/aliexpress/ds/product/get",
-            errorMessage: resolvedProducts.length > 0
-              ? undefined
-              : exactSearchResult.errorMessage ?? "Aucun produit AliExpress n'a pu etre lu pour cet ID ou ce lien direct.",
-          };
-        }
-      } else {
-        const exactSearchResult = await searchAlibabaExactIdentifierProducts({
-          identifier: job.query,
-          limit: 1,
-          preferredShipToCountry: destinationCountry,
-          preferredLanguage: targetLanguage,
-          preferredCurrency: targetCurrency,
-        });
-
-        resolvedProducts = exactSearchResult.products;
-        searchResult = exactSearchResult;
-      }
+      resolvedProducts = directSnapshot ? [directSnapshot] : [];
+      searchResult = {
+        ok: Boolean(directSnapshot),
+        endpoint: "/aliexpress/ds/product/get",
+        errorMessage: directSnapshot
+          ? undefined
+          : "Aucun produit AliExpress n'a pu etre lu pour cet External product ID. Verifie l'ID, le pays de destination et les droits du compte fournisseur.",
+      };
     } else {
       const explorationLimit = Math.min(Math.max(job.limit * 2, 12), 30);
       const catalogSearchResult = await searchAlibabaProducts({
