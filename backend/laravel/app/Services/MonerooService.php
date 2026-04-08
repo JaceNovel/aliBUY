@@ -9,12 +9,12 @@ class MonerooService
 {
     protected function client(): PendingRequest
     {
-        return Http::baseUrl(rtrim((string) env('MONEROO_API_BASE_URL', 'https://api.moneroo.io'), '/'))
+        return Http::baseUrl(rtrim((string) config('services.moneroo.base_url', 'https://api.moneroo.io'), '/'))
             ->acceptJson()
             ->asJson()
             ->withHeaders([
-                'x-api-key' => (string) env('MONEROO_API_KEY'),
-                'x-api-secret' => (string) env('MONEROO_SECRET'),
+                'x-api-key' => (string) config('services.moneroo.api_key'),
+                'x-api-secret' => (string) config('services.moneroo.secret_key'),
             ]);
     }
 
@@ -30,7 +30,7 @@ class MonerooService
 
     public function isValidWebhookSignature(string $signature, string $body): bool
     {
-        $secret = (string) env('MONEROO_SECRET');
+        $secret = (string) config('services.moneroo.webhook_secret');
 
         if ($secret === '' || $signature === '') {
             return false;

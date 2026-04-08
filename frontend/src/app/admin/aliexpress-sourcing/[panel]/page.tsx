@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { AdminSourcingDashboardClient } from "@/components/admin-sourcing-dashboard-client";
+import { AdminAliExpressImportCatalogClient } from "@/components/admin-aliexpress-import-catalog-client";
 import { AdminAliExpressOperationsClient } from "@/components/admin-alibaba-operations-client";
 import { API_URL, buildApiUrl } from "@/lib/api";
 import { ALIBABA_PANEL_SLUGS, normalizePanelSlug } from "@/lib/alibaba-operations";
@@ -45,5 +46,9 @@ export default async function AdminAliExpressSourcingPanelPage({
   }
 
   const dashboard = await getAliExpressDashboardData(normalizedPanel);
+  if (normalizedPanel === "import-catalog") {
+    return <AdminAliExpressImportCatalogClient initialDashboard={dashboard} />;
+  }
+
   return <AdminAliExpressOperationsClient initialDashboard={dashboard} />;
 }

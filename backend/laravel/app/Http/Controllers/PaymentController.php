@@ -3,114 +3,53 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
-use App\Models\Payment;
-use App\Services\MonerooService;
+use App\Services\PaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class PaymentController extends Controller
 {
     public function __construct(
-        protected MonerooService $moneroo,
+        protected PaymentService $payments,
     ) {
     }
 
     public function init(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'orderId' => ['required', 'integer'],
+            'orderId' => ['required'],
+            'provider' => ['nullable', 'in:moneroo,fedapay'],
         ]);
 
         $order = Order::query()->findOrFail($validated['orderId']);
-        $payment = $this->moneroo->initialize([
-            'amount' => (float) $order->total_price,
-            'currency' => $order->payment_currency ?? 'XOF',
-            'description' => "Paiement commande {$order->order_number}",
-            'metadata' => [
-                'orderId' => $order->id,
-                'orderNumber' => $order->order_number,
-            ],
-        ]);
+        $this->payments->assertVisibleToUser($order, $request->user('sanctum'));
+        $payload = $this->payments->initialize($order, (string) ($validated['provider'] ?? config('app.payment_provider', 'moneroo')));
 
-        $record = Payment::query()->create([
-            'order_id' => $order->id,
-            'provider' => 'moneroo',
-            'status' => (string) ($payment['status'] ?? 'initialized'),
-            'transaction_id' => (string) ($payment['id'] ?? ''),
-            'checkout_url' => $payment['checkout_url'] ?? null,
-            'payload' => $payment,
-        ]);
-
-        $order->payment_status = 'initialized';
-        $order->save();
-
-        return response()->json([
-            'order' => app(OrderController::class)->show($order)->getData(true)['order'],
-            'paymentId' => $record->transaction_id,
-            'checkoutUrl' => $record->checkout_url,
-            'paymentStatus' => $record->status,
-        ]);
+        return response()->json($payload);
     }
 
     public function verify(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'orderId' => ['required', 'integer'],
+            'orderId' => ['required'],
             'paymentId' => ['required', 'string'],
+            'provider' => ['nullable', 'in:moneroo,fedapay'],
         ]);
 
         $order = Order::query()->findOrFail($validated['orderId']);
-        $payload = $this->moneroo->verify($validated['paymentId']);
-        $status = (string) ($payload['status'] ?? 'pending');
+        $this->payments->assertVisibleToUser($order, $request->user('sanctum'));
+        $payload = $this->payments->verify($order, $validated['paymentId'], (string) ($validated['provider'] ?? config('app.payment_provider', 'moneroo')));
 
-        Payment::query()
-            ->where('order_id', $order->id)
-            ->where('transaction_id', $validated['paymentId'])
-            ->latest()
-            ->first()?->update([
-                'status' => $status,
-                'payload' => $payload,
-            ]);
-
-        $order->payment_status = in_array($status, ['successful', 'paid'], true) ? 'paid' : $status;
-        $order->save();
-
-        return response()->json([
-            'order' => app(OrderController::class)->show($order)->getData(true)['order'],
-            'paymentId' => $validated['paymentId'],
-            'paymentStatus' => $status,
-        ]);
+        return response()->json($payload);
     }
 
     public function webhook(Request $request): JsonResponse
     {
-        $signature = (string) $request->header('x-moneroo-signature', '');
-        $body = (string) $request->getContent();
+        return response()->json($this->payments->handleWebhook('moneroo', $request));
+    }
 
-        if (! $this->moneroo->isValidWebhookSignature($signature, $body)) {
-          return response()->json(['message' => 'Invalid webhook signature.'], 401);
-        }
-
-        $payload = $request->json()->all();
-        $paymentId = (string) ($payload['id'] ?? '');
-        $status = (string) ($payload['status'] ?? 'pending');
-
-        $payment = Payment::query()
-            ->where('transaction_id', $paymentId)
-            ->latest()
-            ->first();
-
-        if ($payment) {
-            $payment->update([
-                'status' => $status,
-                'payload' => $payload,
-            ]);
-
-            $payment->order?->update([
-                'payment_status' => in_array($status, ['successful', 'paid'], true) ? 'paid' : $status,
-            ]);
-        }
-
-        return response()->json(['received' => true]);
+    public function monerooWebhook(Request $request): JsonResponse
+    {
+        return response()->json($this->payments->handleWebhook('moneroo', $request));
     }
 }

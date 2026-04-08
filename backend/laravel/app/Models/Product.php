@@ -10,6 +10,8 @@ class Product extends Model
     use HasFactory;
 
     protected $fillable = [
+        'source_provider',
+        'source_product_id',
         'title',
         'slug',
         'description',
@@ -23,6 +25,7 @@ class Product extends Model
         'moq',
         'unit',
         'badge',
+        'is_published',
         'metadata',
         'views_count',
     ];
@@ -31,5 +34,6 @@ class Product extends Model
         'price' => 'decimal:2',
         'gallery' => 'array',
         'metadata' => 'array',
+        'is_published' => 'boolean',
     ];
 }

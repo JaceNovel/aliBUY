@@ -14,11 +14,13 @@ return new class extends Migration
             $table->string('provider')->default('moneroo');
             $table->string('status')->index();
             $table->string('transaction_id')->nullable()->index();
+            $table->string('provider_reference')->nullable()->index();
             $table->string('checkout_url')->nullable();
+            $table->timestamp('verified_at')->nullable();
             $table->json('payload')->nullable();
             $table->timestamps();
 
-            $table->index(['created_at']);
+            $table->index(['provider', 'status', 'created_at']);
         });
     }
 

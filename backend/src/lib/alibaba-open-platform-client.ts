@@ -81,6 +81,52 @@ type AlibabaProductSearchResult = {
   skipped?: boolean;
 };
 
+export type AliExpressDsSearchExtend = {
+  searchKey?: string;
+  searchValue?: string;
+  min?: string;
+  max?: string;
+};
+
+export type AliExpressDsTextSearchPreviewItem = {
+  productId: string;
+  title: string;
+  itemUrl?: string;
+  imageUrl?: string;
+  videoUrl?: string;
+  salePrice?: string;
+  salePriceFormat?: string;
+  salePriceCurrency?: string;
+  originalPrice?: string;
+  originalPriceFormat?: string;
+  originalPriceCurrency?: string;
+  targetSalePrice?: string;
+  targetOriginalPrice?: string;
+  targetOriginalPriceCurrency?: string;
+  discount?: string;
+  orders?: string;
+  score?: string;
+  evaluateRate?: string;
+  categoryId?: string;
+  importable: boolean;
+  importSource?: "detail" | "search_fallback";
+  importReason?: string;
+  product?: AlibabaSearchProduct;
+};
+
+export type AliExpressDsTextSearchPreviewResult = {
+  ok: boolean;
+  endpoint: string;
+  responseBody: unknown;
+  products: AliExpressDsTextSearchPreviewItem[];
+  totalCount: number;
+  pageIndex: number;
+  pageSize: number;
+  requestId?: string;
+  errorMessage?: string;
+  errorCode?: string;
+};
+
 export type AlibabaExactProductAttemptDebug = {
   endpoint: string;
   shipToCountry?: string;
@@ -495,6 +541,113 @@ function getAliExpressSellerPayload(responseBody: unknown) {
   }
 
   return responseBody;
+}
+
+function normalizeAliExpressDsSortBy(value: unknown) {
+  const normalized = getStringValue(value)?.trim().toLowerCase();
+  if (!normalized) {
+    return "orders,desc";
+  }
+
+  const [field, direction] = normalized.split(",").map((entry) => entry.trim());
+  const safeField = field && /^[a-z_]+$/i.test(field) ? field : "orders";
+  const safeDirection = direction === "asc" || direction === "desc" ? direction : "desc";
+  return `${safeField},${safeDirection}`;
+}
+
+function normalizeAliExpressDsSearchExtend(value: unknown) {
+  const entries = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? (() => {
+          const trimmed = value.trim();
+          if (!trimmed) {
+            return [] as unknown[];
+          }
+
+          try {
+            const parsed = JSON.parse(trimmed);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [] as unknown[];
+          }
+        })()
+      : [];
+
+  const normalized = entries.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      return [] as AliExpressDsSearchExtend[];
+    }
+
+    const record = entry as Record<string, unknown>;
+    const searchKey = getStringValue(record.searchKey)?.trim();
+    const searchValue = getStringValue(record.searchValue)?.trim();
+    const min = getStringValue(record.min)?.trim();
+    const max = getStringValue(record.max)?.trim();
+
+    if (!searchKey && !searchValue && !min && !max) {
+      return [] as AliExpressDsSearchExtend[];
+    }
+
+    return [{
+      ...(searchKey ? { searchKey } : {}),
+      ...(searchValue ? { searchValue } : {}),
+      ...(min ? { min } : {}),
+      ...(max ? { max } : {}),
+    }];
+  });
+
+  return normalized.length > 0 ? JSON.stringify(normalized) : undefined;
+}
+
+function buildAliExpressDsTextSearchPreviewItem(input: {
+  searchItem: Record<string, unknown>;
+  query: string;
+  shipToCountry: string;
+  detailResponseBody?: unknown;
+  detailOk: boolean;
+}): AliExpressDsTextSearchPreviewItem | null {
+  const productId = getStringValue(input.searchItem.itemId)
+    ?? getStringValue(input.searchItem.item_id)
+    ?? getStringValue(input.searchItem.product_id)
+    ?? getStringValue(input.searchItem.productId);
+  if (!productId) {
+    return null;
+  }
+
+  const detailProduct = input.detailOk
+    ? mapAliExpressProductDetailToProduct(input.searchItem, input.detailResponseBody, input.query)
+    : null;
+  const fallbackProduct = detailProduct
+    ? null
+    : mapAliExpressSearchItemFallbackToProduct(input.searchItem, input.query, input.shipToCountry);
+  const product = detailProduct ?? fallbackProduct ?? undefined;
+
+  return {
+    productId,
+    title: getStringValue(input.searchItem.title) ?? product?.shortTitle ?? product?.title ?? productId,
+    itemUrl: getStringValue(input.searchItem.itemUrl) ?? getStringValue(input.searchItem.item_url),
+    imageUrl: getStringValue(input.searchItem.itemMainPic) ?? getStringValue(input.searchItem.item_main_pic) ?? product?.image,
+    videoUrl: getStringValue(input.searchItem.productVideoUrl) ?? getStringValue(input.searchItem.product_video_url) ?? product?.videoUrl,
+    salePrice: getStringValue(input.searchItem.salePrice) ?? getStringValue(input.searchItem.sale_price),
+    salePriceFormat: getStringValue(input.searchItem.salePriceFormat) ?? getStringValue(input.searchItem.sale_price_format),
+    salePriceCurrency: getStringValue(input.searchItem.salePriceCurrency) ?? getStringValue(input.searchItem.sale_price_currency),
+    originalPrice: getStringValue(input.searchItem.originalPrice) ?? getStringValue(input.searchItem.original_price),
+    originalPriceFormat: getStringValue(input.searchItem.originalPriceFormat) ?? getStringValue(input.searchItem.original_price_format),
+    originalPriceCurrency: getStringValue(input.searchItem.originalPriceCurrency) ?? getStringValue(input.searchItem.original_price_currency),
+    targetSalePrice: getStringValue(input.searchItem.targetSalePrice) ?? getStringValue(input.searchItem.target_sale_price),
+    targetOriginalPrice: getStringValue(input.searchItem.targetOriginalPrice) ?? getStringValue(input.searchItem.target_original_price),
+    targetOriginalPriceCurrency: getStringValue(input.searchItem.targetOriginalPriceCurrency) ?? getStringValue(input.searchItem.target_original_price_currency),
+    discount: getStringValue(input.searchItem.discount),
+    orders: getStringValue(input.searchItem.orders),
+    score: getStringValue(input.searchItem.score),
+    evaluateRate: getStringValue(input.searchItem.evaluateRate) ?? getStringValue(input.searchItem.evaluate_rate),
+    categoryId: getStringValue(input.searchItem.cateId) ?? getStringValue(input.searchItem.cate_id),
+    importable: Boolean(product),
+    importSource: detailProduct ? "detail" : (fallbackProduct ? "search_fallback" : undefined),
+    importReason: product ? undefined : "La recherche a renvoye l'article mais aucun payload DS importable n'a pu etre reconstruit.",
+    product,
+  };
 }
 
 function findAlibabaFirstStringDeep(value: unknown, keys: string[]) {
@@ -5440,6 +5593,162 @@ export async function searchAlibabaProducts(input: {
     preferredCurrency: input.preferredCurrency,
     supplierAccountId: input.supplierAccountId,
   });
+}
+
+export async function previewAliExpressDsTextSearch(input: {
+  query: string;
+  local?: string;
+  countryCode?: string;
+  categoryId?: number | string;
+  sortBy?: string;
+  pageSize?: number;
+  pageIndex?: number;
+  currency?: string;
+  selectionName?: string;
+  searchExtend?: AliExpressDsSearchExtend[] | string;
+  supplierAccountId?: string;
+}): Promise<AliExpressDsTextSearchPreviewResult> {
+  const credentials = await resolveAlibabaCredentialsForLiveCall({ accountId: input.supplierAccountId });
+  if (!isAliExpressCredentials(credentials)) {
+    return {
+      ok: false,
+      endpoint: "aliexpress.ds.text.search",
+      responseBody: {
+        message: "AliExpress credentials are missing",
+      },
+      products: [],
+      totalCount: 0,
+      pageIndex: 1,
+      pageSize: 12,
+      errorMessage: "Recherche AliExpress indisponible: connecte un compte AliExpress ou configure l'App Key et l'App Secret.",
+    };
+  }
+
+  const query = String(input.query ?? "").trim();
+  if (!query) {
+    return {
+      ok: false,
+      endpoint: "aliexpress.ds.text.search",
+      responseBody: null,
+      products: [],
+      totalCount: 0,
+      pageIndex: 1,
+      pageSize: 12,
+      errorMessage: "Le mot-cle de recherche est obligatoire.",
+    };
+  }
+
+  const local = String(input.local ?? process.env.ALIEXPRESS_TARGET_LANGUAGE ?? process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "fr_FR").trim() || "fr_FR";
+  const countryCode = String(input.countryCode ?? "FR").trim().toUpperCase() || "FR";
+  const currency = String(input.currency ?? process.env.ALIEXPRESS_TARGET_CURRENCY ?? process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD").trim().toUpperCase() || "USD";
+  const pageSize = Math.min(Math.max(Number(input.pageSize ?? 12) || 12, 1), 20);
+  const pageIndex = Math.max(Number(input.pageIndex ?? 1) || 1, 1);
+  const requestBody: Record<string, unknown> = {
+    keyWord: query,
+    local,
+    countryCode,
+    sortBy: normalizeAliExpressDsSortBy(input.sortBy),
+    pageSize,
+    pageIndex,
+    currency,
+  };
+
+  const categoryId = Number(input.categoryId);
+  if (Number.isFinite(categoryId) && categoryId > 0) {
+    requestBody.categoryId = categoryId;
+  }
+
+  const selectionName = getStringValue(input.selectionName)?.trim();
+  if (selectionName) {
+    requestBody.selectionName = selectionName;
+  }
+
+  const normalizedSearchExtend = normalizeAliExpressDsSearchExtend(input.searchExtend);
+  if (normalizedSearchExtend) {
+    requestBody.searchExtend = normalizedSearchExtend;
+  }
+
+  const searchResult = await callAliExpressTopEndpoint("aliexpress.ds.text.search", requestBody, {
+    credentials,
+    method: "POST",
+  });
+
+  const requestId = isRecord(searchResult.responseBody)
+    ? getStringValue(searchResult.responseBody.request_id)
+    : undefined;
+  if (!searchResult.ok) {
+    const apiError = isRecord(searchResult.responseBody) && isRecord((searchResult.responseBody as Record<string, unknown>).error_response)
+      ? searchResult.responseBody.error_response as Record<string, unknown>
+      : null;
+    const errorMessage = apiError
+      ? (getStringValue(apiError.en_desc) ?? getStringValue(apiError.sub_msg) ?? getStringValue(apiError.zh_desc))
+      : undefined;
+
+    return {
+      ok: false,
+      endpoint: "aliexpress.ds.text.search",
+      responseBody: searchResult.responseBody,
+      products: [],
+      totalCount: 0,
+      pageIndex,
+      pageSize,
+      requestId,
+      errorCode: apiError ? getStringValue(apiError.code) : undefined,
+      errorMessage: errorMessage ? `AliExpress DS: ${errorMessage}` : "Recherche AliExpress DS impossible.",
+    };
+  }
+
+  const payload = getAliExpressSellerPayload(searchResult.responseBody);
+  const payloadRecord = isRecord(payload) ? payload : {};
+  const payloadData = isRecord(payloadRecord.data)
+    ? payloadRecord.data as Record<string, unknown>
+    : payloadRecord;
+  const searchItems = extractAliExpressSearchItems(payloadRecord);
+  const previewItems: AliExpressDsTextSearchPreviewItem[] = [];
+
+  for (const searchItem of searchItems) {
+    const productId = getStringValue(searchItem.itemId)
+      ?? getStringValue(searchItem.item_id)
+      ?? getStringValue(searchItem.product_id)
+      ?? getStringValue(searchItem.productId);
+    if (!productId) {
+      continue;
+    }
+
+    const detailResult = await callAliExpressTopEndpoint("aliexpress.ds.product.get", {
+      ship_to_country: countryCode,
+      product_id: productId,
+      target_currency: currency,
+      target_language: local,
+      remove_personal_benefit: "false",
+    }, {
+      credentials,
+      method: "POST",
+    });
+
+    const previewItem = buildAliExpressDsTextSearchPreviewItem({
+      searchItem,
+      query,
+      shipToCountry: countryCode,
+      detailResponseBody: detailResult.responseBody,
+      detailOk: detailResult.ok,
+    });
+
+    if (previewItem) {
+      previewItems.push(previewItem);
+    }
+  }
+
+  return {
+    ok: true,
+    endpoint: "aliexpress.ds.text.search",
+    responseBody: searchResult.responseBody,
+    products: previewItems,
+    totalCount: getNumberValue(payloadData.totalCount, payloadData.total_count) ?? previewItems.length,
+    pageIndex: getNumberValue(payloadData.pageIndex, payloadData.page_index) ?? pageIndex,
+    pageSize: getNumberValue(payloadData.pageSize, payloadData.page_size) ?? pageSize,
+    requestId,
+  };
 }
 
 function matchesAlibabaExactIdentifier(product: AlibabaSearchProduct, identifier: string) {

@@ -10,9 +10,11 @@ return new class extends Migration
     {
         Schema::create('products', function (Blueprint $table) {
             $table->id();
+            $table->string('source_provider')->default('catalog')->index();
+            $table->string('source_product_id')->nullable()->index();
             $table->string('title')->index();
             $table->string('slug')->unique();
-            $table->longText('description');
+            $table->longText('description')->nullable();
             $table->decimal('price', 12, 2);
             $table->string('category')->index();
             $table->unsignedInteger('stock')->default(0);
@@ -23,11 +25,12 @@ return new class extends Migration
             $table->unsignedInteger('moq')->nullable();
             $table->string('unit')->nullable();
             $table->string('badge')->nullable();
+            $table->boolean('is_published')->default(true)->index();
             $table->json('metadata')->nullable();
             $table->unsignedBigInteger('views_count')->default(0);
             $table->timestamps();
 
-            $table->index(['created_at']);
+            $table->index(['category', 'is_published', 'created_at']);
         });
     }
 

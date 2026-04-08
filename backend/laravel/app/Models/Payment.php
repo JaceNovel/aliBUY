@@ -15,12 +15,15 @@ class Payment extends Model
         'provider',
         'status',
         'transaction_id',
+        'provider_reference',
         'checkout_url',
+        'verified_at',
         'payload',
     ];
 
     protected $casts = [
         'payload' => 'array',
+        'verified_at' => 'datetime',
     ];
 
     public function order(): BelongsTo

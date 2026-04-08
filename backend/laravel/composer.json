@@ -1,14 +1,71 @@
 {
+  "$schema": "https://getcomposer.org/schema.json",
   "name": "afripay/backend",
   "type": "project",
+  "description": "AfriPay Laravel API backend replacing Next.js API routes.",
+  "keywords": ["afripay", "laravel", "api", "backend"],
+  "license": "proprietary",
   "require": {
-    "php": "^8.2",
-    "laravel/framework": "^11.0",
-    "laravel/sanctum": "^4.0"
+    "php": "^8.3",
+    "laravel/framework": "^13.0",
+    "laravel/sanctum": "^4.1",
+    "laravel/tinker": "^3.0"
+  },
+  "require-dev": {
+    "fakerphp/faker": "^1.23",
+    "laravel/pail": "^1.2",
+    "laravel/pint": "^1.27",
+    "mockery/mockery": "^1.6",
+    "nunomaduro/collision": "^8.6",
+    "phpunit/phpunit": "^12.5"
   },
   "autoload": {
     "psr-4": {
-      "App\\": "app/"
+      "App\\": "app/",
+      "Database\\Factories\\": "database/factories/",
+      "Database\\Seeders\\": "database/seeders/"
     }
-  }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Tests\\": "tests/"
+    }
+  },
+  "scripts": {
+    "setup": [
+      "composer install",
+      "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
+      "@php artisan key:generate",
+      "@php artisan migrate --force"
+    ],
+    "test": [
+      "@php artisan config:clear --ansi",
+      "@php artisan test"
+    ],
+    "post-autoload-dump": [
+      "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
+      "@php artisan package:discover --ansi"
+    ],
+    "post-root-package-install": [
+      "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
+    ],
+    "pre-package-uninstall": [
+      "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
+    ]
+  },
+  "extra": {
+    "laravel": {
+      "dont-discover": []
+    }
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "preferred-install": "dist",
+    "sort-packages": true,
+    "allow-plugins": {
+      "php-http/discovery": true
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
 }
