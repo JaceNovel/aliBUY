@@ -3,6 +3,47 @@ import type { AlibabaFulfillmentChannel, AlibabaImportCampaignMode } from "@/lib
 import { deleteAllImportedProducts, runAlibabaCatalogImport } from "@/lib/alibaba-operations-service";
 import { getFreeDealConfig, saveFreeDealConfig } from "@/lib/free-deal-store";
 
+function summarizeDebug(debug: unknown) {
+  if (!debug || typeof debug !== "object") {
+    return undefined;
+  }
+
+  const record = debug as Record<string, unknown>;
+  const attempts = Array.isArray(record.attempts)
+    ? record.attempts.map((attempt) => {
+        if (!attempt || typeof attempt !== "object") {
+          return attempt;
+        }
+
+        const entry = attempt as Record<string, unknown>;
+        return {
+          endpoint: entry.endpoint,
+          shipToCountry: entry.shipToCountry,
+          ok: entry.ok,
+          status: entry.status,
+          responseShape: entry.responseShape,
+          mappingStatus: entry.mappingStatus,
+          providerErrorCode: entry.providerErrorCode,
+          providerRequestId: entry.providerRequestId,
+        };
+      })
+    : undefined;
+
+  return {
+    externalProductId: record.externalProductId,
+    shipToCountry: record.shipToCountry,
+    targetCurrency: record.targetCurrency,
+    targetLanguage: record.targetLanguage,
+    resolvedRemoteMode: record.resolvedRemoteMode,
+    fallbackUsed: record.fallbackUsed,
+    responseShape: record.responseShape,
+    providerErrorCode: record.providerErrorCode,
+    providerMessage: record.providerMessage,
+    providerRequestId: record.providerRequestId,
+    attempts,
+  };
+}
+
 const IMPORT_FULFILLMENT_CHANNELS = new Set<AlibabaFulfillmentChannel>([
   "standard_us",
   "crossborder",
@@ -91,9 +132,15 @@ export async function POST(request: Request) {
     const debug = error && typeof error === "object" && "debug" in error
       ? (error as { debug?: unknown }).debug
       : undefined;
+    const message = error instanceof Error ? error.message : "Import AliExpress impossible.";
+
+    console.error("[admin/aliexpress/import] failed", {
+      message,
+      debug: summarizeDebug(debug),
+    });
 
     return Response.json({
-      message: error instanceof Error ? error.message : "Import AliExpress impossible.",
+      message,
       ...(typeof debug === "undefined" ? {} : { debug }),
     }, { status: 400 });
   }
