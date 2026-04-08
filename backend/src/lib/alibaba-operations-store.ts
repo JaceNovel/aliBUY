@@ -2371,7 +2371,10 @@ export async function deleteAlibabaSupplierAccount(accountId: string): Promise<{
         return { deleted: false };
       }
 
-      await syncSupplierAccountsJsonSnapshot(await readAlibabaSupplierAccountsDb());
+      const remainingRecords = await getAlibabaPrismaModel("alibabaSupplierAccountRecord").findMany({
+        orderBy: [{ isActive: "desc" }, { updatedAt: "desc" }],
+      }) as Array<Parameters<typeof mapSupplierAccountRecord>[0]>;
+      await syncSupplierAccountsJsonSnapshot(remainingRecords.map(mapSupplierAccountRecord));
       return { deleted: true };
     } catch (error) {
       if (!isPrismaDatabaseUnavailable(error)) {

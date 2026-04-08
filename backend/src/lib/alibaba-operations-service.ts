@@ -1836,7 +1836,20 @@ export async function deleteAlibabaSupplierAccountInput(accountId: string) {
     return { deleted: false };
   }
 
+  const replacementAccount = account.isActive
+    ? accounts.find((entry) => entry.id !== normalizedAccountId && entry.status !== "disabled")
+    : null;
+
   await deleteAlibabaSupplierAccount(normalizedAccountId);
+
+  if (replacementAccount && !replacementAccount.isActive) {
+    await saveAlibabaSupplierAccount({
+      ...replacementAccount,
+      isActive: true,
+      updatedAt: nowIso(),
+    });
+  }
+
   return { deleted: true };
 }
 
