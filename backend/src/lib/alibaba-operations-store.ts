@@ -2366,7 +2366,7 @@ export async function saveAlibabaSupplierAccount(account: AlibabaSupplierAccount
 export async function deleteAlibabaSupplierAccount(accountId: string): Promise<{ deleted: boolean }> {
   if (canUseDatabase()) {
     try {
-      const result = await getAlibabaPrismaModel("alibabaSupplierAccountRecord").deleteMany({ where: { id: accountId } });
+      const result = await getAlibabaPrismaModel("alibabaSupplierAccountRecord").deleteMany({ where: { id: accountId } }) as { count?: number };
       if (!result.count) {
         return { deleted: false };
       }
