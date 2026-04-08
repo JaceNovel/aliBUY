@@ -568,8 +568,13 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       return;
     }
 
-    const response = await fetchAdminAliExpress(`/api/admin/aliexpress/supplier-accounts?id=${encodeURIComponent(account.id)}`, {
-      method: "DELETE",
+    const response = await fetchAdminAliExpress("/api/admin/aliexpress/supplier-accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "delete",
+        id: account.id,
+      }),
     });
     const payload = await response.json().catch(() => null);
 

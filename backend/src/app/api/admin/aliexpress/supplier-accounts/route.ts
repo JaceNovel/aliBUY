@@ -8,6 +8,18 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const body = await request.json();
+  if (body?.action === "delete") {
+    try {
+      const accountId = body?.id ? String(body.id) : body?.accountId ? String(body.accountId) : "";
+      const result = await deleteAlibabaSupplierAccountInput(accountId);
+      return Response.json(result);
+    } catch (error) {
+      return Response.json({
+        message: error instanceof Error ? error.message : "Suppression du compte fournisseur impossible.",
+      }, { status: 400 });
+    }
+  }
+
   const account = await saveAlibabaSupplierAccountInput({
     id: body?.id ? String(body.id) : undefined,
     name: String(body?.name ?? ""),

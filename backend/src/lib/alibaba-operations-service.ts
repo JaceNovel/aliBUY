@@ -1094,7 +1094,7 @@ export async function runAlibabaCatalogImport(input: {
       };
       const { product: directSnapshot, debug: directSnapshotDebug } = await fetchAlibabaProductSnapshotWithDebug({
         sourceProductId: requestedProductId,
-        query: requestedProductId,
+        query: normalizedQuery,
         shipToCountry: destinationCountry,
         targetCurrency,
         targetLanguage,
@@ -1112,9 +1112,11 @@ export async function runAlibabaCatalogImport(input: {
           ? "aliexpress.ds.product.wholesale.get"
           : directSnapshotDebug.resolvedRemoteMode === "standard_product"
             ? "aliexpress.solution.product.info.get"
-          : directSnapshotDebug.resolvedRemoteMode === "affiliate_exact"
-            ? "aliexpress.affiliate.product.sku.detail.get"
-            : "aliexpress.ds.product.get",
+            : directSnapshotDebug.resolvedRemoteMode === "affiliate_exact"
+              ? "aliexpress.affiliate.product.sku.detail.get"
+              : directSnapshotDebug.resolvedRemoteMode === "public_product_page"
+                ? "aliexpress.public.product.page"
+                : "aliexpress.ds.product.get",
         errorMessage: directSnapshot
           ? undefined
           : resolveAlibabaManualImportErrorMessage(directSnapshotDebug),
