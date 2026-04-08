@@ -94,6 +94,7 @@ function resolveAlibabaManualImportErrorMessage(debug: {
     shipToCountry?: string;
     responseShape?: string;
     ok?: boolean;
+    mappingStatus?: string;
   }>;
 }) {
   const code = debug.providerErrorCode?.trim().toLowerCase();
