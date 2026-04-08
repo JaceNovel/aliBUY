@@ -68,27 +68,56 @@ function resolveAlibabaManualImportErrorMessage(debug: {
   providerErrorCode?: string;
   providerMessage?: string;
   responseShape?: string;
+  providerRequestId?: string;
+  attempts?: Array<{
+    endpoint?: string;
+    shipToCountry?: string;
+    responseShape?: string;
+    ok?: boolean;
+  }>;
 }) {
   const code = debug.providerErrorCode?.trim().toLowerCase();
   const providerMessage = debug.providerMessage?.trim();
+  const attempts = Array.isArray(debug.attempts) ? debug.attempts : [];
+  const dsAttempts = attempts.filter((attempt) => attempt.endpoint === "aliexpress.ds.product.get" || attempt.endpoint === "aliexpress.ds.product.wholesale.get");
+  const dsCountries = [...new Set(dsAttempts.map((attempt) => String(attempt.shipToCountry ?? "").trim().toUpperCase()).filter(Boolean))];
+  const allDsAttemptsWithoutSkus = dsAttempts.length > 0
+    && dsAttempts.every((attempt) => attempt.ok && attempt.responseShape === "result_without_skus");
+  const standardAttemptWithoutBaseInfo = attempts.some((attempt) => attempt.endpoint === "aliexpress.solution.product.info.get" && attempt.responseShape === "result_without_base_info");
+  const affiliateAttemptEmpty = attempts.some((attempt) => attempt.endpoint === "aliexpress.affiliate.product.sku.detail.get" && attempt.responseShape === "empty_result");
+  const requestIdSuffix = debug.providerRequestId ? ` (request_id=${debug.providerRequestId})` : "";
 
   if (code?.includes("permission") || code?.includes("invalid-permission")) {
-    return "Le compte AliExpress connecte n'a pas les permissions Dropshipping pour cette API.";
+    return `Le compte AliExpress connecte n'a pas les permissions Dropshipping pour cette API.${requestIdSuffix}`;
   }
 
   if (code?.includes("token") || providerMessage?.toLowerCase().includes("token")) {
-    return "Le token AliExpress semble invalide ou expire. Reconnecte le compte OAuth puis relance l'import.";
+    return `Le token AliExpress semble invalide ou expire. Reconnecte le compte OAuth puis relance l'import.${requestIdSuffix}`;
   }
 
   if (providerMessage?.toLowerCase().includes("country") || providerMessage?.toLowerCase().includes("pays")) {
-    return "Le produit AliExpress existe mais n'est pas disponible pour le pays de destination demande.";
+    return `Le produit AliExpress existe mais n'est pas disponible pour le pays de destination demande.${requestIdSuffix}`;
+  }
+
+  if (allDsAttemptsWithoutSkus) {
+    const countryHint = dsCountries.length > 1
+      ? ` Les essais ${dsCountries.join("/")} renvoient tous le meme resultat.`
+      : "";
+    const fallbackHint = standardAttemptWithoutBaseInfo || affiliateAttemptEmpty
+      ? " L'ID semble exister, mais ce compte ne recoit ni SKU DS ni fiche standard exploitable pour ce produit."
+      : "";
+    return `Produit AliExpress detecte, mais aucun SKU DS exploitable n'a ete renvoye.${countryHint}${fallbackHint} Verifie d'abord les droits DS du compte, puis le token OAuth et enfin la disponibilite pays du produit.${requestIdSuffix}`;
+  }
+
+  if (debug.responseShape === "result_without_base_info") {
+    return `AliExpress a repondu sans fiche produit exploitable pour cet External product ID. Verifie les droits du compte, le token OAuth et la visibilite du produit.${requestIdSuffix}`;
   }
 
   if (debug.responseShape === "result_without_skus") {
-    return "Produit AliExpress trouve, mais aucun SKU DS exploitable n'a ete renvoye. Essaie un autre pays de destination, le mode standard, ou verifie les droits DS du compte.";
+    return `Produit AliExpress trouve, mais aucun SKU DS exploitable n'a ete renvoye. Essaie un autre pays de destination, le mode standard, ou verifie les droits DS du compte.${requestIdSuffix}`;
   }
 
-  return "Produit AliExpress DS introuvable ou non lisible pour cet External product ID. Verifie l'ID, le pays de destination, les droits DS du compte et le token OAuth.";
+  return `Produit AliExpress DS introuvable ou non lisible pour cet External product ID. Verifie l'ID, le pays de destination, les droits DS du compte et le token OAuth.${requestIdSuffix}`;
 }
 
 const IMPORT_CATEGORY_ENRICHMENT_LIMIT = 8;
