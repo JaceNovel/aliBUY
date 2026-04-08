@@ -65,6 +65,25 @@ function createAlibabaImportError(message: string, debug?: unknown) {
   return Object.assign(new Error(message), debug ? { debug } : {});
 }
 
+type AlibabaExactRemoteFetchInput = {
+  query: string;
+  destinationCountry?: string;
+  targetCurrency?: string;
+  targetLanguage?: string;
+  provinceCode?: string;
+  cityCode?: string;
+  supplierAccountId?: string;
+};
+
+export type AlibabaExactRemoteFetchResult = {
+  ok: boolean;
+  endpoint: string;
+  sourceProductId: string;
+  product: AlibabaSearchProduct | null;
+  errorMessage?: string;
+  debug: AlibabaExactProductSnapshotDebug;
+};
+
 function resolveAlibabaManualImportErrorMessage(debug: {
   providerErrorCode?: string;
   providerMessage?: string;
@@ -84,8 +103,7 @@ function resolveAlibabaManualImportErrorMessage(debug: {
   const dsCountries = [...new Set(dsAttempts.map((attempt) => String(attempt.shipToCountry ?? "").trim().toUpperCase()).filter(Boolean))];
   const allDsAttemptsWithoutSkus = dsAttempts.length > 0
     && dsAttempts.every((attempt) => attempt.ok && attempt.responseShape === "result_without_skus");
-  const standardAttemptWithoutBaseInfo = attempts.some((attempt) => attempt.endpoint === "aliexpress.solution.product.info.get" && attempt.responseShape === "result_without_base_info");
-  const affiliateAttemptEmpty = attempts.some((attempt) => attempt.endpoint === "aliexpress.affiliate.product.sku.detail.get" && attempt.responseShape === "empty_result");
+  const publicPageAttemptFailed = attempts.some((attempt) => attempt.endpoint === "aliexpress.public.product.page" && attempt.mappingStatus === "fallback_failed");
   const requestIdSuffix = debug.providerRequestId ? ` (request_id=${debug.providerRequestId})` : "";
 
   if (code?.includes("permission") || code?.includes("invalid-permission")) {
@@ -104,21 +122,91 @@ function resolveAlibabaManualImportErrorMessage(debug: {
     const countryHint = dsCountries.length > 1
       ? ` Les essais ${dsCountries.join("/")} renvoient tous le meme resultat.`
       : "";
-    const fallbackHint = standardAttemptWithoutBaseInfo || affiliateAttemptEmpty
-      ? " L'ID semble exister, mais ce compte ne recoit ni SKU DS ni fiche standard exploitable pour ce produit."
+    const fallbackHint = publicPageAttemptFailed
+      ? " Le produit semble exister, mais ce compte ne recoit aucun SKU DS exploitable et la fiche publique n'a pas pu etre reconstruite proprement."
       : "";
-    return `Produit AliExpress detecte, mais aucun SKU DS exploitable n'a ete renvoye.${countryHint}${fallbackHint} Verifie d'abord les droits DS du compte, puis le token OAuth et enfin la disponibilite pays du produit.${requestIdSuffix}`;
-  }
-
-  if (debug.responseShape === "result_without_base_info") {
-    return `AliExpress a repondu sans fiche produit exploitable pour cet External product ID. Verifie les droits du compte, le token OAuth et la visibilite du produit.${requestIdSuffix}`;
+    return `Produit AliExpress detecte, mais aucun SKU DS exploitable n'a ete renvoye.${countryHint}${fallbackHint} Verifie d'abord les droits Dropshipping de l'app, puis le token OAuth et enfin la disponibilite pays du produit.${requestIdSuffix}`;
   }
 
   if (debug.responseShape === "result_without_skus") {
-    return `Produit AliExpress trouve, mais aucun SKU DS exploitable n'a ete renvoye. Essaie un autre pays de destination, le mode standard, ou verifie les droits DS du compte.${requestIdSuffix}`;
+    return `Produit AliExpress trouve, mais aucun SKU DS exploitable n'a ete renvoye. Essaie un autre pays de destination ou verifie les droits Dropshipping de l'app.${requestIdSuffix}`;
   }
 
-  return `Produit AliExpress DS introuvable ou non lisible pour cet External product ID. Verifie l'ID, le pays de destination, les droits DS du compte et le token OAuth.${requestIdSuffix}`;
+  return `Produit AliExpress DS introuvable ou non lisible pour cet External product ID. Verifie l'ID, le pays de destination, les droits Dropshipping de l'app et le token OAuth.${requestIdSuffix}`;
+}
+
+function buildAlibabaExactRemoteFetchDebug(input: {
+  sourceProductId: string;
+  destinationCountry: string;
+  targetCurrency: string;
+  targetLanguage: string;
+}): AlibabaExactProductSnapshotDebug {
+  return {
+    externalProductId: input.sourceProductId,
+    shipToCountry: input.destinationCountry,
+    targetCurrency: input.targetCurrency,
+    targetLanguage: input.targetLanguage,
+    attempts: [],
+    fallbackUsed: false,
+    responseShape: "empty_payload",
+  };
+}
+
+function resolveAlibabaExactSnapshotEndpoint(debug: AlibabaExactProductSnapshotDebug) {
+  if (debug.resolvedRemoteMode === "ds_wholesale") {
+    return "aliexpress.ds.product.wholesale.get";
+  }
+
+  if (debug.resolvedRemoteMode === "public_product_page") {
+    return "aliexpress.public.product.page";
+  }
+
+  return "aliexpress.ds.product.get";
+}
+
+export async function fetchAlibabaRemoteExactProduct(input: AlibabaExactRemoteFetchInput): Promise<AlibabaExactRemoteFetchResult> {
+  const normalizedQuery = input.query.trim();
+  const directProductIdMatch = normalizedQuery.match(/(?:^|\D)(\d{12,20})(?:\D|$)/);
+  if (!normalizedQuery) {
+    throw new Error("Import manuel impossible: saisis un External product ID AliExpress ou un lien produit AliExpress.");
+  }
+
+  if (!directProductIdMatch?.[1]) {
+    throw new Error("Import manuel impossible: renseigne un External product ID AliExpress numerique valide ou un lien produit AliExpress contenant cet ID.");
+  }
+
+  const requestedProductId = directProductIdMatch[1];
+  const destinationCountry = String(input.destinationCountry ?? "FR").trim().toUpperCase() || "FR";
+  const targetCurrency = String(input.targetCurrency ?? process.env.ALIEXPRESS_TARGET_CURRENCY ?? process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD").trim().toUpperCase() || "USD";
+  const targetLanguage = String(input.targetLanguage ?? process.env.ALIEXPRESS_TARGET_LANGUAGE ?? process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "fr_FR").trim() || "fr_FR";
+  const provinceCode = String(input.provinceCode ?? "").trim() || undefined;
+  const cityCode = String(input.cityCode ?? "").trim() || undefined;
+  const fallbackDebug = buildAlibabaExactRemoteFetchDebug({
+    sourceProductId: requestedProductId,
+    destinationCountry,
+    targetCurrency,
+    targetLanguage,
+  });
+
+  const { product, debug } = await fetchAlibabaProductSnapshotWithDebug({
+    sourceProductId: requestedProductId,
+    query: normalizedQuery,
+    shipToCountry: destinationCountry,
+    targetCurrency,
+    targetLanguage,
+    provinceCode,
+    cityCode,
+    supplierAccountId: input.supplierAccountId,
+  }).catch(() => ({ product: null, debug: fallbackDebug }));
+
+  return {
+    ok: Boolean(product),
+    endpoint: resolveAlibabaExactSnapshotEndpoint(debug),
+    sourceProductId: requestedProductId,
+    product,
+    errorMessage: product ? undefined : resolveAlibabaManualImportErrorMessage(debug),
+    debug,
+  };
 }
 
 const IMPORT_CATEGORY_ENRICHMENT_LIMIT = 8;
@@ -1025,6 +1113,8 @@ export async function runAlibabaCatalogImport(input: {
   provinceCode?: string;
   cityCode?: string;
   supplierAccountId?: string;
+  prefetchedExactProduct?: AlibabaSearchProduct | null;
+  prefetchedExactDebug?: AlibabaExactProductSnapshotDebug;
 }) {
   if (requiresAlibabaPersistentStorage() && !hasAlibabaPersistentStorage()) {
     throw new Error("Import AliExpress bloque: aucun stockage persistant n'est configure sur cette API. Ajoute DATABASE_URL ou BLOB_READ_WRITE_TOKEN, sinon les articles disparaitront au prochain deploiement.");
@@ -1083,52 +1173,56 @@ export async function runAlibabaCatalogImport(input: {
 
     if (manualDirectImport) {
       const requestedProductId = directProductIdMatch![1];
-      const fallbackSnapshotDebug: AlibabaExactProductSnapshotDebug = {
-        externalProductId: requestedProductId,
-        shipToCountry: destinationCountry,
-        targetCurrency,
-        targetLanguage,
-        attempts: [],
-        fallbackUsed: false,
-        responseShape: "empty_payload",
-      };
-      const { product: directSnapshot, debug: directSnapshotDebug } = await fetchAlibabaProductSnapshotWithDebug({
-        sourceProductId: requestedProductId,
-        query: normalizedQuery,
-        shipToCountry: destinationCountry,
-        targetCurrency,
-        targetLanguage,
-        provinceCode,
-        cityCode,
-        supplierAccountId: input.supplierAccountId,
-      }).catch(() => ({ product: null, debug: {
-        ...fallbackSnapshotDebug,
-      } }));
+      const prefetchedExactProduct = input.prefetchedExactProduct?.sourceProductId === requestedProductId
+        ? input.prefetchedExactProduct
+        : null;
+      const prefetchedExactDebug = input.prefetchedExactDebug?.externalProductId === requestedProductId
+        ? input.prefetchedExactDebug
+        : undefined;
+      const remoteFetchResult = prefetchedExactProduct
+        ? {
+            ok: true,
+            endpoint: resolveAlibabaExactSnapshotEndpoint(prefetchedExactDebug ?? buildAlibabaExactRemoteFetchDebug({
+              sourceProductId: requestedProductId,
+              destinationCountry,
+              targetCurrency,
+              targetLanguage,
+            })),
+            sourceProductId: requestedProductId,
+            product: prefetchedExactProduct,
+            errorMessage: undefined,
+            debug: prefetchedExactDebug ?? buildAlibabaExactRemoteFetchDebug({
+              sourceProductId: requestedProductId,
+              destinationCountry,
+              targetCurrency,
+              targetLanguage,
+            }),
+          }
+        : await fetchAlibabaRemoteExactProduct({
+            query: normalizedQuery,
+            destinationCountry,
+            targetCurrency,
+            targetLanguage,
+            provinceCode,
+            cityCode,
+            supplierAccountId: input.supplierAccountId,
+          });
 
-      resolvedProducts = directSnapshot ? [directSnapshot] : [];
+      resolvedProducts = remoteFetchResult.product ? [remoteFetchResult.product] : [];
       searchResult = {
-        ok: Boolean(directSnapshot),
-        endpoint: directSnapshotDebug.resolvedRemoteMode === "ds_wholesale"
-          ? "aliexpress.ds.product.wholesale.get"
-          : directSnapshotDebug.resolvedRemoteMode === "standard_product"
-            ? "aliexpress.solution.product.info.get"
-            : directSnapshotDebug.resolvedRemoteMode === "affiliate_exact"
-              ? "aliexpress.affiliate.product.sku.detail.get"
-              : directSnapshotDebug.resolvedRemoteMode === "public_product_page"
-                ? "aliexpress.public.product.page"
-                : "aliexpress.ds.product.get",
-        errorMessage: directSnapshot
-          ? undefined
-          : resolveAlibabaManualImportErrorMessage(directSnapshotDebug),
-        debug: directSnapshotDebug,
+        ok: remoteFetchResult.ok,
+        endpoint: remoteFetchResult.endpoint,
+        errorMessage: remoteFetchResult.errorMessage,
+        debug: remoteFetchResult.debug,
       };
 
       console.info("[alibaba-import] manual exact import summary", {
         jobId: job.id,
         query: job.query,
         sourceProductId: requestedProductId,
-        endpoint: searchResult.endpoint,
-        debug: directSnapshotDebug,
+        endpoint: remoteFetchResult.endpoint,
+        debug: remoteFetchResult.debug,
+        reusedPrefetchedProduct: Boolean(prefetchedExactProduct),
       });
     } else {
       const explorationLimit = Math.min(Math.max(job.limit * 2, 12), 30);

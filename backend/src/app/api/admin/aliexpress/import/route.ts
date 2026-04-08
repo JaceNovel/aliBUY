@@ -70,6 +70,8 @@ export async function POST(request: Request) {
       provinceCode: body?.provinceCode ?? body?.province_code,
       cityCode: body?.cityCode ?? body?.city_code,
       supplierAccountId: body?.supplierAccountId ?? body?.supplier_account_id,
+      prefetchedExactProduct: body?.prefetchedProduct ?? body?.prefetched_product ?? null,
+      prefetchedExactDebug: body?.prefetchedDebug ?? body?.prefetched_debug,
     });
 
     let freeDealProductSlugs: string[] | undefined;

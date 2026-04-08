@@ -232,11 +232,10 @@ function getAliExpressImportLikelyCause(diagnostic: AliExpressImportDiagnostic) 
   const providerMessage = diagnostic.providerMessage?.toLowerCase();
   const dsAttempts = diagnostic.attempts.filter((attempt) => attempt.endpoint === "aliexpress.ds.product.get" || attempt.endpoint === "aliexpress.ds.product.wholesale.get");
   const allDsAttemptsWithoutSkus = dsAttempts.length > 0 && dsAttempts.every((attempt) => attempt.ok && attempt.responseShape === "result_without_skus");
-  const standardAttemptWithoutBaseInfo = diagnostic.attempts.some((attempt) => attempt.endpoint === "aliexpress.solution.product.info.get" && attempt.responseShape === "result_without_base_info");
-  const affiliateAttemptEmpty = diagnostic.attempts.some((attempt) => attempt.endpoint === "aliexpress.affiliate.product.sku.detail.get" && attempt.responseShape === "empty_result");
+  const publicPageAttemptFailed = diagnostic.attempts.some((attempt) => attempt.endpoint === "aliexpress.public.product.page" && attempt.mappingStatus === "fallback_failed");
 
   if (providerCode?.includes("permission") || providerCode?.includes("invalid-permission")) {
-    return "Le compte connecte n'a probablement pas les permissions Dropshipping requises pour cette API.";
+    return "L'app ou le compte connecte n'a probablement pas les permissions Dropshipping requises pour cette API.";
   }
 
   if (providerCode?.includes("token") || providerMessage?.includes("token")) {
@@ -247,16 +246,12 @@ function getAliExpressImportLikelyCause(diagnostic: AliExpressImportDiagnostic) 
     return "Le produit semble bloque pour le pays de destination demande.";
   }
 
-  if (allDsAttemptsWithoutSkus && (standardAttemptWithoutBaseInfo || affiliateAttemptEmpty)) {
-    return "Le produit semble exister, mais ce compte/app ne recoit ni SKU DS ni fiche standard exploitable pour cet ID.";
+  if (allDsAttemptsWithoutSkus && publicPageAttemptFailed) {
+    return "Le produit semble exister, mais l'app ne recoit aucun SKU DS exploitable et la fiche publique n'a pas pu etre reconstruite.";
   }
 
   if (allDsAttemptsWithoutSkus) {
-    return "Les endpoints DS voient le produit, mais aucun SKU DS exploitable n'est expose pour ce compte ou ce produit.";
-  }
-
-  if (diagnostic.responseShape === "result_without_base_info") {
-    return "AliExpress repond sans fiche produit exploitable, ce qui fait penser a un probleme de droits, de visibilite produit ou de contexte OAuth.";
+    return "Les endpoints Dropshipping voient le produit, mais aucun SKU DS exploitable n'est expose pour cette app ou ce produit.";
   }
 
   return "Le provider ne renvoie pas assez de donnees pour importer ce produit dans le contexte actuel.";
@@ -275,7 +270,7 @@ function getAliExpressImportChecklist(diagnostic: AliExpressImportDiagnostic) {
     items.push(`Le meme echec apparait sur ${dsCountries.join("/")}, donc le pays n'est probablement pas la seule cause.`);
   }
 
-  items.push("Verifier que le compte AliExpress connecte a bien les droits Dropshipping pour cette app.");
+  items.push("Verifier que l'app AliExpress connectee a bien les droits Dropshipping necessaires.");
   items.push("Verifier que le token OAuth actif appartient au bon compte et n'est pas expire.");
 
   if (diagnostic.externalProductId) {
@@ -283,7 +278,7 @@ function getAliExpressImportChecklist(diagnostic: AliExpressImportDiagnostic) {
   }
 
   if (diagnostic.fallbackUsed === false) {
-    items.push("Aucun fallback exploitable n'a pu reconstruire une fiche produit importable.");
+    items.push("Aucun fallback Dropshipping ou fiche publique n'a pu reconstruire une fiche produit importable.");
   }
 
   return items;
@@ -535,6 +530,32 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       return;
     }
 
+    let prefetchedProduct: unknown;
+    let prefetchedDebug: unknown;
+    if (activeImportForm.manualProductMode) {
+      const previewResponse = await fetchAdminAliExpress("/api/admin/aliexpress/fetch-remote", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          query: activeImportForm.query,
+          supplierAccountId: importSupplierAccount.id,
+          destinationCountry: countries.find((country) => country.enabled)?.countryCode ?? "FR",
+          targetCurrency: "USD",
+          targetLanguage: "fr_FR",
+        }),
+      });
+      const previewPayload = await previewResponse.json().catch(() => null);
+      if (!previewResponse.ok) {
+        setFeedback(previewPayload?.message ?? "Chargement du produit AliExpress impossible.");
+        setFeedbackDiagnostic(parseAliExpressImportDiagnostic(previewPayload?.debug));
+        setFeedbackDebug(formatAliExpressImportDebugDetails(previewPayload?.debug));
+        return;
+      }
+
+      prefetchedProduct = previewPayload?.product;
+      prefetchedDebug = previewPayload?.debug;
+    }
+
     const response = await fetchAdminAliExpress("/api/admin/aliexpress/import", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -543,6 +564,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
         query: activeImportForm.manualProductMode ? manualProductId : activeImportForm.query,
         limit: activeImportForm.manualProductMode ? 1 : activeImportForm.limit,
         supplierAccountId: importSupplierAccount.id,
+        ...(activeImportForm.manualProductMode ? { prefetchedProduct, prefetchedDebug } : {}),
       }),
     });
     const payload = await response.json().catch(() => null);
