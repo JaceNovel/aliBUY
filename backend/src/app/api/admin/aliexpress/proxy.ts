@@ -46,6 +46,7 @@ function summarizeProxyPayload(payload: unknown) {
     message: record.message,
     endpoint: record.endpoint,
     sourceProductId: record.sourceProductId,
+    selectedAccount: debug?.selectedAccount,
     providerRequestId: debug?.providerRequestId,
     providerErrorCode: debug?.providerErrorCode,
     providerMessage: debug?.providerMessage,

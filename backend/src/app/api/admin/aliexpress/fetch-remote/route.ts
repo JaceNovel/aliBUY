@@ -32,6 +32,7 @@ function summarizeDebug(debug: unknown) {
     shipToCountry: record.shipToCountry,
     targetCurrency: record.targetCurrency,
     targetLanguage: record.targetLanguage,
+    selectedAccount: record.selectedAccount,
     resolvedRemoteMode: record.resolvedRemoteMode,
     fallbackUsed: record.fallbackUsed,
     responseShape: record.responseShape,

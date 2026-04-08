@@ -100,6 +100,26 @@ export type AlibabaExactProductSnapshotDebug = {
   shipToCountry?: string;
   targetCurrency?: string;
   targetLanguage?: string;
+  selectedAccount?: {
+    source: "account" | "env" | "none";
+    id?: string;
+    name?: string;
+    email?: string;
+    status?: string;
+    isActive?: boolean;
+    accountPlatform?: string;
+    accountId?: string;
+    accountLogin?: string;
+    accountName?: string;
+    oauthCountry?: string;
+    hasAccessToken?: boolean;
+    hasRefreshToken?: boolean;
+    accessTokenExpiresAt?: string;
+    refreshTokenExpiresAt?: string;
+    tokenExpiringSoon?: boolean;
+    lastAuthorizedAt?: string;
+    lastError?: string;
+  };
   attempts: AlibabaExactProductAttemptDebug[];
   resolvedRemoteMode?: "ds_product" | "ds_wholesale" | "public_product_page" | "icbu_product";
   fallbackUsed: boolean;
@@ -299,6 +319,54 @@ async function resolveAlibabaCredentials() {
     ?? eligible[0]
     ?? null;
   return getAccountCredentials(preferredAccount) ?? getEnvCredentials();
+}
+
+function selectPreferredAlibabaLiveAccount(accounts: AlibabaSupplierAccount[], input?: { accountId?: string }) {
+  const eligible = accounts.filter((account) => account.status !== "disabled" && account.appKey && account.appSecret);
+  return input?.accountId
+    ? eligible.find((account) => account.id === input.accountId) ?? null
+    : eligible.find((account) => account.isActive && account.status === "connected")
+      ?? eligible.find((account) => account.status === "connected")
+      ?? eligible.find((account) => account.isActive && (account.accessToken || account.refreshToken))
+      ?? eligible.find((account) => account.accessToken || account.refreshToken)
+      ?? eligible.find((account) => account.isActive)
+      ?? eligible[0]
+      ?? null;
+}
+
+function summarizeAlibabaSelectedAccount(account?: AlibabaSupplierAccount | null, source: "account" | "env" | "none" = "none"): AlibabaExactProductSnapshotDebug["selectedAccount"] {
+  if (source === "env") {
+    return {
+      source,
+      hasAccessToken: Boolean(process.env.ALIEXPRESS_OPEN_PLATFORM_ACCESS_TOKEN ?? process.env.ALIBABA_OPEN_PLATFORM_ACCESS_TOKEN),
+      hasRefreshToken: Boolean(process.env.ALIEXPRESS_OPEN_PLATFORM_REFRESH_TOKEN),
+    };
+  }
+
+  if (!account) {
+    return { source: "none" };
+  }
+
+  return {
+    source,
+    id: account.id,
+    name: account.name,
+    email: account.email,
+    status: account.status,
+    isActive: account.isActive,
+    accountPlatform: account.accountPlatform,
+    accountId: account.accountId,
+    accountLogin: account.accountLogin,
+    accountName: account.accountName,
+    oauthCountry: account.oauthCountry,
+    hasAccessToken: Boolean(account.accessToken),
+    hasRefreshToken: Boolean(account.refreshToken),
+    accessTokenExpiresAt: account.accessTokenExpiresAt,
+    refreshTokenExpiresAt: account.refreshTokenExpiresAt,
+    tokenExpiringSoon: isTokenExpiringSoon(account.accessTokenExpiresAt),
+    lastAuthorizedAt: account.lastAuthorizedAt,
+    lastError: account.lastError,
+  };
 }
 
 function isTokenExpiringSoon(expiresAt?: string, thresholdMs = 2 * 60 * 1000) {
@@ -2607,11 +2675,16 @@ export async function fetchAlibabaProductSnapshotWithDebug(input: {
   supplierAccountId?: string;
 }): Promise<{ product: AlibabaSearchProduct | null; debug: AlibabaExactProductSnapshotDebug }> {
   const query = input.query?.trim() || input.sourceProductId;
+  const accounts = await getAlibabaSupplierAccounts();
+  const preferredAccount = selectPreferredAlibabaLiveAccount(accounts, { accountId: input.supplierAccountId });
   const debug: AlibabaExactProductSnapshotDebug = {
     externalProductId: input.sourceProductId,
     shipToCountry: input.shipToCountry,
     targetCurrency: input.targetCurrency,
     targetLanguage: input.targetLanguage,
+    selectedAccount: preferredAccount
+      ? summarizeAlibabaSelectedAccount(preferredAccount, "account")
+      : summarizeAlibabaSelectedAccount(null, getEnvCredentials() ? "env" : "none"),
     attempts: [],
     fallbackUsed: false,
     responseShape: "empty_payload",
@@ -3733,17 +3806,7 @@ async function refreshAlibabaAccountTokens(account: AlibabaSupplierAccount) {
 
 async function resolveAlibabaCredentialsForLiveCall(input?: { accountId?: string }) {
   const accounts = await getAlibabaSupplierAccounts();
-  const eligible = accounts.filter((account) => account.status !== "disabled" && account.appKey && account.appSecret);
-  const preferredAccount = input?.accountId
-    ? eligible.find((account) => account.id === input.accountId)
-      ?? null
-    : eligible.find((account) => account.isActive && account.status === "connected")
-    ?? eligible.find((account) => account.status === "connected")
-    ?? eligible.find((account) => account.isActive && (account.accessToken || account.refreshToken))
-    ?? eligible.find((account) => account.accessToken || account.refreshToken)
-    ?? eligible.find((account) => account.isActive)
-    ?? eligible[0]
-    ?? null;
+  const preferredAccount = selectPreferredAlibabaLiveAccount(accounts, input);
 
   if (!preferredAccount) {
     return getEnvCredentials();
