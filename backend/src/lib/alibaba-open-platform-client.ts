@@ -30,6 +30,27 @@ type AlibabaCredentials = {
   refreshUrl: string;
 };
 
+function mapAliExpressOAuthAccountPlatform(value: unknown): AlibabaSupplierAccount["accountPlatform"] | undefined {
+  const normalized = getStringValue(value)?.trim().toLowerCase();
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (normalized.includes("buyer")) {
+    return "buyer";
+  }
+
+  if (normalized.includes("isv")) {
+    return "isv";
+  }
+
+  if (normalized.includes("seller")) {
+    return "seller";
+  }
+
+  return undefined;
+}
+
 type AliExpressTopCallResult = AlibabaCallResult;
 
 export type AlibabaSearchProduct = ProductCatalogItem & {
@@ -3148,6 +3169,7 @@ async function refreshAlibabaAccountTokens(account: AlibabaSupplierAccount) {
     locale?: string;
     account_id?: string;
     account?: string;
+    account_platform?: string;
     havana_id?: string;
     seller_id?: string;
     user_id?: string;
@@ -3157,6 +3179,7 @@ async function refreshAlibabaAccountTokens(account: AlibabaSupplierAccount) {
 
   const nextAccount: AlibabaSupplierAccount = {
     ...account,
+    accountPlatform: mapAliExpressOAuthAccountPlatform(body.account_platform) ?? account.accountPlatform,
     accessToken: body.access_token ?? account.accessToken,
     refreshToken: body.refresh_token ?? account.refreshToken,
     accessTokenExpiresAt: body.expires_in ? new Date(Date.now() + Number(body.expires_in) * 1000).toISOString() : account.accessTokenExpiresAt,
@@ -6310,16 +6333,18 @@ export async function exchangeAlibabaOAuthCode(input: { accountId: string; code:
       country?: string;
       locale?: string;
       account_id?: string;
-      account?: string;
-      havana_id?: string;
-      seller_id?: string;
-      user_id?: string;
-      user_nick?: string;
-      user_info?: { loginId?: string; seller_id?: string; user_id?: string };
+    account?: string;
+    account_platform?: string;
+    havana_id?: string;
+    seller_id?: string;
+    user_id?: string;
+    user_nick?: string;
+    user_info?: { loginId?: string; seller_id?: string; user_id?: string };
     };
 
     const nextAccount: AlibabaSupplierAccount = {
       ...account,
+      accountPlatform: mapAliExpressOAuthAccountPlatform(body.account_platform) ?? account.accountPlatform,
       accessToken: body.access_token,
       refreshToken: body.refresh_token,
       accessTokenExpiresAt: body.expires_in ? new Date(Date.now() + Number(body.expires_in) * 1000).toISOString() : account.accessTokenExpiresAt,
