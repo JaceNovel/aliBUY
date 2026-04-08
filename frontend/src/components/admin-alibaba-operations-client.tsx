@@ -48,6 +48,35 @@ type Props = {
   initialDashboard: DashboardData;
 };
 
+type AliExpressImportAttemptDiagnostic = {
+  endpoint: string;
+  shipToCountry?: string;
+  targetLanguage?: string;
+  targetCurrency?: string;
+  ok: boolean;
+  status?: number;
+  providerErrorCode?: string;
+  providerMessage?: string;
+  providerRequestId?: string;
+  responseShape?: string;
+  mappingStatus?: string;
+};
+
+type AliExpressImportDiagnostic = {
+  externalProductId?: string;
+  shipToCountry?: string;
+  targetLanguage?: string;
+  targetCurrency?: string;
+  providerErrorCode?: string;
+  providerMessage?: string;
+  providerRequestId?: string;
+  responseShape?: string;
+  resolvedRemoteMode?: string;
+  fallbackUsed?: boolean;
+  attempts: AliExpressImportAttemptDiagnostic[];
+  raw: unknown;
+};
+
 const panelLinks: Array<{ key: AlibabaPanelSlug; label: string; href: string }> = [
   { key: "dashboard", label: "Tableau de bord", href: "/admin/aliexpress-sourcing" },
   { key: "accounts", label: "Comptes partenaires", href: "/admin/aliexpress-sourcing/accounts" },
@@ -153,47 +182,111 @@ function formatUsd(value: unknown) {
   return `$${amount.toFixed(2)}`;
 }
 
-function formatAliExpressImportDebug(debug: unknown) {
+function parseAliExpressImportDiagnostic(debug: unknown): AliExpressImportDiagnostic | null {
   if (!debug || typeof debug !== "object" || Array.isArray(debug)) {
-    return "";
+    return null;
   }
 
   const record = debug as Record<string, unknown>;
-  const attemptsSummary = Array.isArray(record.attempts)
-    ? record.attempts
-      .map((attempt) => {
+  const attempts = Array.isArray(record.attempts)
+    ? record.attempts.flatMap((attempt) => {
         if (!attempt || typeof attempt !== "object" || Array.isArray(attempt)) {
-          return null;
+          return [] as AliExpressImportAttemptDiagnostic[];
         }
 
         const attemptRecord = attempt as Record<string, unknown>;
-        const context = [
-          typeof attemptRecord.shipToCountry === "string" ? attemptRecord.shipToCountry.trim() : "",
-          typeof attemptRecord.targetLanguage === "string" ? attemptRecord.targetLanguage.trim() : "",
-          typeof attemptRecord.targetCurrency === "string" ? attemptRecord.targetCurrency.trim() : "",
-        ].filter(Boolean).join("/");
-        const code = typeof attemptRecord.providerErrorCode === "string" ? attemptRecord.providerErrorCode.trim() : "";
-        const shape = typeof attemptRecord.responseShape === "string" ? attemptRecord.responseShape.trim() : "";
-        const status = typeof attemptRecord.status === "string" ? attemptRecord.status.trim() : "";
-        return [context, code || shape || status].filter(Boolean).join(":");
+        return [{
+          endpoint: typeof attemptRecord.endpoint === "string" ? attemptRecord.endpoint.trim() : "",
+          shipToCountry: typeof attemptRecord.shipToCountry === "string" ? attemptRecord.shipToCountry.trim() : undefined,
+          targetLanguage: typeof attemptRecord.targetLanguage === "string" ? attemptRecord.targetLanguage.trim() : undefined,
+          targetCurrency: typeof attemptRecord.targetCurrency === "string" ? attemptRecord.targetCurrency.trim() : undefined,
+          ok: Boolean(attemptRecord.ok),
+          status: typeof attemptRecord.status === "number" && Number.isFinite(attemptRecord.status) ? attemptRecord.status : undefined,
+          providerErrorCode: typeof attemptRecord.providerErrorCode === "string" ? attemptRecord.providerErrorCode.trim() : undefined,
+          providerMessage: typeof attemptRecord.providerMessage === "string" ? attemptRecord.providerMessage.trim() : undefined,
+          providerRequestId: typeof attemptRecord.providerRequestId === "string" ? attemptRecord.providerRequestId.trim() : undefined,
+          responseShape: typeof attemptRecord.responseShape === "string" ? attemptRecord.responseShape.trim() : undefined,
+          mappingStatus: typeof attemptRecord.mappingStatus === "string" ? attemptRecord.mappingStatus.trim() : undefined,
+        }];
       })
-      .filter((entry): entry is string => Boolean(entry))
-      .join("; ")
-    : "";
-  const parts = [
-    typeof record.providerErrorCode === "string" && record.providerErrorCode.trim() ? `code=${record.providerErrorCode.trim()}` : null,
-    typeof record.providerMessage === "string" && record.providerMessage.trim() ? `provider=${record.providerMessage.trim()}` : null,
-    typeof record.providerRequestId === "string" && record.providerRequestId.trim() ? `request_id=${record.providerRequestId.trim()}` : null,
-    typeof record.responseShape === "string" && record.responseShape.trim() ? `shape=${record.responseShape.trim()}` : null,
-    typeof record.resolvedRemoteMode === "string" && record.resolvedRemoteMode.trim() ? `remote=${record.resolvedRemoteMode.trim()}` : null,
-    typeof record.shipToCountry === "string" && record.shipToCountry.trim() ? `ship_to=${record.shipToCountry.trim()}` : null,
-    typeof record.targetLanguage === "string" && record.targetLanguage.trim() ? `lang=${record.targetLanguage.trim()}` : null,
-    typeof record.targetCurrency === "string" && record.targetCurrency.trim() ? `currency=${record.targetCurrency.trim()}` : null,
-    typeof record.fallbackUsed === "boolean" ? `fallback=${record.fallbackUsed ? "yes" : "no"}` : null,
-    attemptsSummary ? `attempts=${attemptsSummary}` : null,
-  ].filter((entry): entry is string => Boolean(entry));
+    : [];
 
-  return parts.length > 0 ? ` (${parts.join(" | ")})` : "";
+  return {
+    externalProductId: typeof record.externalProductId === "string" ? record.externalProductId.trim() : undefined,
+    shipToCountry: typeof record.shipToCountry === "string" ? record.shipToCountry.trim() : undefined,
+    targetLanguage: typeof record.targetLanguage === "string" ? record.targetLanguage.trim() : undefined,
+    targetCurrency: typeof record.targetCurrency === "string" ? record.targetCurrency.trim() : undefined,
+    providerErrorCode: typeof record.providerErrorCode === "string" ? record.providerErrorCode.trim() : undefined,
+    providerMessage: typeof record.providerMessage === "string" ? record.providerMessage.trim() : undefined,
+    providerRequestId: typeof record.providerRequestId === "string" ? record.providerRequestId.trim() : undefined,
+    responseShape: typeof record.responseShape === "string" ? record.responseShape.trim() : undefined,
+    resolvedRemoteMode: typeof record.resolvedRemoteMode === "string" ? record.resolvedRemoteMode.trim() : undefined,
+    fallbackUsed: typeof record.fallbackUsed === "boolean" ? record.fallbackUsed : undefined,
+    attempts,
+    raw: debug,
+  };
+}
+
+function getAliExpressImportLikelyCause(diagnostic: AliExpressImportDiagnostic) {
+  const providerCode = diagnostic.providerErrorCode?.toLowerCase();
+  const providerMessage = diagnostic.providerMessage?.toLowerCase();
+  const dsAttempts = diagnostic.attempts.filter((attempt) => attempt.endpoint === "aliexpress.ds.product.get" || attempt.endpoint === "aliexpress.ds.product.wholesale.get");
+  const allDsAttemptsWithoutSkus = dsAttempts.length > 0 && dsAttempts.every((attempt) => attempt.ok && attempt.responseShape === "result_without_skus");
+  const standardAttemptWithoutBaseInfo = diagnostic.attempts.some((attempt) => attempt.endpoint === "aliexpress.solution.product.info.get" && attempt.responseShape === "result_without_base_info");
+  const affiliateAttemptEmpty = diagnostic.attempts.some((attempt) => attempt.endpoint === "aliexpress.affiliate.product.sku.detail.get" && attempt.responseShape === "empty_result");
+
+  if (providerCode?.includes("permission") || providerCode?.includes("invalid-permission")) {
+    return "Le compte connecte n'a probablement pas les permissions Dropshipping requises pour cette API.";
+  }
+
+  if (providerCode?.includes("token") || providerMessage?.includes("token")) {
+    return "Le token OAuth du compte semble invalide, expire ou rattache au mauvais compte AliExpress.";
+  }
+
+  if (providerMessage?.includes("country") || providerMessage?.includes("pays")) {
+    return "Le produit semble bloque pour le pays de destination demande.";
+  }
+
+  if (allDsAttemptsWithoutSkus && (standardAttemptWithoutBaseInfo || affiliateAttemptEmpty)) {
+    return "Le produit semble exister, mais ce compte/app ne recoit ni SKU DS ni fiche standard exploitable pour cet ID.";
+  }
+
+  if (allDsAttemptsWithoutSkus) {
+    return "Les endpoints DS voient le produit, mais aucun SKU DS exploitable n'est expose pour ce compte ou ce produit.";
+  }
+
+  if (diagnostic.responseShape === "result_without_base_info") {
+    return "AliExpress repond sans fiche produit exploitable, ce qui fait penser a un probleme de droits, de visibilite produit ou de contexte OAuth.";
+  }
+
+  return "Le provider ne renvoie pas assez de donnees pour importer ce produit dans le contexte actuel.";
+}
+
+function getAliExpressImportChecklist(diagnostic: AliExpressImportDiagnostic) {
+  const items: string[] = [];
+  const dsCountries = [...new Set(
+    diagnostic.attempts
+      .filter((attempt) => attempt.endpoint === "aliexpress.ds.product.get" || attempt.endpoint === "aliexpress.ds.product.wholesale.get")
+      .map((attempt) => attempt.shipToCountry)
+      .filter((value): value is string => Boolean(value)),
+  )];
+
+  if (dsCountries.length > 1) {
+    items.push(`Le meme echec apparait sur ${dsCountries.join("/")}, donc le pays n'est probablement pas la seule cause.`);
+  }
+
+  items.push("Verifier que le compte AliExpress connecte a bien les droits Dropshipping pour cette app.");
+  items.push("Verifier que le token OAuth actif appartient au bon compte et n'est pas expire.");
+
+  if (diagnostic.externalProductId) {
+    items.push(`Confirmer dans AliExpress que le product_id ${diagnostic.externalProductId} est toujours actif et compatible DS.`);
+  }
+
+  if (diagnostic.fallbackUsed === false) {
+    items.push("Aucun fallback exploitable n'a pu reconstruire une fiche produit importable.");
+  }
+
+  return items;
 }
 
 function formatAliExpressImportDebugDetails(debug: unknown) {
@@ -292,6 +385,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedbackDiagnostic, setFeedbackDiagnostic] = useState<AliExpressImportDiagnostic | null>(null);
   const [feedbackDebug, setFeedbackDebug] = useState<string | null>(null);
   const [importForm, setImportForm] = useState<{ query: string; limit: number; fulfillmentChannel: string; campaignMode: AlibabaImportCampaignMode; autoPublish: boolean; resetImportedProducts: boolean; manualProductMode: boolean }>({ query: "", limit: 24, fulfillmentChannel: "crossborder", campaignMode: "standard", autoPublish: true, resetImportedProducts: false, manualProductMode: false });
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
@@ -370,9 +464,18 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       ? "Recherche image liee a l'import IA AliExpress. Verifie la requete puis lance l'import."
       : null);
   const importButtonDisabled = isPending || !activeImportForm.query.trim() || !manualImportHasValidProductId;
+  const feedbackLikelyCause = useMemo(
+    () => feedbackDiagnostic ? getAliExpressImportLikelyCause(feedbackDiagnostic) : null,
+    [feedbackDiagnostic],
+  );
+  const feedbackChecklist = useMemo(
+    () => feedbackDiagnostic ? getAliExpressImportChecklist(feedbackDiagnostic) : [],
+    [feedbackDiagnostic],
+  );
 
   const resetFeedbackState = () => {
     setFeedback(null);
+    setFeedbackDiagnostic(null);
     setFeedbackDebug(null);
   };
 
@@ -405,7 +508,8 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     });
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
-      setFeedback(`${payload?.message ?? "Import AliExpress impossible."}${formatAliExpressImportDebug(payload?.debug)}`);
+      setFeedback(payload?.message ?? "Import AliExpress impossible.");
+      setFeedbackDiagnostic(parseAliExpressImportDiagnostic(payload?.debug));
       setFeedbackDebug(formatAliExpressImportDebugDetails(payload?.debug));
       return;
     }
@@ -747,7 +851,64 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
               </div>
             ) : null}
             {activeFeedback ? <div className="mt-4 rounded-[16px] bg-white px-4 py-3 text-[13px] font-semibold text-[#1f2937] shadow-[0_8px_18px_rgba(17,24,39,0.05)]">{activeFeedback}</div> : null}
-            {feedbackDebug ? <pre className="mt-3 overflow-x-auto rounded-[16px] border border-[#dbe2ea] bg-[#0f172a] px-4 py-3 text-[12px] font-medium text-[#e2e8f0] shadow-[0_8px_18px_rgba(17,24,39,0.05)] whitespace-pre-wrap break-words">{feedbackDebug}</pre> : null}
+            {feedbackDiagnostic ? (
+              <div className="mt-3 rounded-[18px] border border-[#f7d6bf] bg-[linear-gradient(135deg,#fffaf5_0%,#ffffff_100%)] px-4 py-4 text-[#7a2e0b] shadow-[0_10px_24px_rgba(17,24,39,0.06)]">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="rounded-full bg-[#fff1e8] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#c2410c]">Diagnostic provider</div>
+                  {feedbackDiagnostic.providerRequestId ? <div className="rounded-full bg-white px-3 py-1 text-[12px] font-semibold text-[#9a3412]">request_id {feedbackDiagnostic.providerRequestId}</div> : null}
+                  {feedbackDiagnostic.responseShape ? <div className="rounded-full bg-white px-3 py-1 text-[12px] font-semibold text-[#9a3412]">shape {feedbackDiagnostic.responseShape}</div> : null}
+                </div>
+                {feedbackLikelyCause ? <div className="mt-3 text-[14px] font-semibold text-[#7a2e0b]">{feedbackLikelyCause}</div> : null}
+                <div className="mt-3 flex flex-wrap gap-2 text-[12px] font-medium text-[#9a3412]">
+                  {feedbackDiagnostic.externalProductId ? <span className="rounded-full bg-white px-3 py-1">ID {feedbackDiagnostic.externalProductId}</span> : null}
+                  {feedbackDiagnostic.shipToCountry ? <span className="rounded-full bg-white px-3 py-1">Pays {feedbackDiagnostic.shipToCountry}</span> : null}
+                  {feedbackDiagnostic.targetLanguage ? <span className="rounded-full bg-white px-3 py-1">Langue {feedbackDiagnostic.targetLanguage}</span> : null}
+                  {feedbackDiagnostic.targetCurrency ? <span className="rounded-full bg-white px-3 py-1">Devise {feedbackDiagnostic.targetCurrency}</span> : null}
+                  {typeof feedbackDiagnostic.fallbackUsed === "boolean" ? <span className="rounded-full bg-white px-3 py-1">Fallback {feedbackDiagnostic.fallbackUsed ? "oui" : "non"}</span> : null}
+                </div>
+                {feedbackChecklist.length > 0 ? (
+                  <div className="mt-4 space-y-2">
+                    {feedbackChecklist.map((item) => (
+                      <div key={item} className="rounded-[14px] bg-white/85 px-3 py-2 text-[12px] font-medium text-[#7a2e0b]">
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {feedbackDiagnostic.attempts.length > 0 ? (
+                  <div className="mt-4 overflow-x-auto rounded-[16px] border border-[#f3dfd1] bg-white">
+                    <table className="min-w-full text-left">
+                      <thead>
+                        <tr className="text-[11px] uppercase tracking-[0.08em] text-[#b45309]">
+                          <th className="px-3 py-2 font-semibold">Endpoint</th>
+                          <th className="px-3 py-2 font-semibold">Contexte</th>
+                          <th className="px-3 py-2 font-semibold">HTTP</th>
+                          <th className="px-3 py-2 font-semibold">Shape</th>
+                          <th className="px-3 py-2 font-semibold">Statut</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {feedbackDiagnostic.attempts.map((attempt, index) => (
+                          <tr key={`${attempt.endpoint}-${attempt.shipToCountry ?? "none"}-${index}`} className="border-t border-[#f8e7db] text-[12px] text-[#7a2e0b]">
+                            <td className="px-3 py-2 font-semibold">{attempt.endpoint || "-"}</td>
+                            <td className="px-3 py-2">{[attempt.shipToCountry, attempt.targetLanguage, attempt.targetCurrency].filter(Boolean).join(" / ") || "-"}</td>
+                            <td className="px-3 py-2">{typeof attempt.status === "number" ? attempt.status : (attempt.ok ? "ok" : "-")}</td>
+                            <td className="px-3 py-2">{attempt.responseShape ?? "-"}</td>
+                            <td className="px-3 py-2">{attempt.mappingStatus ?? (attempt.ok ? "ok" : "error")}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {feedbackDebug ? (
+              <details className="mt-3 rounded-[16px] border border-[#dbe2ea] bg-[#0f172a] px-4 py-3 text-[#e2e8f0] shadow-[0_8px_18px_rgba(17,24,39,0.05)]">
+                <summary className="cursor-pointer text-[12px] font-semibold text-[#cbd5e1]">JSON debug brut</summary>
+                <pre className="mt-3 overflow-x-auto text-[12px] font-medium whitespace-pre-wrap break-words">{feedbackDebug}</pre>
+              </details>
+            ) : null}
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[320px] xl:grid-cols-1">
             <Link href="/products" className="inline-flex h-12 items-center justify-center gap-2 rounded-[16px] bg-[#ff6a00] px-5 text-[14px] font-semibold text-white transition hover:bg-[#e55e00]">
