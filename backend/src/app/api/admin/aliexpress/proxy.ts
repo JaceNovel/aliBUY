@@ -13,6 +13,49 @@ type MaybeProxyAliExpressAdminRequestOptions = {
   onFallbackResponse?: (response: Response, context: { upstreamUrl: string }) => void;
 };
 
+function summarizeProxyPayload(payload: unknown) {
+  if (!payload || typeof payload !== "object") {
+    return { message: typeof payload === "string" ? payload : undefined };
+  }
+
+  const record = payload as Record<string, unknown>;
+  const debug = record.debug && typeof record.debug === "object"
+    ? record.debug as Record<string, unknown>
+    : undefined;
+  const attempts = Array.isArray(debug?.attempts)
+    ? debug?.attempts.map((attempt) => {
+        if (!attempt || typeof attempt !== "object") {
+          return attempt;
+        }
+
+        const entry = attempt as Record<string, unknown>;
+        return {
+          endpoint: entry.endpoint,
+          shipToCountry: entry.shipToCountry,
+          ok: entry.ok,
+          status: entry.status,
+          responseShape: entry.responseShape,
+          mappingStatus: entry.mappingStatus,
+          providerErrorCode: entry.providerErrorCode,
+          providerRequestId: entry.providerRequestId,
+        };
+      })
+    : undefined;
+
+  return {
+    message: record.message,
+    endpoint: record.endpoint,
+    sourceProductId: record.sourceProductId,
+    providerRequestId: debug?.providerRequestId,
+    providerErrorCode: debug?.providerErrorCode,
+    providerMessage: debug?.providerMessage,
+    responseShape: debug?.responseShape,
+    resolvedRemoteMode: debug?.resolvedRemoteMode,
+    fallbackUsed: debug?.fallbackUsed,
+    attempts,
+  };
+}
+
 export function buildAliExpressProxyHeaders(request: Request, extras?: HeadersInit) {
   const headers = new Headers(extras);
 
@@ -60,6 +103,36 @@ export async function maybeProxyAliExpressAdminRequest(options: MaybeProxyAliExp
       body: options.body,
       cache: "no-store",
     });
+
+    if (!upstreamResponse.ok) {
+      try {
+        const rawPayload = await upstreamResponse.clone().text();
+        let payload: unknown = rawPayload;
+
+        try {
+          payload = JSON.parse(rawPayload) as unknown;
+        } catch {
+          payload = rawPayload;
+        }
+
+        console.error("[admin/aliexpress/proxy] upstream error", {
+          path: options.path,
+          method: options.method ?? options.request.method,
+          upstreamUrl,
+          status: upstreamResponse.status,
+          statusText: upstreamResponse.statusText,
+          payload: summarizeProxyPayload(payload),
+        });
+      } catch {
+        console.error("[admin/aliexpress/proxy] upstream error", {
+          path: options.path,
+          method: options.method ?? options.request.method,
+          upstreamUrl,
+          status: upstreamResponse.status,
+          statusText: upstreamResponse.statusText,
+        });
+      }
+    }
 
     if (options.fallbackOnResponse?.(upstreamResponse)) {
       options.onFallbackResponse?.(upstreamResponse, { upstreamUrl });
