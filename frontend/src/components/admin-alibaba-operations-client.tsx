@@ -380,6 +380,11 @@ function submitOAuthAuthorizationForm(payload: Record<string, string>) {
   form.remove();
 }
 
+function confirmDeleteSupplierAccount(account: AlibabaSupplierAccount) {
+  const accountLabel = account.accountLogin ?? account.email ?? account.name;
+  return window.confirm(`Supprimer le compte fournisseur ${accountLabel} ? Cette action retire le compte enregistre et ses tokens locaux.`);
+}
+
 export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -388,6 +393,13 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   const [feedbackDiagnostic, setFeedbackDiagnostic] = useState<AliExpressImportDiagnostic | null>(null);
   const [feedbackDebug, setFeedbackDebug] = useState<string | null>(null);
   const [importForm, setImportForm] = useState<{ query: string; limit: number; fulfillmentChannel: string; campaignMode: AlibabaImportCampaignMode; autoPublish: boolean; resetImportedProducts: boolean; manualProductMode: boolean }>({ query: "", limit: 24, fulfillmentChannel: "crossborder", campaignMode: "standard", autoPublish: true, resetImportedProducts: false, manualProductMode: false });
+  const [selectedImportSupplierAccountId, setSelectedImportSupplierAccountId] = useState<string>(
+    initialDashboard.supplierAccounts.find((account) => account.isActive && account.status === "connected")?.id
+      ?? initialDashboard.supplierAccounts.find((account) => account.status === "connected")?.id
+      ?? initialDashboard.supplierAccounts.find((account) => account.isActive)?.id
+      ?? initialDashboard.supplierAccounts[0]?.id
+      ?? "",
+  );
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [quantityByProduct, setQuantityByProduct] = useState<Record<string, number>>({});
   const [accountForm, setAccountForm] = useState({
@@ -423,8 +435,12 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     () => initialDashboard.supplierAccounts.find((account) => account.isActive) ?? initialDashboard.supplierAccounts[0] ?? null,
     [initialDashboard.supplierAccounts],
   );
-  const activeSupplierAccount = useMemo(
-    () => initialDashboard.supplierAccounts.find((account) => account.isActive && account.status === "connected") ?? initialDashboard.supplierAccounts.find((account) => account.status === "connected") ?? null,
+  const importSupplierAccount = useMemo(
+    () => initialDashboard.supplierAccounts.find((account) => account.id === selectedImportSupplierAccountId) ?? null,
+    [initialDashboard.supplierAccounts, selectedImportSupplierAccountId],
+  );
+  const connectedSupplierAccounts = useMemo(
+    () => initialDashboard.supplierAccounts.filter((account) => account.status === "connected"),
     [initialDashboard.supplierAccounts],
   );
   const editingSupplierAccount = useMemo(
@@ -463,7 +479,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     ?? (seededSource === "image-search" && seededQuery
       ? "Recherche image liee a l'import IA AliExpress. Verifie la requete puis lance l'import."
       : null);
-  const importButtonDisabled = isPending || !activeImportForm.query.trim() || !manualImportHasValidProductId;
+  const importButtonDisabled = isPending || !activeImportForm.query.trim() || !manualImportHasValidProductId || !importSupplierAccount || importSupplierAccount.status !== "connected";
   const feedbackLikelyCause = useMemo(
     () => feedbackDiagnostic ? getAliExpressImportLikelyCause(feedbackDiagnostic) : null,
     [feedbackDiagnostic],
@@ -485,10 +501,32 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     });
   };
 
+  const resetAccountForm = () => {
+    setAccountForm({
+      id: "",
+      name: "",
+      email: "",
+      memberId: "",
+      resourceOwner: "",
+      appKey: "",
+      appSecret: "",
+      authorizeUrl: ALIEXPRESS_DEFAULT_AUTHORIZE_URL,
+      tokenUrl: ALIEXPRESS_DEFAULT_TOKEN_URL,
+      refreshUrl: ALIEXPRESS_DEFAULT_REFRESH_URL,
+      apiBaseUrl: ALIEXPRESS_DEFAULT_API_BASE_URL,
+      accountPlatform: "seller",
+      countryCode: "FR",
+      defaultDispatchLocation: "CN",
+      status: "needs_auth",
+      isActive: true,
+      accessTokenHint: "",
+    });
+  };
+
   const runImport = async () => {
     resetFeedbackState();
-    if (!activeSupplierAccount) {
-      setFeedback(selectedSupplierAccount ? "Le compte selectionne n'est pas encore autorise. Clique sur Connecter pour terminer OAuth." : "Connecte d'abord un compte AliExpress actif pour lancer l'import live.");
+    if (!importSupplierAccount || importSupplierAccount.status !== "connected") {
+      setFeedback(importSupplierAccount ? "Le compte choisi pour l'import n'est pas encore autorise. Clique sur Connecter pour terminer OAuth." : "Choisis d'abord un compte AliExpress connecte pour lancer l'import live.");
       return;
     }
 
@@ -504,6 +542,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
         ...activeImportForm,
         query: activeImportForm.manualProductMode ? manualProductId : activeImportForm.query,
         limit: activeImportForm.manualProductMode ? 1 : activeImportForm.limit,
+        supplierAccountId: importSupplierAccount.id,
       }),
     });
     const payload = await response.json().catch(() => null);
@@ -520,6 +559,35 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     }
 
     setFeedback(`${typeof payload?.purgedCount === "number" && payload.purgedCount > 0 ? `Catalogue purge: ${payload.purgedCount} article(s). ` : ""}Import AliExpress live termine: ${Array.isArray(payload?.products) ? payload.products.length : 0}/${payload?.targetImportCount ?? activeImportForm.limit} importes.${typeof payload?.skippedExistingCount === "number" && payload.skippedExistingCount > 0 ? ` Deja importes ignores: ${payload.skippedExistingCount}.` : ""}${Array.isArray(payload?.freeDealProductSlugs) && payload.freeDealProductSlugs.length > 0 ? ` Campagne gratuite mise a jour: ${payload.freeDealProductSlugs.length} slug(s).` : ""}`);
+    refresh();
+  };
+
+  const deleteSupplierAccount = async (account: AlibabaSupplierAccount) => {
+    resetFeedbackState();
+    if (!confirmDeleteSupplierAccount(account)) {
+      return;
+    }
+
+    const response = await fetchAdminAliExpress(`/api/admin/aliexpress/supplier-accounts?id=${encodeURIComponent(account.id)}`, {
+      method: "DELETE",
+    });
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok || payload?.deleted !== true) {
+      setFeedback(payload?.message ?? "Suppression du compte fournisseur impossible.");
+      return;
+    }
+
+    if (accountForm.id === account.id) {
+      resetAccountForm();
+    }
+
+    if (selectedImportSupplierAccountId === account.id) {
+      const nextConnectedAccount = initialDashboard.supplierAccounts.find((entry) => entry.id !== account.id && entry.status === "connected");
+      setSelectedImportSupplierAccountId(nextConnectedAccount?.id ?? "");
+    }
+
+    setFeedback("Compte fournisseur supprime.");
     refresh();
   };
 
@@ -1022,10 +1090,10 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
             <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Import catalogue</div>
             <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Import AliExpress par recherche catalogue ou par External product ID exact</div>
             <div className="mt-3 rounded-[14px] bg-[#f8fafc] px-4 py-3 text-[13px] text-[#667085]">
-              {activeSupplierAccount
-                ? `Import live via ${activeSupplierAccount.name} (${activeSupplierAccount.accountLogin ?? activeSupplierAccount.email}). Le mode catalogue reste disponible pour la recherche. Le mode manuel, lui, n'accepte qu'un External product ID AliExpress exact ou une URL produit contenant cet ID afin de recuperer strictement la bonne fiche fournisseur, ses images et ses variantes.`
+              {importSupplierAccount
+                ? `Import live via ${importSupplierAccount.name} (${importSupplierAccount.accountLogin ?? importSupplierAccount.email}). Le mode catalogue reste disponible pour la recherche. Le mode manuel, lui, n'accepte qu'un External product ID AliExpress exact ou une URL produit contenant cet ID afin de recuperer strictement la bonne fiche fournisseur, ses images et ses variantes.`
                 : selectedSupplierAccount
-                  ? `Le compte selectionne est ${selectedSupplierAccount.status === "connected" ? "connecte" : "en attente d'autorisation"}. Termine OAuth dans l'onglet Comptes partenaires avant l'import.`
+                  ? `Le compte choisi pour l'import est ${selectedSupplierAccount.status === "connected" ? "connecte" : "en attente d'autorisation"}. Termine OAuth dans l'onglet Comptes partenaires avant l'import.`
                   : "Aucun compte AliExpress configure. Ajoute et autorise un compte dans l'onglet Comptes partenaires avant l'import."}
             </div>
             <label className="mt-4 inline-flex items-center gap-3 text-[13px] font-semibold text-[#344054]">
@@ -1033,6 +1101,21 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
               Import manuel d&apos;un produit fournisseur par External product ID exact
             </label>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">
+                Compte fournisseur pour cet import
+                <select
+                  value={selectedImportSupplierAccountId}
+                  onChange={(event) => setSelectedImportSupplierAccountId(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]"
+                >
+                  <option value="">Choisir un compte connecte</option>
+                  {connectedSupplierAccounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {`${account.name} · ${account.accountLogin ?? account.email} · ${account.accountPlatform} · ${account.countryCode}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">
                 {activeImportForm.manualProductMode ? "External product ID AliExpress ou URL produit" : "Mot-cle ou reference exacte"}
                 <input value={activeImportForm.query} onChange={(event) => setImportForm((current) => ({ ...current, query: event.target.value }))} placeholder={activeImportForm.manualProductMode ? "1005006435740412 ou https://fr.aliexpress.com/item/1005006435740412.html" : "1005010812705425, BCD126748, bague, piercing..."} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
@@ -1089,9 +1172,9 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                 Publier la selection
               </button>
             </div>
-            {!activeSupplierAccount ? (
+            {!importSupplierAccount || importSupplierAccount.status !== "connected" ? (
               <div className="mt-3 rounded-[14px] bg-[#fff7ed] px-4 py-3 text-[13px] font-medium text-[#9a3412]">
-                Aucun compte AliExpress connecte n&apos;est actif pour l&apos;import live. Va dans l&apos;onglet Comptes partenaires, clique sur <span className="font-semibold">Connecter</span> ou termine OAuth, puis relance l&apos;import.
+                Aucun compte AliExpress connecte n&apos;est choisi pour cet import. Va dans l&apos;onglet Comptes partenaires, clique sur <span className="font-semibold">Connecter</span> ou termine OAuth, puis choisis ce compte dans la liste avant de relancer l&apos;import.
               </div>
             ) : null}
           </article>
@@ -1238,6 +1321,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                       })} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#dbe2ea] px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">Editer</button>
                       <button type="button" onClick={() => connectExistingAccount(account.id)} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#dbe2ea] px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">Connecter</button>
                       {account.hasRefreshToken ? <button type="button" onClick={() => refreshAccountToken(account.id)} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#dbe2ea] px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">Refresh token</button> : null}
+                      <button type="button" onClick={() => deleteSupplierAccount(account)} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#fecaca] px-3 text-[12px] font-semibold text-[#b42318] transition hover:border-[#f87171] hover:bg-[#fff5f5]">Supprimer</button>
                     </div>
                   </div>
                 </div>

@@ -2018,6 +2018,7 @@ export async function fetchAlibabaProductSnapshot(input: {
   targetLanguage?: string;
   provinceCode?: string;
   cityCode?: string;
+  supplierAccountId?: string;
 }): Promise<AlibabaSearchProduct | null> {
   const snapshot = await fetchAlibabaProductSnapshotWithDebug(input);
   return snapshot.product;
@@ -2031,6 +2032,7 @@ export async function fetchAlibabaProductSnapshotWithDebug(input: {
   targetLanguage?: string;
   provinceCode?: string;
   cityCode?: string;
+  supplierAccountId?: string;
 }): Promise<{ product: AlibabaSearchProduct | null; debug: AlibabaExactProductSnapshotDebug }> {
   const query = input.query?.trim() || input.sourceProductId;
   const debug: AlibabaExactProductSnapshotDebug = {
@@ -2042,7 +2044,7 @@ export async function fetchAlibabaProductSnapshotWithDebug(input: {
     fallbackUsed: false,
     responseShape: "empty_payload",
   };
-  const credentials = await resolveAlibabaCredentialsForLiveCall();
+  const credentials = await resolveAlibabaCredentialsForLiveCall({ accountId: input.supplierAccountId });
 
   if (isAliExpressCredentials(credentials)) {
     const contexts = buildAliExpressSearchContexts({
@@ -2201,6 +2203,7 @@ export async function fetchAlibabaProductSnapshotWithDebug(input: {
       shipToCountry: input.shipToCountry,
       targetCurrency: input.targetCurrency,
       targetLanguage: input.targetLanguage,
+      supplierAccountId: input.supplierAccountId,
     }).catch(() => null);
 
     if (affiliateSnapshot?.sourceProductId === input.sourceProductId) {
@@ -3202,10 +3205,13 @@ async function refreshAlibabaAccountTokens(account: AlibabaSupplierAccount) {
   return nextAccount;
 }
 
-async function resolveAlibabaCredentialsForLiveCall() {
+async function resolveAlibabaCredentialsForLiveCall(input?: { accountId?: string }) {
   const accounts = await getAlibabaSupplierAccounts();
   const eligible = accounts.filter((account) => account.status !== "disabled" && account.appKey && account.appSecret);
-  const preferredAccount = eligible.find((account) => account.isActive && account.status === "connected")
+  const preferredAccount = input?.accountId
+    ? eligible.find((account) => account.id === input.accountId)
+      ?? null
+    : eligible.find((account) => account.isActive && account.status === "connected")
     ?? eligible.find((account) => account.status === "connected")
     ?? eligible.find((account) => account.isActive && (account.accessToken || account.refreshToken))
     ?? eligible.find((account) => account.accessToken || account.refreshToken)
@@ -3937,8 +3943,9 @@ async function searchAliExpressProducts(input: {
   preferredShipToCountry?: string;
   preferredLanguage?: string;
   preferredCurrency?: string;
+  supplierAccountId?: string;
 }): Promise<AlibabaProductSearchResult> {
-  const credentials = await resolveAlibabaCredentialsForLiveCall();
+  const credentials = await resolveAlibabaCredentialsForLiveCall({ accountId: input.supplierAccountId });
   if (!credentials) {
     return {
       ok: false,
@@ -4855,8 +4862,9 @@ export async function fetchAliExpressAffiliateProductSnapshot(input: {
   shipToCountry?: string;
   targetCurrency?: string;
   targetLanguage?: string;
+  supplierAccountId?: string;
 }): Promise<AlibabaSearchProduct | null> {
-  const credentials = await resolveAlibabaCredentialsForLiveCall();
+  const credentials = await resolveAlibabaCredentialsForLiveCall({ accountId: input.supplierAccountId });
   if (!isAliExpressCredentials(credentials)) {
     return null;
   }
@@ -4954,8 +4962,9 @@ export async function searchAlibabaProducts(input: {
   preferredShipToCountry?: string;
   preferredLanguage?: string;
   preferredCurrency?: string;
+  supplierAccountId?: string;
 }): Promise<AlibabaProductSearchResult> {
-  const credentials = await resolveAlibabaCredentialsForLiveCall();
+  const credentials = await resolveAlibabaCredentialsForLiveCall({ accountId: input.supplierAccountId });
   if (!isAliExpressCredentials(credentials)) {
     return {
       ok: false,
@@ -4976,6 +4985,7 @@ export async function searchAlibabaProducts(input: {
       preferredShipToCountry: input.preferredShipToCountry,
       preferredLanguage: input.preferredLanguage,
       preferredCurrency: input.preferredCurrency,
+      supplierAccountId: input.supplierAccountId,
     });
   }
 

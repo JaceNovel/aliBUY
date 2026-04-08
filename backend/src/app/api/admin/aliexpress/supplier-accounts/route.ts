@@ -1,5 +1,5 @@
 import { getAlibabaSupplierAccounts } from "@/lib/alibaba-operations-store";
-import { saveAlibabaSupplierAccountInput } from "@/lib/alibaba-operations-service";
+import { deleteAlibabaSupplierAccountInput, saveAlibabaSupplierAccountInput } from "@/lib/alibaba-operations-service";
 
 export async function GET() {
   const accounts = await getAlibabaSupplierAccounts();
@@ -36,4 +36,17 @@ export async function POST(request: Request) {
   });
 
   return Response.json({ account });
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const accountId = url.searchParams.get("id") ?? url.searchParams.get("accountId") ?? "";
+    const result = await deleteAlibabaSupplierAccountInput(accountId);
+    return Response.json(result);
+  } catch (error) {
+    return Response.json({
+      message: error instanceof Error ? error.message : "Suppression du compte fournisseur impossible.",
+    }, { status: 400 });
+  }
 }

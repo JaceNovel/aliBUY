@@ -69,6 +69,7 @@ export async function POST(request: Request) {
       targetLanguage: body?.targetLanguage ?? body?.target_language,
       provinceCode: body?.provinceCode ?? body?.province_code,
       cityCode: body?.cityCode ?? body?.city_code,
+      supplierAccountId: body?.supplierAccountId ?? body?.supplier_account_id,
     });
 
     let freeDealProductSlugs: string[] | undefined;

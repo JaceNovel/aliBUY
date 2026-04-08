@@ -1,6 +1,7 @@
 import type { ProductCatalogItem } from "@/lib/products-data";
 import { createAlibabaIntegrationLog, createSourcingIds, getAlibabaCatalogMappings } from "@/lib/sourcing-store";
 import {
+  deleteAlibabaSupplierAccount,
   deleteAlibabaImportedProduct,
   getAlibabaCountryProfiles,
   getAlibabaImportJobs,
@@ -1023,6 +1024,7 @@ export async function runAlibabaCatalogImport(input: {
   targetLanguage?: string;
   provinceCode?: string;
   cityCode?: string;
+  supplierAccountId?: string;
 }) {
   if (requiresAlibabaPersistentStorage() && !hasAlibabaPersistentStorage()) {
     throw new Error("Import AliExpress bloque: aucun stockage persistant n'est configure sur cette API. Ajoute DATABASE_URL ou BLOB_READ_WRITE_TOKEN, sinon les articles disparaitront au prochain deploiement.");
@@ -1098,6 +1100,7 @@ export async function runAlibabaCatalogImport(input: {
         targetLanguage,
         provinceCode,
         cityCode,
+        supplierAccountId: input.supplierAccountId,
       }).catch(() => ({ product: null, debug: {
         ...fallbackSnapshotDebug,
       } }));
@@ -1134,6 +1137,7 @@ export async function runAlibabaCatalogImport(input: {
         preferredShipToCountry: destinationCountry,
         preferredLanguage: targetLanguage,
         preferredCurrency: targetCurrency,
+        supplierAccountId: input.supplierAccountId,
       });
 
       resolvedProducts = catalogSearchResult.products;
@@ -1650,6 +1654,22 @@ export async function saveAlibabaSupplierAccountInput(input: Omit<AlibabaSupplie
   }
 
   return saveAlibabaSupplierAccount(account);
+}
+
+export async function deleteAlibabaSupplierAccountInput(accountId: string) {
+  const normalizedAccountId = accountId.trim();
+  if (!normalizedAccountId) {
+    throw new Error("Identifiant du compte fournisseur manquant.");
+  }
+
+  const accounts = await getAlibabaSupplierAccounts();
+  const account = accounts.find((entry) => entry.id === normalizedAccountId);
+  if (!account) {
+    return { deleted: false };
+  }
+
+  await deleteAlibabaSupplierAccount(normalizedAccountId);
+  return { deleted: true };
 }
 
 export async function saveAlibabaReceptionAddressInput(input: Omit<AlibabaReceptionAddress, "id" | "createdAt" | "updatedAt"> & { id?: string }) {

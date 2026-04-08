@@ -2363,6 +2363,38 @@ export async function saveAlibabaSupplierAccount(account: AlibabaSupplierAccount
   return account;
 }
 
+export async function deleteAlibabaSupplierAccount(accountId: string): Promise<{ deleted: boolean }> {
+  if (canUseDatabase()) {
+    try {
+      const result = await getAlibabaPrismaModel("alibabaSupplierAccountRecord").deleteMany({ where: { id: accountId } });
+      if (!result.count) {
+        return { deleted: false };
+      }
+
+      await syncSupplierAccountsJsonSnapshot(await readAlibabaSupplierAccountsDb());
+      return { deleted: true };
+    } catch (error) {
+      if (!isPrismaDatabaseUnavailable(error)) {
+        throw error;
+      }
+
+      enableDatabaseFallback(error);
+    }
+  }
+
+  const accounts = await getAlibabaSupplierAccounts();
+  const next = accounts.filter((entry: AlibabaSupplierAccount) => entry.id !== accountId);
+  if (next.length === accounts.length) {
+    return { deleted: false };
+  }
+
+  if (canUseBlobStore()) {
+    await writeJsonBlob(SUPPLIER_ACCOUNTS_BLOB_PATHNAME, serializeSupplierAccounts(next));
+  }
+  await writeAlibabaSupplierAccountsFile(next);
+  return { deleted: true };
+}
+
 export async function getAlibabaCountryProfiles(): Promise<AlibabaCountryProfile[]> {
   if (canUseDatabase()) {
     try {
