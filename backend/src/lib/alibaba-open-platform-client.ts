@@ -2364,6 +2364,17 @@ function hasUsefulAlibabaPayload(responseBody: unknown) {
 
   const sellerPayload = getAliExpressSellerPayload(responseBody);
   if (sellerPayload) {
+    const baseInfo = isRecord(sellerPayload.ae_item_base_info_dto) ? sellerPayload.ae_item_base_info_dto as Record<string, unknown> : null;
+    const skuInfo = Array.isArray(sellerPayload.ae_item_sku_info_dtos)
+      ? sellerPayload.ae_item_sku_info_dtos as unknown[]
+      : Array.isArray(sellerPayload.sku_info)
+        ? sellerPayload.sku_info as unknown[]
+        : [];
+
+    if ((baseInfo && Object.keys(baseInfo).length > 0) || skuInfo.length > 0) {
+      return true;
+    }
+
     if (Array.isArray(sellerPayload.categories) && sellerPayload.categories.length > 0) {
       return true;
     }
