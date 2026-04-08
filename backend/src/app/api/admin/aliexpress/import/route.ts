@@ -72,6 +72,7 @@ export async function POST(request: Request) {
       supplierAccountId: body?.supplierAccountId ?? body?.supplier_account_id,
       prefetchedExactProduct: body?.prefetchedProduct ?? body?.prefetched_product ?? null,
       prefetchedExactDebug: body?.prefetchedDebug ?? body?.prefetched_debug,
+      manualSeedQuery: body?.manualSeedQuery ?? body?.manual_seed_query,
     });
 
     let freeDealProductSlugs: string[] | undefined;

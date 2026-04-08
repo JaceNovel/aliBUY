@@ -45,6 +45,7 @@ import {
   extractAlibabaOperationCode,
   extractAlibabaOperationMessage,
   extractAlibabaTradeId,
+  fetchAliExpressPublicProductSeed,
   fetchAlibabaProductSnapshot,
   fetchAlibabaProductSnapshotWithDebug,
   normalizeAliExpressDsAddressOptions,
@@ -956,6 +957,11 @@ function buildImportCampaignRawPayload(rawPayload: unknown, campaignMode: Alibab
   };
 }
 
+function hasAlibabaExploitableVariants(product: AlibabaSearchProduct) {
+  return (Array.isArray(product.variantSkus) && product.variantSkus.length > 0)
+    || (Array.isArray(product.variantPricing) && product.variantPricing.length > 0);
+}
+
 function normalizeSearchImportCandidate(product: AlibabaSearchProduct, query: string): AlibabaSearchProduct {
   const weightContext = {
     title: product.title,
@@ -1116,6 +1122,7 @@ export async function runAlibabaCatalogImport(input: {
   supplierAccountId?: string;
   prefetchedExactProduct?: AlibabaSearchProduct | null;
   prefetchedExactDebug?: AlibabaExactProductSnapshotDebug;
+  manualSeedQuery?: string;
 }) {
   if (requiresAlibabaPersistentStorage() && !hasAlibabaPersistentStorage()) {
     throw new Error("Import AliExpress bloque: aucun stockage persistant n'est configure sur cette API. Ajoute DATABASE_URL ou BLOB_READ_WRITE_TOKEN, sinon les articles disparaitront au prochain deploiement.");
@@ -1174,6 +1181,7 @@ export async function runAlibabaCatalogImport(input: {
 
     if (manualDirectImport) {
       const requestedProductId = directProductIdMatch![1];
+      const manualSeedQuery = String(input.manualSeedQuery ?? normalizedQuery).trim() || normalizedQuery;
       const prefetchedExactProduct = input.prefetchedExactProduct?.sourceProductId === requestedProductId
         ? input.prefetchedExactProduct
         : null;
@@ -1200,7 +1208,7 @@ export async function runAlibabaCatalogImport(input: {
             }),
           }
         : await fetchAlibabaRemoteExactProduct({
-            query: normalizedQuery,
+            query: manualSeedQuery,
             destinationCountry,
             targetCurrency,
             targetLanguage,
@@ -1208,23 +1216,80 @@ export async function runAlibabaCatalogImport(input: {
             cityCode,
             supplierAccountId: input.supplierAccountId,
           });
+      if (job.limit > 1) {
+        const publicSeed = remoteFetchResult.product
+          ? null
+          : await fetchAliExpressPublicProductSeed({
+              sourceProductId: requestedProductId,
+              query: manualSeedQuery,
+              targetLanguage,
+            }).catch(() => null);
+        const similarQuery = remoteFetchResult.product?.title?.trim()
+          || remoteFetchResult.product?.shortTitle?.trim()
+          || publicSeed?.title?.trim()
+          || "";
+        const explorationLimit = Math.min(Math.max(job.limit * 3, 24), 100);
+        const similarSearchResult = similarQuery
+          ? await searchAlibabaProducts({
+              query: similarQuery,
+              limit: explorationLimit,
+              fulfillmentChannel: job.fulfillmentChannel,
+              preferredShipToCountry: destinationCountry,
+              preferredLanguage: targetLanguage,
+              preferredCurrency: targetCurrency,
+              supplierAccountId: input.supplierAccountId,
+            })
+          : {
+              ok: false,
+              endpoint: "aliexpress.ds.text.search",
+              responseBody: null,
+              products: [] as AlibabaSearchProduct[],
+              errorMessage: remoteFetchResult.errorMessage ?? "Aucune requete de similarite exploitable n'a pu etre derivee depuis ce produit.",
+            };
 
-      resolvedProducts = remoteFetchResult.product ? [remoteFetchResult.product] : [];
-      searchResult = {
-        ok: remoteFetchResult.ok,
-        endpoint: remoteFetchResult.endpoint,
-        errorMessage: remoteFetchResult.errorMessage,
-        debug: remoteFetchResult.debug,
-      };
+        resolvedProducts = [
+          ...(remoteFetchResult.product ? [remoteFetchResult.product] : []),
+          ...similarSearchResult.products,
+        ];
+        searchResult = {
+          ok: resolvedProducts.length > 0,
+          endpoint: `${remoteFetchResult.endpoint} -> ${similarSearchResult.endpoint}`,
+          errorMessage: resolvedProducts.length > 0
+            ? undefined
+            : similarSearchResult.errorMessage ?? remoteFetchResult.errorMessage,
+          debug: remoteFetchResult.debug,
+        };
 
-      console.info("[alibaba-import] manual exact import summary", {
-        jobId: job.id,
-        query: job.query,
-        sourceProductId: requestedProductId,
-        endpoint: remoteFetchResult.endpoint,
-        debug: remoteFetchResult.debug,
-        reusedPrefetchedProduct: Boolean(prefetchedExactProduct),
-      });
+        console.info("[alibaba-import] manual seeded import summary", {
+          jobId: job.id,
+          query: job.query,
+          sourceProductId: requestedProductId,
+          similarQuery,
+          exactEndpoint: remoteFetchResult.endpoint,
+          similarEndpoint: similarSearchResult.endpoint,
+          exactFound: remoteFetchResult.ok,
+          similarFound: similarSearchResult.products.length,
+          debug: remoteFetchResult.debug,
+          reusedPrefetchedProduct: Boolean(prefetchedExactProduct),
+        });
+      } else {
+        resolvedProducts = remoteFetchResult.product ? [remoteFetchResult.product] : [];
+        searchResult = {
+          ok: remoteFetchResult.ok,
+          endpoint: remoteFetchResult.endpoint,
+          errorMessage: remoteFetchResult.errorMessage,
+          debug: remoteFetchResult.debug,
+        };
+
+        console.info("[alibaba-import] manual exact import summary", {
+          jobId: job.id,
+          query: job.query,
+          sourceProductId: requestedProductId,
+          endpoint: remoteFetchResult.endpoint,
+          debug: remoteFetchResult.debug,
+          reusedPrefetchedProduct: Boolean(prefetchedExactProduct),
+        });
+      }
     } else {
       const explorationLimit = Math.min(Math.max(job.limit * 2, 12), 30);
       const catalogSearchResult = await searchAlibabaProducts({
@@ -1255,6 +1320,7 @@ export async function runAlibabaCatalogImport(input: {
       .filter((product, index, products) => products.findIndex((entry) => entry.sourceProductId === product.sourceProductId) === index)
       .map((product) => normalizeSearchImportCandidate(product, job.query));
     const relevanceRankBySourceProductId = new Map(uniqueSearchProducts.map((product, index) => [product.sourceProductId, index]));
+    const requireExploitableVariants = manualDirectImport && job.limit > 1;
     const productsWithRequiredData = uniqueSearchProducts.filter((product) => product.priceVerified
       && product.moqVerified
       && product.itemWeightGrams > 0
@@ -1263,7 +1329,8 @@ export async function runAlibabaCatalogImport(input: {
       && !!product.packageDimensionsCm
       && product.packageDimensionsCm.lengthCm > 0
       && product.packageDimensionsCm.widthCm > 0
-      && product.packageDimensionsCm.heightCm > 0);
+      && product.packageDimensionsCm.heightCm > 0
+      && (!requireExploitableVariants || hasAlibabaExploitableVariants(product)));
     const importCandidates = productsWithRequiredData;
     const prioritizedImportCandidates = [...importCandidates].sort((left, right) => {
       const leftRank = relevanceRankBySourceProductId.get(left.sourceProductId) ?? Number.MAX_SAFE_INTEGER;
@@ -1306,8 +1373,12 @@ export async function runAlibabaCatalogImport(input: {
         counts.dimensions += 1;
       }
 
+      if (requireExploitableVariants && !hasAlibabaExploitableVariants(product)) {
+        counts.variants += 1;
+      }
+
       return counts;
-    }, { price: 0, moq: 0, weight: 0, dimensions: 0 });
+    }, { price: 0, moq: 0, weight: 0, dimensions: 0, variants: 0 });
 
     const importedProducts = await Promise.all(freshProducts.map(async (product, index) => {
       const liveCategoryInfo = await resolveAlibabaCategoryInfoForImport(product.rawPayload, index);
@@ -1383,7 +1454,7 @@ export async function runAlibabaCatalogImport(input: {
     }
 
     const warningMessage = importedProducts.length < job.limit
-      ? `Import partiel: ${importedProducts.length}/${job.limit} importes.${skippedMissingRequiredDataCount > 0 ? ` Rejets donnees fournisseur: ${skippedMissingRequiredDataCount}.` : ""}${rejectedReasonCounts.price > 0 ? ` Prix incoherent: ${rejectedReasonCounts.price}.` : ""}${rejectedReasonCounts.moq > 0 ? ` MOQ non verifie: ${rejectedReasonCounts.moq}.` : ""}${rejectedReasonCounts.weight > 0 ? ` Poids non exploitable: ${rejectedReasonCounts.weight}.` : ""}${rejectedReasonCounts.dimensions > 0 ? ` Dimensions colis manquantes: ${rejectedReasonCounts.dimensions}.` : ""}${skippedExistingCount > 0 ? ` Deja importes ignores: ${skippedExistingCount}.` : ""}`
+      ? `Import partiel: ${importedProducts.length}/${job.limit} importes.${skippedMissingRequiredDataCount > 0 ? ` Rejets donnees fournisseur: ${skippedMissingRequiredDataCount}.` : ""}${rejectedReasonCounts.price > 0 ? ` Prix incoherent: ${rejectedReasonCounts.price}.` : ""}${rejectedReasonCounts.moq > 0 ? ` MOQ non verifie: ${rejectedReasonCounts.moq}.` : ""}${rejectedReasonCounts.weight > 0 ? ` Poids non exploitable: ${rejectedReasonCounts.weight}.` : ""}${rejectedReasonCounts.dimensions > 0 ? ` Dimensions colis manquantes: ${rejectedReasonCounts.dimensions}.` : ""}${rejectedReasonCounts.variants > 0 ? ` Variantes DS non exploitables: ${rejectedReasonCounts.variants}.` : ""}${skippedExistingCount > 0 ? ` Deja importes ignores: ${skippedExistingCount}.` : ""}`
       : undefined;
 
     const completedJob: AlibabaImportJob = {

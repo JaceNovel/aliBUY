@@ -1015,6 +1015,80 @@ async function fetchAliExpressPublicProductSnapshot(input: {
 
   return null;
 }
+
+export async function fetchAliExpressPublicProductSeed(input: {
+  sourceProductId: string;
+  query?: string;
+  targetLanguage?: string;
+}) {
+  const directUrl = (() => {
+    const trimmed = input.query?.trim() ?? "";
+    if (!trimmed) {
+      return undefined;
+    }
+
+    try {
+      const url = new URL(trimmed);
+      if (/aliexpress\./i.test(url.hostname) && /\/item\/\d{12,20}\.html/i.test(url.pathname)) {
+        return url.toString();
+      }
+    } catch {
+      return undefined;
+    }
+
+    return undefined;
+  })();
+  const languagePrefix = String(input.targetLanguage ?? "fr_FR").trim().slice(0, 2).toLowerCase();
+  const candidateUrls = uniqueStrings([
+    directUrl ?? "",
+    `https://${languagePrefix}.aliexpress.com/item/${input.sourceProductId}.html`,
+    `https://www.aliexpress.com/item/${input.sourceProductId}.html`,
+  ].filter(Boolean));
+
+  for (const url of candidateUrls) {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "accept-language": String(input.targetLanguage ?? "fr_FR").replace("_", "-"),
+        "user-agent": "Mozilla/5.0 (compatible; AfriPayBot/1.0; +https://afripay.space)",
+      },
+      cache: "no-store",
+    }).catch(() => null);
+
+    if (!response?.ok) {
+      continue;
+    }
+
+    const html = await response.text().catch(() => "");
+    if (!html || !html.includes("AliExpress")) {
+      continue;
+    }
+
+    const jsonCandidates = parseAliExpressEmbeddedJsonCandidates(html);
+    const allNodes = jsonCandidates.flatMap((candidate) => collectObjectNodes(candidate));
+    const productRoot = allNodes.find((node) => isRecord(node.titleModule) || isRecord(node.imageModule)) ?? null;
+    const titleModule = productRoot && isRecord(productRoot.titleModule) ? productRoot.titleModule as Record<string, unknown> : {};
+    const imageModule = productRoot && isRecord(productRoot.imageModule) ? productRoot.imageModule as Record<string, unknown> : {};
+    const title = getStringValue(titleModule.subject)
+      ?? extractAliExpressHtmlMetaContent(html, "og:title")
+      ?? extractAliExpressHtmlMetaContent(html, "twitter:title")
+      ?? undefined;
+    const image = getStringValue(imageModule.imagePath)
+      ?? extractAliExpressHtmlMetaContent(html, "og:image")
+      ?? extractAliExpressHtmlMetaContent(html, "twitter:image")
+      ?? undefined;
+
+    if (title) {
+      return {
+        sourceUrl: response.url || url,
+        title,
+        image,
+      };
+    }
+  }
+
+  return null;
+}
 function summarizeAliExpressExactProductPayload(responseBody: unknown) {
   const result = getAliExpressSellerPayload(responseBody);
   if (!isRecord(result)) {
@@ -4402,7 +4476,7 @@ async function searchAliExpressProducts(input: {
     preferredLanguage: input.preferredLanguage,
     preferredCurrency: input.preferredCurrency,
   });
-  const desiredCount = Math.min(Math.max(input.limit, 1), 40);
+  const desiredCount = Math.min(Math.max(input.limit, 1), 100);
   const pageSize = Math.min(20, desiredCount);
   const maxPages = Math.max(1, Math.ceil(desiredCount / pageSize));
   const maxCollectedCandidates = Math.max(desiredCount * 4, 40);
