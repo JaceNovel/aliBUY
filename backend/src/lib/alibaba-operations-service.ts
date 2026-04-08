@@ -85,7 +85,7 @@ function resolveAlibabaManualImportErrorMessage(debug: {
   }
 
   if (debug.responseShape === "result_without_skus") {
-    return "Le produit AliExpress a ete lu mais aucun SKU exploitable n'a ete trouve.";
+    return "Produit AliExpress trouve, mais aucun SKU DS exploitable n'a ete renvoye. Essaie un autre pays de destination, le mode standard, ou verifie les droits DS du compte.";
   }
 
   return "Produit AliExpress DS introuvable ou non lisible pour cet External product ID. Verifie l'ID, le pays de destination, les droits DS du compte et le token OAuth.";
@@ -1078,6 +1078,8 @@ export async function runAlibabaCatalogImport(input: {
         ok: Boolean(directSnapshot),
         endpoint: directSnapshotDebug.resolvedRemoteMode === "ds_wholesale"
           ? "aliexpress.ds.product.wholesale.get"
+          : directSnapshotDebug.resolvedRemoteMode === "standard_product"
+            ? "aliexpress.solution.product.info.get"
           : directSnapshotDebug.resolvedRemoteMode === "affiliate_exact"
             ? "aliexpress.affiliate.product.sku.detail.get"
             : "aliexpress.ds.product.get",
