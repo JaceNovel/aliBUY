@@ -1,6 +1,5 @@
 "use client";
 
-import { useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
 
@@ -10,7 +9,6 @@ type UserLogoutButtonProps = {
 };
 
 export function UserLogoutButton({ className = "", children }: UserLogoutButtonProps) {
-  const clerk = useClerk();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -22,7 +20,6 @@ export function UserLogoutButton({ className = "", children }: UserLogoutButtonP
         method: "POST",
         credentials: "same-origin",
       });
-      await clerk.signOut({ redirectUrl: "/" }).catch(() => null);
     } finally {
       router.replace("/");
       setIsSubmitting(false);

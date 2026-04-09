@@ -1,11 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
 import { Geist } from "next/font/google";
 import { CartProvider } from "@/components/cart-provider";
 import { DeferredGlobalWidgets } from "@/components/deferred-global-widgets";
-import { clerkAppearance } from "@/lib/clerk-theme";
 import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_LOGO_PATH, SITE_NAME, SITE_SHARE_IMAGE_PATH, SITE_URL } from "@/lib/site-config";
-import { getCurrentUser } from "@/lib/user-auth";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -71,7 +68,6 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const currentUser = await getCurrentUser();
   const primaryNavigation = [
     { name: "Tous les produits", url: `${SITE_URL}/products` },
     { name: "Categories", url: `${SITE_URL}/categories` },
@@ -120,7 +116,7 @@ export default async function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify([organizationJsonLd, websiteJsonLd, ...navigationJsonLd]) }}
         />
-        {currentUser ? <ClerkProvider appearance={clerkAppearance}>{app}</ClerkProvider> : app}
+        {app}
       </body>
     </html>
   );

@@ -1,10 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
-import { SignIn } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 
+import { UserLoginForm } from "@/components/user-login-form";
 import { isAdminEmail } from "@/lib/admin-auth";
-import { authPageClerkAppearance } from "@/lib/clerk-theme";
 import { getPricingContext } from "@/lib/pricing";
 import { SITE_LOGO_PATH, SITE_NAME } from "@/lib/site-config";
 import { getCurrentUser } from "@/lib/user-auth";
@@ -78,23 +77,15 @@ export default async function LoginPage({
           ) : null}
 
           <div className="mt-6">
-            <SignIn
-              routing="path"
-              path="/login"
-              signUpUrl={`/register?next=${encodeURIComponent(nextPath)}${resolvedSearchParams.reason ? `&reason=${encodeURIComponent(resolvedSearchParams.reason)}` : ""}`}
-              forceRedirectUrl={nextPath}
-              fallbackRedirectUrl={nextPath}
-              signUpForceRedirectUrl={nextPath}
-              signUpFallbackRedirectUrl={nextPath}
-              appearance={authPageClerkAppearance}
+            <UserLoginForm
+              nextPath={nextPath}
+              registerHref={`/register?next=${encodeURIComponent(nextPath)}${resolvedSearchParams.reason ? `&reason=${encodeURIComponent(resolvedSearchParams.reason)}` : ""}`}
+              submitLabel={isEnglish ? "Sign in" : "Se connecter"}
+              emailLabel={isEnglish ? "Email address" : "Adresse e-mail"}
+              passwordLabel={isEnglish ? "Password" : "Mot de passe"}
             />
           </div>
 
-          <div className="mt-6 text-center text-[13px] text-[#667085]">
-            <Link href={`/register?next=${encodeURIComponent(nextPath)}${resolvedSearchParams.reason ? `&reason=${encodeURIComponent(resolvedSearchParams.reason)}` : ""}`} className="font-semibold text-[#111827] transition hover:text-[#ff6a00]">
-              {isEnglish ? "No account yet? Sign up" : "Pas encore de compte ? Inscription"}
-            </Link>
-          </div>
         </section>
       </div>
     </div>

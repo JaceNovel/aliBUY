@@ -1,10 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
-import { SignUp } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 
+import { UserRegisterForm } from "@/components/user-register-form";
 import { isAdminEmail } from "@/lib/admin-auth";
-import { authPageClerkAppearance } from "@/lib/clerk-theme";
 import { getPricingContext } from "@/lib/pricing";
 import { SITE_LOGO_PATH, SITE_NAME } from "@/lib/site-config";
 import { getCurrentUser } from "@/lib/user-auth";
@@ -72,23 +71,13 @@ export default async function RegisterPage({
           ) : null}
 
           <div className="mt-6">
-            <SignUp
-              routing="path"
-              path="/register"
-              signInUrl={`/login?next=${encodeURIComponent(nextPath)}${resolvedSearchParams.reason ? `&reason=${encodeURIComponent(resolvedSearchParams.reason)}` : ""}`}
-              forceRedirectUrl={nextPath}
-              fallbackRedirectUrl={nextPath}
-              signInForceRedirectUrl={nextPath}
-              signInFallbackRedirectUrl={nextPath}
-              appearance={authPageClerkAppearance}
+            <UserRegisterForm
+              nextPath={nextPath}
+              loginHref={`/login?next=${encodeURIComponent(nextPath)}${resolvedSearchParams.reason ? `&reason=${encodeURIComponent(resolvedSearchParams.reason)}` : ""}`}
+              submitLabel={isEnglish ? "Create account" : "Creer un compte"}
             />
           </div>
 
-          <div className="mt-6 text-center text-[13px] text-[#667085]">
-            <Link href={`/login?next=${encodeURIComponent(nextPath)}${resolvedSearchParams.reason ? `&reason=${encodeURIComponent(resolvedSearchParams.reason)}` : ""}`} className="font-semibold text-[#111827] transition hover:text-[#ff6a00]">
-              {isEnglish ? "Already have an account? Sign in" : "Vous avez deja un compte ? Connexion"}
-            </Link>
-          </div>
         </section>
       </div>
     </div>
