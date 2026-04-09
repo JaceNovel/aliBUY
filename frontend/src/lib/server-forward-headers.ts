@@ -16,13 +16,28 @@ const FORWARDED_HEADER_NAMES = [
   "x-country-code",
 ] as const;
 
-export async function buildServerForwardHeaders(initialHeaders?: HeadersInit) {
+type BuildServerForwardHeadersOptions = {
+  includeAdminApiToken?: boolean;
+};
+
+export async function buildServerForwardHeaders(
+  initialHeaders?: HeadersInit,
+  options?: BuildServerForwardHeadersOptions,
+) {
   const [cookieStore, headerStore] = await Promise.all([cookies(), headers()]);
   const forwarded = new Headers(initialHeaders);
   const cookieHeader = cookieStore.toString();
+  const adminApiToken = options?.includeAdminApiToken
+    ? process.env.ADMIN_API_TOKEN?.trim()
+    : "";
 
   if (cookieHeader) {
     forwarded.set("cookie", cookieHeader);
+  }
+
+  if (adminApiToken) {
+    forwarded.set("authorization", `Bearer ${adminApiToken}`);
+    forwarded.set("x-admin-token", adminApiToken);
   }
 
   for (const headerName of FORWARDED_HEADER_NAMES) {

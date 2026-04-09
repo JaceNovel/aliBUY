@@ -48,6 +48,8 @@ async function getAliExpressDashboardData(panel: string) {
     const response = await fetch(buildApiUrl("/api/admin/aliexpress/dashboard", { panel }), {
       headers: await buildServerForwardHeaders({
         accept: "application/json",
+      }, {
+        includeAdminApiToken: true,
       }),
       cache: "no-store",
     });
