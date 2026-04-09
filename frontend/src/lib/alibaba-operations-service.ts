@@ -56,10 +56,19 @@ import {
   searchAlibabaProducts,
   type AlibabaSearchProduct,
 } from "@/lib/alibaba-open-platform-client";
+import { API_URL } from "@/lib/api";
 import { resolveCoherentItemWeightGrams, resolveCoherentPackageDimensionsCm } from "@/lib/product-weight";
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function getAlibabaPersistentStorageIssue() {
+  if (API_URL) {
+    return `Ce storefront Next n'utilise pas de stockage persistant local. Si ta source de verite est MySQL sur Hostinger, les operations AliExpress doivent etre servies par le backend Laravel configure dans NEXT_PUBLIC_API_BASE_URL (${API_URL}).`;
+  }
+
+  return "Ce storefront tourne sans backend externe ni stockage persistant local. Si ta source de verite est MySQL sur Hostinger via Laravel, configure NEXT_PUBLIC_API_BASE_URL vers ce backend. Sinon ajoute DATABASE_URL ou BLOB_READ_WRITE_TOKEN pour persister cote frontend.";
 }
 
 function createAlibabaImportError(message: string, debug?: unknown) {
@@ -1094,7 +1103,7 @@ export async function getAlibabaOperationsDashboardData(panel?: string) {
       persistentAvailable: persistentStorageAvailable,
       persistentRequired: persistentStorageRequired,
       issue: persistentStorageRequired && !persistentStorageAvailable
-        ? "Cette API tourne en environnement serveur temporaire sans DATABASE_URL ni BLOB_READ_WRITE_TOKEN. Les comptes AliExpress, imports et lots peuvent disparaitre au redéploiement."
+        ? getAlibabaPersistentStorageIssue()
         : null,
     },
     stats: {
@@ -1125,7 +1134,7 @@ export async function runAlibabaCatalogImport(input: {
   manualSeedQuery?: string;
 }) {
   if (requiresAlibabaPersistentStorage() && !hasAlibabaPersistentStorage()) {
-    throw new Error("Import AliExpress bloque: aucun stockage persistant n'est configure sur cette API. Ajoute DATABASE_URL ou BLOB_READ_WRITE_TOKEN, sinon les articles disparaitront au prochain deploiement.");
+    throw new Error(`Import AliExpress bloque: ${getAlibabaPersistentStorageIssue()}`);
   }
 
   const normalizedQuery = input.query.trim();
