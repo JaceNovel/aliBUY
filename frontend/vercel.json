@@ -1,6 +1,6 @@
 {
   "framework": "nextjs",
-  "installCommand": "npm install",
+  "installCommand": "PRISMA_SKIP_POSTINSTALL_GENERATE=1 npm install",
   "buildCommand": "npm run build",
   "crons": [
     {

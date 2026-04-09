@@ -363,7 +363,7 @@ function throwIfPrismaDatabaseUnavailable(error: unknown): never {
   throw error;
 }
 
-export async function getFavoriteRecords() {
+export async function getFavoriteRecords(): Promise<FavoriteRecord[]> {
   if (!hasDatabase()) {
     return [];
   }
@@ -378,7 +378,7 @@ export async function getFavoriteRecords() {
   }));
 }
 
-export async function getUserAddresses(userId: string) {
+export async function getUserAddresses(userId: string): Promise<CustomerAddressRecord[]> {
   if (!hasDatabase()) {
     const addresses = await readCustomerAddressesFile();
     return sortCustomerAddresses(addresses.filter((address) => address.userId === userId));
@@ -394,7 +394,7 @@ export async function getUserAddresses(userId: string) {
   return addresses.map(mapCustomerAddress);
 }
 
-export async function getUserDefaultAddress(userId: string) {
+export async function getUserDefaultAddress(userId: string): Promise<CustomerAddressRecord | undefined> {
   if (!hasDatabase()) {
     const addresses = await getUserAddresses(userId);
     return addresses.find((address) => address.isDefault);
@@ -410,7 +410,7 @@ export async function getUserDefaultAddress(userId: string) {
   return address ? mapCustomerAddress(address) : undefined;
 }
 
-export async function getUserAddressById(userId: string, addressId: string) {
+export async function getUserAddressById(userId: string, addressId: string): Promise<CustomerAddressRecord | undefined> {
   if (!hasDatabase()) {
     const addresses = await readCustomerAddressesFile();
     return addresses.find((address) => address.id === addressId && address.userId === userId);
@@ -425,7 +425,7 @@ export async function getUserAddressById(userId: string, addressId: string) {
   return address ? mapCustomerAddress(address) : undefined;
 }
 
-export async function createUserAddress(userId: string, input: CustomerAddressInput) {
+export async function createUserAddress(userId: string, input: CustomerAddressInput): Promise<CustomerAddressRecord> {
   if (!hasDatabase()) {
     const normalized = normalizeCustomerAddressInput(input);
     const addresses = await readCustomerAddressesFile();
@@ -485,7 +485,7 @@ export async function createUserAddress(userId: string, input: CustomerAddressIn
   return mapCustomerAddress(address);
 }
 
-export async function updateUserAddress(userId: string, addressId: string, input: CustomerAddressInput) {
+export async function updateUserAddress(userId: string, addressId: string, input: CustomerAddressInput): Promise<CustomerAddressRecord> {
   if (!hasDatabase()) {
     const addresses = await readCustomerAddressesFile();
     const existing = addresses.find((address) => address.id === addressId && address.userId === userId);
@@ -566,7 +566,7 @@ export async function updateUserAddress(userId: string, addressId: string, input
   return mapCustomerAddress(address);
 }
 
-export async function setUserDefaultAddress(userId: string, addressId: string) {
+export async function setUserDefaultAddress(userId: string, addressId: string): Promise<CustomerAddressRecord> {
   if (!hasDatabase()) {
     const addresses = await readCustomerAddressesFile();
     const existing = addresses.find((address) => address.id === addressId && address.userId === userId);
@@ -624,7 +624,7 @@ export async function setUserDefaultAddress(userId: string, addressId: string) {
   return mapCustomerAddress(address);
 }
 
-export async function deleteUserAddress(userId: string, addressId: string) {
+export async function deleteUserAddress(userId: string, addressId: string): Promise<void> {
   if (!hasDatabase()) {
     const addresses = await readCustomerAddressesFile();
     const existing = addresses.find((address) => address.id === addressId && address.userId === userId);
@@ -683,12 +683,12 @@ export async function deleteUserAddress(userId: string, addressId: string) {
   });
 }
 
-export async function getUserFavoriteSlugs(userId: string) {
+export async function getUserFavoriteSlugs(userId: string): Promise<string[]> {
   const records = await getFavoriteRecords();
   return records.filter((record) => record.userId === userId).map((record) => record.productSlug);
 }
 
-export async function isUserFavoriteProduct(userId: string, productSlug: string) {
+export async function isUserFavoriteProduct(userId: string, productSlug: string): Promise<boolean> {
   if (!hasDatabase()) {
     return false;
   }
@@ -706,7 +706,7 @@ export async function isUserFavoriteProduct(userId: string, productSlug: string)
   return Boolean(record);
 }
 
-export async function toggleUserFavorite(input: { userId: string; userEmail: string; productSlug: string }) {
+export async function toggleUserFavorite(input: { userId: string; userEmail: string; productSlug: string }): Promise<{ isFavorite: boolean }> {
   if (!hasDatabase()) {
     throw createDatabaseUnavailableError();
   }
@@ -735,7 +735,7 @@ export async function toggleUserFavorite(input: { userId: string; userEmail: str
   return { isFavorite: true };
 }
 
-export async function getQuoteRequests() {
+export async function getQuoteRequests(): Promise<QuoteRequestRecord[]> {
   if (!hasDatabase()) {
     const requests = await readQuoteRequestsFile();
     return [...requests].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
@@ -759,7 +759,7 @@ export async function getQuoteRequests() {
   }));
 }
 
-export async function getUserQuoteRequests(userId: string) {
+export async function getUserQuoteRequests(userId: string): Promise<QuoteRequestRecord[]> {
   const requests = await getQuoteRequests();
   return requests.filter((request) => request.userId === userId).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
@@ -829,7 +829,7 @@ export async function createQuoteRequest(input: {
   };
 }
 
-export async function getSupportConversations() {
+export async function getSupportConversations(): Promise<SupportConversationRecord[]> {
   if (!hasDatabase()) {
     const conversations = await readSupportConversationsFile();
     return [...conversations].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
@@ -843,7 +843,7 @@ export async function getSupportConversations() {
   return conversations.map(mapConversation);
 }
 
-export async function getUserSupportConversations(userId: string) {
+export async function getUserSupportConversations(userId: string): Promise<SupportConversationRecord[]> {
   const conversations = await getSupportConversations();
   return conversations.filter((conversation) => conversation.userId === userId).sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 }

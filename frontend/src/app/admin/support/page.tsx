@@ -1,10 +1,10 @@
 import { AdminSupportClient } from "@/components/admin-support-client";
-import { getSupportConversations } from "@/lib/customer-data-store";
+import { getSupportConversations, type SupportConversationRecord } from "@/lib/customer-data-store";
 
 export default async function AdminSupportPage() {
   const conversations = await getSupportConversations();
 
-  return <AdminSupportClient serviceConversations={conversations.map((conversation) => ({
+  return <AdminSupportClient serviceConversations={conversations.map((conversation: SupportConversationRecord) => ({
     id: conversation.id,
     name: conversation.name,
     email: conversation.email,

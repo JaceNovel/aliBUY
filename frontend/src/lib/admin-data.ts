@@ -593,7 +593,7 @@ export async function getAdminSupportTickets() {
   }));
 }
 
-export async function getAdminImportRequests() {
+export async function getAdminImportRequests(): Promise<AdminImportRequest[]> {
   const requests = await getQuoteRequests();
   return requests.map((request) => ({
     requestCode: `imp-${request.id.slice(0, 6)}`,
@@ -618,7 +618,7 @@ export async function getAdminImportRequests() {
   } satisfies AdminImportRequest));
 }
 
-export async function getAdminImportRequestById(importId: string) {
+export async function getAdminImportRequestById(importId: string): Promise<AdminImportRequest | null> {
   const requests = await getAdminImportRequests();
   return requests.find((request) => request.orderId === importId) ?? null;
 }

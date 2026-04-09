@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Download } from "lucide-react";
 
-import { getAdminImportRequests } from "@/lib/admin-data";
+import { getAdminImportRequests, type AdminImportRequest } from "@/lib/admin-data";
 
 type ImportStatusFilter = "all" | "pending" | "processing" | "completed" | "rejected";
 
@@ -35,11 +35,11 @@ export default async function AdminImportsPage({ searchParams }: { searchParams:
   const requests = await getAdminImportRequests();
   const visibleRequests = activeStatus === "all"
     ? requests
-    : requests.filter((request) => request.status === importStatusTabs.find((tab) => tab.value === activeStatus)?.status);
+    : requests.filter((request: AdminImportRequest) => request.status === importStatusTabs.find((tab) => tab.value === activeStatus)?.status);
   const total = requests.length;
-  const pending = requests.filter((request) => request.status === "En attente").length;
-  const processing = requests.filter((request) => request.status === "En traitement").length;
-  const completed = requests.filter((request) => request.status === "Complété").length;
+  const pending = requests.filter((request: AdminImportRequest) => request.status === "En attente").length;
+  const processing = requests.filter((request: AdminImportRequest) => request.status === "En traitement").length;
+  const completed = requests.filter((request: AdminImportRequest) => request.status === "Complété").length;
 
   return (
     <div className="space-y-5">
