@@ -3,8 +3,7 @@
 return [
     'paths' => ['api/*'],
     'allowed_methods' => ['*'],
-    'allowed_origins' => array_values(array_filter(array_map('trim', explode(',', (string) env('FRONTEND_URLS', env('FRONTEND_URL', 'http://localhost:3000')))))),
-    'allowed_origins_patterns' => [],
+    'allowed_origins' => ['*'], // 🔥 important
     'allowed_headers' => ['*'],
     'exposed_headers' => ['X-RateLimit-Limit', 'X-RateLimit-Remaining'],
     'max_age' => 3600,
