@@ -197,6 +197,12 @@ Points Nginx critiques:
 - le frontend Next.js doit tourner separement
 - `/api` peut pointer vers le backend directement par sous-domaine API, ou via reverse proxy frontal si necessaire
 
+## Deploiement Hostinger
+
+Pour Hostinger, deployer le projet depuis le sous-dossier `backend` comme application PHP/Laravel classique, pas comme projet Docker a la racine du monorepo.
+
+Voir [docs/hostinger-deploy.md](docs/hostinger-deploy.md).
+
 ## Verification minimale
 
 ```bash
