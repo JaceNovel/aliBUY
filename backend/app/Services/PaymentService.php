@@ -15,6 +15,7 @@ class PaymentService
         protected OrderService $orders,
         protected MonerooService $moneroo,
         protected FedaPayService $fedapay,
+        protected PartnerSettlementService $partnerSettlement,
     ) {
     }
 
@@ -107,6 +108,8 @@ class PaymentService
             'payment_provider_payload' => $payload,
         ])->save();
 
+        $this->partnerSettlement->settlePaidOrder($order->fresh(['partnerOrder.partner', 'payments']));
+
         Log::channel('payment')->info('payment.verified', [
             'order_id' => $order->id,
             'order_number' => $order->order_number,
@@ -166,6 +169,10 @@ class PaymentService
             'payment_reference' => $paymentId,
             'payment_provider_payload' => $payload,
         ])->save();
+
+        if ($payment->order) {
+            $this->partnerSettlement->settlePaidOrder($payment->order->fresh(['partnerOrder.partner', 'payments']));
+        }
 
         Log::channel('payment')->info('payment.webhook.received', [
             'provider' => $provider,

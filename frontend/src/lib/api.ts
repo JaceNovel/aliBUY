@@ -1,4 +1,5 @@
 import { SITE_URL } from "@/lib/site-config";
+import type { PartnerApiKeys, PartnerDashboardStats, PartnerOrdersResponse, PartnerWallet } from "@/types/partner-dashboard";
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "").trim().replace(/\/$/, "");
 
@@ -402,4 +403,37 @@ export function previewPromoCode(code: string, totalFcfa: number) {
         message?: string;
       };
     });
+}
+
+async function dashboardFetch<T>(path: string, query?: Record<string, string | number | boolean | null | undefined>): Promise<T> {
+  const response = await fetch(buildLocalUrl(path, query), {
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = payload && typeof payload === "object" && "message" in payload && typeof payload.message === "string"
+      ? payload.message
+      : `Dashboard request failed with status ${response.status}.`;
+    throw new Error(message);
+  }
+
+  return payload as T;
+}
+
+export async function getDashboardStats(): Promise<PartnerDashboardStats> {
+  return dashboardFetch<PartnerDashboardStats>("/api/dashboard/stats");
+}
+
+export async function getOrders(page = 1): Promise<PartnerOrdersResponse> {
+  return dashboardFetch<PartnerOrdersResponse>("/api/dashboard/orders", { page });
+}
+
+export async function getWallet(): Promise<PartnerWallet> {
+  return dashboardFetch<PartnerWallet>("/api/dashboard/wallet");
+}
+
+export async function getApiKeys(): Promise<PartnerApiKeys> {
+  return dashboardFetch<PartnerApiKeys>("/api/dashboard/keys");
 }

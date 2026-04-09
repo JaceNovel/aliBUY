@@ -14,6 +14,12 @@ use App\Http\Controllers\LocationController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\PartnerAdminController;
+use App\Http\Controllers\PartnerDocsController;
+use App\Http\Controllers\PartnerOrderAdminController;
+use App\Http\Controllers\PartnerOrderController;
+use App\Http\Controllers\PartnerProductController;
+use App\Http\Controllers\PartnerRequestController;
 use App\Http\Controllers\PricingContextController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PromoCodeController;
@@ -26,6 +32,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/test/ping', [HealthController::class, 'ping']);
 Route::get('/health', [HealthController::class, 'legacy']);
+Route::get('/docs', [PartnerDocsController::class, 'show']);
 Route::get('/search-suggestions', [SearchSuggestionController::class, 'index']);
 Route::get('/pricing-context', [PricingContextController::class, 'show']);
 Route::post('/promo-codes/preview', [PromoCodeController::class, 'preview']);
@@ -37,6 +44,17 @@ Route::post('/location/reverse-geocode', [LocationController::class, 'reverseGeo
 Route::post('/location/resolve-maps-link', [LocationController::class, 'resolveMapsLink']);
 Route::get('/free-deals/state', [FreeDealController::class, 'state']);
 Route::post('/free-deals/checkout', [FreeDealController::class, 'checkout']);
+Route::post('/partner/request', [PartnerRequestController::class, 'store']);
+
+Route::prefix('partner')
+    ->middleware(['partner.api.log', 'partner.auth', 'throttle:partner-api'])
+    ->group(function () {
+        Route::get('/products', [PartnerProductController::class, 'index']);
+        Route::get('/orders', [PartnerOrderController::class, 'index']);
+        Route::get('/orders/{id}', [PartnerOrderController::class, 'show']);
+        Route::post('/orders', [PartnerOrderController::class, 'store']);
+        Route::get('/balance', [PartnerOrderController::class, 'balance']);
+    });
 
 Route::prefix('auth')->group(function () {
     Route::post('/admin-login', [AuthController::class, 'adminLogin']);
@@ -59,6 +77,10 @@ Route::get('/catalog/products', [ProductController::class, 'index']);
 Route::get('/catalog/categories', [ProductController::class, 'categories']);
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/admin/partner-requests', [PartnerAdminController::class, 'index']);
+    Route::post('/admin/partner-requests/{apiPartnerRequest}/approve', [PartnerAdminController::class, 'approve']);
+    Route::post('/admin/partner-requests/{apiPartnerRequest}/reject', [PartnerAdminController::class, 'reject']);
+    Route::patch('/admin/partner-orders/{order}/status', [PartnerOrderAdminController::class, 'updateStatus']);
     Route::apiResource('orders', OrderController::class)->only(['index', 'store', 'show']);
     Route::post('/orders/{order}/promo', [OrderController::class, 'applyPromo']);
 });

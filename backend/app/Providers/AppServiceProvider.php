@@ -31,5 +31,13 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute((int) env('PAYMENT_RATE_LIMIT', 30))
                 ->by($request->user()?->id ?: $request->ip());
         });
+
+        RateLimiter::for('partner-api', function (Request $request) {
+            $partner = $request->attributes->get('api_partner');
+            $key = $partner?->app_key ?: $request->header('X-APP-KEY') ?: $request->ip();
+
+            return Limit::perMinute((int) env('PARTNER_API_RATE_LIMIT', 60))
+                ->by((string) $key);
+        });
     }
 }

@@ -43,6 +43,11 @@ class Product extends Model
         'is_published' => 'boolean',
     ];
 
+    public function getPrimaryImageUrlAttribute(): ?string
+    {
+        return $this->image ?: ($this->gallery[0] ?? null);
+    }
+
     public function orders(): BelongsToMany
     {
         return $this->belongsToMany(Order::class, 'order_items')

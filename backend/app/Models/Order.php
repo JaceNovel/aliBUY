@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Order extends Model
 {
@@ -15,6 +16,7 @@ class Order extends Model
     protected $fillable = [
         'user_id',
         'order_number',
+        'product_id',
         'customer_name',
         'customer_phone',
         'user_info',
@@ -26,6 +28,8 @@ class Order extends Model
         'postal_code',
         'country_code',
         'items',
+        'base_price',
+        'quantity',
         'total_price',
         'status',
         'payment_status',
@@ -33,6 +37,7 @@ class Order extends Model
         'payment_provider',
         'payment_reference',
         'payment_checkout_url',
+        'tracking_reference',
         'payment_provider_payload',
         'shipping_method',
         'meta',
@@ -43,6 +48,7 @@ class Order extends Model
         'items' => 'array',
         'meta' => 'array',
         'payment_provider_payload' => 'array',
+        'base_price' => 'decimal:2',
         'total_price' => 'decimal:2',
     ];
 
@@ -61,10 +67,20 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    public function trackingEvents(): HasMany
+    {
+        return $this->hasMany(OrderTracking::class)->latest();
+    }
+
     public function products(): BelongsToMany
     {
         return $this->belongsToMany(Product::class, 'order_items')
             ->withPivot(['quantity', 'unit_price', 'line_total', 'title_snapshot', 'image_snapshot'])
             ->withTimestamps();
+    }
+
+    public function partnerOrder(): HasOne
+    {
+        return $this->hasOne(PartnerOrder::class);
     }
 }
