@@ -6,6 +6,7 @@ import { AdminAliExpressOperationsClient } from "@/components/admin-alibaba-oper
 import { API_URL, buildApiUrl } from "@/lib/api";
 import { ALIBABA_PANEL_SLUGS, normalizePanelSlug } from "@/lib/alibaba-operations";
 import { getAlibabaOperationsDashboardData } from "@/lib/alibaba-operations-service";
+import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
 import { getSourcingDashboardData } from "@/lib/sourcing-service";
 
 function buildRemoteDashboardUnavailableState(panel: string, detail?: string) {
@@ -45,6 +46,9 @@ async function getAliExpressDashboardData(panel: string) {
 
   try {
     const response = await fetch(buildApiUrl("/api/admin/aliexpress/dashboard", { panel }), {
+      headers: await buildServerForwardHeaders({
+        accept: "application/json",
+      }),
       cache: "no-store",
     });
 
@@ -52,7 +56,12 @@ async function getAliExpressDashboardData(panel: string) {
       return await response.json();
     }
 
-    return buildRemoteDashboardUnavailableState(panel, `la route /api/admin/aliexpress/dashboard a renvoye HTTP ${response.status}`);
+    const payload = await response.json().catch(() => null) as { message?: unknown } | null;
+    const remoteMessage = typeof payload?.message === "string" && payload.message.trim().length > 0
+      ? ` (${payload.message.trim()})`
+      : "";
+
+    return buildRemoteDashboardUnavailableState(panel, `la route /api/admin/aliexpress/dashboard a renvoye HTTP ${response.status}${remoteMessage}`);
   } catch {
     return buildRemoteDashboardUnavailableState(panel, "le backend externe est injoignable");
   }

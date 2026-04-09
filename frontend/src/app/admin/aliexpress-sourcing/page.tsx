@@ -1,6 +1,7 @@
 import { AdminAliExpressOperationsClient } from "@/components/admin-alibaba-operations-client";
 import { API_URL, buildApiUrl } from "@/lib/api";
 import { getAlibabaOperationsDashboardData } from "@/lib/alibaba-operations-service";
+import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
 
 function buildRemoteDashboardUnavailableState(detail?: string) {
   const target = API_URL || "backend externe configure";
@@ -39,6 +40,9 @@ async function getAliExpressDashboardData(panel: string) {
 
   try {
     const response = await fetch(buildApiUrl("/api/admin/aliexpress/dashboard", { panel }), {
+      headers: await buildServerForwardHeaders({
+        accept: "application/json",
+      }),
       cache: "no-store",
     });
 
@@ -46,7 +50,12 @@ async function getAliExpressDashboardData(panel: string) {
       return await response.json();
     }
 
-    return buildRemoteDashboardUnavailableState(`la route /api/admin/aliexpress/dashboard a renvoye HTTP ${response.status}`);
+    const payload = await response.json().catch(() => null) as { message?: unknown } | null;
+    const remoteMessage = typeof payload?.message === "string" && payload.message.trim().length > 0
+      ? ` (${payload.message.trim()})`
+      : "";
+
+    return buildRemoteDashboardUnavailableState(`la route /api/admin/aliexpress/dashboard a renvoye HTTP ${response.status}${remoteMessage}`);
   } catch {
     return buildRemoteDashboardUnavailableState("le backend externe est injoignable");
   }

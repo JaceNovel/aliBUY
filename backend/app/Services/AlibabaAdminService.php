@@ -36,14 +36,14 @@ class AlibabaAdminService
     public function buildDashboard(?string $panel = null): array
     {
         $normalizedPanel = $this->normalizePanel($panel);
-        $mappings = $this->readJsonArray('catalog-mapping.json');
-        $importJobs = $this->readJsonArray('alibaba-import-jobs.json');
-        $importedProducts = $this->readJsonArray('alibaba-imported-products.json');
-        $purchaseOrders = $this->readJsonArray('alibaba-purchase-orders.json');
-        $supplierAccounts = $this->sanitizeSupplierAccounts($this->readJsonArray('alibaba-supplier-accounts.json'));
-        $countries = $this->readJsonArray('alibaba-country-profiles.json');
-        $addresses = $this->readJsonArray('alibaba-reception-addresses.json');
-        $receptions = $this->readJsonArray('alibaba-receptions.json');
+        $mappings = $this->normalizeRecordList($this->readJsonArray('catalog-mapping.json'));
+        $importJobs = $this->normalizeRecordList($this->readJsonArray('alibaba-import-jobs.json'));
+        $importedProducts = $this->normalizeRecordList($this->readJsonArray('alibaba-imported-products.json'));
+        $purchaseOrders = $this->normalizeRecordList($this->readJsonArray('alibaba-purchase-orders.json'));
+        $supplierAccounts = $this->sanitizeSupplierAccounts($this->normalizeRecordList($this->readJsonArray('alibaba-supplier-accounts.json')));
+        $countries = $this->normalizeRecordList($this->readJsonArray('alibaba-country-profiles.json'));
+        $addresses = $this->normalizeRecordList($this->readJsonArray('alibaba-reception-addresses.json'));
+        $receptions = $this->normalizeRecordList($this->readJsonArray('alibaba-receptions.json'));
 
         return [
             'panel' => $normalizedPanel,
@@ -1499,7 +1499,24 @@ class AlibabaAdminService
 
         $decoded = json_decode((string) File::get($path), true);
 
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        if ($this->isAssocArray($decoded)) {
+            foreach (['items', 'data', 'records', 'rows'] as $nestedCollectionKey) {
+                if (isset($decoded[$nestedCollectionKey]) && is_array($decoded[$nestedCollectionKey])) {
+                    return array_values($decoded[$nestedCollectionKey]);
+                }
+            }
+        }
+
         return is_array($decoded) ? array_values($decoded) : [];
+    }
+
+    private function normalizeRecordList(array $items): array
+    {
+        return array_values(array_filter($items, static fn ($item) => is_array($item)));
     }
 
     private function writeJsonArray(string $fileName, array $payload): void
@@ -1523,5 +1540,14 @@ class AlibabaAdminService
         }
 
         return $fallback;
+    }
+
+    private function isAssocArray(array $value): bool
+    {
+        if ($value === []) {
+            return false;
+        }
+
+        return array_keys($value) !== range(0, count($value) - 1);
     }
 }
