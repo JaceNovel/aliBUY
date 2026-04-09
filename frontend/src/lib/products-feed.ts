@@ -1,6 +1,5 @@
 import "server-only";
 
-import { Prisma } from "@prisma/client";
 import { cache } from "react";
 
 import { getCatalogCategoryBySlug, getCatalogCategories } from "@/lib/catalog-category-service";
@@ -338,7 +337,7 @@ async function getTrigramSearchProductsFeedPage(options: {
 }) {
   const likeQuery = `%${options.query}%`;
 
-  const rows = await prisma.$queryRaw<ProductFeedRow[]>(Prisma.sql`
+  const rows = await prisma.$queryRawUnsafe(`
     SELECT
       "slug",
       "title",
@@ -352,25 +351,25 @@ async function getTrigramSearchProductsFeedPage(options: {
     WHERE "publishedToSite" = true
       AND "status" = 'published'
       AND (
-        "title" % ${options.query}
-        OR "title" ILIKE ${likeQuery}
-        OR "shortTitle" ILIKE ${likeQuery}
-        OR "supplierName" ILIKE ${likeQuery}
-        OR COALESCE("categoryTitle", '') ILIKE ${likeQuery}
-        OR COALESCE("categorySlug", '') ILIKE ${likeQuery}
+        "title" % $1
+        OR "title" ILIKE $2
+        OR "shortTitle" ILIKE $2
+        OR "supplierName" ILIKE $2
+        OR COALESCE("categoryTitle", '') ILIKE $2
+        OR COALESCE("categorySlug", '') ILIKE $2
       )
     ORDER BY
       GREATEST(
-        similarity("title", ${options.query}),
-        similarity("shortTitle", ${options.query})
+        similarity("title", $1),
+        similarity("shortTitle", $1)
       ) DESC,
       "salesCount" DESC,
       "viewsCount" DESC,
       "updatedAt" DESC,
       "id" DESC
-    LIMIT ${options.pageSize + 1}
-    OFFSET ${options.skip}
-  `);
+    LIMIT $3
+    OFFSET $4
+  `, options.query, likeQuery, options.pageSize + 1, options.skip) as ProductFeedRow[];
 
   return buildPagePayload(rows, options.page, options.pageSize, "search", {
     query: options.query,
@@ -640,7 +639,7 @@ export async function incrementProductSalesCounts(items: Array<{ slug: string; q
       return;
     }
 
-    await prisma.$transaction(async (transaction) => {
+    await prisma.$transaction(async (transaction: unknown) => {
       const txProductModel = (transaction as unknown as Record<string, unknown>).alibabaImportedProductRecord as Record<string, (...args: unknown[]) => Promise<unknown>> | undefined;
       const delegate = txProductModel ?? productModel;
 

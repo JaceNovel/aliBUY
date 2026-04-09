@@ -3,7 +3,6 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { Prisma } from "@prisma/client";
 import { get, head, list, put } from "@vercel/blob";
 
 import type {
@@ -15,6 +14,7 @@ import type {
   AlibabaReceptionRecord,
   AlibabaSupplierAccount,
 } from "@/lib/alibaba-operations";
+import { Prisma } from "@/lib/prisma-shim";
 import { hasConfiguredDatabaseUrl, prisma } from "@/lib/prisma";
 import { getOrSetCatalogRuntimeCache, invalidateCatalogRuntimeCache } from "@/lib/catalog-runtime-cache";
 import { resolveProductPriceSummaryUsd } from "@/lib/product-variant-pricing";
@@ -719,11 +719,11 @@ function enableDatabaseFallback(error: unknown) {
 
   databaseFallbackForced = true;
 
-  const prismaCode = error instanceof Prisma.PrismaClientKnownRequestError ? error.code : undefined;
-  const errorMessage = error instanceof Error ? error.message : undefined;
   const fallbackCandidate = error as { code?: unknown; message?: unknown } | null;
-  const code = prismaCode ?? (typeof fallbackCandidate?.code === "string" ? fallbackCandidate.code : "unknown");
-  const messageSource = errorMessage ?? (typeof fallbackCandidate?.message === "string" ? fallbackCandidate.message : "");
+  const code = typeof fallbackCandidate?.code === "string" ? fallbackCandidate.code : "unknown";
+  const messageSource = error instanceof Error
+    ? error.message
+    : (typeof fallbackCandidate?.message === "string" ? fallbackCandidate.message : "");
   const message = messageSource.split("\n").find((line) => line.trim().length > 0) ?? "Database access failed.";
 
   console.warn(`[alibaba-operations-store] falling back to JSON storage (${code}: ${message})`);
@@ -1825,7 +1825,7 @@ async function readAlibabaCountryProfilesDb(): Promise<AlibabaCountryProfile[]> 
 }
 
 async function writeAlibabaCountryProfilesDb(profiles: AlibabaCountryProfile[]): Promise<AlibabaCountryProfile[]> {
-  await prisma.$transaction(async (transaction) => {
+  await prisma.$transaction(async (transaction: unknown) => {
     await getAlibabaTransactionModel(transaction, "alibabaCountryProfileRecord").deleteMany();
 
     if (profiles.length > 0) {
@@ -1900,7 +1900,7 @@ async function readAlibabaReceptionAddressesDb(): Promise<AlibabaReceptionAddres
 }
 
 async function writeAlibabaReceptionAddressDb(address: AlibabaReceptionAddress): Promise<AlibabaReceptionAddress> {
-  await prisma.$transaction(async (transaction) => {
+  await prisma.$transaction(async (transaction: unknown) => {
     if (address.isDefault) {
       await getAlibabaTransactionModel(transaction, "alibabaReceptionAddressRecord").updateMany({
         where: { NOT: { id: address.id } },

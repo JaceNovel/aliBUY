@@ -4,10 +4,10 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
 
-import { Prisma } from "@prisma/client";
 import { get, put } from "@vercel/blob";
 
 import type { CartInputItem } from "@/lib/alibaba-sourcing";
+import { Prisma } from "@/lib/prisma-shim";
 import { hasConfiguredDatabaseUrl, prisma } from "@/lib/prisma";
 import { getVercelBlobAccessMode } from "@/lib/vercel-blob-access";
 
@@ -284,7 +284,7 @@ export async function getSharedCarts() {
 async function saveSharedCarts(nextSharedCarts: SharedCartRecord[]) {
   if (canUseDatabase()) {
     try {
-      await prisma.$transaction(async (transaction) => {
+      await prisma.$transaction(async (transaction: unknown) => {
         const sharedCartLink = (transaction as unknown as Record<string, unknown>).sharedCartLink as Record<string, (...args: unknown[]) => Promise<unknown>> | undefined;
         if (!sharedCartLink) {
           throw new Error("sharedCartLink Prisma delegate is unavailable.");

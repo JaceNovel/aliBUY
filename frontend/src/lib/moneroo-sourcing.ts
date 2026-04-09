@@ -43,7 +43,7 @@ export async function persistMonerooPaymentToOrder(options: PersistMonerooPaymen
       quantity: item.quantity,
     })));
     await registerFreeDealClaimFromPaidOrder(nextOrder).catch(() => null);
-    await triggerManyChatOrderPaidFlow(nextOrder).catch((error) => {
+    await triggerManyChatOrderPaidFlow(nextOrder).catch((error: unknown) => {
       console.error("[manychat] paid flow trigger failed", {
         orderId: nextOrder.id,
         reason: error instanceof Error ? error.message : "unknown",

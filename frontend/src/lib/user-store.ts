@@ -94,7 +94,7 @@ export async function getStoredUsers() {
     return [];
   }
 
-  const users = await prisma.user.findMany({ orderBy: { createdAt: "desc" } }).catch((error) => {
+  const users = await prisma.user.findMany({ orderBy: { createdAt: "desc" } }).catch((error: unknown) => {
     if (isPrismaDatabaseUnavailable(error)) {
       return [];
     }
@@ -110,7 +110,7 @@ export async function getStoredUserByEmail(email: string) {
   }
 
   const normalizedEmail = normalizeEmail(email);
-  const user = await prisma.user.findUnique({ where: { email: normalizedEmail } }).catch((error) => {
+  const user = await prisma.user.findUnique({ where: { email: normalizedEmail } }).catch((error: unknown) => {
     if (isPrismaDatabaseUnavailable(error)) {
       return null;
     }
@@ -125,7 +125,7 @@ export async function getStoredUserByClerkUserId(clerkUserId: string) {
     return null;
   }
 
-  const user = await prisma.user.findFirst({ where: { clerkUserId } as never }).catch((error) => {
+  const user = await prisma.user.findFirst({ where: { clerkUserId } as never }).catch((error: unknown) => {
     if (isPrismaDatabaseUnavailable(error)) {
       return null;
     }
@@ -140,7 +140,7 @@ export async function getStoredUserById(id: string) {
     return null;
   }
 
-  const user = await prisma.user.findUnique({ where: { id } }).catch((error) => {
+  const user = await prisma.user.findUnique({ where: { id } }).catch((error: unknown) => {
     if (isPrismaDatabaseUnavailable(error)) {
       return null;
     }

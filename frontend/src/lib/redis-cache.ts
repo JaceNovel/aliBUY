@@ -33,7 +33,7 @@ async function createRedisClient() {
 
 async function getRedisClient() {
   if (!globalThis.redisClientPromise) {
-    globalThis.redisClientPromise = createRedisClient().catch((error) => {
+    globalThis.redisClientPromise = createRedisClient().catch((error: unknown) => {
       console.warn("[redis-cache] unavailable, falling back to origin responses", error);
       globalThis.redisClientPromise = Promise.resolve(null);
       return null;

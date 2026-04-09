@@ -47,7 +47,7 @@ export async function getOrSetCatalogRuntimeCache<T>(
       });
       return value;
     })
-    .catch((error) => {
+    .catch((error: unknown) => {
       const current = store.entries.get(key);
       if (current?.promise === promise) {
         store.entries.delete(key);

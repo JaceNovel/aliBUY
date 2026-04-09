@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "@/lib/prisma-shim";
 
 export function hasConfiguredDatabaseUrl(): boolean {
   return false;

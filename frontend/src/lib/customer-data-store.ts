@@ -7,6 +7,7 @@ import { get, put } from "@vercel/blob";
 
 import type { CustomerAddressRecord } from "@/lib/customer-addresses";
 import { canonicalizeCountryCode } from "@/lib/country-utils";
+import type { PrismaClient } from "@/lib/prisma-shim";
 import { hasConfiguredDatabaseUrl, prisma } from "@/lib/prisma";
 import { getVercelBlobAccessMode } from "@/lib/vercel-blob-access";
 
@@ -22,6 +23,34 @@ const SUPPORT_CONVERSATIONS_RUNTIME_PATH = path.join(CUSTOMER_DATA_DIR, "support
 const SUPPORT_CONVERSATIONS_SEED_PATH = path.join(process.cwd(), "data", "customer", "support-conversations.json");
 const SUPPORT_CONVERSATIONS_BLOB_PATHNAME = "customer/support-conversations.json";
 const BLOB_ACCESS_MODE = getVercelBlobAccessMode();
+
+type FavoriteWithUserRecord = {
+  id: string;
+  userId: string;
+  productSlug: string;
+  createdAt: Date;
+  user: {
+    email: string;
+  };
+};
+
+type QuoteRequestWithUserRecord = {
+  id: string;
+  userId: string;
+  productName: string;
+  quantity: string;
+  specifications: string;
+  budget: string;
+  shippingWindow: string;
+  notes: string | null;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+  user: {
+    email: string;
+    displayName: string;
+  };
+};
 
 export type FavoriteRecord = {
   id: string;
@@ -368,7 +397,7 @@ export async function getFavoriteRecords(): Promise<FavoriteRecord[]> {
     return [];
   }
 
-  const records = await prisma.favorite.findMany({ include: { user: true }, orderBy: { createdAt: "desc" } });
+  const records = await prisma.favorite.findMany({ include: { user: true }, orderBy: { createdAt: "desc" } }) as FavoriteWithUserRecord[];
   return records.map((record) => ({
     id: record.id,
     userId: record.userId,
@@ -387,7 +416,7 @@ export async function getUserAddresses(userId: string): Promise<CustomerAddressR
   const addresses = await prisma.customerAddress.findMany({
     where: { userId },
     orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
-  }).catch((error) => {
+  }).catch((error: unknown) => {
     throwIfPrismaDatabaseUnavailable(error);
   });
 
@@ -403,7 +432,7 @@ export async function getUserDefaultAddress(userId: string): Promise<CustomerAdd
   const address = await prisma.customerAddress.findFirst({
     where: { userId, isDefault: true },
     orderBy: { updatedAt: "desc" },
-  }).catch((error) => {
+  }).catch((error: unknown) => {
     throwIfPrismaDatabaseUnavailable(error);
   });
 
@@ -418,7 +447,7 @@ export async function getUserAddressById(userId: string, addressId: string): Pro
 
   const address = await prisma.customerAddress.findFirst({
     where: { id: addressId, userId },
-  }).catch((error) => {
+  }).catch((error: unknown) => {
     throwIfPrismaDatabaseUnavailable(error);
   });
 
@@ -458,12 +487,12 @@ export async function createUserAddress(userId: string, input: CustomerAddressIn
   }
 
   const normalized = normalizeCustomerAddressInput(input);
-  const hasAnyAddress = (await prisma.customerAddress.count({ where: { userId } }).catch((error) => {
+  const hasAnyAddress = (await prisma.customerAddress.count({ where: { userId } }).catch((error: unknown) => {
     throwIfPrismaDatabaseUnavailable(error);
   })) > 0;
   const shouldBeDefault = input.isDefault || !hasAnyAddress;
 
-  const address = await prisma.$transaction(async (transaction) => {
+  const address = await prisma.$transaction(async (transaction: PrismaClient) => {
     if (shouldBeDefault) {
       await transaction.customerAddress.updateMany({
         where: { userId, isDefault: true },
@@ -478,7 +507,7 @@ export async function createUserAddress(userId: string, input: CustomerAddressIn
         isDefault: shouldBeDefault,
       },
     });
-  }).catch((error) => {
+  }).catch((error: unknown) => {
     throwIfPrismaDatabaseUnavailable(error);
   });
 
@@ -530,7 +559,7 @@ export async function updateUserAddress(userId: string, addressId: string, input
 
   const existing = await prisma.customerAddress.findFirst({
     where: { id: addressId, userId },
-  }).catch((error) => {
+  }).catch((error: unknown) => {
     throwIfPrismaDatabaseUnavailable(error);
   });
 
@@ -539,12 +568,12 @@ export async function updateUserAddress(userId: string, addressId: string, input
   }
 
   const normalized = normalizeCustomerAddressInput(input);
-  const addressCount = await prisma.customerAddress.count({ where: { userId } }).catch((error) => {
+  const addressCount = await prisma.customerAddress.count({ where: { userId } }).catch((error: unknown) => {
     throwIfPrismaDatabaseUnavailable(error);
   });
   const shouldBeDefault = input.isDefault || (existing.isDefault && !input.isDefault) || addressCount === 1;
 
-  const address = await prisma.$transaction(async (transaction) => {
+  const address = await prisma.$transaction(async (transaction: PrismaClient) => {
     if (shouldBeDefault) {
       await transaction.customerAddress.updateMany({
         where: { userId, isDefault: true, NOT: { id: addressId } },
@@ -559,7 +588,7 @@ export async function updateUserAddress(userId: string, addressId: string, input
         isDefault: shouldBeDefault,
       },
     });
-  }).catch((error) => {
+  }).catch((error: unknown) => {
     throwIfPrismaDatabaseUnavailable(error);
   });
 
@@ -599,7 +628,7 @@ export async function setUserDefaultAddress(userId: string, addressId: string): 
 
   const existing = await prisma.customerAddress.findFirst({
     where: { id: addressId, userId },
-  }).catch((error) => {
+  }).catch((error: unknown) => {
     throwIfPrismaDatabaseUnavailable(error);
   });
 
@@ -607,7 +636,7 @@ export async function setUserDefaultAddress(userId: string, addressId: string): 
     throw new Error("Adresse introuvable.");
   }
 
-  const address = await prisma.$transaction(async (transaction) => {
+  const address = await prisma.$transaction(async (transaction: PrismaClient) => {
     await transaction.customerAddress.updateMany({
       where: { userId, isDefault: true },
       data: { isDefault: false },
@@ -617,7 +646,7 @@ export async function setUserDefaultAddress(userId: string, addressId: string): 
       where: { id: addressId },
       data: { isDefault: true },
     });
-  }).catch((error) => {
+  }).catch((error: unknown) => {
     throwIfPrismaDatabaseUnavailable(error);
   });
 
@@ -652,7 +681,7 @@ export async function deleteUserAddress(userId: string, addressId: string): Prom
 
   const existing = await prisma.customerAddress.findFirst({
     where: { id: addressId, userId },
-  }).catch((error) => {
+  }).catch((error: unknown) => {
     throwIfPrismaDatabaseUnavailable(error);
   });
 
@@ -660,7 +689,7 @@ export async function deleteUserAddress(userId: string, addressId: string): Prom
     throw new Error("Adresse introuvable.");
   }
 
-  await prisma.$transaction(async (transaction) => {
+  await prisma.$transaction(async (transaction: PrismaClient) => {
     await transaction.customerAddress.delete({ where: { id: addressId } });
 
     if (!existing.isDefault) {
@@ -678,7 +707,7 @@ export async function deleteUserAddress(userId: string, addressId: string): Prom
         data: { isDefault: true },
       });
     }
-  }).catch((error) => {
+  }).catch((error: unknown) => {
     throwIfPrismaDatabaseUnavailable(error);
   });
 }
@@ -741,7 +770,7 @@ export async function getQuoteRequests(): Promise<QuoteRequestRecord[]> {
     return [...requests].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }
 
-  const requests = await prisma.quoteRequest.findMany({ include: { user: true }, orderBy: { createdAt: "desc" } });
+  const requests = await prisma.quoteRequest.findMany({ include: { user: true }, orderBy: { createdAt: "desc" } }) as QuoteRequestWithUserRecord[];
   return requests.map((request) => ({
     id: request.id,
     userId: request.userId,

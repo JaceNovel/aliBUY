@@ -6,8 +6,8 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 
 import { get, put } from "@vercel/blob";
-import { Prisma } from "@prisma/client";
 
+import { Prisma } from "@/lib/prisma-shim";
 import { hasConfiguredDatabaseUrl, prisma } from "@/lib/prisma";
 import { getVercelBlobAccessMode } from "@/lib/vercel-blob-access";
 
@@ -321,7 +321,7 @@ function isPromoCodeActive(promoCode: PromoCodeRecord, at = new Date()) {
   return true;
 }
 
-export async function getPromoCodes() {
+export async function getPromoCodes(): Promise<PromoCodeRecord[]> {
   if (canUseDatabase()) {
     try {
       await ensureDefaultPromoCodesInDatabase();
@@ -340,7 +340,7 @@ export async function getPromoCodes() {
   return normalizePromoCodes(raw).sort((left, right) => left.code.localeCompare(right.code));
 }
 
-export async function savePromoCodes(nextPromoCodes: PromoCodeRecord[]) {
+export async function savePromoCodes(nextPromoCodes: PromoCodeRecord[]): Promise<PromoCodeRecord[]> {
   const normalized = normalizePromoCodes(nextPromoCodes).map((promoCode) => ({
     ...promoCode,
     updatedAt: new Date().toISOString(),

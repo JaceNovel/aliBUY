@@ -6,7 +6,6 @@ import os from "node:os";
 import path from "node:path";
 
 import { get, put } from "@vercel/blob";
-import { Prisma } from "@prisma/client";
 
 import type { SourcingOrder } from "@/lib/alibaba-sourcing";
 import { getSourcingOrderMeta } from "@/lib/alibaba-sourcing";
@@ -15,6 +14,7 @@ import { getCatalogProductsBySlugs } from "@/lib/catalog-service";
 import { convertEurToFcfa } from "@/lib/free-deal";
 import { FREE_DEAL_ROUTE, FREE_DEAL_SHARE_ROUTE_PREFIX } from "@/lib/free-deal-constants";
 import type { ProductCatalogItem } from "@/lib/products-data";
+import { Prisma } from "@/lib/prisma-shim";
 import { hasConfiguredDatabaseUrl, prisma } from "@/lib/prisma";
 import { getVercelBlobAccessMode } from "@/lib/vercel-blob-access";
 
@@ -934,7 +934,7 @@ export async function recordFreeDealReferralVisit(input: {
   const claim = canUseDatabase()
     ? await getFreeDealPrismaModel("freeDealClaimRecord").findUnique({ where: { referralCode } })
       .then((record) => (record ? normalizeClaimRecord(record as unknown as Record<string, unknown>) : null))
-      .catch((error) => {
+      .catch((error: unknown) => {
         if (!isPrismaDatabaseUnavailable(error)) {
           throw error;
         }

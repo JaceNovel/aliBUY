@@ -4,7 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 
 import { list, put } from "@vercel/blob";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/lib/prisma-shim";
 import { hasConfiguredDatabaseUrl, prisma } from "@/lib/prisma";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { getOrSetCatalogRuntimeCache, invalidateCatalogRuntimeCache } from "@/lib/catalog-runtime-cache";

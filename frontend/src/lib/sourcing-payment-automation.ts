@@ -343,7 +343,7 @@ export async function runSourcingPostPaymentAutomation(order: SourcingOrder, tri
   const previousMeta = getSourcingOrderMeta(order);
   const nextUpdate = buildManyChatLogisticsUpdateForStatus(nextOrder.status);
   if (nextUpdate && previousMeta.manychat?.logisticsLastStatusSent !== nextUpdate.title) {
-    await triggerManyChatLogisticsUpdate(nextOrder, nextUpdate).catch((error) => {
+    await triggerManyChatLogisticsUpdate(nextOrder, nextUpdate).catch((error: unknown) => {
       console.error("[manychat] logistics update trigger failed", {
         orderId: nextOrder.id,
         reason: error instanceof Error ? error.message : "unknown",
