@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Mail\PartnerApprovedMail;
 use App\Models\ApiPartner;
 use App\Models\ApiPartnerRequest;
 use App\Models\PartnerWallet;
@@ -10,6 +11,8 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -58,6 +61,8 @@ class PartnerService
 
             return $partner;
         });
+
+        $this->queueApprovalMail($partner, $requestModel);
 
         return [
             'partner' => $partner->fresh('wallet'),
@@ -137,6 +142,28 @@ class PartnerService
             'created_at' => optional($partner->created_at)->toIso8601String(),
             'wallet_balance' => $partner->wallet ? (float) $partner->wallet->balance : 0.0,
         ];
+    }
+
+    protected function queueApprovalMail(ApiPartner $partner, ApiPartnerRequest $requestModel): void
+    {
+        try {
+            Mail::to($partner->email)->queue(
+                (new PartnerApprovedMail($partner, $requestModel))->afterCommit()
+            );
+
+            Log::info('Partner approval email queued.', [
+                'partner_id' => $partner->id,
+                'partner_email' => $partner->email,
+                'company_name' => $partner->company_name,
+            ]);
+        } catch (\Throwable $exception) {
+            Log::error('Failed to queue partner approval email.', [
+                'partner_id' => $partner->id,
+                'partner_email' => $partner->email,
+                'company_name' => $partner->company_name,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 
     public function docs(): array
