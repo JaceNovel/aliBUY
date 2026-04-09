@@ -1,10 +1,27 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Camera, LoaderCircle, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
-import { SearchSuggestionInput } from "@/components/search-suggestion-input";
+const SearchSuggestionInput = dynamic(
+  () => import("@/components/search-suggestion-input").then((module) => module.SearchSuggestionInput),
+  {
+    ssr: false,
+    loading: () => (
+      <label className="block">
+        <span className="sr-only">Recherche produit</span>
+        <input
+          type="search"
+          name="q"
+          autoComplete="off"
+          className="h-11 w-full rounded-[12px] border border-[#e6e1db] bg-[#fbfaf8] px-3 text-[13px] text-[#444] outline-none placeholder:text-[#9a9a9a] focus:border-[#ff6a00] sm:h-auto sm:rounded-none sm:border-0 sm:bg-transparent sm:px-0 sm:text-[16px]"
+        />
+      </label>
+    ),
+  },
+);
 
 type HomeSearchFormProps = {
   defaultQuery: string;

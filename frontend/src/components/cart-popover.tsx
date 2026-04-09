@@ -70,7 +70,22 @@ export function CartPopover({ className = "", align = "right", currencyCode, loc
   };
 
   const shareCart = async () => {
-    if (!isAuthenticated) {
+    let hasAuthenticatedSession = isAuthenticated;
+
+    if (!hasAuthenticatedSession) {
+      try {
+        const sessionResponse = await fetch("/api/account/session", {
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+        const sessionPayload = await sessionResponse.json().catch(() => null) as { user?: { id?: string } } | null;
+        hasAuthenticatedSession = Boolean(sessionResponse.ok && sessionPayload?.user?.id);
+      } catch {
+        hasAuthenticatedSession = false;
+      }
+    }
+
+    if (!hasAuthenticatedSession) {
       router.push(`/login?next=${encodeURIComponent("/cart")}&reason=cart_auth_required`);
       return;
     }

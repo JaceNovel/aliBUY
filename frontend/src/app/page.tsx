@@ -4,16 +4,14 @@ import { ScrollText, ShieldCheck, Sparkles, WandSparkles, type LucideIcon } from
 import type { Metadata } from "next";
 
 import { CategoryMegaMenu, type CategoryMegaMenuCategory } from "@/components/category-mega-menu";
-import { CountryPreferenceModal } from "@/components/country-preference-modal";
 import { DeliveryAddressPopover } from "@/components/delivery-address-popover";
+import { DeferredHomeWidgets } from "@/components/deferred-home-widgets";
 import { HeaderActionGroup } from "@/components/header-action-group";
 import { HomeDiscoveryShowcase } from "@/components/home-discovery-showcase";
 import { HomeSearchForm } from "@/components/home-search-form";
 import { LanguageSelectorPopover } from "@/components/language-selector-popover";
 import { MobileCategoryStrip } from "@/components/mobile-category-strip";
-import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 import { OrderProtectionMenu } from "@/components/order-protection-menu";
-import { ScrollNavbar } from "@/components/scroll-navbar";
 import { SiteFooter } from "@/components/site-footer";
 import { SupportMenu } from "@/components/support-menu";
 import { UnavailableLink } from "@/components/unavailable-link";
@@ -25,10 +23,6 @@ import { formatTierAwarePrice, formatTierAwarePriceMeta } from "@/lib/product-pr
 import { getPricingContext } from "@/lib/pricing";
 import { normalizeStorefrontBadge, normalizeStorefrontText, shuffleStorefrontItems } from "@/lib/public-storefront";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site-config";
-import { getCurrentUser } from "@/lib/user-auth";
-
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
 const HOME_HERO_NAV_ITEMS: ReadonlyArray<{ label: string; href: string; active?: boolean }> = [
   { label: "Mode", href: "/mode" },
@@ -73,11 +67,10 @@ function QuickActionItem({ item }: { item: QuickAction }) {
 }
 
 export default async function Home() {
-  const [pricing, catalogCategories, catalogProducts, user] = await Promise.all([
+  const [pricing, catalogCategories, catalogProducts] = await Promise.all([
     getPricingContext(),
     getCatalogCategories(),
     getCatalogProducts(),
-    getCurrentUser(),
   ]);
   const messages = getMessages(pricing.languageCode);
   const featuredProducts = catalogProducts.slice(0, 8);
@@ -157,15 +150,13 @@ export default async function Home() {
 
   return (
     <main className="min-h-screen bg-[#f4f4f4] pb-24 text-[#222] md:pb-0">
-      <CountryPreferenceModal countryCode={pricing.countryCode} currencyCode={pricing.currency.code} />
-      <ScrollNavbar
+      <DeferredHomeWidgets
         countryCode={pricing.countryCode}
         countryLabel={pricing.countryLabel}
         currencyCode={pricing.currency.code}
         flagEmoji={pricing.flagEmoji}
         languageCode={pricing.languageCode}
         languageLabel={pricing.languageLabel}
-        user={user ? { displayName: user.displayName, firstName: user.firstName } : null}
         categories={megaMenuCategories}
       />
       <header className="relative z-30 bg-[linear-gradient(180deg,#efd9cf_0%,#f8e7dc_16%,#f4f4f4_100%)]">
@@ -239,7 +230,7 @@ export default async function Home() {
               <HeaderActionGroup
                 className="flex items-center gap-3 text-[#222]"
                 iconClassName="h-5 w-5"
-                user={user ? { displayName: user.displayName, firstName: user.firstName } : null}
+                user={null}
               />
             </div>
           </div>
@@ -416,7 +407,6 @@ export default async function Home() {
       </div>
 
       <SiteFooter pricing={{ ...pricing, shippingWindow: undefined }} />
-      <MobileBottomNav />
     </main>
   );
 }

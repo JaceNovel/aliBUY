@@ -1,12 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Geist } from "next/font/google";
-import { AccountPhoneRequiredModal } from "@/components/account-phone-required-modal";
 import { CartProvider } from "@/components/cart-provider";
-import { RouteWarmup } from "@/components/route-warmup";
-import { SiteChatWidget } from "@/components/site-chat-widget";
+import { DeferredGlobalWidgets } from "@/components/deferred-global-widgets";
 import { clerkAppearance } from "@/lib/clerk-theme";
 import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_LOGO_PATH, SITE_NAME, SITE_SHARE_IMAGE_PATH, SITE_URL } from "@/lib/site-config";
+import { getCurrentUser } from "@/lib/user-auth";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -72,6 +71,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const currentUser = await getCurrentUser();
   const primaryNavigation = [
     { name: "Tous les produits", url: `${SITE_URL}/products` },
     { name: "Categories", url: `${SITE_URL}/categories` },
@@ -106,6 +106,13 @@ export default async function RootLayout({
     url: item.url,
   }));
 
+  const app = (
+    <CartProvider>
+      <DeferredGlobalWidgets />
+      {children}
+    </CartProvider>
+  );
+
   return (
     <html suppressHydrationWarning lang="fr-FR" className={`${geistSans.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
@@ -113,14 +120,7 @@ export default async function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify([organizationJsonLd, websiteJsonLd, ...navigationJsonLd]) }}
         />
-        <ClerkProvider appearance={clerkAppearance}>
-          <CartProvider>
-            <RouteWarmup />
-            <AccountPhoneRequiredModal />
-            <SiteChatWidget />
-            {children}
-          </CartProvider>
-        </ClerkProvider>
+        {currentUser ? <ClerkProvider appearance={clerkAppearance}>{app}</ClerkProvider> : app}
       </body>
     </html>
   );
