@@ -50,3 +50,28 @@ export type PartnerApiKeys = {
   revealableSecret?: string;
   webhookUrl: string;
 };
+
+export type PartnerPortalRequestSummary = {
+  companyName: string;
+  website: string | null;
+  description: string;
+  createdAt: string | null;
+};
+
+export type PartnerPortalAccountSummary = {
+  id: string;
+  companyName: string;
+  email: string;
+  webhookUrl: string | null;
+  isActive: boolean;
+  walletBalance: number;
+  createdAt: string | null;
+};
+
+export type PartnerPortalAccessResponse = {
+  status: "guest" | "none" | "pending" | "approved" | "rejected";
+  hasDashboardAccess: boolean;
+  email: string | null;
+  request: PartnerPortalRequestSummary | null;
+  partner: PartnerPortalAccountSummary | null;
+};

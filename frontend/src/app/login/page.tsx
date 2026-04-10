@@ -37,7 +37,7 @@ function getAuthNotice(languageCode: string, reason?: string, nextPath?: string)
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; reason?: string }>;
+  searchParams: Promise<{ next?: string; reason?: string; oauth_error?: string }>;
 }) {
   const pricing = await getPricingContext();
   const currentUser = await getCurrentUser();
@@ -45,6 +45,7 @@ export default async function LoginPage({
   const resolvedSearchParams = await searchParams;
   const nextPath = getSafeNextPath(resolvedSearchParams.next);
   const authNotice = getAuthNotice(pricing.languageCode, resolvedSearchParams.reason, nextPath);
+  const oauthError = resolvedSearchParams.oauth_error?.trim() || "";
   const isEnglish = pricing.languageCode === "en";
   const hasGoogleOauth = Boolean(process.env.GOOGLE_CLIENT_ID?.trim()) && Boolean(process.env.GOOGLE_CLIENT_SECRET?.trim());
 
@@ -66,6 +67,13 @@ export default async function LoginPage({
             <div className="mt-6 rounded-[20px] border border-[#ffd4b5] bg-[#fff4ea] px-4 py-4 text-[13px] leading-6 text-[#9a3412] sm:px-5 sm:text-[14px]">
               <div className="font-semibold text-[#7c2d12]">{authNotice.title}</div>
               <div className="mt-2">{authNotice.description}</div>
+            </div>
+          ) : null}
+
+          {oauthError ? (
+            <div className="mt-6 rounded-[20px] border border-[#f5c2c7] bg-[#fff1f2] px-4 py-4 text-[13px] leading-6 text-[#b42318] sm:px-5 sm:text-[14px]">
+              <div className="font-semibold text-[#912018]">Connexion Google indisponible</div>
+              <div className="mt-2">{oauthError}</div>
             </div>
           ) : null}
 

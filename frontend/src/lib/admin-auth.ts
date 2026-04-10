@@ -107,7 +107,7 @@ export async function validateAdminCredentials(email: string, password: string) 
 
   const diagnostics = await getAdminCredentialDiagnostics(email, password);
 
-  return diagnostics.hashMatch || diagnostics.plainMatch;
+  return diagnostics.emailMatch && (diagnostics.hashMatch || diagnostics.plainMatch);
 }
 
 export async function getCurrentAdminAccess() {

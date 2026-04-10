@@ -46,6 +46,7 @@ export function SiteFooter({ pricing }: SiteFooterProps) {
             <div className="text-[14px] font-semibold uppercase tracking-[0.14em] text-[#1f2937]">Services</div>
             <div className="mt-4 space-y-3 text-[14px] text-[#5f6470]">
               <Link href="/quotes" className="block transition hover:text-[#ff6a00]">Demander un devis</Link>
+              <Link href="/partnership" className="block transition hover:text-[#ff6a00]">Partnership</Link>
               <Link href="/pricing" className="block transition hover:text-[#ff6a00]">Tarifs</Link>
               <Link href="/protection-commandes" className="block transition hover:text-[#ff6a00]">{messages.nav.orderProtection}</Link>
               <Link href="/messages" className="block transition hover:text-[#ff6a00]">Messages support</Link>
@@ -81,6 +82,7 @@ export function SiteFooter({ pricing }: SiteFooterProps) {
           <div>© {new Date().getFullYear()} AfriPay. Sourcing, catalogue et operations import unifies.</div>
           <div className="flex flex-wrap gap-4">
             <Link href="/messages" className="transition hover:text-[#ff6a00]">Messages support</Link>
+            <Link href="/partnership" className="transition hover:text-[#ff6a00]">Partnership</Link>
             <Link href="/pricing" className="transition hover:text-[#ff6a00]">Tarifs</Link>
           </div>
         </div>

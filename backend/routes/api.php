@@ -17,6 +17,7 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PartnerAdminController;
 use App\Http\Controllers\PartnerDocsController;
+use App\Http\Controllers\PartnerPortalController;
 use App\Http\Controllers\PartnerOrderAdminController;
 use App\Http\Controllers\PartnerOrderController;
 use App\Http\Controllers\PartnerProductController;
@@ -46,6 +47,13 @@ Route::post('/location/resolve-maps-link', [LocationController::class, 'resolveM
 Route::get('/free-deals/state', [FreeDealController::class, 'state']);
 Route::post('/free-deals/checkout', [FreeDealController::class, 'checkout']);
 Route::post('/partner/request', [PartnerRequestController::class, 'store']);
+Route::prefix('partner/portal')->group(function () {
+    Route::get('/access', [PartnerPortalController::class, 'access']);
+    Route::get('/stats', [PartnerPortalController::class, 'stats']);
+    Route::get('/orders', [PartnerPortalController::class, 'orders']);
+    Route::get('/wallet', [PartnerPortalController::class, 'wallet']);
+    Route::get('/keys', [PartnerPortalController::class, 'keys']);
+});
 Route::get('/admin/aliexpress/supplier-accounts/oauth/callback', [AlibabaAdminController::class, 'oauthCallback']);
 
 Route::prefix('partner')

@@ -7,12 +7,15 @@ import { parseUserSessionToken, USER_SESSION_COOKIE } from "@/lib/user-session";
 const isProtectedRoute = createRouteMatcher([
   "/account(.*)",
   "/checkout(.*)",
+  "/dashboard",
+  "/dashboard/(.*)",
   "/orders(.*)",
   "/messages(.*)",
   "/quotes(.*)",
   "/favorites(.*)",
   "/admin",
   "/admin/(.*)",
+  "/api/dashboard(.*)",
   "/api/admin(.*)",
 ]);
 
@@ -53,6 +56,8 @@ function finalizeResponse(request: NextRequest, response: NextResponse) {
 async function handleRequest(request: NextRequest, getClerkUserId?: () => Promise<string | null>) {
   const isAdminPageRequest = request.nextUrl.pathname === "/admin" || request.nextUrl.pathname.startsWith("/admin/");
   const isAdminApiRequest = request.nextUrl.pathname.startsWith("/api/admin");
+  const isDashboardPageRequest = request.nextUrl.pathname === "/dashboard" || request.nextUrl.pathname.startsWith("/dashboard/");
+  const isDashboardApiRequest = request.nextUrl.pathname.startsWith("/api/dashboard");
 
   if (isCronRoute(request.nextUrl.pathname)) {
     return finalizeResponse(request, NextResponse.next());
@@ -67,7 +72,7 @@ async function handleRequest(request: NextRequest, getClerkUserId?: () => Promis
     const session = await parseUserSessionToken(request.cookies.get(USER_SESSION_COOKIE)?.value);
 
     if (!userId && !session?.sub) {
-      if (isAdminPageRequest || isAdminApiRequest) {
+      if (isAdminPageRequest || isAdminApiRequest || isDashboardPageRequest || isDashboardApiRequest) {
         return finalizeResponse(request, new NextResponse("Not Found", { status: 404 }));
       }
 

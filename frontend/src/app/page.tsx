@@ -142,9 +142,9 @@ export default async function Home() {
       href: "/orders",
     },
     {
-      title: messages.quickActions.quickCustomization,
+      title: "Devenir Vendeur",
       icon: WandSparkles,
-      href: "/account",
+      href: "/partnership",
     },
   ];
 
