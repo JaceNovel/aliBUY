@@ -92,6 +92,10 @@ function getGoogleOauthCallbackUrl(request: Request) {
   }
 
   const requestUrl = new URL(request.url);
+  if (requestUrl.hostname === "0.0.0.0") {
+    requestUrl.hostname = "localhost";
+  }
+
   return `${requestUrl.origin}/api/auth/google/callback`;
 }
 
