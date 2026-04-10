@@ -4,17 +4,10 @@ import { redirect } from "next/navigation";
 
 import { UserRegisterForm } from "@/components/user-register-form";
 import { isAdminEmail } from "@/lib/admin-auth";
+import { getSafeNextPath } from "@/lib/google-oauth";
 import { getPricingContext } from "@/lib/pricing";
 import { SITE_LOGO_PATH, SITE_NAME } from "@/lib/site-config";
 import { getCurrentUser } from "@/lib/user-auth";
-
-function getSafeNextPath(nextPath?: string) {
-  if (nextPath && nextPath.startsWith("/")) {
-    return nextPath;
-  }
-
-  return "/account";
-}
 
 function getRegisterNotice(languageCode: string, reason?: string, nextPath?: string) {
   const normalizedNextPath = nextPath ?? "";
@@ -47,6 +40,7 @@ export default async function RegisterPage({
   const nextPath = getSafeNextPath(resolvedSearchParams.next);
   const registerNotice = getRegisterNotice(pricing.languageCode, resolvedSearchParams.reason, nextPath);
   const isEnglish = pricing.languageCode === "en";
+  const hasGoogleOauth = Boolean(process.env.GOOGLE_CLIENT_ID?.trim()) && Boolean(process.env.GOOGLE_CLIENT_SECRET?.trim());
 
   if (currentUser) {
     redirect(isAdminEmail(currentUser.email) && nextPath.startsWith("/admin") ? nextPath : isAdminEmail(currentUser.email) ? "/home_jacen" : "/account");
@@ -57,9 +51,8 @@ export default async function RegisterPage({
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-[1180px] items-center justify-center">
         <section className="w-full max-w-[560px] px-2 py-4 sm:px-0 sm:py-0">
           <div className="flex justify-center">
-            <Link href="/" className="inline-flex flex-col items-center text-center">
+            <Link href="/" className="inline-flex items-center justify-center text-center">
               <Image src={SITE_LOGO_PATH} alt={`${SITE_NAME} logo`} width={82} height={82} className="h-20 w-20 object-contain" priority />
-              <span className="mt-3 text-[34px] font-black tracking-[-0.06em] text-[#111827]">{SITE_NAME}</span>
             </Link>
           </div>
 
@@ -74,6 +67,7 @@ export default async function RegisterPage({
             <UserRegisterForm
               nextPath={nextPath}
               loginHref={`/login?next=${encodeURIComponent(nextPath)}${resolvedSearchParams.reason ? `&reason=${encodeURIComponent(resolvedSearchParams.reason)}` : ""}`}
+              googleAuthHref={hasGoogleOauth ? `/api/auth/google/start?mode=register&next=${encodeURIComponent(nextPath)}` : null}
               submitLabel={isEnglish ? "Create account" : "Creer un compte"}
             />
           </div>
