@@ -82,7 +82,7 @@ export default async function PartnershipPage() {
               <div className="flex items-center justify-between gap-3 rounded-[22px] border border-[#e6edf3] bg-[#f8fbfe] px-5 py-4">
                 <div>
                   <div className="text-[12px] uppercase tracking-[0.14em] text-[#7b8c99]">Accès après validation</div>
-                  <div className="mt-1 text-[18px] font-bold text-[#142133]">`/dashboard` réservé au compte approuvé</div>
+                  <div className="mt-1 text-[18px] font-bold text-[#142133]"><span className="rounded-[10px] bg-white px-2 py-1 font-mono text-[15px] text-[#119b6a]">/dashboard</span> réservé au compte approuvé</div>
                 </div>
                 <ArrowRight className="h-5 w-5 text-[#119b6a]" />
               </div>
@@ -107,9 +107,9 @@ export default async function PartnershipPage() {
 
         <PartnerApplicationForm
           initialAccess={access}
-          loginHref="/login?next=/partner"
-          registerHref="/register?next=/partner"
-          goLiveHref="/dasboard"
+          loginHref="/login?next=/partnership"
+          registerHref="/register?next=/partnership"
+          goLiveHref="/dashboard"
         />
       </div>
     </InternalPageShell>

@@ -38,46 +38,72 @@ function formatDate(value?: string | null) {
 function PartnerIllustrationCard() {
   return (
     <section className="overflow-hidden rounded-[30px] border border-[#dde8f0] bg-[linear-gradient(180deg,#f6fbff_0%,#edf7ff_100%)] p-5 shadow-[0_18px_40px_rgba(17,24,39,0.06)]">
-      <div className="relative h-[280px] overflow-hidden rounded-[24px] bg-[radial-gradient(circle_at_top_left,#ffffff_0%,#eff8ff_45%,#d9eefc_100%)]">
-        <div className="absolute left-4 top-4 h-14 w-14 rounded-full border border-dashed border-[#d6e6f2] bg-white/60" />
-        <div className="absolute right-5 top-5 h-14 w-24 rounded-[18px] border border-[#dbe8f2] bg-white/80" />
-        <div className="absolute inset-x-8 bottom-6 h-20 rounded-[26px] bg-white/55 blur-md" />
-        <div className="absolute left-4 top-20 rounded-[18px] border border-[#cfe4f2] bg-white/80 px-3 py-2 text-[#43a8c7]">
+      <div className="relative h-[280px] overflow-hidden rounded-[24px] border border-white/60 bg-[radial-gradient(circle_at_top_left,#ffffff_0%,#eef7ff_42%,#d9eefc_100%)]">
+        <div className="absolute -left-6 top-5 h-20 w-20 rounded-full bg-white/55 blur-2xl" />
+        <div className="absolute right-10 top-8 h-24 w-24 rounded-full bg-[#cdeeff]/65 blur-2xl" />
+        <div className="absolute left-5 top-5 flex h-14 w-14 items-center justify-center rounded-[18px] border border-[#d7e6f1] bg-white/85 text-[#39a8c8] shadow-[0_12px_30px_rgba(17,24,39,0.08)]">
           <ShieldCheck className="h-7 w-7" />
         </div>
+        <div className="absolute right-5 top-5 rounded-[18px] border border-[#dbe8f2] bg-white/85 px-4 py-3 text-right shadow-[0_12px_30px_rgba(17,24,39,0.06)]">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7c8b99]">Partnership</div>
+          <div className="mt-1 text-[15px] font-bold text-[#142133]">API access</div>
+        </div>
+        <div className="absolute inset-x-10 bottom-5 h-16 rounded-[28px] bg-white/45 blur-xl" />
         <svg viewBox="0 0 420 280" className="absolute inset-0 h-full w-full" aria-hidden="true">
-          <rect x="0" y="0" width="420" height="280" fill="none" />
-          <ellipse cx="220" cy="88" rx="118" ry="34" fill="#eaf4fb" />
-          <rect x="84" y="92" width="252" height="118" rx="28" fill="#eef7fd" />
-          <rect x="70" y="172" width="290" height="42" rx="21" fill="#f6fbff" />
-          <rect x="128" y="70" width="168" height="16" rx="8" fill="#f4faff" />
-          <g>
-            <circle cx="170" cy="85" r="24" fill="#50352d" />
-            <rect x="146" y="106" width="48" height="72" rx="18" fill="#2db48d" />
-            <rect x="140" y="112" width="18" height="58" rx="9" fill="#2db48d" />
-            <rect x="183" y="112" width="18" height="58" rx="9" fill="#2db48d" />
-            <rect x="150" y="176" width="16" height="62" rx="8" fill="#2d4058" />
-            <rect x="175" y="176" width="16" height="62" rx="8" fill="#2d4058" />
-            <rect x="150" y="234" width="18" height="8" rx="4" fill="#5d392f" />
-            <rect x="173" y="234" width="18" height="8" rx="4" fill="#5d392f" />
-          </g>
-          <g>
-            <circle cx="262" cy="83" r="24" fill="#5d392f" />
-            <rect x="238" y="106" width="50" height="76" rx="18" fill="#d7f1ff" />
-            <rect x="232" y="112" width="18" height="56" rx="9" fill="#d7f1ff" />
-            <rect x="276" y="112" width="18" height="56" rx="9" fill="#d7f1ff" />
-            <rect x="246" y="180" width="16" height="60" rx="8" fill="#37557a" />
-            <rect x="270" y="180" width="16" height="60" rx="8" fill="#37557a" />
-            <rect x="245" y="148" width="46" height="8" rx="4" fill="#6ba3c4" />
-            <rect x="244" y="133" width="24" height="17" rx="4" fill="#364152" />
-            <rect x="244" y="132" width="45" height="28" rx="5" fill="#364152" />
-            <rect x="248" y="136" width="37" height="22" rx="3" fill="#6f7f95" />
-          </g>
-          <path d="M194 129 C213 120, 223 120, 238 130" stroke="#5f392f" strokeWidth="4" fill="none" strokeLinecap="round" />
-          <path d="M194 133 C213 143, 223 143, 238 134" stroke="#5f392f" strokeWidth="4" fill="none" strokeLinecap="round" />
-          <rect x="290" y="160" width="82" height="48" rx="16" fill="#ffffff" opacity="0.72" />
-          <text x="304" y="184" fontSize="16" fill="#5a6b7b" fontFamily="sans-serif">afriBuy API</text>
-          <text x="314" y="202" fontSize="12" fill="#7b8c99" fontFamily="sans-serif">E-commerce</text>
+          <defs>
+            <linearGradient id="partnerCardBg" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stopColor="#ffffff" />
+              <stop offset="100%" stopColor="#eff8ff" />
+            </linearGradient>
+            <linearGradient id="partnerApiBg" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stopColor="#0f9b6b" />
+              <stop offset="100%" stopColor="#49c5a0" />
+            </linearGradient>
+            <linearGradient id="partnerPanelBg" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stopColor="#172538" />
+              <stop offset="100%" stopColor="#27415f" />
+            </linearGradient>
+          </defs>
+
+          <rect x="84" y="54" width="252" height="162" rx="34" fill="url(#partnerCardBg)" stroke="#d8e7f2" />
+          <rect x="108" y="80" width="78" height="112" rx="24" fill="#f8fbff" stroke="#dbe8f2" />
+          <rect x="234" y="80" width="78" height="112" rx="24" fill="#f8fbff" stroke="#dbe8f2" />
+
+          <rect x="121" y="96" width="52" height="30" rx="14" fill="#dff7ef" />
+          <rect x="126" y="102" width="42" height="18" rx="9" fill="url(#partnerApiBg)" />
+          <rect x="120" y="136" width="54" height="42" rx="16" fill="#ffffff" stroke="#dce8f2" />
+          <rect x="128" y="145" width="38" height="8" rx="4" fill="#cad7e2" />
+          <rect x="128" y="159" width="24" height="6" rx="3" fill="#e2ebf2" />
+          <rect x="152" y="159" width="12" height="6" rx="3" fill="#9fdcc7" />
+
+          <rect x="247" y="96" width="52" height="30" rx="14" fill="#eef4ff" />
+          <rect x="254" y="102" width="38" height="18" rx="9" fill="#304a6d" />
+          <rect x="246" y="136" width="54" height="42" rx="16" fill="#ffffff" stroke="#dce8f2" />
+          <rect x="254" y="145" width="38" height="8" rx="4" fill="#cad7e2" />
+          <rect x="254" y="159" width="18" height="6" rx="3" fill="#e2ebf2" />
+          <rect x="274" y="159" width="18" height="6" rx="3" fill="#9bc4ff" />
+
+          <path d="M182 111 C203 111, 216 111, 238 111" stroke="#6bc8ab" strokeWidth="5" strokeLinecap="round" strokeDasharray="10 9" />
+          <circle cx="210" cy="111" r="19" fill="#ffffff" stroke="#d7e6f1" />
+          <path d="M198 111 h24" stroke="#6b7a89" strokeWidth="4" strokeLinecap="round" />
+          <path d="M216 103 l8 8 -8 8" fill="none" stroke="#6b7a89" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+
+          <rect x="148" y="205" width="124" height="24" rx="12" fill="#ffffff" opacity="0.85" />
+          <circle cx="162" cy="217" r="5" fill="#35b989" />
+          <rect x="173" y="212" width="54" height="10" rx="5" fill="#d8e7f2" />
+          <rect x="233" y="212" width="24" height="10" rx="5" fill="#bfe6d8" />
+
+          <rect x="287" y="150" width="92" height="58" rx="18" fill="#ffffff" opacity="0.95" />
+          <rect x="301" y="163" width="24" height="24" rx="8" fill="url(#partnerPanelBg)" />
+          <path d="M309 175 h8" stroke="#eff8ff" strokeWidth="3" strokeLinecap="round" />
+          <path d="M313 171 v8" stroke="#eff8ff" strokeWidth="3" strokeLinecap="round" />
+          <text x="333" y="172" fontSize="14" fill="#203247" fontFamily="sans-serif" fontWeight="700">afriBuy API</text>
+          <text x="333" y="189" fontSize="12" fill="#6a7a89" fontFamily="sans-serif">Connecte vos ventes</text>
+
+          <rect x="44" y="182" width="90" height="54" rx="18" fill="#ffffff" opacity="0.86" />
+          <text x="58" y="204" fontSize="11" fill="#7a8a99" fontFamily="sans-serif">Vendor setup</text>
+          <rect x="58" y="212" width="62" height="8" rx="4" fill="#d9e7f1" />
+          <rect x="58" y="224" width="38" height="6" rx="3" fill="#b9e5d7" />
         </svg>
       </div>
     </section>

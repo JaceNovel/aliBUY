@@ -25,7 +25,7 @@ class PartnerCharterPdf
             'description' => $this->partnerRequest->description,
             'appKey' => $this->partner->app_key,
             'webhookUrl' => $this->partner->webhook_url,
-            'supportEmail' => (string) config('mail.from.address'),
+            'supportEmail' => 'support@afripay.space',
             'date' => now()->format('d/m/Y'),
         ];
     }

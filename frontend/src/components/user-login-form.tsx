@@ -42,13 +42,17 @@ export function UserLoginForm({
         credentials: "same-origin",
         body: JSON.stringify({ email, password }),
       });
-      const payload = await response.json().catch(() => null) as { message?: string } | null;
+      const payload = await response.json().catch(() => null) as { message?: string; isAdmin?: boolean } | null;
 
       if (!response.ok) {
         throw new Error(payload?.message ?? "Connexion impossible.");
       }
 
-      router.replace(nextPath);
+      const destination = payload?.isAdmin
+        ? (nextPath.startsWith("/admin") ? nextPath : "/home_jacen")
+        : nextPath;
+
+      router.replace(destination);
       router.refresh();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Connexion impossible.");

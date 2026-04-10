@@ -26,7 +26,7 @@ class PartnerApprovalGuidePdf
             'website' => $this->partnerRequest->website,
             'description' => $this->partnerRequest->description,
             'docsUrl' => $this->docsUrl(),
-            'supportEmail' => (string) config('mail.from.address'),
+            'supportEmail' => 'support@afripay.space',
         ];
     }
 
