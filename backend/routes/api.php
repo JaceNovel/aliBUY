@@ -53,6 +53,8 @@ Route::prefix('partner/portal')->group(function () {
     Route::get('/orders', [PartnerPortalController::class, 'orders']);
     Route::get('/wallet', [PartnerPortalController::class, 'wallet']);
     Route::get('/keys', [PartnerPortalController::class, 'keys']);
+    Route::get('/approval-guide', [PartnerPortalController::class, 'approvalGuide']);
+    Route::get('/charter', [PartnerPortalController::class, 'charter']);
 });
 Route::get('/admin/aliexpress/supplier-accounts/oauth/callback', [AlibabaAdminController::class, 'oauthCallback']);
 

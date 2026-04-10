@@ -32,7 +32,7 @@ function getPartnerPortalSecret() {
   return process.env.PARTNER_PORTAL_SHARED_SECRET?.trim() || "";
 }
 
-function buildPartnerPortalHeaders(email: string) {
+export function buildPartnerPortalHeaders(email: string) {
   const secret = getPartnerPortalSecret();
   if (!secret) {
     throw new Error("Configuration partner portal incomplète. Définissez PARTNER_PORTAL_SHARED_SECRET sur le frontend.");
@@ -55,10 +55,7 @@ export async function getCurrentPartnerPortalIdentity() {
 }
 
 export async function fetchPartnerPortal<T>(path: string, email: string, query?: Record<string, string | number | boolean | null | undefined>): Promise<T> {
-  const response = await fetch(buildApiUrl(path, query), {
-    headers: buildPartnerPortalHeaders(email),
-    cache: "no-store",
-  });
+  const response = await fetchPartnerPortalResponse(path, email, query);
 
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
@@ -69,6 +66,13 @@ export async function fetchPartnerPortal<T>(path: string, email: string, query?:
   }
 
   return payload as T;
+}
+
+export async function fetchPartnerPortalResponse(path: string, email: string, query?: Record<string, string | number | boolean | null | undefined>) {
+  return fetch(buildApiUrl(path, query), {
+    headers: buildPartnerPortalHeaders(email),
+    cache: "no-store",
+  });
 }
 
 export async function getCurrentPartnerPortalAccess(): Promise<PartnerPortalAccess> {

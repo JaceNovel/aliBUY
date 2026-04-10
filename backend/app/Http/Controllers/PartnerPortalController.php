@@ -4,12 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\ApiPartner;
 use App\Models\ApiPartnerRequest;
+use App\Support\PartnerCharterPdf;
 use App\Models\PartnerOrder;
 use App\Models\PartnerTransaction;
+use App\Support\PartnerApprovalGuidePdf;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 
 class PartnerPortalController extends Controller
 {
@@ -173,6 +176,36 @@ class PartnerPortalController extends Controller
             'maskedSecret' => sprintf('%s%s', str_repeat('*', 24), $maskedSuffix),
             'webhookUrl' => $partner->webhook_url ?? '',
         ]);
+    }
+
+    public function approvalGuide(Request $request): Response
+    {
+        $partner = $this->resolveApprovedPartner($request);
+        $partnerRequest = ApiPartnerRequest::query()
+            ->where('email', $partner->email)
+            ->latest()
+            ->first();
+
+        if (! $partnerRequest) {
+            abort(404, 'Dossier partenaire introuvable pour ce compte.');
+        }
+
+        return (new PartnerApprovalGuidePdf($partner, $partnerRequest))->downloadResponse();
+    }
+
+    public function charter(Request $request): Response
+    {
+        $partner = $this->resolveApprovedPartner($request);
+        $partnerRequest = ApiPartnerRequest::query()
+            ->where('email', $partner->email)
+            ->latest()
+            ->first();
+
+        if (! $partnerRequest) {
+            abort(404, 'Dossier partenaire introuvable pour ce compte.');
+        }
+
+        return (new PartnerCharterPdf($partner, $partnerRequest))->downloadResponse();
     }
 
     protected function resolveApprovedPartner(Request $request): ApiPartner
