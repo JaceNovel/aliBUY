@@ -6,6 +6,7 @@ use App\Services\AlibabaAdminService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Throwable;
 
 class AlibabaAdminController extends Controller
 {
@@ -87,13 +88,48 @@ class AlibabaAdminController extends Controller
         $this->alibabaAdmin->assertAdmin($request->user('sanctum'));
 
         $payload = $request->all();
-        if (($payload['responseMode'] ?? null) === 'redirect') {
-            return redirect()->away($this->alibabaAdmin->oauthStartRedirectUrl($payload));
+        $shouldRedirect = $request->isMethod('GET') || ($payload['responseMode'] ?? null) === 'redirect';
+
+        try {
+            $redirectUrl = $this->alibabaAdmin->oauthStartRedirectUrl($payload);
+        } catch (Throwable $exception) {
+            if ($shouldRedirect) {
+                return redirect()->away($this->buildOauthFailureTarget($request, $payload, $exception->getMessage()));
+            }
+
+            return response()->json([
+                'error' => true,
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+
+        if ($shouldRedirect) {
+            return redirect()->away($redirectUrl);
         }
 
         return response()->json([
-            'redirectUrl' => $this->alibabaAdmin->oauthStartRedirectUrl($payload),
+            'redirectUrl' => $redirectUrl,
         ]);
+    }
+
+    protected function buildOauthFailureTarget(Request $request, array $payload, string $message): string
+    {
+        $origin = trim((string) ($payload['origin'] ?? ''));
+        if ($origin === '') {
+            $referer = trim((string) $request->headers->get('referer', ''));
+            if ($referer !== '') {
+                $origin = preg_replace('#/api/.*$#', '', $referer) ?: $referer;
+            }
+        }
+
+        if ($origin === '') {
+            $origin = rtrim((string) config('app.frontend_url', config('app.url', 'https://afripay.space')), '/');
+        }
+
+        $target = rtrim($origin, '/').'/admin/aliexpress-sourcing/accounts';
+        $separator = str_contains($target, '?') ? '&' : '?';
+
+        return $target.$separator.'oauth=failed&message='.rawurlencode($message !== '' ? $message : 'Demarrage OAuth AliExpress impossible.');
     }
 
     public function oauthCallback(Request $request): RedirectResponse

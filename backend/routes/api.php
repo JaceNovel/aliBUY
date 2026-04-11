@@ -98,7 +98,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/admin/aliexpress/import/{importedProductId}', [AlibabaAdminController::class, 'deleteImport']);
     Route::post('/admin/aliexpress/import/{importedProductId}/reenrich', [AlibabaAdminController::class, 'reenrichImport']);
     Route::post('/admin/aliexpress/supplier-accounts', [AlibabaAdminController::class, 'supplierAccounts']);
-    Route::post('/admin/aliexpress/supplier-accounts/oauth/start', [AlibabaAdminController::class, 'oauthStart']);
+    Route::match(['GET', 'POST'], '/admin/aliexpress/supplier-accounts/oauth/start', [AlibabaAdminController::class, 'oauthStart']);
     Route::post('/admin/aliexpress/supplier-accounts/{accountId}/refresh', [AlibabaAdminController::class, 'refreshSupplierAccount']);
     Route::post('/admin/aliexpress/reception-addresses', [AlibabaAdminController::class, 'receptionAddresses']);
     Route::put('/admin/aliexpress/country-profiles', [AlibabaAdminController::class, 'countryProfiles']);
