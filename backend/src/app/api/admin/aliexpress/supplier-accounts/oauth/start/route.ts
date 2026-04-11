@@ -1,7 +1,20 @@
 import { NextResponse } from "next/server";
 
 import { API_URL, buildApiUrl } from "@/lib/api";
+import { getCurrentAdminAccess } from "@/lib/admin-auth";
 import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
+
+function buildAdminLoginRedirect(request: Request, message?: string) {
+  const requestUrl = new URL(request.url);
+  const nextTarget = "/admin/aliexpress-sourcing/accounts";
+  const target = new URL("/home_jacen", requestUrl.origin);
+  target.searchParams.set("next", nextTarget);
+  if (message && message.trim()) {
+    target.searchParams.set("oauth_error", message.trim());
+  }
+
+  return NextResponse.redirect(target);
+}
 
 function buildPayloadFromUrl(request: Request) {
   const url = new URL(request.url);
@@ -31,6 +44,11 @@ async function proxyOauthStart(request: Request) {
     return NextResponse.json({ error: true, message: "Backend Laravel non configure pour OAuth AliExpress." }, { status: 503 });
   }
 
+  const adminAccess = await getCurrentAdminAccess().catch(() => null);
+  if (!adminAccess) {
+    return buildAdminLoginRedirect(request, "Reconnectez-vous avec un compte admin avant de lancer OAuth AliExpress.");
+  }
+
   const payload = request.method === "GET"
     ? buildPayloadFromUrl(request)
     : await buildPayloadFromRequest(request);
@@ -49,6 +67,10 @@ async function proxyOauthStart(request: Request) {
     cache: "no-store",
     redirect: "manual",
   });
+
+  if (response.status === 401) {
+    return buildAdminLoginRedirect(request, "La session admin Laravel a expire. Reconnectez-vous puis relancez OAuth AliExpress.");
+  }
 
   const location = response.headers.get("location")?.trim();
   if (location) {
