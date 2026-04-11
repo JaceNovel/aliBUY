@@ -7,6 +7,14 @@ use Illuminate\Http\Request;
 
 class AccountSettingsController extends Controller
 {
+    protected function serializeSettings($user): array
+    {
+        return array_merge($user->settings ?? [], [
+            'phone' => $user->phone,
+            'updatedAt' => optional($user->updated_at)->toIso8601String(),
+        ]);
+    }
+
     public function show(Request $request): JsonResponse
     {
         $user = $request->user('sanctum');
@@ -16,10 +24,11 @@ class AccountSettingsController extends Controller
                 'id' => (string) $user->id,
                 'email' => $user->email,
                 'displayName' => $user->name,
+                'phone' => $user->phone,
                 'firstName' => str($user->name)->before(' ')->value(),
                 'createdAt' => optional($user->created_at)->toIso8601String(),
             ],
-            'settings' => $user->settings ?? [],
+            'settings' => $this->serializeSettings($user),
         ]);
     }
 
@@ -73,7 +82,7 @@ class AccountSettingsController extends Controller
 
         return response()->json([
             'ok' => true,
-            'settings' => $settings,
+            'settings' => $this->serializeSettings($user),
         ]);
     }
 }

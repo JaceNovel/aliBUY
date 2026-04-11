@@ -39,6 +39,7 @@ function PartnerIllustrationCard() {
   return (
     <section className="overflow-hidden rounded-[30px] border border-[#dde8f0] bg-[linear-gradient(180deg,#f6fbff_0%,#edf7ff_100%)] p-5 shadow-[0_18px_40px_rgba(17,24,39,0.06)]">
       <div className="relative h-[280px] overflow-hidden rounded-[24px] border border-white/60 bg-[radial-gradient(circle_at_top_left,#ffffff_0%,#eef7ff_42%,#d9eefc_100%)]">
+        <div className="absolute inset-5 rounded-[28px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.72)_0%,rgba(233,244,255,0.46)_100%)]" />
         <div className="absolute -left-6 top-5 h-20 w-20 rounded-full bg-white/55 blur-2xl" />
         <div className="absolute right-10 top-8 h-24 w-24 rounded-full bg-[#cdeeff]/65 blur-2xl" />
         <div className="absolute left-5 top-5 flex h-14 w-14 items-center justify-center rounded-[18px] border border-[#d7e6f1] bg-white/85 text-[#39a8c8] shadow-[0_12px_30px_rgba(17,24,39,0.08)]">
@@ -93,12 +94,16 @@ function PartnerIllustrationCard() {
           <rect x="173" y="212" width="54" height="10" rx="5" fill="#d8e7f2" />
           <rect x="233" y="212" width="24" height="10" rx="5" fill="#bfe6d8" />
 
-          <rect x="287" y="150" width="92" height="58" rx="18" fill="#ffffff" opacity="0.95" />
-          <rect x="301" y="163" width="24" height="24" rx="8" fill="url(#partnerPanelBg)" />
-          <path d="M309 175 h8" stroke="#eff8ff" strokeWidth="3" strokeLinecap="round" />
-          <path d="M313 171 v8" stroke="#eff8ff" strokeWidth="3" strokeLinecap="round" />
-          <text x="333" y="172" fontSize="14" fill="#203247" fontFamily="sans-serif" fontWeight="700">afriBuy API</text>
-          <text x="333" y="189" fontSize="12" fill="#6a7a89" fontFamily="sans-serif">Connecte vos ventes</text>
+          <rect x="282" y="142" width="108" height="72" rx="22" fill="#f7fbff" stroke="#d8e7f2" />
+          <rect x="290" y="150" width="108" height="72" rx="22" fill="#ffffff" opacity="0.92" />
+          <rect x="304" y="164" width="26" height="26" rx="9" fill="url(#partnerPanelBg)" />
+          <path d="M312 177 h10" stroke="#eff8ff" strokeWidth="3" strokeLinecap="round" />
+          <path d="M317 172 v10" stroke="#eff8ff" strokeWidth="3" strokeLinecap="round" />
+          <text x="338" y="173" fontSize="15" fill="#18283b" fontFamily="sans-serif" fontWeight="700">AfriBuy API</text>
+          <text x="338" y="191" fontSize="12" fill="#6a7a89" fontFamily="sans-serif">Connecte votre activité</text>
+
+          <rect x="298" y="198" width="82" height="7" rx="3.5" fill="#d7e5f0" />
+          <rect x="298" y="198" width="34" height="7" rx="3.5" fill="#8ec8ff" />
 
           <rect x="44" y="182" width="90" height="54" rx="18" fill="#ffffff" opacity="0.86" />
           <text x="58" y="204" fontSize="11" fill="#7a8a99" fontFamily="sans-serif">Vendor setup</text>
@@ -309,8 +314,8 @@ export function PartnerApplicationForm({ initialAccess, loginHref, registerHref,
         <form id="partner-form" onSubmit={submit} className="rounded-[30px] border border-[#dce7f1] bg-white p-6 shadow-[0_20px_50px_rgba(17,24,39,0.08)] sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="text-[30px] font-black tracking-[-0.05em] text-[#142133] sm:text-[38px]">Devenir Partenaire</h2>
-            <p className="mt-4 text-[16px] leading-8 text-[#5e6b79]">Remplissez le formulaire suivant pour devenir partenaire d’afriBuy.</p>
+            <h2 className="text-[30px] font-black tracking-[-0.05em] text-[#142133] sm:text-[38px]">Déposer votre demande partenaire</h2>
+            <p className="mt-4 text-[16px] leading-8 text-[#5e6b79]">Votre compte est bien connecté. Remplissez le formulaire ci-dessous pour lancer la validation partenaire.</p>
           </div>
           <div className="rounded-full border border-[#d9e5ef] bg-[#f8fbfe] px-4 py-2 text-[12px] font-semibold text-[#476073]">Compte lié: {access.email}</div>
         </div>

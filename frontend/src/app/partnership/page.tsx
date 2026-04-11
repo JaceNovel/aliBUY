@@ -5,6 +5,7 @@ import { InternalPageShell } from "@/components/internal-page-shell";
 import { PartnerApplicationForm } from "@/components/partner-application-form";
 import { getCurrentPartnerPortalAccess, type PartnerPortalAccess } from "@/lib/partner-portal";
 import { getPricingContext } from "@/lib/pricing";
+import { getCurrentUser } from "@/lib/user-auth";
 
 export const metadata: Metadata = {
   title: "Devenir Partenaire",
@@ -38,10 +39,29 @@ export default async function PartnershipPage() {
     partner: null,
   };
 
-  const [pricing, access] = await Promise.all([
+  const [pricing, currentUser, rawAccess] = await Promise.all([
     getPricingContext(),
-    getCurrentPartnerPortalAccess().catch(() => fallbackAccess),
+    getCurrentUser().catch(() => null),
+    getCurrentPartnerPortalAccess().catch(() => null),
   ]);
+
+  const access: PartnerPortalAccess = rawAccess
+    ? rawAccess.status === "guest" && currentUser?.email
+      ? {
+          ...rawAccess,
+          status: "none",
+          email: currentUser.email,
+        }
+      : rawAccess
+    : currentUser?.email
+      ? {
+          status: "none",
+          hasDashboardAccess: false,
+          email: currentUser.email,
+          request: null,
+          partner: null,
+        }
+      : fallbackAccess;
 
   return (
     <InternalPageShell pricing={pricing}>

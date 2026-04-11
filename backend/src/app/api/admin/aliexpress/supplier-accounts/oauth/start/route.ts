@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 
 import { API_URL, buildApiUrl } from "@/lib/api";
 import { getCurrentAdminAccess } from "@/lib/admin-auth";
+import { getPublicAuthRequestUrl } from "@/lib/google-oauth";
 import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
 
 function buildAdminLoginRedirect(request: Request, message?: string) {
-  const requestUrl = new URL(request.url);
+  const requestUrl = getPublicAuthRequestUrl(request);
   const nextTarget = "/admin/aliexpress-sourcing/accounts";
   const target = new URL("/home_jacen", requestUrl.origin);
   target.searchParams.set("next", nextTarget);
