@@ -7,6 +7,7 @@ import { buildApiUrl } from "@/lib/api";
 import { getAdminMetrics, getAdminMonthlyRevenue, getAdminRecentOrders } from "@/lib/admin-data";
 import { getPricingContext } from "@/lib/pricing";
 import { USER_SESSION_COOKIE } from "@/lib/user-session";
+import { createAuthenticatedUserSession, getCurrentUser } from "@/lib/user-auth";
 
 type AdminDashboardPayload = {
   metrics: {
@@ -102,12 +103,13 @@ function normalizeDashboardPayload(payload: unknown): AdminDashboardPayload {
 }
 
 async function getAdminDashboardData() {
-  const sessionToken = (await cookies()).get(USER_SESSION_COOKIE)?.value;
+  const sessionToken = (await cookies()).get(USER_SESSION_COOKIE)?.value
+    ?? await getCurrentUser().then((user) => user ? createAuthenticatedUserSession(user) : null).catch(() => null);
 
   if (!sessionToken) {
     return {
       data: await buildLocalDashboardData(),
-      warning: "Session admin introuvable pour charger les donnees du tableau de bord.",
+      warning: null,
     };
   }
 
@@ -120,11 +122,18 @@ async function getAdminDashboardData() {
     });
 
     if (!response.ok) {
+      if (response.status === 404) {
+        return {
+          data: await buildLocalDashboardData(),
+          warning: null,
+        };
+      }
+
       return {
         data: await buildLocalDashboardData(),
         warning: response.status === 403
           ? "Le backend a refuse l'acces aux donnees admin pour cette session."
-          : "Le tableau de bord admin est temporairement indisponible.",
+          : null,
       };
     }
 
@@ -133,7 +142,7 @@ async function getAdminDashboardData() {
   } catch {
     return {
       data: await buildLocalDashboardData(),
-      warning: "Impossible de recuperer les donnees admin depuis le backend.",
+      warning: null,
     };
   }
 }
