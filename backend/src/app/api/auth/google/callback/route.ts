@@ -1,11 +1,14 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { exchangeGoogleOauthCode, getGoogleOauthStateCookieConfig, parseGoogleOauthState } from "@/lib/google-oauth";
+import { provisionBackendGoogleUser } from "@/lib/backend-auth-client";
+import { exchangeGoogleOauthCode, getGoogleOauthStateCookieConfig, normalizeAuthOrigin, parseGoogleOauthState } from "@/lib/google-oauth";
+import { hasConfiguredDatabaseUrl } from "@/lib/prisma";
+import { createUserSessionToken } from "@/lib/user-session";
 import { createAuthenticatedUserSession, getCurrentUser, getUserSessionCookieConfig, registerUser } from "@/lib/user-auth";
 
 function redirectWithError(requestUrl: URL, mode: "login" | "register", nextPath: string, message: string) {
-  const target = new URL(mode === "register" ? "/register" : "/login", requestUrl.origin);
+  const target = new URL(mode === "register" ? "/register" : "/login", normalizeAuthOrigin(requestUrl));
   target.searchParams.set("next", nextPath);
   target.searchParams.set("oauth_error", message);
   return NextResponse.redirect(target);
@@ -36,6 +39,27 @@ export async function GET(request: Request) {
 
   try {
     const profile = await exchangeGoogleOauthCode(request, code);
+
+    if (!hasConfiguredDatabaseUrl()) {
+      await provisionBackendGoogleUser(request, {
+        email: profile.email,
+        displayName: profile.displayName,
+      }).catch(() => null);
+
+      const token = await createUserSessionToken({
+        id: `google:${profile.googleUserId || profile.email}`,
+        email: profile.email,
+        displayName: profile.displayName,
+      });
+
+      cookieStore.set({
+        ...getUserSessionCookieConfig(),
+        value: token,
+      });
+
+      return NextResponse.redirect(new URL(nextPath, normalizeAuthOrigin(requestUrl)));
+    }
+
     let user = await getCurrentUser();
 
     if (!user || user.email !== profile.email) {
@@ -73,7 +97,7 @@ export async function GET(request: Request) {
       value: token,
     });
 
-    return NextResponse.redirect(new URL(nextPath, requestUrl.origin));
+    return NextResponse.redirect(new URL(nextPath, normalizeAuthOrigin(requestUrl)));
   } catch (error) {
     return redirectWithError(requestUrl, mode, nextPath, error instanceof Error ? error.message : "Connexion Google impossible.");
   }

@@ -92,11 +92,23 @@ function getGoogleOauthCallbackUrl(request: Request) {
   }
 
   const requestUrl = new URL(request.url);
-  if (requestUrl.hostname === "0.0.0.0") {
+  if (requestUrl.hostname === "0.0.0.0" || requestUrl.hostname === "localhost") {
     requestUrl.hostname = "localhost";
+    requestUrl.protocol = "http:";
   }
 
   return `${requestUrl.origin}/api/auth/google/callback`;
+}
+
+export function normalizeAuthOrigin(input: URL) {
+  const target = new URL(input.toString());
+
+  if (target.hostname === "0.0.0.0" || target.hostname === "localhost") {
+    target.hostname = "localhost";
+    target.protocol = "http:";
+  }
+
+  return target.origin;
 }
 
 export async function createGoogleOauthState(input: { nextPath?: string | null; mode?: string | null }) {

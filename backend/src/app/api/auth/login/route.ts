@@ -2,6 +2,8 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { getAuthorizedAdminAccessByEmail, validateAdminCredentials } from "@/lib/admin-auth";
+import { mapBackendUserToSessionIdentity, postBackendAuth } from "@/lib/backend-auth-client";
+import { hasConfiguredDatabaseUrl } from "@/lib/prisma";
 import { createUserSessionToken } from "@/lib/user-session";
 import { createAuthenticatedUserSession, validateUserCredentials } from "@/lib/user-auth";
 import { getUserSessionCookieConfig } from "@/lib/user-auth";
@@ -15,11 +17,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Adresse e-mail et mot de passe requis." }, { status: 400 });
   }
 
-  const user = await validateUserCredentials(email, password).catch(() => null);
+  const user = hasConfiguredDatabaseUrl()
+    ? await validateUserCredentials(email, password).catch(() => null)
+    : null;
   if (!user) {
     const isAdmin = await validateAdminCredentials(email, password).catch(() => false);
     if (!isAdmin) {
-      return NextResponse.json({ message: "Identifiants invalides." }, { status: 401 });
+      const backendResult = await postBackendAuth(request, "/api/auth/login", { email, password }, "ouvrir une session");
+      if (!backendResult.ok) {
+        return backendResult.response;
+      }
+
+      const backendIdentity = mapBackendUserToSessionIdentity(backendResult.body.user!);
+      const backendToken = await createUserSessionToken(backendIdentity);
+      const cookieStore = await cookies();
+      cookieStore.set({
+        ...getUserSessionCookieConfig(),
+        value: backendToken,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        user: backendIdentity,
+        isAdmin: ["admin", "super_admin"].includes(String(backendResult.body.user?.role || "")),
+      });
     }
 
     const access = await getAuthorizedAdminAccessByEmail(email);
