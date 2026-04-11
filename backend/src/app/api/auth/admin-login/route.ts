@@ -8,6 +8,32 @@ import { getBackendBearerToken, mapBackendUserToSessionIdentity, postBackendAuth
 import { createUserSessionToken } from "@/lib/user-session";
 import { getUserSessionCookieConfig } from "@/lib/user-auth";
 
+async function createLocalAdminSession(email: string) {
+  const access = await getAuthorizedAdminAccessByEmail(email);
+  if (!access) {
+    return NextResponse.json({ message: "Accès admin non autorisé pour ce compte." }, { status: 403 });
+  }
+
+  const token = await createUserSessionToken({
+    id: `admin:${email}`,
+    email,
+    displayName: access.isSuperAdmin ? "Super Admin" : `Admin ${access.role}`,
+  });
+
+  const cookieStore = await cookies();
+  cookieStore.set({
+    ...getUserSessionCookieConfig(),
+    value: token,
+  });
+  cookieStore.set({
+    ...getBackendAccessTokenCookieConfig(),
+    value: "",
+    maxAge: 0,
+  });
+
+  return NextResponse.json({ ok: true, isAdmin: true, role: access.role, usedLocalAdminFallback: true });
+}
+
 export async function POST(request: Request) {
   const payload = await request.json().catch(() => null) as { email?: string; password?: string } | null;
   const email = payload?.email?.trim().toLowerCase() || "";
@@ -20,6 +46,11 @@ export async function POST(request: Request) {
   if (API_URL) {
     const backendResult = await postBackendAuth(request, "/api/auth/admin-login", { email, password }, "ouvrir la session admin");
     if (!backendResult.ok) {
+      const isLocalAdmin = await validateAdminCredentials(email, password).catch(() => false);
+      if (isLocalAdmin) {
+        return createLocalAdminSession(email);
+      }
+
       return backendResult.response;
     }
 
@@ -63,22 +94,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Identifiants invalides." }, { status: 401 });
   }
 
-  const access = await getAuthorizedAdminAccessByEmail(email);
-  if (!access) {
-    return NextResponse.json({ message: "Accès admin non autorisé pour ce compte." }, { status: 403 });
-  }
-
-  const token = await createUserSessionToken({
-    id: `admin:${email}`,
-    email,
-    displayName: access.isSuperAdmin ? "Super Admin" : `Admin ${access.role}`,
-  });
-
-  const cookieStore = await cookies();
-  cookieStore.set({
-    ...getUserSessionCookieConfig(),
-    value: token,
-  });
-
-  return NextResponse.json({ ok: true, isAdmin: true, role: access.role });
+  return createLocalAdminSession(email);
 }
