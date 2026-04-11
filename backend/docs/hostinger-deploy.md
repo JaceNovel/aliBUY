@@ -49,6 +49,9 @@ SANCTUM_STATEFUL_DOMAINS=afripay.space,www.afripay.space
 FRONTEND_URL=https://www.afripay.space
 FRONTEND_URLS=https://www.afripay.space,https://afripay.space
 
+ADMIN_EMAIL=
+ADMIN_API_TOKEN=
+
 MAIL_MAILER=smtp
 MAIL_SCHEME=tls
 MAIL_HOST=smtp.titan.email
@@ -99,6 +102,16 @@ php artisan migrate:status
 curl https://api.afripay.space/api/test/ping
 curl https://api.afripay.space/api/products
 ```
+
+## Variables admin AliExpress a ne pas oublier
+
+Les pages admin AliExpress du frontend utilisent un appel serveur-vers-serveur vers `https://api.afripay.space`.
+Pour que ces appels passent les routes Laravel protegees par `auth:sanctum`, le backend doit avoir:
+
+- `ADMIN_EMAIL`: l'e-mail du compte admin de reference dans la base Laravel
+- `ADMIN_API_TOKEN`: un secret partage entre frontend et backend pour l'acces admin serveur-vers-serveur
+
+Si une de ces variables manque, le frontend peut ouvrir `/admin`, mais les tableaux AliExpress renverront encore `401 Unauthenticated`.
 
 ## Si Hostinger affiche "No Docker compose files found"
 

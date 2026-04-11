@@ -22,6 +22,13 @@ return Application::configure(basePath: dirname(__DIR__))
 
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
+        $middleware->redirectGuestsTo(static function (Request $request): ?string {
+            if ($request->is('api/*')) {
+                return null;
+            }
+
+            return '/login';
+        });
 
         $middleware->alias([
             'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
