@@ -46,7 +46,7 @@ export async function buildServerForwardHeaders(
     forwarded.set("x-admin-token", backendAccessToken);
   }
 
-  if (adminApiToken) {
+  if (adminApiToken && !backendAccessToken) {
     forwarded.set("authorization", `Bearer ${adminApiToken}`);
     forwarded.set("x-admin-token", adminApiToken);
   }

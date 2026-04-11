@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { API_URL } from "@/lib/api";
 import { getAuthorizedAdminAccessByEmail, validateAdminCredentials } from "@/lib/admin-auth";
 import { getBackendAccessTokenCookieConfig } from "@/lib/backend-access-token";
 import { getBackendBearerToken, mapBackendUserToSessionIdentity, postBackendAuth } from "@/lib/backend-auth-client";
@@ -54,6 +55,29 @@ export async function POST(request: Request) {
     const access = await getAuthorizedAdminAccessByEmail(email);
     if (!access) {
       return NextResponse.json({ message: "Accès admin non autorisé pour ce compte." }, { status: 403 });
+    }
+
+    if (API_URL) {
+      const backendAdminResult = await postBackendAuth(request, "/api/auth/admin-login", { email, password }, "ouvrir une session admin");
+      if (backendAdminResult.ok) {
+        const backendIdentity = mapBackendUserToSessionIdentity(backendAdminResult.body.user!);
+        const backendSessionToken = await createUserSessionToken(backendIdentity);
+        const cookieStore = await cookies();
+        cookieStore.set({
+          ...getUserSessionCookieConfig(),
+          value: backendSessionToken,
+        });
+
+        const backendBearerToken = getBackendBearerToken(backendAdminResult.body);
+        if (backendBearerToken) {
+          cookieStore.set({
+            ...getBackendAccessTokenCookieConfig(),
+            value: backendBearerToken,
+          });
+        }
+
+        return NextResponse.json({ ok: true, isAdmin: true, role: String(backendAdminResult.body.user?.role || access.role) });
+      }
     }
 
     const adminToken = await createUserSessionToken({
