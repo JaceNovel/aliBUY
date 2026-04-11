@@ -1,7 +1,10 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { API_URL } from "@/lib/api";
 import { getAuthorizedAdminAccessByEmail, validateAdminCredentials } from "@/lib/admin-auth";
+import { getBackendAccessTokenCookieConfig } from "@/lib/backend-access-token";
+import { getBackendBearerToken, mapBackendUserToSessionIdentity, postBackendAuth } from "@/lib/backend-auth-client";
 import { createUserSessionToken } from "@/lib/user-session";
 import { getUserSessionCookieConfig } from "@/lib/user-auth";
 
@@ -12,6 +15,39 @@ export async function POST(request: Request) {
 
   if (!email || !password) {
     return NextResponse.json({ message: "Adresse e-mail et mot de passe admin requis." }, { status: 400 });
+  }
+
+  if (API_URL) {
+    const backendResult = await postBackendAuth(request, "/api/auth/admin-login", { email, password }, "ouvrir la session admin");
+    if (!backendResult.ok) {
+      return backendResult.response;
+    }
+
+    const backendIdentity = mapBackendUserToSessionIdentity(backendResult.body.user!);
+    const sessionToken = await createUserSessionToken({
+      id: backendIdentity.id,
+      email: backendIdentity.email,
+      displayName: backendIdentity.displayName,
+    });
+    const backendBearerToken = getBackendBearerToken(backendResult.body);
+
+    const cookieStore = await cookies();
+    cookieStore.set({
+      ...getUserSessionCookieConfig(),
+      value: sessionToken,
+    });
+    if (backendBearerToken) {
+      cookieStore.set({
+        ...getBackendAccessTokenCookieConfig(),
+        value: backendBearerToken,
+      });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      isAdmin: true,
+      role: String(backendResult.body.user?.role || "admin"),
+    });
   }
 
   const isValid = await validateAdminCredentials(email, password).catch((error: unknown) => {

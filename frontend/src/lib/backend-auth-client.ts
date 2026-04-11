@@ -17,6 +17,16 @@ type BackendAuthPayload = {
   errors?: Record<string, string | string[]>;
 };
 
+export function getBackendBearerToken(payload: BackendAuthPayload | null | undefined) {
+  const token = payload?.token?.trim() || "";
+  if (!token) {
+    return "";
+  }
+
+  const tokenType = payload?.tokenType?.trim() || "Bearer";
+  return `${tokenType} ${token}`.trim();
+}
+
 function extractBackendMessage(payload: BackendAuthPayload | null, fallback: string) {
   if (payload?.message && typeof payload.message === "string") {
     return payload.message;

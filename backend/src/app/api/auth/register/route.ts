@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { mapBackendUserToSessionIdentity, postBackendAuth } from "@/lib/backend-auth-client";
+import { getBackendAccessTokenCookieConfig } from "@/lib/backend-access-token";
+import { getBackendBearerToken, mapBackendUserToSessionIdentity, postBackendAuth } from "@/lib/backend-auth-client";
 import { hasConfiguredDatabaseUrl } from "@/lib/prisma";
 import { createUserSessionToken } from "@/lib/user-session";
 import { getUserSessionCookieConfig, registerUser, createAuthenticatedUserSession } from "@/lib/user-auth";
@@ -35,6 +36,13 @@ export async function POST(request: Request) {
       ...getUserSessionCookieConfig(),
       value: backendToken,
     });
+    const backendBearerToken = getBackendBearerToken(backendResult.body);
+    if (backendBearerToken) {
+      cookieStore.set({
+        ...getBackendAccessTokenCookieConfig(),
+        value: backendBearerToken,
+      });
+    }
 
     return NextResponse.json({ ok: true, user: backendIdentity });
   }

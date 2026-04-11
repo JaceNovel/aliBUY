@@ -29,6 +29,17 @@ class AppServiceProvider extends ServiceProvider
                 return $bearerToken;
             }
 
+            $cookieToken = trim((string) $request->cookie('afripay_backend_access_token', ''));
+            if ($cookieToken !== '') {
+                if (str_starts_with(strtolower($cookieToken), 'bearer ')) {
+                    $cookieToken = trim(substr($cookieToken, 7));
+                }
+
+                if ($cookieToken !== '') {
+                    return $cookieToken;
+                }
+            }
+
             $adminToken = trim((string) $request->header('x-admin-token', ''));
             if ($adminToken === '') {
                 return null;

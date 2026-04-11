@@ -2,6 +2,8 @@ import "server-only";
 
 import { cookies, headers } from "next/headers";
 
+import { BACKEND_ACCESS_TOKEN_COOKIE } from "@/lib/backend-access-token";
+
 const FORWARDED_HEADER_NAMES = [
   "origin",
   "referer",
@@ -27,12 +29,21 @@ export async function buildServerForwardHeaders(
   const [cookieStore, headerStore] = await Promise.all([cookies(), headers()]);
   const forwarded = new Headers(initialHeaders);
   const cookieHeader = cookieStore.toString();
+  const backendAccessToken = cookieStore.get(BACKEND_ACCESS_TOKEN_COOKIE)?.value?.trim() || "";
   const adminApiToken = options?.includeAdminApiToken
     ? process.env.ADMIN_API_TOKEN?.trim()
     : "";
 
   if (cookieHeader) {
     forwarded.set("cookie", cookieHeader);
+  }
+
+  if (backendAccessToken && !forwarded.has("authorization")) {
+    forwarded.set("authorization", backendAccessToken);
+  }
+
+  if (backendAccessToken && !forwarded.has("x-admin-token")) {
+    forwarded.set("x-admin-token", backendAccessToken);
   }
 
   if (adminApiToken) {
