@@ -26,12 +26,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
             'ability' => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
+            'authenticate.admin.api.token' => \App\Http\Middleware\AuthenticateAdminApiToken::class,
             'inject.admin.token' => \App\Http\Middleware\InjectAdminTokenHeader::class,
             'prefer.token.guard' => \App\Http\Middleware\PreferTokenGuardForApiRequests::class,
             'partner.auth' => \App\Http\Middleware\PartnerAuthMiddleware::class,
             'partner.api.log' => \App\Http\Middleware\PartnerApiLogMiddleware::class,
         ]);
 
+        $middleware->prependToGroup('api', \App\Http\Middleware\AuthenticateAdminApiToken::class);
         $middleware->prependToGroup('api', \App\Http\Middleware\PreferTokenGuardForApiRequests::class);
         $middleware->prependToGroup('api', \App\Http\Middleware\InjectAdminTokenHeader::class);
         $middleware->prependToGroup('api', EnsureFrontendRequestsAreStateful::class);

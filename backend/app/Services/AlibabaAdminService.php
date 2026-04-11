@@ -477,13 +477,17 @@ class AlibabaAdminService
     {
         $origin = rtrim((string) ($input['origin'] ?? config('app.url', '')), '/');
         $target = $origin !== '' ? $origin.'/admin/aliexpress-sourcing/accounts' : '/admin/aliexpress-sourcing/accounts';
+        $requestedId = trim((string) ($input['id'] ?? ''));
 
         if (($input['id'] ?? null) !== null || ($input['name'] ?? null) !== null || ($input['appKey'] ?? null) !== null) {
-            $this->saveSupplierAccount($input);
+            $saved = $this->saveSupplierAccount($input);
+            $savedAccount = is_array($saved['account'] ?? null) ? $saved['account'] : null;
+            if ($requestedId === '' && is_array($savedAccount)) {
+                $requestedId = trim((string) ($savedAccount['id'] ?? ''));
+            }
         }
 
         $accounts = $this->readJsonArray('alibaba-supplier-accounts.json');
-        $requestedId = trim((string) ($input['id'] ?? ''));
         $account = collect($accounts)->first(fn ($item) => is_array($item) && (string) ($item['id'] ?? '') === $requestedId);
         if (! is_array($account)) {
             throw new RuntimeException('Compte fournisseur introuvable pour OAuth.');
