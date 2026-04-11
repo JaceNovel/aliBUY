@@ -26,6 +26,10 @@ function getGoogleClientSecret() {
   return process.env.GOOGLE_CLIENT_SECRET?.trim() || "";
 }
 
+function isLocalHostname(hostname: string) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0";
+}
+
 function encoder() {
   return new TextEncoder();
 }
@@ -87,11 +91,27 @@ export function getSafeNextPath(nextPath?: string | null) {
 
 function getGoogleOauthCallbackUrl(request: Request) {
   const configuredUrl = process.env.GOOGLE_OAUTH_REDIRECT_URI?.trim();
+  const requestUrl = new URL(request.url);
+
   if (configuredUrl) {
-    return configuredUrl;
+    try {
+      const configuredTarget = new URL(configuredUrl);
+      const requestIsLocal = isLocalHostname(requestUrl.hostname);
+      const configuredIsLocal = isLocalHostname(configuredTarget.hostname);
+
+      if (requestIsLocal === configuredIsLocal) {
+        if (configuredIsLocal) {
+          configuredTarget.hostname = "localhost";
+          configuredTarget.protocol = "http:";
+        }
+
+        return configuredTarget.toString();
+      }
+    } catch {
+      // Ignore invalid configured callback URLs and fall back to the request origin.
+    }
   }
 
-  const requestUrl = new URL(request.url);
   if (requestUrl.hostname === "0.0.0.0" || requestUrl.hostname === "localhost") {
     requestUrl.hostname = "localhost";
     requestUrl.protocol = "http:";
