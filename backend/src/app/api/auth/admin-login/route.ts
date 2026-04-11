@@ -6,9 +6,9 @@ import { getAuthorizedAdminAccessByEmail, validateAdminCredentials } from "@/lib
 import { getBackendAccessTokenCookieConfig } from "@/lib/backend-access-token";
 import { getBackendBearerToken, mapBackendUserToSessionIdentity, postBackendAuth } from "@/lib/backend-auth-client";
 import { createUserSessionToken } from "@/lib/user-session";
-import { getUserSessionCookieConfig } from "@/lib/user-auth";
+import { getUserSessionCookieConfig, validateUserCredentials } from "@/lib/user-auth";
 
-async function createLocalAdminSession(email: string) {
+async function createLocalAdminSession(email: string, backendBearerToken?: string) {
   const access = await getAuthorizedAdminAccessByEmail(email);
   if (!access) {
     return NextResponse.json({ message: "Accès admin non autorisé pour ce compte." }, { status: 403 });
@@ -25,11 +25,19 @@ async function createLocalAdminSession(email: string) {
     ...getUserSessionCookieConfig(),
     value: token,
   });
-  cookieStore.set({
-    ...getBackendAccessTokenCookieConfig(),
-    value: "",
-    maxAge: 0,
-  });
+
+  if (backendBearerToken) {
+    cookieStore.set({
+      ...getBackendAccessTokenCookieConfig(),
+      value: backendBearerToken,
+    });
+  } else {
+    cookieStore.set({
+      ...getBackendAccessTokenCookieConfig(),
+      value: "",
+      maxAge: 0,
+    });
+  }
 
   return NextResponse.json({ ok: true, isAdmin: true, role: access.role, usedLocalAdminFallback: true });
 }
@@ -46,6 +54,19 @@ export async function POST(request: Request) {
   if (API_URL) {
     const backendResult = await postBackendAuth(request, "/api/auth/admin-login", { email, password }, "ouvrir la session admin");
     if (!backendResult.ok) {
+      const adminAccess = await getAuthorizedAdminAccessByEmail(email);
+      if (adminAccess) {
+        const backendUserResult = await postBackendAuth(request, "/api/auth/login", { email, password }, "ouvrir une session");
+        if (backendUserResult.ok) {
+          return createLocalAdminSession(email, getBackendBearerToken(backendUserResult.body));
+        }
+
+        const localUser = await validateUserCredentials(email, password).catch(() => null);
+        if (localUser) {
+          return createLocalAdminSession(email);
+        }
+      }
+
       const isLocalAdmin = await validateAdminCredentials(email, password).catch(() => false);
       if (isLocalAdmin) {
         return createLocalAdminSession(email);
@@ -92,6 +113,11 @@ export async function POST(request: Request) {
 
   if (!isValid) {
     return NextResponse.json({ message: "Identifiants invalides." }, { status: 401 });
+  }
+
+  const localUser = await validateUserCredentials(email, password).catch(() => null);
+  if (localUser) {
+    return createLocalAdminSession(email);
   }
 
   return createLocalAdminSession(email);
