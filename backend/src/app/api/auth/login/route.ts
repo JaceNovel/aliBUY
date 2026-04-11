@@ -59,25 +59,27 @@ export async function POST(request: Request) {
 
     if (API_URL) {
       const backendAdminResult = await postBackendAuth(request, "/api/auth/admin-login", { email, password }, "ouvrir une session admin");
-      if (backendAdminResult.ok) {
-        const backendIdentity = mapBackendUserToSessionIdentity(backendAdminResult.body.user!);
-        const backendSessionToken = await createUserSessionToken(backendIdentity);
-        const cookieStore = await cookies();
-        cookieStore.set({
-          ...getUserSessionCookieConfig(),
-          value: backendSessionToken,
-        });
-
-        const backendBearerToken = getBackendBearerToken(backendAdminResult.body);
-        if (backendBearerToken) {
-          cookieStore.set({
-            ...getBackendAccessTokenCookieConfig(),
-            value: backendBearerToken,
-          });
-        }
-
-        return NextResponse.json({ ok: true, isAdmin: true, role: String(backendAdminResult.body.user?.role || access.role) });
+      if (!backendAdminResult.ok) {
+        return backendAdminResult.response;
       }
+
+      const backendIdentity = mapBackendUserToSessionIdentity(backendAdminResult.body.user!);
+      const backendSessionToken = await createUserSessionToken(backendIdentity);
+      const cookieStore = await cookies();
+      cookieStore.set({
+        ...getUserSessionCookieConfig(),
+        value: backendSessionToken,
+      });
+
+      const backendBearerToken = getBackendBearerToken(backendAdminResult.body);
+      if (backendBearerToken) {
+        cookieStore.set({
+          ...getBackendAccessTokenCookieConfig(),
+          value: backendBearerToken,
+        });
+      }
+
+      return NextResponse.json({ ok: true, isAdmin: true, role: String(backendAdminResult.body.user?.role || access.role) });
     }
 
     const adminToken = await createUserSessionToken({
