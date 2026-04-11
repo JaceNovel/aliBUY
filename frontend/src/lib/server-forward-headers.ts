@@ -33,8 +33,9 @@ export async function buildServerForwardHeaders(
   const adminApiToken = options?.includeAdminApiToken
     ? process.env.ADMIN_API_TOKEN?.trim()
     : "";
+  const usingTokenAuth = Boolean(backendAccessToken || adminApiToken);
 
-  if (cookieHeader) {
+  if (cookieHeader && !usingTokenAuth) {
     forwarded.set("cookie", cookieHeader);
   }
 
@@ -52,6 +53,10 @@ export async function buildServerForwardHeaders(
   }
 
   for (const headerName of FORWARDED_HEADER_NAMES) {
+    if (usingTokenAuth && (headerName === "origin" || headerName === "referer")) {
+      continue;
+    }
+
     const value = headerStore.get(headerName);
     if (value && !forwarded.has(headerName)) {
       forwarded.set(headerName, value);
