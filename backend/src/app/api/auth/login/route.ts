@@ -99,10 +99,26 @@ export async function POST(request: Request) {
 
   const token = await createAuthenticatedUserSession(user);
   const cookieStore = await cookies();
+  let backendBearerToken = "";
+
+  if (API_URL) {
+    const backendResult = await postBackendAuth(request, "/api/auth/login", { email, password }, "ouvrir une session");
+    if (backendResult.ok) {
+      backendBearerToken = getBackendBearerToken(backendResult.body);
+    }
+  }
+
   cookieStore.set({
     ...getUserSessionCookieConfig(),
     value: token,
   });
+
+  if (backendBearerToken) {
+    cookieStore.set({
+      ...getBackendAccessTokenCookieConfig(),
+      value: backendBearerToken,
+    });
+  }
 
   return NextResponse.json({
     ok: true,

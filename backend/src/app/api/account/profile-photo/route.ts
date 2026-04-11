@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { API_URL, buildApiUrl } from "@/lib/api";
+import { getBackendAccessTokenFromCookies } from "@/lib/backend-access-token";
 import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
 import { getCurrentUser } from "@/lib/user-auth";
 
@@ -12,6 +13,10 @@ export async function POST(request: Request) {
 
   if (!API_URL) {
     return NextResponse.json({ message: "Mise a jour de photo indisponible sans backend Laravel." }, { status: 503 });
+  }
+
+  if (!(await getBackendAccessTokenFromCookies())) {
+    return NextResponse.json({ message: "Session backend expiree. Reconnectez-vous puis reessayez." }, { status: 401 });
   }
 
   const formData = await request.formData().catch(() => null);

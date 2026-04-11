@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { provisionBackendGoogleUser } from "@/lib/backend-auth-client";
+import { getBackendAccessTokenCookieConfig } from "@/lib/backend-access-token";
+import { getBackendBearerToken, provisionBackendGoogleUser } from "@/lib/backend-auth-client";
 import { exchangeGoogleOauthCode, getGoogleOauthStateCookieConfig, getPublicAuthRequestUrl, normalizeAuthOrigin, parseGoogleOauthState } from "@/lib/google-oauth";
 import { hasConfiguredDatabaseUrl } from "@/lib/prisma";
 import { createUserSessionToken } from "@/lib/user-session";
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
     const profile = await exchangeGoogleOauthCode(request, code);
 
     if (!hasConfiguredDatabaseUrl()) {
-      await provisionBackendGoogleUser(request, {
+      const backendProvision = await provisionBackendGoogleUser(request, {
         email: profile.email,
         displayName: profile.displayName,
       }).catch(() => null);
@@ -56,6 +57,14 @@ export async function GET(request: Request) {
         ...getUserSessionCookieConfig(),
         value: token,
       });
+
+      const backendBearerToken = getBackendBearerToken(backendProvision);
+      if (backendBearerToken) {
+        cookieStore.set({
+          ...getBackendAccessTokenCookieConfig(),
+          value: backendBearerToken,
+        });
+      }
 
       return NextResponse.redirect(new URL(nextPath, normalizeAuthOrigin(requestUrl)));
     }

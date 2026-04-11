@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { API_URL } from "@/lib/api";
 import { getBackendAccessTokenCookieConfig } from "@/lib/backend-access-token";
 import { getBackendBearerToken, mapBackendUserToSessionIdentity, postBackendAuth } from "@/lib/backend-auth-client";
 import { hasConfiguredDatabaseUrl } from "@/lib/prisma";
@@ -50,12 +51,38 @@ export async function POST(request: Request) {
   try {
     const user = await registerUser({ email, password, displayName });
     const token = await createAuthenticatedUserSession(user);
+    let backendBearerToken = "";
+
+    if (API_URL) {
+      const backendRegisterResult = await postBackendAuth(request, "/api/auth/register", {
+        name: displayName || user.displayName,
+        email,
+        password,
+        password_confirmation: password,
+      }, "créer le compte");
+
+      if (backendRegisterResult.ok) {
+        backendBearerToken = getBackendBearerToken(backendRegisterResult.body);
+      } else {
+        const backendLoginResult = await postBackendAuth(request, "/api/auth/login", { email, password }, "ouvrir une session");
+        if (backendLoginResult.ok) {
+          backendBearerToken = getBackendBearerToken(backendLoginResult.body);
+        }
+      }
+    }
 
     const cookieStore = await cookies();
     cookieStore.set({
       ...getUserSessionCookieConfig(),
       value: token,
     });
+
+    if (backendBearerToken) {
+      cookieStore.set({
+        ...getBackendAccessTokenCookieConfig(),
+        value: backendBearerToken,
+      });
+    }
 
     return NextResponse.json({
       ok: true,

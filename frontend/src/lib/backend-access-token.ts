@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cookies } from "next/headers";
+
 export const BACKEND_ACCESS_TOKEN_COOKIE = "afripay_backend_access_token";
 
 export function getBackendAccessTokenCookieConfig() {
@@ -11,4 +13,9 @@ export function getBackendAccessTokenCookieConfig() {
     path: "/",
     maxAge: 60 * 60 * 24 * 30,
   };
+}
+
+export async function getBackendAccessTokenFromCookies() {
+  const cookieStore = await cookies();
+  return cookieStore.get(BACKEND_ACCESS_TOKEN_COOKIE)?.value?.trim() || "";
 }

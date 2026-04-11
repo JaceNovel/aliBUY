@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { API_URL, buildApiUrl } from "@/lib/api";
 import { getAccountSettings, updateAccountSettings } from "@/lib/account-settings-store";
+import { getBackendAccessTokenFromCookies } from "@/lib/backend-access-token";
 import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
 import { getCurrentUser } from "@/lib/user-auth";
 
@@ -20,7 +21,8 @@ export async function GET() {
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });
   }
 
-  if (!API_URL) {
+  const backendAccessToken = API_URL ? await getBackendAccessTokenFromCookies() : "";
+  if (!API_URL || !backendAccessToken) {
     const settings = await getAccountSettings(user.id);
     return NextResponse.json({
       user: {
@@ -57,7 +59,8 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ message: "Payload invalide." }, { status: 400 });
   }
 
-  if (!API_URL) {
+  const backendAccessToken = API_URL ? await getBackendAccessTokenFromCookies() : "";
+  if (!API_URL || !backendAccessToken) {
     const settings = await updateAccountSettings(user.id, input);
     return NextResponse.json({ ok: true, settings });
   }
