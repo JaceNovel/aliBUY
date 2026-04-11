@@ -30,7 +30,7 @@ class AlibabaAdminService
 
     public function assertAdmin($user): void
     {
-        abort_unless($user && in_array($user->role, ['admin', 'super_admin'], true), 403, 'Acces refuse.');
+        abort_unless($user && $user->hasAdminAccess(), 403, 'Acces refuse.');
     }
 
     public function buildDashboard(?string $panel = null): array

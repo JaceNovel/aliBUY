@@ -35,4 +35,22 @@ class User extends Authenticatable
             'settings' => 'array',
         ];
     }
+
+    public function isConfiguredSuperAdmin(): bool
+    {
+        $configuredEmail = strtolower(trim((string) env('ADMIN_EMAIL', '')));
+        $currentEmail = strtolower(trim((string) $this->email));
+
+        return $configuredEmail !== '' && $currentEmail === $configuredEmail;
+    }
+
+    public function hasAdminAccess(): bool
+    {
+        return $this->isConfiguredSuperAdmin() || in_array($this->role, ['admin', 'super_admin'], true);
+    }
+
+    public function getEffectiveRoleAttribute(): ?string
+    {
+        return $this->isConfiguredSuperAdmin() ? 'super_admin' : $this->role;
+    }
 }

@@ -112,7 +112,7 @@ class PartnerService
 
     public function assertAdmin(?User $user): void
     {
-        if (! $user || ! in_array($user->role, ['admin', 'super_admin'], true)) {
+        if (! $user || ! $user->hasAdminAccess()) {
             throw new AuthorizationException('Acces admin requis.');
         }
     }

@@ -72,7 +72,7 @@ class AuthController extends Controller
             ]);
         }
 
-        if (! in_array($user->role, ['admin', 'super_admin'], true)) {
+        if (! $user->hasAdminAccess()) {
             throw ValidationException::withMessages([
                 'email' => "Ce compte n'a pas acces a l'administration.",
             ]);
@@ -101,7 +101,7 @@ class AuthController extends Controller
             'name' => $user->name,
             'email' => $user->email,
             'phone' => $user->phone,
-            'role' => $user->role,
+            'role' => $user->effective_role,
             'createdAt' => optional($user->created_at)->toIso8601String(),
         ];
     }
