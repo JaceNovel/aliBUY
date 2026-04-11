@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { provisionBackendGoogleUser } from "@/lib/backend-auth-client";
-import { exchangeGoogleOauthCode, getGoogleOauthStateCookieConfig, normalizeAuthOrigin, parseGoogleOauthState } from "@/lib/google-oauth";
+import { exchangeGoogleOauthCode, getGoogleOauthStateCookieConfig, getPublicAuthRequestUrl, normalizeAuthOrigin, parseGoogleOauthState } from "@/lib/google-oauth";
 import { hasConfiguredDatabaseUrl } from "@/lib/prisma";
 import { createUserSessionToken } from "@/lib/user-session";
 import { createAuthenticatedUserSession, getCurrentUser, getUserSessionCookieConfig, registerUser } from "@/lib/user-auth";
@@ -15,7 +15,7 @@ function redirectWithError(requestUrl: URL, mode: "login" | "register", nextPath
 }
 
 export async function GET(request: Request) {
-  const requestUrl = new URL(request.url);
+  const requestUrl = getPublicAuthRequestUrl(request);
   const code = requestUrl.searchParams.get("code") || "";
   const state = requestUrl.searchParams.get("state") || "";
   const cookieStore = await cookies();

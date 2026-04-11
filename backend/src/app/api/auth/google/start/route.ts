@@ -1,10 +1,10 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { buildGoogleOauthAuthorizeUrl, getGoogleOauthStateCookieConfig, getSafeNextPath, normalizeAuthOrigin } from "@/lib/google-oauth";
+import { buildGoogleOauthAuthorizeUrl, getGoogleOauthStateCookieConfig, getPublicAuthRequestUrl, getSafeNextPath, normalizeAuthOrigin } from "@/lib/google-oauth";
 
 export async function GET(request: Request) {
-  const requestUrl = new URL(request.url);
+  const requestUrl = getPublicAuthRequestUrl(request);
   const nextPath = getSafeNextPath(requestUrl.searchParams.get("next"));
   const mode = requestUrl.searchParams.get("mode") || "login";
 

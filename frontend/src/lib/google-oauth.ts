@@ -26,8 +26,35 @@ function getGoogleClientSecret() {
   return process.env.GOOGLE_CLIENT_SECRET?.trim() || "";
 }
 
+function getConfiguredSiteUrl() {
+  return process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://afripay.space";
+}
+
 function isLocalHostname(hostname: string) {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0";
+}
+
+function buildPublicRequestUrl(request: Request) {
+  const requestUrl = new URL(request.url);
+  const forwardedHost = request.headers.get("x-forwarded-host")?.trim() || request.headers.get("host")?.trim() || "";
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.trim() || requestUrl.protocol.replace(":", "") || "https";
+
+  if (forwardedHost) {
+    return new URL(`${forwardedProto}://${forwardedHost}${requestUrl.pathname}${requestUrl.search}`);
+  }
+
+  if (process.env.NODE_ENV === "production" && isLocalHostname(requestUrl.hostname)) {
+    try {
+      const siteUrl = new URL(getConfiguredSiteUrl());
+      siteUrl.pathname = requestUrl.pathname;
+      siteUrl.search = requestUrl.search;
+      return siteUrl;
+    } catch {
+      return requestUrl;
+    }
+  }
+
+  return requestUrl;
 }
 
 function encoder() {
@@ -91,7 +118,7 @@ export function getSafeNextPath(nextPath?: string | null) {
 
 function getGoogleOauthCallbackUrl(request: Request) {
   const configuredUrl = process.env.GOOGLE_OAUTH_REDIRECT_URI?.trim();
-  const requestUrl = new URL(request.url);
+  const requestUrl = buildPublicRequestUrl(request);
 
   if (configuredUrl) {
     try {
@@ -123,12 +150,24 @@ function getGoogleOauthCallbackUrl(request: Request) {
 export function normalizeAuthOrigin(input: URL) {
   const target = new URL(input.toString());
 
+  if (process.env.NODE_ENV === "production" && isLocalHostname(target.hostname)) {
+    try {
+      return new URL(getConfiguredSiteUrl()).origin;
+    } catch {
+      // Fall through to local normalization below.
+    }
+  }
+
   if (target.hostname === "0.0.0.0" || target.hostname === "localhost") {
     target.hostname = "localhost";
     target.protocol = "http:";
   }
 
   return target.origin;
+}
+
+export function getPublicAuthRequestUrl(request: Request) {
+  return buildPublicRequestUrl(request);
 }
 
 export async function createGoogleOauthState(input: { nextPath?: string | null; mode?: string | null }) {
