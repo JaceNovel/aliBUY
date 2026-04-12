@@ -17,8 +17,77 @@ async function fetchRemoteCatalogProducts() {
       return null;
     }
 
-    const payload = await response.json().catch(() => null) as { items?: ProductCatalogItem[] } | null;
-    return Array.isArray(payload?.items) ? payload.items : null;
+    const payload = await response.json().catch(() => null) as { items?: unknown[] } | null;
+    if (!Array.isArray(payload?.items)) {
+      return null;
+    }
+
+    return payload.items.flatMap((item) => {
+      if (!item || typeof item !== "object") {
+        return [] as ProductCatalogItem[];
+      }
+
+      const candidate = item as Record<string, unknown>;
+      const slug = typeof candidate.slug === "string" && candidate.slug.trim() ? candidate.slug.trim() : "";
+      const title = typeof candidate.title === "string" && candidate.title.trim() ? candidate.title.trim() : slug;
+      const image = typeof candidate.image === "string" ? candidate.image.trim() : "";
+      const minUsd = typeof candidate.minUsd === "number" && Number.isFinite(candidate.minUsd) ? candidate.minUsd : 0;
+
+      if (!slug || !title || !image) {
+        return [] as ProductCatalogItem[];
+      }
+
+      const maxUsd = typeof candidate.maxUsd === "number" && Number.isFinite(candidate.maxUsd) ? candidate.maxUsd : undefined;
+      const moq = typeof candidate.moq === "number" && Number.isFinite(candidate.moq) && candidate.moq > 0 ? candidate.moq : 1;
+      const unit = typeof candidate.unit === "string" && candidate.unit.trim() ? candidate.unit.trim() : "piece";
+
+      return [{
+        slug,
+        title,
+        shortTitle: typeof candidate.shortTitle === "string" && candidate.shortTitle.trim() ? candidate.shortTitle.trim() : title,
+        keywords: Array.isArray(candidate.keywords)
+          ? candidate.keywords.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+          : [],
+        image,
+        gallery: Array.isArray(candidate.gallery)
+          ? candidate.gallery.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+          : [image],
+        videoUrl: typeof candidate.videoUrl === "string" && candidate.videoUrl.trim() ? candidate.videoUrl.trim() : undefined,
+        videoPoster: typeof candidate.videoPoster === "string" && candidate.videoPoster.trim() ? candidate.videoPoster.trim() : undefined,
+        packaging: typeof candidate.packaging === "string" && candidate.packaging.trim() ? candidate.packaging.trim() : "Selon catalogue",
+        packageDimensionsCm: undefined,
+        itemWeightGrams: typeof candidate.itemWeightGrams === "number" && Number.isFinite(candidate.itemWeightGrams) ? candidate.itemWeightGrams : 0,
+        lotCbm: typeof candidate.lotCbm === "string" && candidate.lotCbm.trim() ? candidate.lotCbm.trim() : "0.0000",
+        minUsd,
+        maxUsd,
+        moq,
+        moqVerified: typeof candidate.moqVerified === "boolean" ? candidate.moqVerified : true,
+        weightVerified: typeof candidate.weightVerified === "boolean" ? candidate.weightVerified : false,
+        priceVerified: typeof candidate.priceVerified === "boolean" ? candidate.priceVerified : true,
+        unit,
+        badge: typeof candidate.badge === "string" && candidate.badge.trim() ? candidate.badge.trim() : undefined,
+        supplierName: typeof candidate.supplierName === "string" && candidate.supplierName.trim() ? candidate.supplierName.trim() : "Selection AfriPay+",
+        supplierCompanyId: typeof candidate.supplierCompanyId === "string" && candidate.supplierCompanyId.trim() ? candidate.supplierCompanyId.trim() : undefined,
+        supplierLocation: typeof candidate.supplierLocation === "string" && candidate.supplierLocation.trim() ? candidate.supplierLocation.trim() : "CN",
+        responseTime: typeof candidate.responseTime === "string" && candidate.responseTime.trim() ? candidate.responseTime.trim() : "Sous 24 h",
+        yearsInBusiness: typeof candidate.yearsInBusiness === "number" && Number.isFinite(candidate.yearsInBusiness) ? candidate.yearsInBusiness : 1,
+        transactionsLabel: typeof candidate.transactionsLabel === "string" && candidate.transactionsLabel.trim() ? candidate.transactionsLabel.trim() : "Catalogue live",
+        soldLabel: typeof candidate.soldLabel === "string" && candidate.soldLabel.trim() ? candidate.soldLabel.trim() : "0",
+        customizationLabel: typeof candidate.customizationLabel === "string" && candidate.customizationLabel.trim() ? candidate.customizationLabel.trim() : "Selon catalogue",
+        shippingLabel: typeof candidate.shippingLabel === "string" && candidate.shippingLabel.trim() ? candidate.shippingLabel.trim() : "Livraison internationale",
+        chinaLocalFreightFcfa: typeof candidate.chinaLocalFreightFcfa === "number" && Number.isFinite(candidate.chinaLocalFreightFcfa) ? candidate.chinaLocalFreightFcfa : undefined,
+        chinaLocalFreightLabel: typeof candidate.chinaLocalFreightLabel === "string" && candidate.chinaLocalFreightLabel.trim() ? candidate.chinaLocalFreightLabel.trim() : undefined,
+        overview: Array.isArray(candidate.overview)
+          ? candidate.overview.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+          : [title],
+        variantGroups: Array.isArray(candidate.variantGroups) ? candidate.variantGroups as ProductCatalogItem["variantGroups"] : [],
+        variantPricing: Array.isArray(candidate.variantPricing) ? candidate.variantPricing as ProductCatalogItem["variantPricing"] : [],
+        variantSkus: Array.isArray(candidate.variantSkus) ? candidate.variantSkus as ProductCatalogItem["variantSkus"] : [],
+        tiers: Array.isArray(candidate.tiers) ? candidate.tiers as ProductCatalogItem["tiers"] : [{ quantityLabel: `${moq}+`, priceUsd: minUsd }],
+        specs: Array.isArray(candidate.specs) ? candidate.specs as ProductCatalogItem["specs"] : [],
+        rawPayload: candidate.rawPayload ?? candidate,
+      } satisfies ProductCatalogItem];
+    });
   } catch {
     return null;
   }

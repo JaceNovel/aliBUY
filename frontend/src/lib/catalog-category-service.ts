@@ -87,8 +87,56 @@ async function fetchRemoteCatalogCategories() {
       return null;
     }
 
-    const payload = await response.json().catch(() => null) as { items?: CatalogCategoryRecord[] } | null;
-    return Array.isArray(payload?.items) ? payload.items : null;
+    const payload = await response.json().catch(() => null) as { items?: unknown[] } | null;
+    if (!Array.isArray(payload?.items)) {
+      return null;
+    }
+
+    return payload.items.flatMap((item) => {
+      if (!item || typeof item !== "object") {
+        return [] as CatalogCategoryRecord[];
+      }
+
+      const candidate = item as Record<string, unknown>;
+      const slug = typeof candidate.slug === "string" && candidate.slug.trim()
+        ? candidate.slug.trim()
+        : slugifyCategoryLabel(typeof candidate.title === "string" ? candidate.title : "catalogue");
+      const title = typeof candidate.title === "string" && candidate.title.trim()
+        ? candidate.title.trim()
+        : slug;
+      const productCount = typeof candidate.productCount === "number" && Number.isFinite(candidate.productCount)
+        ? candidate.productCount
+        : 0;
+      const products = Array.isArray(candidate.products)
+        ? candidate.products.filter((product) => product && typeof product === "object") as ProductCatalogItem[]
+        : [];
+
+      return [{
+        slug,
+        title,
+        description: typeof candidate.description === "string" && candidate.description.trim()
+          ? candidate.description.trim()
+          : buildCategoryDescription(title, [title], productCount),
+        href: typeof candidate.href === "string" && candidate.href.trim()
+          ? candidate.href.trim()
+          : buildCategoryHref(slug),
+        image: typeof candidate.image === "string" && candidate.image.trim() ? candidate.image.trim() : undefined,
+        productCount,
+        productSlugs: Array.isArray(candidate.productSlugs)
+          ? candidate.productSlugs.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+          : products.map((product) => product.slug),
+        sourcePath: Array.isArray(candidate.sourcePath)
+          ? candidate.sourcePath.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+          : [title],
+        sourcePathLabel: typeof candidate.sourcePathLabel === "string" && candidate.sourcePathLabel.trim()
+          ? candidate.sourcePathLabel.trim()
+          : title,
+        queries: Array.isArray(candidate.queries)
+          ? candidate.queries.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+          : [],
+        products,
+      } satisfies CatalogCategoryRecord];
+    });
   } catch {
     return null;
   }
