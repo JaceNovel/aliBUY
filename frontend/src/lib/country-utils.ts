@@ -135,7 +135,7 @@ type CountryBounds = {
   maxLongitude: number;
 };
 
-const COUNTRY_COORDINATE_BOUNDS: Partial<Record<keyof typeof COUNTRY_CONFIG, CountryBounds[]>> = {
+const COUNTRY_COORDINATE_BOUNDS: Partial<Record<string, CountryBounds[]>> = {
   FR: [
     { minLatitude: 41, maxLatitude: 51.7, minLongitude: -5.6, maxLongitude: 9.9 },
     { minLatitude: 41.2, maxLatitude: 43.2, minLongitude: 8.4, maxLongitude: 9.7 },

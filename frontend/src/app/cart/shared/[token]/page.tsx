@@ -6,7 +6,7 @@ import { InternalPageShell } from "@/components/internal-page-shell";
 import { getSharedCartByToken } from "@/lib/cart-share-store";
 import { getCatalogProductsBySlugs } from "@/lib/catalog-service";
 import { getPricingContext } from "@/lib/pricing";
-import { CART_SHARE_IMAGE_PATH, SITE_NAME, SITE_URL } from "@/lib/site-config";
+import { CART_SHARE_IMAGE_PATH, SITE_NAME, SITE_URL, resolveSiteAssetUrl } from "@/lib/site-config";
 import { getCurrentUser } from "@/lib/user-auth";
 
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
@@ -21,6 +21,9 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
 
   const title = `${sharedCart.ownerDisplayName} a partage un panier`;
   const description = sharedCart.message?.trim() || `${sharedCart.items.length} article${sharedCart.items.length > 1 ? "s" : ""} partage${sharedCart.items.length > 1 ? "s" : ""} sur ${SITE_NAME}.`;
+  const catalogProducts = await getCatalogProductsBySlugs([...new Set(sharedCart.items.map((item) => item.slug))], { fresh: true }).catch(() => []);
+  const firstProduct = catalogProducts.find((product) => sharedCart.items.some((item) => item.slug === product.slug)) ?? catalogProducts[0] ?? null;
+  const shareImage = resolveSiteAssetUrl(firstProduct?.image || firstProduct?.gallery[0], CART_SHARE_IMAGE_PATH);
 
   return {
     title,
@@ -34,8 +37,8 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
       url: `${SITE_URL}/cart/shared/${token}`,
       images: [
         {
-          url: CART_SHARE_IMAGE_PATH,
-          alt: `${SITE_NAME} panier partage`,
+          url: shareImage,
+          alt: firstProduct?.shortTitle ?? `${SITE_NAME} panier partage`,
         },
       ],
     },
@@ -43,7 +46,7 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
       card: "summary_large_image",
       title,
       description,
-      images: [CART_SHARE_IMAGE_PATH],
+      images: [shareImage],
     },
   };
 }

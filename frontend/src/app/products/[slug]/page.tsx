@@ -7,7 +7,7 @@ import { getCatalogProductBySlug, getCatalogRelatedProducts } from "@/lib/catalo
 import { formatTierAwarePrice } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
 import { normalizeStorefrontBadge, normalizeStorefrontText } from "@/lib/public-storefront";
-import { PRODUCT_SHARE_IMAGE_PATH, SITE_NAME, SITE_URL } from "@/lib/site-config";
+import { PRODUCT_SHARE_IMAGE_PATH, SITE_NAME, SITE_URL, resolveSiteAssetUrl } from "@/lib/site-config";
 
 import { ProductDetailClient } from "./product-detail-client";
 
@@ -31,6 +31,8 @@ export async function generateMetadata({
     };
   }
 
+  const shareImage = resolveSiteAssetUrl(product.image || product.gallery[0], PRODUCT_SHARE_IMAGE_PATH);
+
   return {
     title: `${product.shortTitle} | ${SITE_NAME}`,
     description: product.overview.join(" "),
@@ -43,8 +45,8 @@ export async function generateMetadata({
       url: `${SITE_URL}/products/${slug}`,
       images: [
         {
-          url: PRODUCT_SHARE_IMAGE_PATH,
-          alt: `${SITE_NAME} produit`,
+          url: shareImage,
+          alt: product.shortTitle,
         },
       ],
     },
@@ -52,7 +54,7 @@ export async function generateMetadata({
       card: "summary_large_image",
       title: product.shortTitle,
       description: product.overview.join(" "),
-      images: [PRODUCT_SHARE_IMAGE_PATH],
+      images: [shareImage],
     },
   };
 }

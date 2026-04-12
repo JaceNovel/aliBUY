@@ -14,3 +14,17 @@ export const SITE_KEYWORDS = [
   "logistique import",
   "marketplace AfriPay",
 ];
+
+export function resolveSiteAssetUrl(pathOrUrl: string | null | undefined, fallbackPath = SITE_SHARE_IMAGE_PATH) {
+  const candidate = pathOrUrl?.trim() || fallbackPath;
+
+  if (candidate.startsWith("//")) {
+    return `https:${candidate}`;
+  }
+
+  try {
+    return new URL(candidate).toString();
+  } catch {
+    return new URL(candidate.startsWith("/") ? candidate : `/${candidate}`, SITE_URL).toString();
+  }
+}
