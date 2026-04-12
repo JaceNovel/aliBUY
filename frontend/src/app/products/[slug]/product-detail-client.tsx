@@ -3,10 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, BadgeDollarSign, ChevronRight, CreditCard, Heart, Minus, Play, Plus, Share2, ShieldCheck, ShoppingCart, Smartphone, Star, X, type LucideIcon } from "lucide-react";
+import { ArrowLeft, BadgeDollarSign, ChevronRight, CreditCard, Heart, Minus, Play, Plus, Share2, ShieldCheck, ShoppingCart, Star, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
+import { PaymentMethodIcon } from "@/components/payment-method-icon";
 import { isSupportedDirectDeliveryCountry } from "@/lib/alibaba-sourcing";
 import { CURRENCY_CONFIG, type CurrencyCode } from "@/lib/pricing-options";
 import { resolveProductPriceSummaryUsd, resolveProductUnitPriceUsd, resolveVariantSku } from "@/lib/product-variant-pricing";
@@ -265,17 +266,17 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const paymentMethods = [
     {
       label: "PayPal",
-      icon: BadgeDollarSign,
+      icon: <BadgeDollarSign className="h-4 w-4" />,
     },
     {
       label: "Mobile Money",
-      icon: Smartphone,
+      icon: <PaymentMethodIcon kind="mobile-money" size={18} className="h-[18px] w-[18px] object-contain" />,
     },
     {
       label: "Carte bancaire",
-      icon: CreditCard,
+      icon: <CreditCard className="h-4 w-4" />,
     },
-  ] satisfies Array<{ label: string; icon: LucideIcon }>;
+  ] satisfies Array<{ label: string; icon: React.ReactNode }>;
   const formatMoney = (amount: number) => {
     const localizedAmount = amount * selectedCurrency.rateFromUsd;
 
@@ -1136,7 +1137,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 {paymentMethods.map((method) => (
                   <div key={method.label} className="flex items-center gap-3 bg-[#fafafa] px-4 py-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#221813] ring-1 ring-[#ece8e2]">
-                      <method.icon className="h-4.5 w-4.5" />
+                      {method.icon}
                     </div>
                     <div className="text-[14px] font-semibold text-[#221813]">{method.label}</div>
                   </div>

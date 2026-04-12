@@ -57,6 +57,10 @@ function resolveCustomerDir() {
 const CUSTOMER_DIR = resolveCustomerDir();
 const SETTINGS_PATH = path.join(CUSTOMER_DIR, "account-settings.json");
 
+function normalizeOptionalString(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
 function defaultSettings(userId: string): AccountSettingsRecord {
   return {
     userId,
@@ -110,6 +114,17 @@ async function writeAllSettings(records: AccountSettingsRecord[]) {
 export async function getAccountSettings(userId: string) {
   const records = await readAllSettings();
   return records.find((entry) => entry.userId === userId) ?? defaultSettings(userId);
+}
+
+export async function getAccountSettingsDiagnostics() {
+  const records = await readAllSettings();
+
+  return {
+    totalRecords: records.length,
+    anyManyChatSubscriberConfigured: records.some((entry) => Boolean(normalizeOptionalString(entry.manychatSubscriberId))),
+    anyManyChatFlowConfigured: records.some((entry) => Boolean(normalizeOptionalString(entry.manychatFlowId))),
+    anyManyChatPaidTagConfigured: records.some((entry) => Boolean(normalizeOptionalString(entry.manychatPaidTagId))),
+  };
 }
 
 export async function updateAccountSettings(userId: string, input: Partial<Omit<AccountSettingsRecord, "userId" | "updatedAt">>) {

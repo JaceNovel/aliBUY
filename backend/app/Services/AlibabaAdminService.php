@@ -1272,8 +1272,23 @@ class AlibabaAdminService
     private function normalizeGallery($gallery, $fallbackImage = null): array
     {
         $normalized = [];
-        if (is_array($gallery)) {
+        if (is_string($gallery)) {
+            $trimmed = trim($gallery);
+            if ($trimmed !== '') {
+                $decoded = json_decode($trimmed, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $normalized = $this->normalizeGallery($decoded, $fallbackImage);
+                } else {
+                    $normalized = array_values(array_filter(array_map('trim', preg_split('/[;,|]/', $trimmed) ?: [])));
+                }
+            }
+        } elseif (is_array($gallery)) {
             foreach ($gallery as $image) {
+                if (is_array($image)) {
+                    $normalized = array_merge($normalized, $this->normalizeGallery($image, null));
+                    continue;
+                }
+
                 $value = trim((string) $image);
                 if ($value !== '') {
                     $normalized[] = $value;
@@ -1798,9 +1813,9 @@ class AlibabaAdminService
             return null;
         }
 
-        $length = $this->normalizeDimensionCm($value['package_length'] ?? $value['length'] ?? $value['lengthCm'] ?? $value['packageLength'] ?? null);
-        $width = $this->normalizeDimensionCm($value['package_width'] ?? $value['width'] ?? $value['widthCm'] ?? $value['packageWidth'] ?? null);
-        $height = $this->normalizeDimensionCm($value['package_height'] ?? $value['height'] ?? $value['heightCm'] ?? $value['packageHeight'] ?? null);
+        $length = $this->normalizeDimensionCm($value['package_length'] ?? $value['length'] ?? $value['lengthCm'] ?? $value['packageLength'] ?? $value['product_length'] ?? $value['item_length'] ?? null);
+        $width = $this->normalizeDimensionCm($value['package_width'] ?? $value['width'] ?? $value['widthCm'] ?? $value['packageWidth'] ?? $value['product_width'] ?? $value['item_width'] ?? null);
+        $height = $this->normalizeDimensionCm($value['package_height'] ?? $value['height'] ?? $value['heightCm'] ?? $value['packageHeight'] ?? $value['product_height'] ?? $value['item_height'] ?? null);
 
         if ($length !== null && $width !== null && $height !== null) {
             return [
@@ -1808,6 +1823,13 @@ class AlibabaAdminService
                 'widthCm' => $width,
                 'heightCm' => $height,
             ];
+        }
+
+        foreach (['package_size', 'package_dimension', 'package_dimensions', 'product_dimensions', 'dimensions', 'dimension', 'size'] as $dimensionKey) {
+            $candidate = $this->parsePackagingDimensions($this->stringOrNull($value[$dimensionKey] ?? null));
+            if ($candidate !== null) {
+                return $candidate;
+            }
         }
 
         foreach ($value as $nestedValue) {

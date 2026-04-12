@@ -1,6 +1,7 @@
 import { AdminPartnerRequestsClient } from "@/components/admin-partner-requests-client";
 import { normalizeAdminPartnerRequests } from "@/lib/admin-partner-requests";
 import { API_URL } from "@/lib/api";
+import { getManyChatAdminStatus } from "@/lib/manychat-admin-status";
 import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
 
 export const dynamic = "force-dynamic";
@@ -46,17 +47,13 @@ async function getPartnerRequests() {
 
 export default async function AdminPartnerRequestsPage() {
   const { items, warning } = await getPartnerRequests();
+  const manyChatStatus = await getManyChatAdminStatus();
 
   return (
     <AdminPartnerRequestsClient
       initialRequests={items}
       warning={warning}
-      manyChatStatus={{
-        apiKeyConfigured: Boolean(process.env.MANYCHAT_API_KEY?.trim()),
-        orderFlowConfigured: Boolean(process.env.MANYCHAT_ORDER_CONFIRMATION_FLOW_ID?.trim()),
-        cartFlowConfigured: Boolean(process.env.MANYCHAT_CART_ABANDONED_FLOW_ID?.trim()),
-        cronRouteReady: true,
-      }}
+      manyChatStatus={manyChatStatus}
     />
   );
 }

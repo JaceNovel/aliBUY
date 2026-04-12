@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class PaymentService
 {
@@ -27,6 +28,12 @@ class PaymentService
     public function initialize(Order $order, string $provider = 'moneroo'): array
     {
         $provider = $this->normalizeProvider($provider);
+
+        if ((float) $order->total_price <= 0) {
+            throw ValidationException::withMessages([
+                'orderId' => ['Le montant de cette commande est nul. Recalculez le panier avant de lancer le paiement.'],
+            ]);
+        }
 
         if (in_array($order->payment_status, ['initialized', 'pending'], true) && $order->payment_checkout_url) {
             return [

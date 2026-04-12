@@ -55,7 +55,11 @@ class OrderController extends Controller
             'items.*.productName' => ['nullable', 'string'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
             'items.*.image' => ['nullable', 'string'],
+            'items.*.selectedVariants' => ['nullable', 'array'],
             'items.*.finalLinePriceFcfa' => ['nullable', 'numeric', 'min:0'],
+            'shippingPriceFcfa' => ['nullable', 'numeric', 'min:0'],
+            'deliveryProfile' => ['nullable', 'array'],
+            'deliveryProfile.mode' => ['nullable', 'in:direct,forwarder'],
         ]);
 
         $order = $this->orders->store($validated, $request->user('sanctum'));

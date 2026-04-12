@@ -12,7 +12,7 @@ function isAuthorizedCronRequest(request: Request) {
     return true;
   }
 
-  const cronSecret = process.env.CRON_SECRET?.trim();
+  const cronSecret = process.env.CRON_SECRET?.trim() || process.env.MANYCHAT_CRON_SECRET?.trim();
   const authorization = request.headers.get("authorization")?.trim() || "";
   const bearerToken = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
   if (cronSecret && bearerToken && bearerToken === cronSecret) {

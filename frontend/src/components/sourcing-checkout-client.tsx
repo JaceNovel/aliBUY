@@ -17,10 +17,11 @@ import {
   type ShippingMethodKey,
 } from "@/lib/alibaba-sourcing";
 import { buildAddressQuickInput } from "@/lib/address-autofill";
-import { canonicalizeCountryCode, getCountryDisplayLabel } from "@/lib/country-utils";
+import { canonicalizeCountryCode, getCountryDisplayLabel, resolveGeocodedCountryCode } from "@/lib/country-utils";
 import type { CustomerAddressRecord } from "@/lib/customer-addresses";
 import { extractCoordinatesFromGoogleMapsUrl, isGoogleMapsShortUrl } from "@/lib/google-maps";
 import { DELIVERY_COUNTRY_OPTIONS, type CountryCode } from "@/lib/pricing-options";
+import { PaymentMethodIcon } from "@/components/payment-method-icon";
 
 const defaultForm = {
   customerAddressId: "",
@@ -41,6 +42,8 @@ const EU_COUNTRY_CODES = [
   "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT",
   "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
 ] as const;
+
+const PAY_ON_DELIVERY_LIMIT_FCFA = 30_000;
 
 type SourcingCheckoutClientProps = {
   initialUser: {
@@ -90,9 +93,7 @@ function CheckoutPaymentBadge({ brand }: { brand: CheckoutPaymentBadgeKey }) {
   if (brand === "mobile-money") {
     return (
       <div className="flex h-10 min-w-[56px] items-center justify-center gap-2 rounded-[12px] border border-[#d6f5df] bg-white px-3 shadow-[0_6px_16px_rgba(17,24,39,0.04)]">
-        <div className="relative h-6 w-4 rounded-[5px] border-2 border-[#16a34a]">
-          <span className="absolute inset-x-1 bottom-1 h-0.5 rounded-full bg-[#16a34a]" />
-        </div>
+        <PaymentMethodIcon kind="mobile-money" size={22} className="h-[22px] w-[22px] object-contain" />
         <span className="text-[9px] font-extrabold uppercase tracking-[0.08em] text-[#15803d]">MM</span>
       </div>
     );
@@ -100,7 +101,7 @@ function CheckoutPaymentBadge({ brand }: { brand: CheckoutPaymentBadgeKey }) {
 
   return (
     <div className="flex h-10 min-w-[56px] items-center justify-center gap-2 rounded-[12px] border border-[#dbe4ff] bg-white px-3 shadow-[0_6px_16px_rgba(17,24,39,0.04)]">
-      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#eef2ff] text-[10px] font-black text-[#4338ca]">24</div>
+      <PaymentMethodIcon kind="pay-on-delivery" size={22} className="h-[22px] w-[22px] object-contain" />
       <span className="text-[9px] font-extrabold uppercase tracking-[0.08em] text-[#4338ca]">LATER</span>
     </div>
   );
@@ -237,26 +238,37 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
     ? `${selectedOption.isFree ? "gratuit" : formatSourcingAmount(selectedOption.priceFcfa, { currencyCode, locale })}`
     : formatSourcingAmount(0, { currencyCode, locale });
   const isEuropeanUnionDestination = EU_COUNTRY_CODES.includes(canonicalizeCountryCode(form.countryCode, "TG") as (typeof EU_COUNTRY_CODES)[number]);
+  const payOnDeliveryEligible = !isEuropeanUnionDestination && totalPrice <= PAY_ON_DELIVERY_LIMIT_FCFA;
+  const payOnDeliveryLimitLabel = formatSourcingAmount(PAY_ON_DELIVERY_LIMIT_FCFA, { currencyCode, locale });
   const paymentChoices = [
     {
       key: "card" as const,
       title: "Carte bancaire",
       subtitle: "Visa, Mastercard",
       badges: ["visa", "mastercard"] as CheckoutPaymentBadgeKey[],
+      disabled: false,
     },
     {
       key: "mobile" as const,
       title: "Mobile Money",
       subtitle: "Via checkout Moneroo",
       badges: ["mobile-money"] as CheckoutPaymentBadgeKey[],
+      disabled: false,
     },
     ...(!isEuropeanUnionDestination ? [{
       key: "pay_on_delivery" as const,
       title: "Paiement après livraison",
-      subtitle: "Validation avec identité",
+      subtitle: payOnDeliveryEligible ? `Validation avec identité · jusqu'à ${payOnDeliveryLimitLabel}` : `Indisponible au-delà de ${payOnDeliveryLimitLabel}`,
       badges: ["pay-later"] as CheckoutPaymentBadgeKey[],
+      disabled: !payOnDeliveryEligible,
     }] : []),
   ];
+
+  useEffect(() => {
+    if (selectedPaymentMethod === "pay_on_delivery" && !payOnDeliveryEligible) {
+      setSelectedPaymentMethod("card");
+    }
+  }, [payOnDeliveryEligible, selectedPaymentMethod]);
 
   useEffect(() => {
     if (savedAddressList.length === 0 || form.customerAddressId) {
@@ -391,7 +403,16 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
     }
 
     const geocoded = payload as ReverseGeocodeResponse;
-    const normalizedCountryCode = canonicalizeCountryCode(geocoded.countryCode, form.countryCode || "TG");
+    const normalizedCountryCode = resolveGeocodedCountryCode({
+      countryCode: geocoded.countryCode,
+      countryLabel: geocoded.countryLabel,
+      displayName: geocoded.displayName,
+      city: geocoded.city,
+      state: geocoded.state,
+      addressLine1: geocoded.addressLine1,
+      coordinates: { latitude, longitude },
+      fallbackCountryCode: form.countryCode || "TG",
+    });
     setForm((current) => ({
       ...current,
       googleMapsUrl: mapsUrl,
@@ -576,6 +597,11 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
         return;
       }
 
+      if (totalPrice > PAY_ON_DELIVERY_LIMIT_FCFA) {
+        setErrorMessage(`Le paiement après livraison est limité à ${payOnDeliveryLimitLabel}. Choisissez un autre moyen de paiement.`);
+        return;
+      }
+
       if (!payOnDeliveryIdentityFirstName.trim() || !payOnDeliveryIdentityLastName.trim()) {
         setErrorMessage("Le nom et le prénom figurant sur la pièce d'identité sont obligatoires pour ce mode de paiement.");
         return;
@@ -586,6 +612,16 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
     setErrorMessage(null);
 
     try {
+      const quotedOrderItems = quote.items.map((item) => ({
+        slug: item.slug,
+        title: item.title,
+        productName: item.title,
+        quantity: item.quantity,
+        image: item.image,
+        finalLinePriceFcfa: item.finalLinePriceFcfa,
+        selectedVariants: item.selectedVariants,
+      }));
+
       const payload = await createOrder({
         ...form,
         ...(deliveryMode === "forwarder"
@@ -600,10 +636,11 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
             }
           : {}),
         shippingMethod: selectedOption.key,
+        shippingPriceFcfa: selectedOption.priceFcfa,
         paymentMethod: selectedPaymentMethod,
         payOnDeliveryIdentityFirstName: selectedPaymentMethod === "pay_on_delivery" ? payOnDeliveryIdentityFirstName.trim() : undefined,
         payOnDeliveryIdentityLastName: selectedPaymentMethod === "pay_on_delivery" ? payOnDeliveryIdentityLastName.trim() : undefined,
-        items,
+        items: quotedOrderItems,
         deliveryProfile: deliveryPlan.deliveryProfile,
         promoCode: appliedPromo?.code,
         sharedCartToken: sharedCartContext?.token,
@@ -763,8 +800,13 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
               <button
                 key={method.key}
                 type="button"
-                onClick={() => setSelectedPaymentMethod(method.key)}
-                className="flex w-full items-start gap-3 py-3 text-left sm:gap-4 sm:py-5"
+                onClick={() => {
+                  if (!method.disabled) {
+                    setSelectedPaymentMethod(method.key);
+                  }
+                }}
+                disabled={method.disabled}
+                className={["flex w-full items-start gap-3 py-3 text-left sm:gap-4 sm:py-5", method.disabled ? "cursor-not-allowed opacity-55" : ""].join(" ")}
               >
                 <div className={["mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border sm:mt-1 sm:h-7 sm:w-7", selectedPaymentMethod === method.key ? "border-[#2563eb] bg-white text-[#2563eb]" : "border-[#d0d5dd] bg-white text-transparent"].join(" ")}>
                   <Check className="h-4 w-4" />
@@ -786,7 +828,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
             <div className="mt-4 rounded-[18px] border border-[#dbe4ff] bg-[#f7f9ff] p-3.5 sm:p-4">
               <div className="text-[14px] font-semibold text-[#111827] sm:text-[15px]">Identité du client</div>
               <div className="mt-1 text-[12px] leading-5 text-[#667085] sm:text-[13px] sm:leading-6">
-                Entrez le nom et le prénom qui figurent sur la carte d&apos;identité. La commande sera créée sans paiement immédiat.
+                Entrez le nom et le prénom qui figurent sur la carte d&apos;identité. La commande sera créée sans paiement immédiat. Ce mode est limité à {payOnDeliveryLimitLabel}.
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <label className="text-[13px] font-semibold text-[#344054]">

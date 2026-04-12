@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 
 import { useCart, useCartQuote } from "@/components/cart-provider";
 import { buildCartItemKey, formatSourcingAmount, resolveSourcingDeliveryPlan } from "@/lib/alibaba-sourcing";
+import { PaymentMethodIcon } from "@/components/payment-method-icon";
 
 type SharedCartSummary = {
   id: string;
@@ -46,9 +47,7 @@ function PaymentSecurityBadge({ brand }: { brand: PaymentSecurityBadgeKey }) {
   if (brand === "mobile-money") {
     return (
       <div className="flex h-14 items-center justify-center gap-2 rounded-[14px] border border-[#d6f5df] bg-white px-4 shadow-[0_8px_22px_rgba(17,24,39,0.04)]">
-        <div className="relative h-7 w-5 rounded-[6px] border-2 border-[#16a34a]">
-          <span className="absolute inset-x-1.5 bottom-1 h-0.5 rounded-full bg-[#16a34a]" />
-        </div>
+        <PaymentMethodIcon kind="mobile-money" size={24} className="h-6 w-6 object-contain" />
         <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#15803d]">Mobile Money</span>
       </div>
     );

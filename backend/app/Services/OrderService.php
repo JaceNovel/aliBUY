@@ -9,9 +9,17 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class OrderService
 {
+    protected const PAY_ON_DELIVERY_LIMIT_FCFA = 30000;
+
+    public function __construct(
+        protected SourcingQuoteService $quotes,
+    ) {
+    }
+
     public function indexForUser(?User $user, Request $request): array
     {
         $orders = Order::query()
@@ -31,24 +39,87 @@ class OrderService
 
     public function store(array $validated, ?User $user): Order
     {
-        $items = collect($validated['items'] ?? [])->map(function (array $item) {
+        $requestItems = collect($validated['items'] ?? [])->map(function (array $item) {
             return [
                 'slug' => $item['slug'] ?? null,
                 'title' => $item['title'] ?? $item['productName'] ?? 'Produit',
                 'productName' => $item['productName'] ?? $item['title'] ?? 'Produit',
                 'image' => $item['image'] ?? '/globe.svg',
                 'quantity' => (int) ($item['quantity'] ?? 1),
+                'selectedVariants' => is_array($item['selectedVariants'] ?? null) ? $item['selectedVariants'] : null,
                 'finalLinePriceFcfa' => (float) ($item['finalLinePriceFcfa'] ?? 0),
             ];
         })->values()->all();
 
-        $totalPrice = collect($items)->sum(fn (array $item) => (float) ($item['finalLinePriceFcfa'] ?? 0));
+        $deliveryMode = (($validated['deliveryProfile']['mode'] ?? null) === 'forwarder') ? 'forwarder' : 'direct';
+        $quote = $this->quotes->buildQuote($requestItems, [
+            'deliveryMode' => $deliveryMode,
+        ]);
+        $shippingMethod = (string) ($validated['shippingMethod'] ?? 'air');
+        $shippingOption = collect($quote['shippingOptions'] ?? [])->first(fn (array $option) => (string) ($option['key'] ?? '') === $shippingMethod);
+        if ($shippingOption === null) {
+            throw ValidationException::withMessages([
+                'shippingMethod' => ['Le mode de livraison selectionne n\'est pas disponible pour cette commande.'],
+            ]);
+        }
+
+        $quotedItemsBySlug = collect($quote['items'] ?? [])->keyBy(function (array $item) {
+            $slug = (string) ($item['slug'] ?? '');
+            $selectedVariants = is_array($item['selectedVariants'] ?? null) ? $item['selectedVariants'] : null;
+            if (! $selectedVariants) {
+                return $slug;
+            }
+
+            ksort($selectedVariants);
+
+            return $slug.'::'.json_encode($selectedVariants);
+        });
+
+        $items = collect($requestItems)->map(function (array $item) use ($quotedItemsBySlug) {
+            $slug = (string) ($item['slug'] ?? '');
+            $selectedVariants = is_array($item['selectedVariants'] ?? null) ? $item['selectedVariants'] : null;
+            $lookupKey = $slug;
+            if ($selectedVariants) {
+                ksort($selectedVariants);
+                $lookupKey .= '::'.json_encode($selectedVariants);
+            }
+
+            $quoted = $quotedItemsBySlug->get($lookupKey);
+            $finalLinePrice = (float) ($quoted['finalLinePriceFcfa'] ?? $item['finalLinePriceFcfa'] ?? 0);
+
+            return [
+                'slug' => $slug !== '' ? $slug : null,
+                'title' => $item['title'] ?? $item['productName'] ?? ($quoted['title'] ?? 'Produit'),
+                'productName' => $item['productName'] ?? $item['title'] ?? ($quoted['title'] ?? 'Produit'),
+                'image' => $item['image'] ?? ($quoted['image'] ?? '/globe.svg'),
+                'quantity' => (int) ($quoted['quantity'] ?? $item['quantity'] ?? 1),
+                'selectedVariants' => $selectedVariants,
+                'finalLinePriceFcfa' => $finalLinePrice,
+            ];
+        })->values()->all();
+
+        $itemsSubtotal = collect($items)->sum(fn (array $item) => (float) ($item['finalLinePriceFcfa'] ?? 0));
+        $shippingPrice = (float) ($shippingOption['priceFcfa'] ?? $validated['shippingPriceFcfa'] ?? 0);
+        $totalPrice = $itemsSubtotal + $shippingPrice;
+        $paymentMethod = (string) ($validated['paymentMethod'] ?? 'card');
+        if ($totalPrice <= 0) {
+            throw ValidationException::withMessages([
+                'items' => ['Le montant total de la commande est nul. Recalculez le panier avant de payer.'],
+            ]);
+        }
+
+        if ($paymentMethod === 'pay_on_delivery' && $totalPrice > self::PAY_ON_DELIVERY_LIMIT_FCFA) {
+            throw ValidationException::withMessages([
+                'paymentMethod' => ['Le paiement apres livraison est limite a 30 000 FCFA pour cette devise.'],
+            ]);
+        }
+
         $promoCode = isset($validated['promoCode']) ? strtoupper((string) $validated['promoCode']) : null;
         $productIdsBySlug = Product::query()
             ->whereIn('slug', collect($items)->pluck('slug')->filter()->unique()->values()->all())
             ->pluck('id', 'slug');
 
-        return DB::transaction(function () use ($validated, $user, $items, $totalPrice, $promoCode, $productIdsBySlug) {
+        return DB::transaction(function () use ($validated, $user, $items, $itemsSubtotal, $shippingMethod, $shippingOption, $shippingPrice, $totalPrice, $paymentMethod, $promoCode, $productIdsBySlug) {
             $order = Order::query()->create([
                 'user_id' => $user?->id,
                 'order_number' => 'AFR-'.strtoupper(Str::random(10)),
@@ -68,12 +139,13 @@ class OrderService
                 'postal_code' => $validated['postalCode'] ?? null,
                 'country_code' => $validated['countryCode'],
                 'items' => $items,
+                'base_price' => $itemsSubtotal,
                 'total_price' => $totalPrice,
                 'status' => 'checkout_created',
                 'payment_status' => 'unpaid',
                 'payment_currency' => 'XOF',
-                'payment_provider' => 'moneroo',
-                'shipping_method' => $validated['shippingMethod'],
+                'payment_provider' => $paymentMethod === 'pay_on_delivery' ? null : 'moneroo',
+                'shipping_method' => $shippingMethod,
                 'meta' => [
                     'promo' => $promoCode ? [
                         'code' => $promoCode,
@@ -81,7 +153,14 @@ class OrderService
                         'baseTotalFcfa' => $totalPrice,
                         'finalTotalFcfa' => $totalPrice,
                     ] : null,
-                    'paymentMethod' => $validated['paymentMethod'] ?? 'card',
+                    'pricing' => [
+                        'itemsSubtotalFcfa' => $itemsSubtotal,
+                        'shippingPriceFcfa' => $shippingPrice,
+                        'shippingLabel' => $shippingOption['label'] ?? $shippingMethod,
+                        'shippingDeliveryWindow' => $shippingOption['deliveryWindow'] ?? null,
+                        'totalPriceFcfa' => $totalPrice,
+                    ],
+                    'paymentMethod' => $paymentMethod,
                     'notes' => $validated['notes'] ?? null,
                 ],
             ]);

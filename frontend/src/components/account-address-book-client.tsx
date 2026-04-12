@@ -5,7 +5,7 @@ import { Check, LocateFixed, MapPinned, Pencil, Plus, Sparkles, Trash2 } from "l
 
 import type { CustomerAddressRecord } from "@/lib/customer-addresses";
 import { buildAddressQuickInput, parseAddressQuickInput } from "@/lib/address-autofill";
-import { canonicalizeCountryCode, getCountryDisplayLabel } from "@/lib/country-utils";
+import { canonicalizeCountryCode, getCountryDisplayLabel, resolveGeocodedCountryCode } from "@/lib/country-utils";
 import { extractCoordinatesFromGoogleMapsUrl, isGoogleMapsShortUrl } from "@/lib/google-maps";
 
 type AddressFormState = {
@@ -102,7 +102,10 @@ export function AccountAddressBookClient({ initialAddresses }: { initialAddresse
     state?: string;
     postalCode?: string;
     countryCode?: string;
+    countryLabel?: string;
     displayName?: string;
+    latitude?: number;
+    longitude?: number;
   }) => {
     const nextForm = {
       ...form,
@@ -111,7 +114,18 @@ export function AccountAddressBookClient({ initialAddresses }: { initialAddresse
       city: payload.city || form.city,
       state: payload.state || payload.city || form.state,
       postalCode: payload.postalCode || form.postalCode,
-      countryCode: canonicalizeCountryCode(payload.countryCode, form.countryCode || "TG"),
+      countryCode: resolveGeocodedCountryCode({
+        countryCode: payload.countryCode,
+        countryLabel: payload.countryLabel,
+        displayName: payload.displayName,
+        city: payload.city,
+        state: payload.state,
+        addressLine1: payload.addressLine1,
+        coordinates: typeof payload.latitude === "number" && typeof payload.longitude === "number"
+          ? { latitude: payload.latitude, longitude: payload.longitude }
+          : null,
+        fallbackCountryCode: form.countryCode || "TG",
+      }),
     };
 
     setForm(nextForm);
@@ -131,7 +145,11 @@ export function AccountAddressBookClient({ initialAddresses }: { initialAddresse
     }
 
     setMapsUrl(`https://www.google.com/maps?q=${latitude},${longitude}`);
-    applyGeocodedAddress(payload);
+    applyGeocodedAddress({
+      ...payload,
+      latitude,
+      longitude,
+    });
   };
 
   const syncAddresses = (nextAddresses: CustomerAddressRecord[]) => {

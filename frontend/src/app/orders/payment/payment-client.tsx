@@ -2,10 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { CreditCard, Smartphone, WalletCards } from "lucide-react";
+import { CreditCard, WalletCards } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { applyOrderPromoCode, initializeMonerooPayment, verifyMonerooPayment } from "@/lib/api";
+import { PaymentMethodIcon } from "@/components/payment-method-icon";
 
 type LegacyOrder = {
   kind: "legacy";
@@ -52,8 +53,8 @@ type PaymentClientProps = {
 };
 
 const methods = [
-  { key: "card", label: "Carte bancaire", icon: CreditCard, detail: "Visa, Mastercard et cartes compatibles Moneroo" },
-  { key: "mobile", label: "Mobile Money", icon: Smartphone, detail: "Paiement mobile pris en charge directement dans le checkout heberge" },
+  { key: "card", label: "Carte bancaire", detail: "Visa, Mastercard et cartes compatibles Moneroo" },
+  { key: "mobile", label: "Mobile Money", detail: "Paiement mobile pris en charge directement dans le checkout heberge" },
 ];
 
 function getPaymentStatusLabel(paymentStatus: SourcingPaymentOrder["paymentStatus"]) {
@@ -253,7 +254,6 @@ export function PaymentClient({ order }: PaymentClientProps) {
               </div>
             </div>
             {methods.map((method) => {
-              const Icon = method.icon;
               const isSelected = selectedMethod === method.key;
 
               return (
@@ -267,7 +267,9 @@ export function PaymentClient({ order }: PaymentClientProps) {
                   ].join(" ")}
                 >
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-white text-[#ff6a00] ring-1 ring-black/5">
-                    <Icon className="h-5 w-5" />
+                    {method.key === "mobile"
+                      ? <PaymentMethodIcon kind="mobile-money" size={22} className="h-[22px] w-[22px] object-contain" />
+                      : <CreditCard className="h-5 w-5" />}
                   </div>
                   <div>
                     <div className="text-[16px] font-semibold text-[#222]">{method.label}</div>
@@ -399,7 +401,6 @@ export function PaymentClient({ order }: PaymentClientProps) {
 
         <div className="mt-6 space-y-3">
           {methods.map((method) => {
-            const Icon = method.icon;
             const isSelected = selectedMethod === method.key;
 
             return (
@@ -413,7 +414,9 @@ export function PaymentClient({ order }: PaymentClientProps) {
                 ].join(" ")}
               >
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-white text-[#ff6a00] ring-1 ring-black/5">
-                  <Icon className="h-5 w-5" />
+                  {method.key === "mobile"
+                    ? <PaymentMethodIcon kind="mobile-money" size={22} className="h-[22px] w-[22px] object-contain" />
+                    : <CreditCard className="h-5 w-5" />}
                 </div>
                 <div>
                   <div className="text-[16px] font-semibold text-[#222]">{method.label}</div>

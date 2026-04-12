@@ -315,6 +315,7 @@ class AliExpressOpenPlatformService
         $countryCode = strtoupper(trim((string) ($address['countryCode'] ?? env('ALIEXPRESS_DS_SHIP_TO_COUNTRY', 'FR'))));
         $currency = 'USD';
         $language = trim((string) env('ALIEXPRESS_DS_LOCALE', 'fr_FR')) ?: 'fr_FR';
+        $validatedAddress = $this->resolveValidatedAddress($account, $address, $language);
         $liveDetail = $this->callTopEndpoint($account, 'aliexpress.ds.product.get', [
             'ship_to_country' => $countryCode,
             'product_id' => (string) ($product['sourceProductId'] ?? ''),
@@ -354,6 +355,8 @@ class AliExpressOpenPlatformService
                 'shipToCountry' => $countryCode,
                 'productId' => (string) ($product['sourceProductId'] ?? ''),
                 'selectedSkuId' => $skuId,
+                'provinceCode' => $validatedAddress['stateCode'],
+                'cityCode' => $validatedAddress['cityCode'],
                 'language' => $language,
                 'currency' => 'USD',
                 'locale' => $language,
@@ -371,14 +374,14 @@ class AliExpressOpenPlatformService
             'logistics_address' => [
                 'address' => (string) ($address['addressLine1'] ?? ''),
                 'address2' => (string) ($address['addressLine2'] ?? ''),
-                'city' => (string) ($address['city'] ?? ''),
+                'city' => $validatedAddress['city'],
                 'contact_person' => (string) ($address['contactName'] ?? ''),
                 'country' => $countryCode,
                 'full_name' => (string) ($address['contactName'] ?? ''),
                 'locale' => $language,
                 'mobile_no' => (string) ($address['phone'] ?? ''),
                 'phone_country' => '+',
-                'province' => (string) ($address['state'] ?? ''),
+                'province' => $validatedAddress['state'],
                 'zip' => (string) ($address['postalCode'] ?? ''),
             ],
             'product_items' => [[
@@ -1011,7 +1014,9 @@ class AliExpressOpenPlatformService
             $this->collectStrings($baseInfo['image_url'] ?? null),
             $this->collectStrings($detailResult['main_image_url'] ?? null),
             $this->collectStrings($detailResult['product_main_image_url'] ?? null),
-            $this->collectStrings($detailResult['image_url'] ?? null)
+            $this->collectStrings($detailResult['image_url'] ?? null),
+            $this->extractImageCandidates($detailResult),
+            $this->extractImageCandidates($detailResponseBody)
         ))));
         $primaryImage = $gallery[0] ?? null;
         if ($primaryImage === null) {
@@ -1090,6 +1095,7 @@ class AliExpressOpenPlatformService
         $title = $this->getString($baseInfo['subject'] ?? $detailResult['subject'] ?? $detailResult['product_title'] ?? $detailResult['title'] ?? $searchItem['title'] ?? null) ?? $query;
         $keywords = array_slice(array_values(array_filter(preg_split('/[^a-z0-9]+/i', strtolower($title)) ?: [], fn ($entry) => strlen($entry) > 2)), 0, 12);
         $packageDimensions = $this->extractPackageDimensionsCm($detailResult)
+            ?? $this->extractPackageDimensionsCm($detailResponseBody)
             ?? $this->extractPackageDimensionsCm($searchItem)
             ?? [
                 'lengthCm' => max(1, $this->toFloat($packageInfo['package_length'] ?? 20)),
@@ -1239,14 +1245,69 @@ class AliExpressOpenPlatformService
     private function splitImages($value): array
     {
         if (is_string($value)) {
-            return array_values(array_filter(array_map('trim', preg_split('/[;,]/', $value) ?: [])));
+            $trimmed = trim($value);
+            if ($trimmed === '') {
+                return [];
+            }
+
+            $decoded = json_decode($trimmed, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $this->splitImages($decoded);
+            }
+
+            return array_values(array_filter(array_map('trim', preg_split('/[;,|]/', $trimmed) ?: [])));
         }
 
         if (is_array($value)) {
-            return array_values(array_filter(array_map(fn ($entry) => trim((string) $entry), $value)));
+            $images = [];
+            foreach ($value as $entry) {
+                if (is_array($entry)) {
+                    $images = array_merge($images, $this->splitImages($entry));
+                    continue;
+                }
+
+                $candidate = trim((string) $entry);
+                if ($candidate !== '') {
+                    $images[] = $candidate;
+                }
+            }
+
+            return array_values(array_filter($images));
         }
 
         return [];
+    }
+
+    private function extractImageCandidates($value, int $depth = 0, ?string $keyHint = null): array
+    {
+        if ($depth > 5 || $value === null) {
+            return [];
+        }
+
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            if ($trimmed === '') {
+                return [];
+            }
+
+            $isImageKey = is_string($keyHint) && preg_match('/image|img|photo|pic|poster|gallery/i', $keyHint) === 1;
+            if ($isImageKey || preg_match('/^https?:\/\//i', $trimmed) === 1) {
+                return $this->splitImages($trimmed);
+            }
+
+            return [];
+        }
+
+        if (! is_array($value)) {
+            return [];
+        }
+
+        $images = [];
+        foreach ($value as $nestedKey => $nestedValue) {
+            $images = array_merge($images, $this->extractImageCandidates($nestedValue, $depth + 1, is_string($nestedKey) ? $nestedKey : $keyHint));
+        }
+
+        return array_values(array_unique(array_filter($images)));
     }
 
     private function getPriceBounds(array $values): array
@@ -1377,6 +1438,190 @@ class AliExpressOpenPlatformService
         return null;
     }
 
+    private function resolveValidatedAddress(array $account, array $address, string $language): array
+    {
+        $addressQuery = $this->callTopEndpoint($account, 'aliexpress.ds.address.get', [
+            'countryCode' => strtoupper(trim((string) ($address['countryCode'] ?? ''))),
+            'language' => $language,
+            'isMultiLanguage' => 'true',
+        ]);
+
+        if (! $addressQuery['ok']) {
+            return [
+                'state' => (string) ($address['state'] ?? ''),
+                'stateCode' => (string) ($address['state'] ?? ''),
+                'city' => (string) ($address['city'] ?? ''),
+                'cityCode' => (string) ($address['city'] ?? ''),
+            ];
+        }
+
+        $options = $this->normalizeAddressOptions($addressQuery['responseBody']);
+        $typedNodes = array_map(fn (array $entry) => [
+            'type' => $this->normalizeComparableText($entry['type'] ?? ''),
+            'nodes' => $this->parseAddressNodes($entry['childrenJson'] ?? null),
+        ], $options);
+        $allRoots = [];
+        foreach ($typedNodes as $entry) {
+            $allRoots = array_merge($allRoots, $entry['nodes']);
+        }
+
+        if ($allRoots === []) {
+            return [
+                'state' => (string) ($address['state'] ?? ''),
+                'stateCode' => (string) ($address['state'] ?? ''),
+                'city' => (string) ($address['city'] ?? ''),
+                'cityCode' => (string) ($address['city'] ?? ''),
+            ];
+        }
+
+        $provinceRoots = [];
+        foreach ($typedNodes as $entry) {
+            if (preg_match('/(state|province|county|region)/', (string) ($entry['type'] ?? '')) === 1) {
+                $provinceRoots = array_merge($provinceRoots, $entry['nodes']);
+            }
+        }
+        $provinceSearchRoots = $provinceRoots !== [] ? $provinceRoots : $allRoots;
+        $provinceMatch = $this->findAddressNode($provinceSearchRoots, (string) ($address['state'] ?? ''));
+
+        $explicitCityRoots = [];
+        foreach ($typedNodes as $entry) {
+            if (preg_match('/(city|town)/', (string) ($entry['type'] ?? '')) === 1) {
+                $explicitCityRoots = array_merge($explicitCityRoots, $entry['nodes']);
+            }
+        }
+        $citySearchRoots = is_array($provinceMatch['children'] ?? null) && ($provinceMatch['children'] ?? []) !== []
+            ? $provinceMatch['children']
+            : ($explicitCityRoots !== [] ? $explicitCityRoots : $allRoots);
+        $cityMatch = $this->findAddressNode($citySearchRoots, (string) ($address['city'] ?? ''));
+
+        return [
+            'state' => (string) ($provinceMatch['name'] ?? $address['state'] ?? ''),
+            'stateCode' => (string) ($provinceMatch['code'] ?? $provinceMatch['id'] ?? $provinceMatch['name'] ?? $address['state'] ?? ''),
+            'city' => (string) ($cityMatch['name'] ?? $address['city'] ?? ''),
+            'cityCode' => (string) ($cityMatch['code'] ?? $cityMatch['id'] ?? $cityMatch['name'] ?? $address['city'] ?? ''),
+        ];
+    }
+
+    private function normalizeAddressOptions($responseBody): array
+    {
+        $sellerPayload = $this->getSellerPayload($responseBody);
+        $data = $this->isAssoc($sellerPayload) ? ($sellerPayload['data'] ?? null) : null;
+        $entries = is_array($data)
+            ? $data
+            : ($this->isAssoc($data) ? [$data] : []);
+
+        $options = [];
+        foreach ($entries as $entry) {
+            if (! $this->isAssoc($entry)) {
+                continue;
+            }
+
+            $options[] = [
+                'countryCode' => $this->getString($entry['country'] ?? null),
+                'type' => $this->getString($entry['type'] ?? null),
+                'childrenJson' => $this->getString($entry['children'] ?? null),
+            ];
+        }
+
+        return $options;
+    }
+
+    private function parseAddressNodes($value): array
+    {
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            if ($trimmed === '') {
+                return [];
+            }
+
+            $decoded = json_decode($trimmed, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $this->parseAddressNodes($decoded);
+            }
+
+            return [];
+        }
+
+        if (! is_array($value)) {
+            return [];
+        }
+
+        if (! $this->isAssoc($value)) {
+            $nodes = [];
+            foreach ($value as $entry) {
+                $nodes = array_merge($nodes, $this->parseAddressNodes($entry));
+            }
+
+            return $nodes;
+        }
+
+        $name = $this->getString($value['name'] ?? $value['label'] ?? $value['text'] ?? $value['display_name'] ?? null);
+        $code = $this->getString($value['code'] ?? $value['value'] ?? $value['areaCode'] ?? $value['cityCode'] ?? $value['provinceCode'] ?? null);
+        $id = $this->getString($value['id'] ?? $value['areaId'] ?? $value['cityId'] ?? $value['provinceId'] ?? null);
+        $children = $this->parseAddressNodes($value['children'] ?? $value['childrens'] ?? $value['areas'] ?? null);
+
+        if ($name === null && $code === null && $id === null) {
+            return [];
+        }
+
+        return [[
+            'name' => $name ?? $code ?? $id ?? '',
+            'code' => $code,
+            'id' => $id,
+            'children' => $children,
+        ]];
+    }
+
+    private function findAddressNode(array $nodes, string $value): ?array
+    {
+        $normalizedTarget = $this->normalizeComparableText($value);
+        if ($normalizedTarget === '') {
+            return null;
+        }
+
+        $queue = $nodes;
+        while ($queue !== []) {
+            $current = array_shift($queue);
+            if (! is_array($current)) {
+                continue;
+            }
+
+            $matches = false;
+            foreach ([(string) ($current['name'] ?? ''), (string) ($current['code'] ?? ''), (string) ($current['id'] ?? '')] as $candidate) {
+                if ($this->normalizeComparableText($candidate) === $normalizedTarget) {
+                    $matches = true;
+                    break;
+                }
+            }
+
+            if ($matches) {
+                return $current;
+            }
+
+            if (is_array($current['children'] ?? null)) {
+                foreach ($current['children'] as $child) {
+                    $queue[] = $child;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeComparableText(string $value): string
+    {
+        $normalized = trim(mb_strtolower($value));
+        $normalized = preg_replace('/\s+/', ' ', $normalized) ?? '';
+        return strtr($normalized, [
+            'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e',
+            'à' => 'a', 'â' => 'a', 'ä' => 'a',
+            'î' => 'i', 'ï' => 'i',
+            'ô' => 'o', 'ö' => 'o',
+            'ù' => 'u', 'û' => 'u', 'ü' => 'u',
+            'ç' => 'c',
+        ]);
+    }
+
     private function resolveCarrierCode($freightResponseBody): ?string
     {
         $payload = $this->getSellerPayload($freightResponseBody);
@@ -1392,7 +1637,7 @@ class AliExpressOpenPlatformService
                 continue;
             }
 
-            $vendorCode = $this->getString($option['code'] ?? null);
+            $vendorCode = $this->getString($option['code'] ?? $option['service_name'] ?? $option['logistics_service_name'] ?? $option['shipping_service'] ?? null);
             if ($vendorCode !== null) {
                 return $vendorCode;
             }
@@ -1757,9 +2002,9 @@ class AliExpressOpenPlatformService
             return null;
         }
 
-        $length = $this->normalizeDimensionCm($value['package_length'] ?? $value['length'] ?? $value['lengthCm'] ?? $value['packageLength'] ?? null);
-        $width = $this->normalizeDimensionCm($value['package_width'] ?? $value['width'] ?? $value['widthCm'] ?? $value['packageWidth'] ?? null);
-        $height = $this->normalizeDimensionCm($value['package_height'] ?? $value['height'] ?? $value['heightCm'] ?? $value['packageHeight'] ?? null);
+        $length = $this->normalizeDimensionCm($value['package_length'] ?? $value['length'] ?? $value['lengthCm'] ?? $value['packageLength'] ?? $value['product_length'] ?? $value['item_length'] ?? null);
+        $width = $this->normalizeDimensionCm($value['package_width'] ?? $value['width'] ?? $value['widthCm'] ?? $value['packageWidth'] ?? $value['product_width'] ?? $value['item_width'] ?? null);
+        $height = $this->normalizeDimensionCm($value['package_height'] ?? $value['height'] ?? $value['heightCm'] ?? $value['packageHeight'] ?? $value['product_height'] ?? $value['item_height'] ?? null);
 
         if ($length !== null && $width !== null && $height !== null) {
             return [
@@ -1767,6 +2012,13 @@ class AliExpressOpenPlatformService
                 'widthCm' => $width,
                 'heightCm' => $height,
             ];
+        }
+
+        foreach (['package_size', 'package_dimension', 'package_dimensions', 'product_dimensions', 'dimensions', 'dimension', 'size'] as $dimensionKey) {
+            $candidate = $this->parsePackagingDimensions($this->getString($value[$dimensionKey] ?? null));
+            if ($candidate !== null) {
+                return $candidate;
+            }
         }
 
         foreach ($value as $nestedValue) {

@@ -14,10 +14,22 @@ type AdminPartnerRequestsClientProps = {
   initialRequests: AdminPartnerRequestItem[];
   warning?: string | null;
   manyChatStatus: {
-    apiKeyConfigured: boolean;
-    orderFlowConfigured: boolean;
-    cartFlowConfigured: boolean;
-    cronRouteReady: boolean;
+    apiKey: {
+      ok: boolean;
+      detail: string;
+    };
+    orderFlow: {
+      ok: boolean;
+      detail: string;
+    };
+    cartFlow: {
+      ok: boolean;
+      detail: string;
+    };
+    cronRoute: {
+      ok: boolean;
+      detail: string;
+    };
   };
 };
 
@@ -421,14 +433,15 @@ export function AdminPartnerRequestsClient({ initialRequests, warning, manyChatS
             <div className="mt-2 text-[13px] text-[#667085]">Verification technique des branchements principaux cote frontend.</div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               {[
-                { label: "API key", ok: manyChatStatus.apiKeyConfigured },
-                { label: "Flow paiement", ok: manyChatStatus.orderFlowConfigured },
-                { label: "Flow panier abandonne", ok: manyChatStatus.cartFlowConfigured },
-                { label: "Route cron active", ok: manyChatStatus.cronRouteReady },
+                { label: "API key", ...manyChatStatus.apiKey },
+                { label: "Flow paiement", ...manyChatStatus.orderFlow },
+                { label: "Flow panier abandonne", ...manyChatStatus.cartFlow },
+                { label: "Route cron active", ...manyChatStatus.cronRoute },
               ].map((item) => (
                 <div key={item.label} className="rounded-[14px] border border-[#edf1f6] bg-[#fbfcfe] px-4 py-4">
                   <div className="text-[13px] font-semibold text-[#101828]">{item.label}</div>
                   <div className={`mt-2 text-[14px] font-semibold ${item.ok ? "text-[#15803d]" : "text-[#dc2626]"}`}>{item.ok ? "OK" : "A configurer"}</div>
+                  <div className="mt-2 text-[12px] leading-5 text-[#667085]">{item.detail}</div>
                 </div>
               ))}
             </div>
