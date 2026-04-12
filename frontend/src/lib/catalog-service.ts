@@ -260,7 +260,35 @@ export async function getCatalogProducts(options?: { fresh?: boolean }): Promise
 
 export async function getCatalogProductBySlug(slug: string) {
   const products = await getCatalogProducts();
-  return products.find((product) => product.slug === slug) ?? null;
+  const product = products.find((entry) => entry.slug === slug) ?? null;
+  if (!product) {
+    return null;
+  }
+
+  const hasDimensions = Boolean(
+    product.packageDimensionsCm
+    && product.packageDimensionsCm.lengthCm > 0
+    && product.packageDimensionsCm.widthCm > 0
+    && product.packageDimensionsCm.heightCm > 0,
+  );
+  const hasWeight = product.itemWeightGrams > 0;
+  if (hasDimensions && hasWeight) {
+    return product;
+  }
+
+  const importedProducts = await getAlibabaImportedProducts({ fresh: true });
+  const importedProduct = importedProducts.find((entry) => entry.slug === slug && entry.publishedToSite && entry.status !== "archived");
+  if (!importedProduct) {
+    return product;
+  }
+
+  try {
+    const { reenrichImportedProduct } = await import("@/lib/alibaba-operations-service");
+    const reenrichedProduct = await reenrichImportedProduct(importedProduct.id);
+    return toCatalogProduct(reenrichedProduct);
+  } catch {
+    return product;
+  }
 }
 
 export async function getCatalogProductsBySlugs(slugs: string[], options?: { fresh?: boolean }) {

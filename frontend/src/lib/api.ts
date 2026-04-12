@@ -413,10 +413,19 @@ export function previewPromoCode(code: string, totalFcfa: number) {
     });
 }
 
-async function dashboardFetch<T>(path: string, query?: Record<string, string | number | boolean | null | undefined>): Promise<T> {
+type DashboardRequestOptions = RequestInit & {
+  query?: Record<string, string | number | boolean | null | undefined>;
+};
+
+async function dashboardFetch<T>(path: string, options: DashboardRequestOptions = {}): Promise<T> {
+  const { query, headers, ...init } = options;
   const response = await fetch(buildLocalUrl(path, query), {
-    credentials: "include",
-    cache: "no-store",
+    ...init,
+    credentials: init.credentials ?? "include",
+    cache: init.cache ?? "no-store",
+    headers: {
+      ...headers,
+    },
   });
 
   const payload = await response.json().catch(() => null);
@@ -435,7 +444,7 @@ export async function getDashboardStats(): Promise<PartnerDashboardStats> {
 }
 
 export async function getOrders(page = 1): Promise<PartnerOrdersResponse> {
-  return dashboardFetch<PartnerOrdersResponse>("/api/dashboard/orders", { page });
+  return dashboardFetch<PartnerOrdersResponse>("/api/dashboard/orders", { query: { page } });
 }
 
 export async function getWallet(): Promise<PartnerWallet> {
