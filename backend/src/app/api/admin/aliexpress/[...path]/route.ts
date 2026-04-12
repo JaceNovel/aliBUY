@@ -41,6 +41,7 @@ async function proxyAdminAliExpress(request: Request, context: RouteContext) {
   const responseHeaders = new Headers();
   const responseContentType = response.headers.get("content-type");
   const responseLocation = response.headers.get("location");
+  responseHeaders.set("x-afripay-admin-proxy", "frontend-aliexpress");
   if (responseContentType) {
     responseHeaders.set("content-type", responseContentType);
   }

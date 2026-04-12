@@ -9,16 +9,18 @@ const nextConfig: NextConfig = {
     root: path.join(__dirname, ".."),
   },
   async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${apiBaseUrl}/api/:path*`,
-      },
-      {
-        source: "/sanctum/:path*",
-        destination: `${apiBaseUrl}/sanctum/:path*`,
-      },
-    ];
+    return {
+      fallback: [
+        {
+          source: "/api/:path*",
+          destination: `${apiBaseUrl}/api/:path*`,
+        },
+        {
+          source: "/sanctum/:path*",
+          destination: `${apiBaseUrl}/sanctum/:path*`,
+        },
+      ],
+    };
   },
   webpack: (config) => {
     config.resolve = config.resolve ?? {};
