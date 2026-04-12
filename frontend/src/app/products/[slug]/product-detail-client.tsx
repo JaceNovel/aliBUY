@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, BadgeDollarSign, ChevronRight, CreditCard, ExternalLink, Heart, Minus, Play, Plus, Share2, ShieldCheck, ShoppingCart, Smartphone, Star, X, type LucideIcon } from "lucide-react";
+import { ArrowLeft, BadgeDollarSign, ChevronRight, CreditCard, Heart, Minus, Play, Plus, Share2, ShieldCheck, ShoppingCart, Smartphone, Star, X, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
@@ -92,7 +92,6 @@ type ProductDetailClientProps = {
     specs: DetailSpec[];
     formattedPriceRange: string;
     badge?: string;
-    sourceUrl?: string;
   };
   relatedProducts: RelatedProduct[];
   initialIsFavorite: boolean | null;
@@ -249,12 +248,6 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const displayShippingLabel = /^(Expédition|Expedition)\s+[A-Z]{2,3}$/i.test(product.shippingLabel) ? "Expédition" : product.shippingLabel;
   const storefrontSellerName = "AfriPay";
   const storefrontSellerLocation = "Réseau logistique AfriPay";
-  const sourceProductUrl = (() => {
-    if (typeof product.sourceUrl === "string" && product.sourceUrl.trim()) {
-      return product.sourceUrl.trim();
-    }
-    return /^\d{12,20}$/.test(product.slug) ? `https://www.aliexpress.com/item/${product.slug}.html` : "";
-  })();
   const parsedLotCbm = Number(product.lotCbm.replace(",", "."));
   const lotLabel = Number.isFinite(parsedLotCbm) && parsedLotCbm > 0 ? `${product.lotCbm} m3` : "Volume à confirmer";
   const characteristics = [
@@ -1058,17 +1051,10 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                       <Heart className={["h-4 w-4", isFavorite ? "fill-current text-[#f06f12]" : ""].join(" ")} />
                       Favoris
                     </button>
-                    {sourceProductUrl ? (
-                      <Link href={sourceProductUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-12 items-center justify-center gap-2 border border-[#e5e5e5] bg-[#fafafa] text-[14px] font-medium text-[#333] transition hover:-translate-y-0.5 hover:border-[#999]">
-                        <Star className="h-4 w-4 fill-current text-[#f5b301]" />
-                        Avis 4.8
-                      </Link>
-                    ) : (
-                      <div className="inline-flex h-12 items-center justify-center gap-1 border border-[#efefef] bg-[#fafafa] text-[13px] font-medium text-[#555]">
-                        <Star className="h-4 w-4 fill-current text-[#f5b301]" />
-                        Avis 4.8
-                      </div>
-                    )}
+                    <div className="inline-flex h-12 items-center justify-center gap-1 border border-[#efefef] bg-[#fafafa] text-[13px] font-medium text-[#555]">
+                      <Star className="h-4 w-4 fill-current text-[#f5b301]" />
+                      Avis 4.8
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1156,18 +1142,6 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                   </div>
                 ))}
               </div>
-
-              {sourceProductUrl ? (
-                <Link
-                  href={sourceProductUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-5 inline-flex w-full items-center justify-center gap-2 border border-[#221813] px-4 py-3 text-[14px] font-semibold text-[#221813] transition hover:border-[#f06f12] hover:text-[#f06f12]"
-                >
-                  Voir la source produit
-                  <ExternalLink className="h-4 w-4" />
-                </Link>
-              ) : null}
             </article>
           </div>
         </section>

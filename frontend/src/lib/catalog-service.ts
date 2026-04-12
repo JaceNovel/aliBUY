@@ -3,6 +3,27 @@ import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { deriveVariantGroupsFromPricing, deriveVariantGroupsFromSkus } from "@/lib/product-variant-pricing";
 import { type ProductCatalogItem } from "@/lib/products-data";
 
+function normalizePackageDimensions(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const lengthCm = typeof candidate.lengthCm === "number" && Number.isFinite(candidate.lengthCm) ? candidate.lengthCm : 0;
+  const widthCm = typeof candidate.widthCm === "number" && Number.isFinite(candidate.widthCm) ? candidate.widthCm : 0;
+  const heightCm = typeof candidate.heightCm === "number" && Number.isFinite(candidate.heightCm) ? candidate.heightCm : 0;
+
+  if (lengthCm <= 0 || widthCm <= 0 || heightCm <= 0) {
+    return undefined;
+  }
+
+  return {
+    lengthCm,
+    widthCm,
+    heightCm,
+  };
+}
+
 async function fetchRemoteCatalogProducts() {
   if (!API_URL) {
     return null;
@@ -55,7 +76,7 @@ async function fetchRemoteCatalogProducts() {
         videoUrl: typeof candidate.videoUrl === "string" && candidate.videoUrl.trim() ? candidate.videoUrl.trim() : undefined,
         videoPoster: typeof candidate.videoPoster === "string" && candidate.videoPoster.trim() ? candidate.videoPoster.trim() : undefined,
         packaging: typeof candidate.packaging === "string" && candidate.packaging.trim() ? candidate.packaging.trim() : "Selon catalogue",
-        packageDimensionsCm: undefined,
+        packageDimensionsCm: normalizePackageDimensions(candidate.packageDimensionsCm),
         itemWeightGrams: typeof candidate.itemWeightGrams === "number" && Number.isFinite(candidate.itemWeightGrams) ? candidate.itemWeightGrams : 0,
         lotCbm: typeof candidate.lotCbm === "string" && candidate.lotCbm.trim() ? candidate.lotCbm.trim() : "0.0000",
         minUsd,
@@ -93,64 +114,83 @@ async function fetchRemoteCatalogProducts() {
   }
 }
 
-async function readCatalogProductsSource(): Promise<ProductCatalogItem[]> {
-  const remoteProducts = await fetchRemoteCatalogProducts();
-  if (remoteProducts && remoteProducts.length > 0) {
-    return remoteProducts;
+function toCatalogProduct(product: Awaited<ReturnType<typeof getAlibabaImportedProducts>>[number]): ProductCatalogItem {
+  const fallbackVariantGroups = deriveVariantGroupsFromPricing(product.variantPricing ?? []);
+  const fallbackVariantGroupsFromSkus = deriveVariantGroupsFromSkus(product.variantSkus ?? []);
+  const variantGroups = product.variantGroups.length > 0
+    ? product.variantGroups
+    : fallbackVariantGroups.length > 0
+      ? fallbackVariantGroups
+      : fallbackVariantGroupsFromSkus;
+
+  return {
+    slug: product.slug,
+    title: product.title,
+    shortTitle: product.shortTitle,
+    keywords: product.keywords,
+    image: product.image,
+    gallery: product.gallery,
+    videoUrl: product.videoUrl,
+    videoPoster: product.videoPoster,
+    packaging: product.packaging,
+    packageDimensionsCm: product.packageDimensionsCm,
+    itemWeightGrams: product.itemWeightGrams,
+    lotCbm: product.lotCbm,
+    minUsd: product.minUsd,
+    maxUsd: product.maxUsd,
+    moq: product.moq,
+    moqVerified: product.moqVerified,
+    unit: product.unit,
+    badge: product.badge,
+    supplierName: product.supplierName,
+    supplierLocation: product.supplierLocation,
+    responseTime: product.responseTime,
+    yearsInBusiness: product.yearsInBusiness,
+    transactionsLabel: product.transactionsLabel,
+    soldLabel: product.soldLabel,
+    customizationLabel: product.customizationLabel,
+    shippingLabel: product.shippingLabel,
+    chinaLocalFreightFcfa: product.chinaLocalFreightFcfa,
+    chinaLocalFreightLabel: product.chinaLocalFreightLabel,
+    overview: product.overview,
+    variantGroups,
+    variantPricing: product.variantPricing,
+    variantSkus: product.variantSkus,
+    tiers: product.tiers,
+    specs: product.specs,
+    rawPayload: product.rawPayload,
+  };
+}
+
+function mergeCatalogProducts(remoteProducts: ProductCatalogItem[], localProducts: ProductCatalogItem[]) {
+  const merged = new Map<string, ProductCatalogItem>();
+
+  for (const product of remoteProducts) {
+    merged.set(product.slug, product);
   }
 
-  const importedProducts = await getAlibabaImportedProducts();
+  for (const product of localProducts) {
+    if (!merged.has(product.slug)) {
+      merged.set(product.slug, product);
+    }
+  }
 
-  return importedProducts
+  return [...merged.values()];
+}
+
+async function readCatalogProductsSource(): Promise<ProductCatalogItem[]> {
+  const remoteProducts = await fetchRemoteCatalogProducts();
+  const importedProducts = await getAlibabaImportedProducts();
+  const localProducts = importedProducts
     .filter((product) => product.publishedToSite && product.status !== "archived")
     .sort((left, right) => (right.publishedAt ?? right.updatedAt).localeCompare(left.publishedAt ?? left.updatedAt))
-    .map((product) => {
-      const fallbackVariantGroups = deriveVariantGroupsFromPricing(product.variantPricing ?? []);
-      const fallbackVariantGroupsFromSkus = deriveVariantGroupsFromSkus(product.variantSkus ?? []);
-      const variantGroups = product.variantGroups.length > 0
-        ? product.variantGroups
-        : fallbackVariantGroups.length > 0
-          ? fallbackVariantGroups
-          : fallbackVariantGroupsFromSkus;
+    .map((product) => toCatalogProduct(product));
 
-      return {
-        slug: product.slug,
-        title: product.title,
-        shortTitle: product.shortTitle,
-        keywords: product.keywords,
-        image: product.image,
-        gallery: product.gallery,
-        videoUrl: product.videoUrl,
-        videoPoster: product.videoPoster,
-        packaging: product.packaging,
-        packageDimensionsCm: product.packageDimensionsCm,
-        itemWeightGrams: product.itemWeightGrams,
-        lotCbm: product.lotCbm,
-        minUsd: product.minUsd,
-        maxUsd: product.maxUsd,
-        moq: product.moq,
-        moqVerified: product.moqVerified,
-        unit: product.unit,
-        badge: product.badge,
-        supplierName: product.supplierName,
-        supplierLocation: product.supplierLocation,
-        responseTime: product.responseTime,
-        yearsInBusiness: product.yearsInBusiness,
-        transactionsLabel: product.transactionsLabel,
-        soldLabel: product.soldLabel,
-        customizationLabel: product.customizationLabel,
-        shippingLabel: product.shippingLabel,
-        chinaLocalFreightFcfa: product.chinaLocalFreightFcfa,
-        chinaLocalFreightLabel: product.chinaLocalFreightLabel,
-        overview: product.overview,
-        variantGroups,
-        variantPricing: product.variantPricing,
-        variantSkus: product.variantSkus,
-        tiers: product.tiers,
-        specs: product.specs,
-        rawPayload: product.rawPayload,
-      };
-    });
+  if (remoteProducts && remoteProducts.length > 0) {
+    return mergeCatalogProducts(remoteProducts, localProducts);
+  }
+
+  return localProducts;
 }
 
 export async function getCatalogProducts(options?: { fresh?: boolean }): Promise<ProductCatalogItem[]> {

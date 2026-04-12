@@ -5370,6 +5370,13 @@ function extractAliExpressSolutionProductPackageMetrics(responseBody: unknown) {
   }
 
   return {
+    packageDimensionsCm: hasPackageDimensions
+      ? {
+          lengthCm: resolvedPackageLength,
+          widthCm: resolvedPackageWidth,
+          heightCm: resolvedPackageHeight,
+        }
+      : undefined,
     weightGrams,
     packaging,
     lotCbm,
@@ -5434,6 +5441,7 @@ async function enrichAliExpressAffiliateProduct(
     image: projection.image,
     gallery: projection.gallery,
     packaging: sellerPackageMetrics?.packaging ?? product.packaging,
+    packageDimensionsCm: sellerPackageMetrics?.packageDimensionsCm ?? product.packageDimensionsCm,
     itemWeightGrams,
     lotCbm: sellerPackageMetrics?.lotCbm ?? product.lotCbm,
     minUsd: projection.minUsd,
@@ -5459,6 +5467,7 @@ async function enrichAliExpressAffiliateProduct(
       affiliate_sku_detail: projection.rawResponse,
       seller_product_info: sellerProductInfoResponse?.ok ? sellerProductInfoResponse.responseBody : undefined,
       source_weight_grams: itemWeightGrams > 0 ? itemWeightGrams : null,
+      source_package_dimensions_cm: sellerPackageMetrics?.packageDimensionsCm ?? null,
       source_package_cbm: sellerPackageMetrics?.lotCbm ?? null,
     },
   };
@@ -5526,6 +5535,7 @@ export async function fetchAliExpressAffiliateProductSnapshot(input: {
     image: projection.image,
     gallery: projection.gallery,
     packaging: sellerPackageMetrics?.packaging ?? "Non fourni par affiliation",
+    packageDimensionsCm: sellerPackageMetrics?.packageDimensionsCm,
     itemWeightGrams,
     lotCbm: sellerPackageMetrics?.lotCbm ?? "0.0000",
     minUsd: projection.minUsd,
@@ -5555,6 +5565,7 @@ export async function fetchAliExpressAffiliateProductSnapshot(input: {
       affiliate_sku_detail: projection.rawResponse,
       seller_product_info: sellerProductInfoResponse?.ok ? sellerProductInfoResponse.responseBody : undefined,
       source_weight_grams: itemWeightGrams > 0 ? itemWeightGrams : null,
+      source_package_dimensions_cm: sellerPackageMetrics?.packageDimensionsCm ?? null,
       source_package_cbm: sellerPackageMetrics?.lotCbm ?? null,
     },
     moqVerified: false,

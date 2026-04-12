@@ -5,6 +5,7 @@ import { cache } from "react";
 import { extractAlibabaCategoryInfo, slugifyCategoryLabel } from "@/lib/alibaba-operations";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { buildApiUrl } from "@/lib/api";
+import { getCatalogProducts } from "@/lib/catalog-service";
 import type { ProductCatalogItem } from "@/lib/products-data";
 
 export type CatalogCategoryRecord = {
@@ -77,6 +78,59 @@ function getCategorySortRank(slug: string) {
   return CATEGORY_SORT_PRIORITY[slug] ?? 999;
 }
 
+function resolveCategoryProducts(category: CatalogCategoryRecord, products: ProductCatalogItem[]) {
+  const productsBySlug = new Map(products.map((product) => [product.slug, product]));
+  const explicitMatches = category.productSlugs.flatMap((slug) => {
+    const product = productsBySlug.get(slug);
+    return product ? [product] : [];
+  });
+
+  if (explicitMatches.length > 0) {
+    return dedupeProducts([...category.products, ...explicitMatches]);
+  }
+
+  return dedupeProducts([
+    ...category.products,
+    ...products.filter((product) => {
+      const inferredCategory = extractAlibabaCategoryInfo({
+        rawPayload: product.rawPayload,
+        title: product.title,
+        keywords: product.keywords,
+      });
+
+      return inferredCategory.slug === category.slug
+        || slugifyCategoryLabel(inferredCategory.title) === category.slug
+        || slugifyCategoryLabel(category.title) === inferredCategory.slug;
+    }),
+  ]);
+}
+
+async function hydrateCategory(category: CatalogCategoryRecord): Promise<CatalogCategoryRecord> {
+  if (category.products.length > 0 && category.productSlugs.length <= category.products.length) {
+    return {
+      ...category,
+      products: dedupeProducts(category.products),
+    };
+  }
+
+  const catalogProducts = await getCatalogProducts({ fresh: true });
+  const products = resolveCategoryProducts(category, catalogProducts);
+  if (products.length === 0) {
+    return category;
+  }
+
+  const productCount = Math.max(category.productCount, products.length);
+
+  return {
+    ...category,
+    image: category.image ?? products[0]?.image,
+    productCount,
+    productSlugs: products.map((product) => product.slug),
+    products,
+    description: buildCategoryDescription(category.title, category.sourcePath, productCount),
+  };
+}
+
 async function fetchRemoteCatalogCategories() {
   try {
     const response = await fetch(buildApiUrl("/api/catalog/categories"), {
@@ -142,11 +196,55 @@ async function fetchRemoteCatalogCategories() {
   }
 }
 
+function mergeCatalogCategories(remoteCategories: CatalogCategoryRecord[], localCategories: CatalogCategoryRecord[]) {
+  const merged = new Map<string, CatalogCategoryRecord>();
+
+  for (const category of remoteCategories) {
+    merged.set(category.slug, category);
+  }
+
+  for (const localCategory of localCategories) {
+    const existing = merged.get(localCategory.slug);
+    if (!existing) {
+      merged.set(localCategory.slug, localCategory);
+      continue;
+    }
+
+    const productSlugs = [...new Set([...existing.productSlugs, ...localCategory.productSlugs])];
+    const products = dedupeProducts([...existing.products, ...localCategory.products]);
+    const productCount = Math.max(existing.productCount, localCategory.productCount, productSlugs.length, products.length);
+
+    merged.set(localCategory.slug, {
+      ...existing,
+      title: existing.title || localCategory.title,
+      description: existing.description || localCategory.description,
+      image: existing.image ?? localCategory.image,
+      productCount,
+      productSlugs,
+      sourcePath: existing.sourcePath.length > 0 ? existing.sourcePath : localCategory.sourcePath,
+      sourcePathLabel: existing.sourcePathLabel || localCategory.sourcePathLabel,
+      queries: [...new Set([...existing.queries, ...localCategory.queries])],
+      products,
+    });
+  }
+
+  return [...merged.values()]
+    .sort((left, right) => {
+      const rank = getCategorySortRank(left.slug) - getCategorySortRank(right.slug);
+      if (rank !== 0) {
+        return rank;
+      }
+
+      if (right.productCount !== left.productCount) {
+        return right.productCount - left.productCount;
+      }
+
+      return left.title.localeCompare(right.title, "fr");
+    });
+}
+
 export const getCatalogCategories = cache(async function getCatalogCategories(): Promise<CatalogCategoryRecord[]> {
   const remoteCategories = await fetchRemoteCatalogCategories();
-  if (remoteCategories && remoteCategories.length > 0) {
-    return remoteCategories;
-  }
 
   const importedProducts = await getAlibabaImportedProducts();
   const publishedProducts = importedProducts.filter((product) => product.publishedToSite && product.status !== "archived");
@@ -217,6 +315,10 @@ export const getCatalogCategories = cache(async function getCatalogCategories():
       return left.title.localeCompare(right.title, "fr");
     });
 
+  if (remoteCategories && remoteCategories.length > 0 && localCategories.length > 0) {
+    return mergeCatalogCategories(remoteCategories, localCategories);
+  }
+
   if (localCategories.length > 0) {
     return localCategories;
   }
@@ -226,5 +328,6 @@ export const getCatalogCategories = cache(async function getCatalogCategories():
 
 export const getCatalogCategoryBySlug = cache(async function getCatalogCategoryBySlug(slug: string): Promise<CatalogCategoryRecord | null> {
   const categories = await getCatalogCategories();
-  return categories.find((category) => category.slug === slug) ?? null;
+  const category = categories.find((entry) => entry.slug === slug) ?? null;
+  return category ? hydrateCategory(category) : null;
 });

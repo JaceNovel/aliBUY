@@ -6,6 +6,7 @@ use App\Services\AlibabaAdminService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use RuntimeException;
 use Throwable;
 
 class AlibabaAdminController extends Controller
@@ -80,7 +81,13 @@ class AlibabaAdminController extends Controller
     {
         $this->alibabaAdmin->assertAdmin($request->user('sanctum'));
 
-        return response()->json($this->alibabaAdmin->saveSupplierAccount($request->json()->all()));
+        try {
+            return response()->json($this->alibabaAdmin->saveSupplierAccount($request->json()->all()));
+        } catch (RuntimeException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
     }
 
     public function oauthStart(Request $request): RedirectResponse|JsonResponse
@@ -176,16 +183,28 @@ class AlibabaAdminController extends Controller
     {
         $this->alibabaAdmin->assertAdmin($request->user('sanctum'));
 
-        return response()->json($this->alibabaAdmin->createPurchaseOrder($request->json()->all()));
+        try {
+            return response()->json($this->alibabaAdmin->createPurchaseOrder($request->json()->all()));
+        } catch (RuntimeException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
     }
 
     public function payPurchaseOrder(Request $request, string $orderId): JsonResponse
     {
         $this->alibabaAdmin->assertAdmin($request->user('sanctum'));
 
-        return response()->json($this->alibabaAdmin->payPurchaseOrder(
-            $orderId,
-            (string) $request->json('action', 'pay')
-        ));
+        try {
+            return response()->json($this->alibabaAdmin->payPurchaseOrder(
+                $orderId,
+                (string) $request->json('action', 'pay')
+            ));
+        } catch (RuntimeException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
     }
 }

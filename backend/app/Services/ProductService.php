@@ -176,6 +176,7 @@ class ProductService
             'moqVerified' => (bool) ($metadata['moqVerified'] ?? true),
             'unit' => (string) ($product->unit ?? 'piece'),
             'packaging' => $metadata['packaging'] ?? 'Carton',
+            'packageDimensionsCm' => $metadata['packageDimensionsCm'] ?? null,
             'itemWeightGrams' => (int) ($metadata['itemWeightGrams'] ?? 0),
             'lotCbm' => (string) ($metadata['lotCbm'] ?? '0'),
             'supplierName' => (string) ($product->supplier_name ?? 'AfriPay Supplier'),

@@ -957,6 +957,7 @@ class AlibabaAdminService
             'maxUsd' => $item['maxUsd'] ?? null,
             'moqVerified' => $item['moqVerified'] ?? true,
             'packaging' => $item['packaging'] ?? 'Carton',
+            'packageDimensionsCm' => is_array($item['packageDimensionsCm'] ?? null) ? $item['packageDimensionsCm'] : null,
             'itemWeightGrams' => $item['itemWeightGrams'] ?? 0,
             'lotCbm' => $item['lotCbm'] ?? '0',
             'responseTime' => $item['responseTime'] ?? '24h',
