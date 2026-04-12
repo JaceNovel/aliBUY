@@ -30,20 +30,25 @@ async function fetchRemoteCatalogProducts() {
   }
 
   try {
-    const response = await fetch(buildApiUrl("/api/catalog/products"), {
-      cache: "no-store",
-    });
+    const items: ProductCatalogItem[] = [];
+    let page = 1;
+    let hasMore = true;
 
-    if (!response.ok) {
-      return null;
-    }
+    while (hasMore) {
+      const response = await fetch(buildApiUrl("/api/catalog/products", { page, limit: 40 }), {
+        cache: "no-store",
+      });
 
-    const payload = await response.json().catch(() => null) as { items?: unknown[] } | null;
-    if (!Array.isArray(payload?.items)) {
-      return null;
-    }
+      if (!response.ok) {
+        return items.length > 0 ? items : null;
+      }
 
-    return payload.items.flatMap((item) => {
+      const payload = await response.json().catch(() => null) as { items?: unknown[]; hasMore?: boolean; nextPage?: number | null } | null;
+      if (!Array.isArray(payload?.items)) {
+        return items.length > 0 ? items : null;
+      }
+
+      const pageItems = payload.items.flatMap((item) => {
       if (!item || typeof item !== "object") {
         return [] as ProductCatalogItem[];
       }
@@ -109,6 +114,15 @@ async function fetchRemoteCatalogProducts() {
         rawPayload: candidate.rawPayload ?? candidate,
       } satisfies ProductCatalogItem];
     });
+
+      items.push(...pageItems);
+      hasMore = Boolean(payload?.hasMore) && page < 50;
+      page = typeof payload?.nextPage === 'number' && Number.isFinite(payload.nextPage)
+        ? payload.nextPage
+        : page + 1;
+    }
+
+    return items;
   } catch {
     return null;
   }

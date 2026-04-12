@@ -7,6 +7,7 @@ use App\Models\ApiPartnerRequest;
 use App\Support\PartnerCharterPdf;
 use App\Models\PartnerOrder;
 use App\Models\PartnerTransaction;
+use App\Models\User;
 use App\Support\PartnerApprovalGuidePdf;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -227,6 +228,11 @@ class PartnerPortalController extends Controller
 
     protected function authorizePortalRequest(Request $request): string
     {
+        $authenticatedUser = $request->user('sanctum');
+        if ($authenticatedUser instanceof User && is_string($authenticatedUser->email) && trim($authenticatedUser->email) !== '') {
+            return strtolower(trim($authenticatedUser->email));
+        }
+
         $sharedSecret = trim((string) env('PARTNER_PORTAL_SHARED_SECRET', ''));
         if ($sharedSecret === '') {
             abort(503, 'PARTNER_PORTAL_SHARED_SECRET manquant.');

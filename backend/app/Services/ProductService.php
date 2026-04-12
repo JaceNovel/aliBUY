@@ -67,22 +67,39 @@ class ProductService
     {
         return Product::query()
             ->where('is_published', true)
-            ->selectRaw('category as slug, category as title, count(*) as product_count')
-            ->groupBy('category')
-            ->orderBy('category')
             ->get()
-            ->map(fn ($row) => [
-                'slug' => $row->slug,
-                'title' => $row->title,
-                'productCount' => (int) $row->product_count,
-            ]);
+            ->groupBy('category')
+            ->map(function ($products, $slug) {
+                $first = $products->first();
+
+                return [
+                    'slug' => (string) $slug,
+                    'title' => $first instanceof Product ? $this->resolveCategoryTitle($first) : (string) $slug,
+                    'productCount' => $products->count(),
+                    'image' => $first instanceof Product ? (string) ($first->image ?? '/globe.svg') : '/globe.svg',
+                    'sourcePath' => $first instanceof Product ? $this->resolveCategoryPath($first) : [(string) $slug],
+                    'sourcePathLabel' => implode(' / ', $first instanceof Product ? $this->resolveCategoryPath($first) : [(string) $slug]),
+                ];
+            })
+            ->sortBy('title', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
     }
 
     public function category(string $slug): ?array
     {
-        $count = Product::query()->where('is_published', true)->where('category', $slug)->count();
+        $products = Product::query()->where('is_published', true)->where('category', $slug)->get();
+        $first = $products->first();
 
-        return $count > 0 ? ['slug' => $slug, 'title' => $slug, 'productCount' => $count] : null;
+        return $first instanceof Product
+            ? [
+                'slug' => $slug,
+                'title' => $this->resolveCategoryTitle($first),
+                'productCount' => $products->count(),
+                'image' => (string) ($first->image ?? '/globe.svg'),
+                'sourcePath' => $this->resolveCategoryPath($first),
+                'sourcePathLabel' => implode(' / ', $this->resolveCategoryPath($first)),
+            ]
+            : null;
     }
 
     public function categoryFeed(Request $request): array
@@ -148,12 +165,16 @@ class ProductService
         return [
             'slug' => $product->slug,
             'title' => $product->title,
+            'shortTitle' => (string) (($product->metadata ?? [])['shortTitle'] ?? $product->title),
             'image' => (string) ($product->image ?? '/globe.svg'),
             'badge' => $product->badge,
             'minUsd' => (float) $product->price,
             'maxUsd' => $product->metadata['maxUsd'] ?? null,
             'moq' => (int) ($product->moq ?? 1),
             'unit' => (string) ($product->unit ?? 'piece'),
+            'categorySlug' => (string) $product->category,
+            'categoryTitle' => $this->resolveCategoryTitle($product),
+            'categoryPath' => $this->resolveCategoryPath($product),
         ];
     }
 
@@ -187,6 +208,9 @@ class ProductService
             'soldLabel' => (string) ($metadata['soldLabel'] ?? 'Best seller'),
             'customizationLabel' => (string) ($metadata['customizationLabel'] ?? 'Personnalisation disponible'),
             'shippingLabel' => (string) ($metadata['shippingLabel'] ?? 'Expedition internationale'),
+            'categorySlug' => (string) $product->category,
+            'categoryTitle' => $this->resolveCategoryTitle($product),
+            'categoryPath' => $this->resolveCategoryPath($product),
             'overview' => $metadata['overview'] ?? [],
             'tiers' => $metadata['tiers'] ?? [],
             'variantGroups' => $metadata['variantGroups'] ?? [],
@@ -194,6 +218,37 @@ class ProductService
             'specs' => $metadata['specs'] ?? [],
             'keywords' => $metadata['keywords'] ?? [],
         ];
+    }
+
+    protected function resolveCategoryTitle(Product $product): string
+    {
+        $metadata = is_array($product->metadata) ? $product->metadata : [];
+        $title = $metadata['categoryTitle'] ?? null;
+
+        if (is_string($title) && trim($title) !== '') {
+            return trim($title);
+        }
+
+        return str_replace('-', ' ', (string) $product->category);
+    }
+
+    protected function resolveCategoryPath(Product $product): array
+    {
+        $metadata = is_array($product->metadata) ? $product->metadata : [];
+        $path = $metadata['categoryPath'] ?? null;
+
+        if (is_array($path)) {
+            $normalized = array_values(array_filter(array_map(
+                fn ($entry) => is_string($entry) ? trim($entry) : '',
+                $path
+            )));
+
+            if ($normalized !== []) {
+                return $normalized;
+            }
+        }
+
+        return [$this->resolveCategoryTitle($product)];
     }
 
     protected function feedPayload(LengthAwarePaginator $products, array $extra = []): array

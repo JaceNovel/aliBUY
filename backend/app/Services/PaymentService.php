@@ -43,7 +43,7 @@ class PaymentService
         };
 
         $paymentId = (string) ($payload['id'] ?? $payload['data']['id'] ?? '');
-        $checkoutUrl = $payload['checkout_url'] ?? $payload['payment_url'] ?? $payload['data']['payment_url'] ?? null;
+        $checkoutUrl = $this->extractCheckoutUrl($payload);
         $status = (string) ($payload['status'] ?? $payload['data']['status'] ?? 'initialized');
 
         Payment::query()->create([
@@ -218,5 +218,37 @@ class PaymentService
         return in_array(strtolower($status), ['successful', 'success', 'paid', 'approved', 'completed'], true)
             ? 'paid'
             : $status;
+    }
+
+    protected function extractCheckoutUrl(array $payload): ?string
+    {
+        $candidates = [
+            $payload['checkout_url'] ?? null,
+            $payload['checkoutUrl'] ?? null,
+            $payload['payment_url'] ?? null,
+            $payload['paymentUrl'] ?? null,
+            $payload['hosted_url'] ?? null,
+            $payload['hostedUrl'] ?? null,
+            $payload['redirect_url'] ?? null,
+            $payload['redirectUrl'] ?? null,
+            $payload['url'] ?? null,
+            $payload['data']['checkout_url'] ?? null,
+            $payload['data']['checkoutUrl'] ?? null,
+            $payload['data']['payment_url'] ?? null,
+            $payload['data']['paymentUrl'] ?? null,
+            $payload['data']['hosted_url'] ?? null,
+            $payload['data']['hostedUrl'] ?? null,
+            $payload['data']['redirect_url'] ?? null,
+            $payload['data']['redirectUrl'] ?? null,
+            $payload['data']['url'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_string($candidate) && trim($candidate) !== '') {
+                return trim($candidate);
+            }
+        }
+
+        return null;
     }
 }

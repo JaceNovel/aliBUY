@@ -3,6 +3,7 @@ import "server-only";
 import { createHmac } from "node:crypto";
 
 import { buildApiUrl } from "@/lib/api";
+import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
 import { getCurrentUser } from "@/lib/user-auth";
 
 export type PartnerPortalStatus = "guest" | "none" | "pending" | "approved" | "rejected";
@@ -32,10 +33,10 @@ function getPartnerPortalSecret() {
   return process.env.PARTNER_PORTAL_SHARED_SECRET?.trim() || "";
 }
 
-export function buildPartnerPortalHeaders(email: string) {
+export function buildPartnerPortalHeaders(email: string): Record<string, string> {
   const secret = getPartnerPortalSecret();
   if (!secret) {
-    throw new Error("Configuration partner portal incomplète. Définissez PARTNER_PORTAL_SHARED_SECRET sur le frontend.");
+    return {};
   }
 
   const normalizedEmail = email.trim().toLowerCase();
@@ -69,8 +70,15 @@ export async function fetchPartnerPortal<T>(path: string, email: string, query?:
 }
 
 export async function fetchPartnerPortalResponse(path: string, email: string, query?: Record<string, string | number | boolean | null | undefined>) {
+  const forwardedHeaders = await buildServerForwardHeaders({
+    accept: "application/json",
+  });
+
   return fetch(buildApiUrl(path, query), {
-    headers: buildPartnerPortalHeaders(email),
+    headers: {
+      ...Object.fromEntries(forwardedHeaders.entries()),
+      ...buildPartnerPortalHeaders(email),
+    },
     cache: "no-store",
   });
 }

@@ -893,12 +893,20 @@ class AlibabaAdminService
             $rawPayload['afripayCampaign'] = ['mode' => $campaignMode];
         }
 
+        $resolvedCategory = $this->resolveCatalogCategoryData([
+            'categorySlug' => $source['categorySlug'] ?? $source['categoryId'] ?? null,
+            'categoryTitle' => $source['categoryTitle'] ?? null,
+            'categoryPath' => $source['categoryPath'] ?? null,
+            'title' => $title,
+            'query' => $input['manualSeedQuery'] ?? $input['query'] ?? null,
+        ]);
+
         return [
             'id' => (string) Str::uuid(),
             'sourceProductId' => $sourceProductId,
-            'categorySlug' => $this->stringOrNull($source['categorySlug'] ?? $source['categoryId'] ?? null),
-            'categoryTitle' => $this->stringOrNull($source['categoryTitle'] ?? null),
-            'categoryPath' => $this->normalizeStringArray($source['categoryPath'] ?? null),
+            'categorySlug' => $resolvedCategory['slug'],
+            'categoryTitle' => $resolvedCategory['title'],
+            'categoryPath' => $resolvedCategory['path'],
             'slug' => $this->slugify($this->stringOrFallback($source['slug'] ?? null, $shortTitle.'-'.$sourceProductId)),
             'title' => $title,
             'shortTitle' => $shortTitle,
@@ -950,6 +958,7 @@ class AlibabaAdminService
 
     private function upsertCatalogProductFromImported(array $item): void
     {
+        $resolvedCategory = $this->resolveCatalogCategoryData($item);
         $metadata = [
             'shortTitle' => $item['shortTitle'] ?? $item['title'],
             'videoUrl' => $item['videoUrl'] ?? null,
@@ -972,6 +981,8 @@ class AlibabaAdminService
             'variantPricing' => $item['variantPricing'] ?? [],
             'specs' => $item['specs'] ?? [],
             'keywords' => $item['keywords'] ?? [],
+            'categoryTitle' => $resolvedCategory['title'],
+            'categoryPath' => $resolvedCategory['path'],
             'supplierPriceFcfa' => isset($item['minUsd']) ? (int) round($this->toFloat($item['minUsd']) * 650) : 0,
         ];
 
@@ -985,7 +996,7 @@ class AlibabaAdminService
             'slug' => (string) ($item['slug'] ?? $this->slugify((string) ($item['title'] ?? 'produit-aliexpress'))),
             'description' => (string) ($item['description'] ?? $item['title'] ?? ''),
             'price' => round($this->toFloat($item['minUsd'] ?? 0), 2),
-            'category' => (string) ($item['categorySlug'] ?? 'aliexpress'),
+            'category' => $resolvedCategory['slug'],
             'stock' => max(0, $this->toInt($item['inventory'] ?? 0)),
             'image' => (string) ($item['image'] ?? '/globe.svg'),
             'gallery' => is_array($item['gallery'] ?? null) ? array_values($item['gallery']) : [],
@@ -1093,6 +1104,8 @@ class AlibabaAdminService
             'badge' => $product['badge'] ?? null,
             'keywords' => $this->normalizeStringArray($product['keywords'] ?? null),
             'categorySlug' => $product['categorySlug'] ?? null,
+            'categoryTitle' => $product['categoryTitle'] ?? null,
+            'categoryPath' => $this->normalizeStringArray($product['categoryPath'] ?? null),
             'description' => $product['description'] ?? null,
             'packaging' => $product['packaging'] ?? null,
             'itemWeightGrams' => $product['itemWeightGrams'] ?? null,
@@ -1133,6 +1146,8 @@ class AlibabaAdminService
             'badge' => $product->badge,
             'keywords' => $this->normalizeStringArray($metadata['keywords'] ?? null),
             'categorySlug' => $product->category,
+            'categoryTitle' => $this->stringOrNull($metadata['categoryTitle'] ?? null),
+            'categoryPath' => $this->normalizeStringArray($metadata['categoryPath'] ?? null),
             'description' => $product->description,
             'packaging' => $metadata['packaging'] ?? null,
             'itemWeightGrams' => $metadata['itemWeightGrams'] ?? null,
@@ -1162,6 +1177,91 @@ class AlibabaAdminService
         }
 
         return '';
+    }
+
+    private function resolveCatalogCategoryData(array $source): array
+    {
+        $path = $this->normalizeStringArray($source['categoryPath'] ?? null);
+        $title = $this->stringOrNull($source['categoryTitle'] ?? null);
+        $slugCandidate = $this->stringOrNull($source['categorySlug'] ?? $source['categoryId'] ?? null);
+
+        $leaf = null;
+        for ($index = count($path) - 1; $index >= 0; $index--) {
+            if ($this->isUsefulCatalogCategoryLabel($path[$index] ?? null)) {
+                $leaf = trim((string) $path[$index]);
+                break;
+            }
+        }
+
+        if (! $this->isUsefulCatalogCategoryLabel($title)) {
+            $title = $leaf;
+        }
+
+        if (! $this->isUsefulCatalogCategoryLabel($title)) {
+            $title = $this->stringOrNull($source['query'] ?? null);
+        }
+
+        if (! $this->isUsefulCatalogCategoryLabel($title)) {
+            $title = $this->stringOrNull($source['title'] ?? null);
+        }
+
+        if (! $this->isUsefulCatalogCategoryLabel($title) && $this->isUsefulCatalogCategorySlug($slugCandidate)) {
+            $title = str_replace('-', ' ', trim((string) $slugCandidate));
+        }
+
+        if (! $this->isUsefulCatalogCategoryLabel($title)) {
+            $title = 'Autres produits';
+        }
+
+        if ($path === []) {
+            $path = [$title];
+        }
+
+        $slug = $this->isUsefulCatalogCategorySlug($slugCandidate)
+            ? $this->slugify((string) $slugCandidate)
+            : $this->slugify($title);
+
+        return [
+            'slug' => $slug !== '' ? $slug : 'autres-produits',
+            'title' => $title,
+            'path' => $path,
+        ];
+    }
+
+    private function isUsefulCatalogCategoryLabel($value): bool
+    {
+        if (! is_string($value)) {
+            return false;
+        }
+
+        $normalized = trim(preg_replace('/\s+/', ' ', str_replace(['>', '/', '|', '_'], ' ', $value)) ?? '');
+        if ($normalized === '') {
+            return false;
+        }
+
+        if (mb_strlen($normalized) < 2 || mb_strlen($normalized) > 80) {
+            return false;
+        }
+
+        if (! preg_match('/[\p{L}]/u', $normalized)) {
+            return false;
+        }
+
+        return ! preg_match('/^(catalogue importe|produit aliexpress|produit alibaba|aliexpress|alibaba|general|misc|other|others|undefined|null|n\/?a|na|unknown|sans nom|untitled)$/iu', $normalized);
+    }
+
+    private function isUsefulCatalogCategorySlug($value): bool
+    {
+        if (! is_string($value)) {
+            return false;
+        }
+
+        $normalized = trim($value);
+        if ($normalized === '' || preg_match('/^\d+$/', $normalized)) {
+            return false;
+        }
+
+        return ! preg_match('/^(aliexpress|alibaba|general|misc|other|others)$/i', $normalized);
     }
 
     private function normalizeGallery($gallery, $fallbackImage = null): array
