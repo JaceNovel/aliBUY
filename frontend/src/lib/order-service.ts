@@ -1,6 +1,6 @@
 import "server-only";
 
-import { API_URL, buildApiUrl } from "@/lib/api";
+import { API_URL, buildApiUrl, type ApiOrder } from "@/lib/api";
 import { getBackendAccessTokenFromCookies } from "@/lib/backend-access-token";
 import type { AuthenticatedUser } from "@/lib/user-auth";
 import { type OrderRecord, type OrderStatus, type OrderTabKey } from "@/lib/order-utils";
@@ -51,8 +51,27 @@ async function fetchUserOrderRecordsFromApi() {
     return null;
   }
 
-  const payload = await response.json().catch(() => null) as { orders?: OrderRecord[] } | null;
+  const payload = await response.json().catch(() => null) as { orders?: unknown[] } | null;
   return Array.isArray(payload?.orders) ? payload.orders : null;
+}
+
+type RemoteOrderRecord = ApiOrder & {
+  countryCode?: string;
+  status?: string;
+};
+
+function isOrderRecord(value: unknown): value is OrderRecord {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<OrderRecord>;
+  return typeof candidate.id === "string"
+    && typeof candidate.orderNumber === "string"
+    && typeof candidate.dateLabel === "string"
+    && typeof candidate.status === "string"
+    && typeof candidate.variant === "string"
+    && Boolean(candidate.logistics && typeof candidate.logistics === "object");
 }
 
 function resolveThirdPartyCartNotice(order: SourcingOrder, user: AuthenticatedUser) {
@@ -114,6 +133,7 @@ function resolveTab(status: OrderStatus): OrderTabKey {
 
 function formatOrderDate(dateIso: string) {
   const date = new Date(dateIso);
+  const safeDate = Number.isNaN(date.getTime()) ? new Date(0) : date;
 
   return {
     dateLabel: new Intl.DateTimeFormat("fr-FR", {
@@ -121,14 +141,75 @@ function formatOrderDate(dateIso: string) {
       month: "short",
       year: "numeric",
       timeZone: "UTC",
-    }).format(date),
-    dateValue: date.toISOString().slice(0, 10),
+    }).format(safeDate),
+    dateValue: safeDate.toISOString().slice(0, 10),
     timeValue: new Intl.DateTimeFormat("fr-FR", {
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
       timeZone: "UTC",
-    }).format(date),
+    }).format(safeDate),
+  };
+}
+
+function resolveRemoteOrderStatus(order: RemoteOrderRecord): OrderStatus {
+  if (order.paymentStatus === "paid") {
+    if (order.status === "delivered_to_agent" || order.status === "completed" || order.status === "delivered") {
+      return "Commande Livree";
+    }
+
+    return "Livraison en attente";
+  }
+
+  if (order.paymentStatus === "initialized" || order.paymentStatus === "pending") {
+    return "Expedition en attente";
+  }
+
+  return "Paiement en attente";
+}
+
+function buildRemoteVariant(order: RemoteOrderRecord) {
+  return (order.items ?? []).map((item) => {
+    const title = item.title || item.productName || "Produit";
+    const quantity = Math.max(1, Number(item.quantity ?? 1));
+    return `${quantity} x ${title}`;
+  }).join(" • ");
+}
+
+function buildRemoteLogistics(order: RemoteOrderRecord, status: OrderStatus): OrderRecord["logistics"] {
+  const destination = countryLabels[(order.countryCode ?? "").toUpperCase()] ?? order.countryCode ?? "Destination client";
+  const corridorLabel = order.shippingMethod === "sea"
+    ? `Hub AfriPay -> ${destination}`
+    : order.shippingMethod === "freight"
+      ? `Fret local -> ${destination}`
+      : `Paiement -> ${destination}`;
+  const transitMode = status === "Paiement en attente"
+    ? "Paiement en attente avant lancement logistique"
+    : order.shippingMethod === "sea"
+      ? "Groupage maritime puis livraison finale"
+      : order.shippingMethod === "freight"
+        ? "Acheminement fret et remise locale"
+        : "Expedition standard vers votre destination";
+  const lastUpdate = status === "Paiement en attente"
+    ? "Commande créée. Le paiement doit être finalisé pour poursuivre."
+    : status === "Expedition en attente"
+      ? "Paiement reçu ou initialisé. Préparation logistique en cours."
+      : status === "Livraison en attente"
+        ? "Votre commande est en transit."
+        : "Commande livrée et archivée.";
+
+  return {
+    agentName: order.shippingMethod === "sea"
+      ? "Equipe logistique maritime"
+      : order.shippingMethod === "freight"
+        ? "Equipe logistique AfriPay"
+        : "Equipe livraison",
+    corridorLabel,
+    destinationCountry: destination,
+    transitMode,
+    merchantPickupCompleted: order.paymentStatus !== "unpaid" && order.paymentStatus !== "failed" && order.paymentStatus !== "cancelled",
+    trackingCode: buildTrackingNumber({ id: order.id, orderNumber: order.orderNumber }),
+    lastUpdate,
   };
 }
 
@@ -351,12 +432,49 @@ async function mapOrderRecord(order: SourcingOrder, user: AuthenticatedUser): Pr
   };
 }
 
+async function mapRemoteOrderRecord(order: RemoteOrderRecord, user: AuthenticatedUser): Promise<OrderRecord> {
+  const status = resolveRemoteOrderStatus(order);
+  const dates = formatOrderDate(order.createdAt);
+  const firstItem = order.items?.[0];
+  const conversation = await ensureOrderSupportConversation({
+    userId: user.id,
+    userEmail: user.email,
+    userDisplayName: user.displayName,
+    orderId: order.id,
+    orderLabel: order.orderNumber,
+  });
+
+  return {
+    id: order.id,
+    orderNumber: order.orderNumber,
+    dateLabel: dates.dateLabel,
+    dateValue: dates.dateValue,
+    timeValue: dates.timeValue,
+    total: formatFcfa(order.totalPriceFcfa ?? 0),
+    promoCode: order.meta?.promo?.code,
+    promoDiscountLabel: typeof order.meta?.promo?.discountFcfa === "number" ? formatFcfa(order.meta.promo.discountFcfa) : undefined,
+    seller: "AfriPay",
+    title: firstItem?.title || firstItem?.productName || `Commande ${order.orderNumber}`,
+    variant: buildRemoteVariant(order),
+    image: firstItem?.image || "/globe.svg",
+    status,
+    tab: resolveTab(status),
+    supportConversationId: conversation.id,
+    logistics: buildRemoteLogistics(order, status),
+  };
+}
+
 export async function getUserOrderRecords(user: AuthenticatedUser, options?: { preferProxy?: boolean }) {
   if (options?.preferProxy !== false && hasExternalOrdersApi()) {
     try {
       const proxiedOrders = await fetchUserOrderRecordsFromApi();
       if (proxiedOrders) {
-        return proxiedOrders;
+        if (proxiedOrders.every((order) => isOrderRecord(order))) {
+          return proxiedOrders;
+        }
+
+        const mappedOrders = await Promise.all(proxiedOrders.map((order) => mapRemoteOrderRecord(order as RemoteOrderRecord, user)));
+        return mappedOrders;
       }
     } catch {
       // Fall back to the local store when the backend API is unreachable.

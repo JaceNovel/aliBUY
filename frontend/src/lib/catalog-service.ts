@@ -178,9 +178,52 @@ function toCatalogProduct(product: Awaited<ReturnType<typeof getAlibabaImportedP
 
 function mergeCatalogProducts(remoteProducts: ProductCatalogItem[], localProducts: ProductCatalogItem[]) {
   const merged = new Map<string, ProductCatalogItem>();
+  const localBySlug = new Map(localProducts.map((product) => [product.slug, product]));
 
   for (const product of remoteProducts) {
-    merged.set(product.slug, product);
+    const local = localBySlug.get(product.slug);
+    if (!local) {
+      merged.set(product.slug, product);
+      continue;
+    }
+
+    const remoteHasPackageDimensions = Boolean(
+      product.packageDimensionsCm
+      && product.packageDimensionsCm.lengthCm > 0
+      && product.packageDimensionsCm.widthCm > 0
+      && product.packageDimensionsCm.heightCm > 0,
+    );
+    const localHasPackageDimensions = Boolean(
+      local.packageDimensionsCm
+      && local.packageDimensionsCm.lengthCm > 0
+      && local.packageDimensionsCm.widthCm > 0
+      && local.packageDimensionsCm.heightCm > 0,
+    );
+
+    merged.set(product.slug, {
+      ...product,
+      keywords: product.keywords && product.keywords.length > 0 ? product.keywords : local.keywords,
+      gallery: product.gallery && product.gallery.length > 0 ? product.gallery : local.gallery,
+      videoUrl: product.videoUrl ?? local.videoUrl,
+      videoPoster: product.videoPoster ?? local.videoPoster,
+      packaging: product.packaging !== "Selon catalogue" ? product.packaging : local.packaging,
+      packageDimensionsCm: remoteHasPackageDimensions ? product.packageDimensionsCm : localHasPackageDimensions ? local.packageDimensionsCm : product.packageDimensionsCm,
+      itemWeightGrams: product.itemWeightGrams > 0 ? product.itemWeightGrams : local.itemWeightGrams,
+      lotCbm: product.lotCbm && product.lotCbm !== "0" && product.lotCbm !== "0.0000" ? product.lotCbm : local.lotCbm,
+      moqVerified: product.moqVerified ?? local.moqVerified,
+      weightVerified: product.weightVerified ?? local.weightVerified,
+      priceVerified: product.priceVerified ?? local.priceVerified,
+      supplierCompanyId: product.supplierCompanyId ?? local.supplierCompanyId,
+      chinaLocalFreightFcfa: product.chinaLocalFreightFcfa ?? local.chinaLocalFreightFcfa,
+      chinaLocalFreightLabel: product.chinaLocalFreightLabel ?? local.chinaLocalFreightLabel,
+      overview: product.overview && product.overview.length > 0 ? product.overview : local.overview,
+      variantGroups: product.variantGroups && product.variantGroups.length > 0 ? product.variantGroups : local.variantGroups,
+      variantPricing: product.variantPricing && product.variantPricing.length > 0 ? product.variantPricing : local.variantPricing,
+      variantSkus: product.variantSkus && product.variantSkus.length > 0 ? product.variantSkus : local.variantSkus,
+      tiers: product.tiers && product.tiers.length > 0 ? product.tiers : local.tiers,
+      specs: product.specs && product.specs.length > 0 ? product.specs : local.specs,
+      rawPayload: product.rawPayload ?? local.rawPayload,
+    });
   }
 
   for (const product of localProducts) {

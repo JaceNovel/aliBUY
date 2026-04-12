@@ -169,15 +169,20 @@ class ProductService
 
     public function transformFeedItem(Product $product): array
     {
+        $metadata = is_array($product->metadata) ? $product->metadata : [];
+
         return [
             'slug' => $product->slug,
             'title' => $product->title,
-            'shortTitle' => (string) (($product->metadata ?? [])['shortTitle'] ?? $product->title),
+            'shortTitle' => (string) ($metadata['shortTitle'] ?? $product->title),
             'image' => (string) ($product->image ?? '/globe.svg'),
             'badge' => $product->badge,
             'minUsd' => (float) $product->price,
-            'maxUsd' => $product->metadata['maxUsd'] ?? null,
+            'maxUsd' => $metadata['maxUsd'] ?? null,
             'moq' => (int) ($product->moq ?? 1),
+            'moqVerified' => (bool) ($metadata['moqVerified'] ?? true),
+            'weightVerified' => (bool) ($metadata['weightVerified'] ?? (((int) ($metadata['itemWeightGrams'] ?? 0)) > 0)),
+            'priceVerified' => (bool) ($metadata['priceVerified'] ?? true),
             'unit' => (string) ($product->unit ?? 'piece'),
             'categorySlug' => (string) $product->category,
             'categoryTitle' => $this->resolveCategoryTitle($product),
@@ -202,6 +207,8 @@ class ProductService
             'maxUsd' => $metadata['maxUsd'] ?? null,
             'moq' => (int) ($product->moq ?? 1),
             'moqVerified' => (bool) ($metadata['moqVerified'] ?? true),
+            'weightVerified' => (bool) ($metadata['weightVerified'] ?? (((int) ($metadata['itemWeightGrams'] ?? 0)) > 0)),
+            'priceVerified' => (bool) ($metadata['priceVerified'] ?? true),
             'unit' => (string) ($product->unit ?? 'piece'),
             'packaging' => $metadata['packaging'] ?? 'Carton',
             'packageDimensionsCm' => $metadata['packageDimensionsCm'] ?? null,
@@ -215,6 +222,8 @@ class ProductService
             'soldLabel' => (string) ($metadata['soldLabel'] ?? 'Best seller'),
             'customizationLabel' => (string) ($metadata['customizationLabel'] ?? 'Personnalisation disponible'),
             'shippingLabel' => (string) ($metadata['shippingLabel'] ?? 'Expedition internationale'),
+            'chinaLocalFreightFcfa' => isset($metadata['chinaLocalFreightFcfa']) ? (int) $metadata['chinaLocalFreightFcfa'] : null,
+            'chinaLocalFreightLabel' => isset($metadata['chinaLocalFreightLabel']) ? (string) $metadata['chinaLocalFreightLabel'] : null,
             'categorySlug' => (string) $product->category,
             'categoryTitle' => $this->resolveCategoryTitle($product),
             'categoryPath' => $this->resolveCategoryPath($product),
@@ -222,6 +231,7 @@ class ProductService
             'tiers' => $metadata['tiers'] ?? [],
             'variantGroups' => $metadata['variantGroups'] ?? [],
             'variantPricing' => $metadata['variantPricing'] ?? [],
+            'variantSkus' => $metadata['variantSkus'] ?? [],
             'specs' => $metadata['specs'] ?? [],
             'keywords' => $metadata['keywords'] ?? [],
         ];
