@@ -205,15 +205,26 @@ class AliExpressOpenPlatformService
                 continue;
             }
 
-            $detailResult = $this->callTopEndpoint($account, 'aliexpress.ds.product.get', [
-                'ship_to_country' => $countryCode,
-                'product_id' => $productId,
-                'target_currency' => $currency,
-                'target_language' => $local,
-                'remove_personal_benefit' => 'false',
-            ]);
+            try {
+                $detailResult = $this->callTopEndpoint($account, 'aliexpress.ds.product.get', [
+                    'ship_to_country' => $countryCode,
+                    'product_id' => $productId,
+                    'target_currency' => $currency,
+                    'target_language' => $local,
+                    'remove_personal_benefit' => 'false',
+                ]);
 
-            $previewItem = $this->buildSearchPreviewItem($searchItem, $query, $countryCode, $detailResult['responseBody'], $detailResult['ok']);
+                $previewItem = $this->buildSearchPreviewItem($searchItem, $query, $countryCode, $detailResult['responseBody'], $detailResult['ok']);
+            } catch (\Throwable $exception) {
+                $previewItem = $this->buildSearchPreviewItem($searchItem, $query, $countryCode, [], false);
+
+                if ($previewItem !== null && ($previewItem['importable'] ?? false) === false) {
+                    $previewItem['importReason'] = $exception->getMessage() !== ''
+                        ? $exception->getMessage()
+                        : "Le detail live AliExpress n'a pas pu etre reconstruit pour cet article.";
+                }
+            }
+
             if ($previewItem !== null) {
                 $products[] = $previewItem;
             }
