@@ -12,7 +12,7 @@ class AuthenticateAdminApiToken
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $configuredToken = trim((string) env('ADMIN_API_TOKEN', ''));
+        $configuredToken = trim((string) config('services.admin.api_token', ''));
         if ($configuredToken === '') {
             return $next($request);
         }
@@ -26,7 +26,7 @@ class AuthenticateAdminApiToken
             return $next($request);
         }
 
-        $adminEmail = strtolower(trim((string) env('ADMIN_EMAIL', '')));
+        $adminEmail = strtolower(trim((string) config('services.admin.email', '')));
         if ($adminEmail === '') {
             return $next($request);
         }

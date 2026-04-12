@@ -39,6 +39,11 @@ return [
         'url' => env('FRONTEND_URL', 'http://localhost:3000'),
     ],
 
+    'admin' => [
+        'email' => env('ADMIN_EMAIL'),
+        'api_token' => env('ADMIN_API_TOKEN'),
+    ],
+
     'moneroo' => [
         'base_url' => env('MONEROO_API_BASE_URL', 'https://api.moneroo.io'),
         'api_key' => env('MONEROO_API_KEY'),

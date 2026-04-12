@@ -38,7 +38,7 @@ class User extends Authenticatable
 
     public function isConfiguredSuperAdmin(): bool
     {
-        $configuredEmail = strtolower(trim((string) env('ADMIN_EMAIL', '')));
+        $configuredEmail = strtolower(trim((string) config('services.admin.email', '')));
         $currentEmail = strtolower(trim((string) $this->email));
 
         return $configuredEmail !== '' && $currentEmail === $configuredEmail;
