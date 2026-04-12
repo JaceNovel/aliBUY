@@ -127,6 +127,7 @@ const LANGUAGE_OPTIONS = [
 ];
 
 const CURRENCY_OPTIONS = ["USD", "EUR", "GBP", "BRL", "XOF"];
+const IMPORT_DELIVERY_COUNTRY = { value: "FR", label: "France (FR)" };
 
 const SORT_OPTIONS = [
   { value: "orders,desc", label: "Commandes decroissant" },
@@ -239,7 +240,7 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard }: { initi
     () => initialDashboard.supplierAccounts.filter((account) => account.status === "connected"),
     [initialDashboard.supplierAccounts],
   );
-  const defaultCountry = initialDashboard.countries.find((country) => country.enabled)?.countryCode ?? "FR";
+  const defaultCountry = IMPORT_DELIVERY_COUNTRY.value;
   const [selectedSupplierAccountId, setSelectedSupplierAccountId] = useState(
     initialDashboard.supplierAccounts.find((account) => account.isActive && account.status === "connected")?.id
       ?? connectedAccounts[0]?.id
@@ -538,7 +539,7 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard }: { initi
             <div>
               <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85c14]">Recherche fournisseur</div>
               <h2 className="mt-2 text-[24px] font-black tracking-[-0.05em] text-[#101828]">Parametres DS exacts</h2>
-              <p className="mt-2 text-[13px] leading-6 text-[#667085]">Mot-cle, pays, locale, devise, categorie, tri, pagination, `selectionName` et `searchExtend` sont exposes directement dans l'interface.</p>
+              <p className="mt-2 text-[13px] leading-6 text-[#667085]">Mot-cle, pays, locale, devise, categorie, tri, pagination, `selectionName` et `searchExtend` sont exposes directement dans l'interface. Pour l'import, le pays de livraison est verrouille sur la France.</p>
             </div>
             <button
               type="button"
@@ -567,10 +568,8 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard }: { initi
             </label>
             <label className="text-[13px] font-semibold text-[#344054]">
               Pays de livraison
-              <select value={searchForm.countryCode} onChange={(event) => setSearchForm((current) => ({ ...current, countryCode: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d6dbe6] px-4 text-[14px] text-[#111827] outline-none focus:border-[#d85c14]">
-                {initialDashboard.countries.map((country) => (
-                  <option key={country.countryCode} value={country.countryCode}>{`${country.countryName} (${country.countryCode})`}</option>
-                ))}
+              <select value={IMPORT_DELIVERY_COUNTRY.value} disabled className="mt-2 h-11 w-full rounded-[14px] border border-[#d6dbe6] bg-[#f8fafc] px-4 text-[14px] text-[#111827] outline-none">
+                <option value={IMPORT_DELIVERY_COUNTRY.value}>{IMPORT_DELIVERY_COUNTRY.label}</option>
               </select>
             </label>
             <label className="text-[13px] font-semibold text-[#344054]">
