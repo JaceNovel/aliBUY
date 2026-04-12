@@ -11,6 +11,30 @@ function formatCfa(value: number) {
   return `${new Intl.NumberFormat("fr-FR").format(value)} CFA`;
 }
 
+function computeTrend(series: PartnerDashboardStats["revenueSeries"]) {
+  if (series.length < 2) {
+    return { label: "Stable", tone: "text-slate-300 border-slate-400/20 bg-slate-400/10" };
+  }
+
+  const first = series[0]?.amount ?? 0;
+  const last = series[series.length - 1]?.amount ?? 0;
+
+  if (first <= 0 && last <= 0) {
+    return { label: "Aucune marge sur 7 jours", tone: "text-slate-300 border-slate-400/20 bg-slate-400/10" };
+  }
+
+  if (first <= 0) {
+    return { label: "+100%", tone: "text-emerald-300 border-emerald-400/20 bg-emerald-400/10" };
+  }
+
+  const delta = ((last - first) / first) * 100;
+  const rounded = `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%`;
+
+  return delta >= 0
+    ? { label: rounded, tone: "text-emerald-300 border-emerald-400/20 bg-emerald-400/10" }
+    : { label: rounded, tone: "text-rose-300 border-rose-400/20 bg-rose-400/10" };
+}
+
 function OverviewSkeleton() {
   return (
     <div className="space-y-6 animate-pulse">
@@ -45,13 +69,14 @@ export default function DashboardOverviewPage() {
   }
 
   const maxAmount = Math.max(...stats.revenueSeries.map((point) => point.amount), 1);
+  const trend = computeTrend(stats.revenueSeries);
 
   return (
     <div className="space-y-6">
       <section className="flex flex-col gap-2">
         <div className="text-sm uppercase tracking-[0.24em] text-[#818cf8]">Overview</div>
-        <h2 className="text-[32px] font-black tracking-[-0.05em] text-white">Revenus, commandes et cashflow en un coup d’œil</h2>
-        <p className="max-w-2xl text-sm leading-7 text-[#8ea0c0]">Un cockpit compact pour piloter ton activité API comme une vraie plateforme SaaS: marge, wallet, cadence de commandes et performance journalière.</p>
+        <h2 className="text-[32px] font-black tracking-[-0.05em] text-white">Revenus, commandes et cashflow pour {stats.companyName}</h2>
+        <p className="max-w-2xl text-sm leading-7 text-[#8ea0c0]">Le graphe ci-dessous est alimente par les statistiques partenaires du portail Laravel: wallet, commandes et credits reels des 7 derniers jours.</p>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
@@ -66,7 +91,7 @@ export default function DashboardOverviewPage() {
             <div className="text-sm font-medium text-[#cbd5e1]">Revenus 7 jours</div>
             <div className="mt-1 text-sm text-[#64748b]">Projection de marge encaissée sur la dernière semaine.</div>
           </div>
-          <div className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-300">+18.2%</div>
+          <div className={`rounded-full border px-3 py-1 text-xs font-semibold ${trend.tone}`}>{trend.label}</div>
         </div>
 
         <div className="mt-8 grid grid-cols-7 gap-3">

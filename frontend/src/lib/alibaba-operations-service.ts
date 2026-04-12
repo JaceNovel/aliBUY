@@ -466,7 +466,10 @@ function resolveAlibabaImportedProductSkuAttr(product: AlibabaImportedProduct, s
 
 function resolveAlibabaOrderCarrierCode(freightResponseBody: unknown) {
   const options = normalizeAlibabaFreightOptions(freightResponseBody);
-  return options.find((entry) => typeof entry.vendorCode === "string" && entry.vendorCode.trim())?.vendorCode;
+  const preferredOption = options.find((entry) => typeof entry.vendorCode === "string" && entry.vendorCode.trim())
+    ?? options.find((entry) => typeof entry.shippingType === "string" && entry.shippingType.trim());
+
+  return preferredOption?.vendorCode ?? preferredOption?.shippingType;
 }
 
 type AliExpressDsAddressNode = {
@@ -1948,7 +1951,7 @@ export async function createAlibabaPurchaseOrder(input: {
     supplierSkuAttr = "";
   }
 
-  const freightResult = await calculateAlibabaBasicFreight({
+  let freightResult = await calculateAlibabaBasicFreight({
     destinationCountry: address.countryCode,
     productId: product.sourceProductId,
     quantity,
@@ -1968,7 +1971,34 @@ export async function createAlibabaPurchaseOrder(input: {
     providerMessage: extractAlibabaOperationMessage(freightResult.responseBody),
     providerRequestId: extractAliExpressRequestId(freightResult.responseBody),
   });
-  const carrierCode = resolveAlibabaOrderCarrierCode(freightResult.responseBody);
+  let carrierCode = resolveAlibabaOrderCarrierCode(freightResult.responseBody);
+  if (!carrierCode && (validatedAddress.stateCode || validatedAddress.cityCode)) {
+    const fallbackFreightResult = await calculateAlibabaBasicFreight({
+      destinationCountry: address.countryCode,
+      productId: product.sourceProductId,
+      quantity,
+      selectedSkuId: supplierSkuId,
+      language: process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "en_US",
+      locale: process.env.ALIEXPRESS_DEFAULT_LOCALE ?? process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "en_US",
+      currency: process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD",
+    });
+
+    console.info("[aliexpress-ds-freight-query:fallback-country-only] result", {
+      importedProductId: input.importedProductId,
+      sourceProductId: product.sourceProductId,
+      selectedSkuId: supplierSkuId,
+      destinationCountry: address.countryCode,
+      providerErrorCode: extractAlibabaOperationCode(fallbackFreightResult.responseBody),
+      providerMessage: extractAlibabaOperationMessage(fallbackFreightResult.responseBody),
+      providerRequestId: extractAliExpressRequestId(fallbackFreightResult.responseBody),
+    });
+
+    carrierCode = resolveAlibabaOrderCarrierCode(fallbackFreightResult.responseBody);
+    if (carrierCode) {
+      freightResult = fallbackFreightResult;
+    }
+  }
+
   if (!carrierCode) {
     const freightMessage = extractAlibabaOperationMessage(freightResult.responseBody);
     throw new Error(freightMessage === "DELIVERY_NOT_AVAILABLE_TO_YOUR_ADDRESS"

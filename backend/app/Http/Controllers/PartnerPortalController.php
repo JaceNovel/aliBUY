@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\ApiPartner;
 use App\Models\ApiPartnerRequest;
+use App\Services\PartnerService;
 use App\Support\PartnerCharterPdf;
 use App\Models\PartnerOrder;
 use App\Models\PartnerTransaction;
+use App\Models\PartnerWithdrawal;
 use App\Models\User;
 use App\Support\PartnerApprovalGuidePdf;
 use Carbon\CarbonImmutable;
@@ -17,6 +19,11 @@ use Illuminate\Http\Response;
 
 class PartnerPortalController extends Controller
 {
+    public function __construct(
+        protected PartnerService $partners,
+    ) {
+    }
+
     public function access(Request $request): JsonResponse
     {
         $email = $this->authorizePortalRequest($request);
@@ -167,14 +174,79 @@ class PartnerPortalController extends Controller
         ]);
     }
 
+    public function withdrawals(Request $request): JsonResponse
+    {
+        $partner = $this->resolveApprovedPartner($request);
+        $items = PartnerWithdrawal::query()
+            ->where('partner_id', $partner->id)
+            ->latest()
+            ->get();
+        $latestWithdrawal = $items->first();
+        $nextEligibleAt = $latestWithdrawal?->created_at?->copy()->addDays(7);
+
+        return response()->json([
+            'activeBalance' => (float) ($partner->wallet?->balance ?? 0),
+            'canRequest' => ! $nextEligibleAt || now()->greaterThanOrEqualTo($nextEligibleAt),
+            'nextEligibleAt' => optional($nextEligibleAt)->toIso8601String(),
+            'items' => $items->map(fn (PartnerWithdrawal $withdrawal) => $this->partners->transformWithdrawal($withdrawal))->values()->all(),
+        ]);
+    }
+
+    public function requestWithdrawal(Request $request): JsonResponse
+    {
+        $partner = $this->resolveApprovedPartner($request);
+        $validated = $request->validate([
+            'amount' => ['required', 'numeric', 'min:1'],
+            'method' => ['required', 'in:bank_transfer,mobile_money'],
+            'bank_account_name' => ['nullable', 'string', 'max:255'],
+            'bank_name' => ['nullable', 'string', 'max:255'],
+            'iban' => ['nullable', 'string', 'max:255'],
+            'swift_code' => ['nullable', 'string', 'max:255'],
+            'mobile_money_number' => ['nullable', 'string', 'max:60'],
+            'mobile_money_country_code' => ['nullable', 'string', 'max:4'],
+            'mobile_money_operator' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        if ($validated['method'] === 'bank_transfer' && (!filled($validated['bank_name'] ?? null) || !filled($validated['iban'] ?? null) || !filled($validated['bank_account_name'] ?? null))) {
+            abort(422, 'Les informations bancaires sont obligatoires pour un virement bancaire.');
+        }
+
+        if ($validated['method'] === 'mobile_money' && (!filled($validated['mobile_money_number'] ?? null) || !filled($validated['mobile_money_country_code'] ?? null) || !filled($validated['mobile_money_operator'] ?? null))) {
+            abort(422, 'Les informations Mobile Money sont obligatoires pour ce mode de retrait.');
+        }
+
+        $withdrawal = $this->partners->createWithdrawal($partner, $validated);
+
+        return response()->json([
+            'withdrawal' => $this->partners->transformWithdrawal($withdrawal),
+        ], 201);
+    }
+
     public function keys(Request $request): JsonResponse
     {
         $partner = $this->resolveApprovedPartner($request);
-        $maskedSuffix = substr($partner->app_key, -6);
+        $plainTextSecret = is_string($partner->plain_text_secret) ? trim($partner->plain_text_secret) : '';
+        $maskedSuffix = $plainTextSecret !== '' ? substr($plainTextSecret, -6) : substr($partner->app_key, -6);
 
         return response()->json([
             'appKey' => $partner->app_key,
             'maskedSecret' => sprintf('%s%s', str_repeat('*', 24), $maskedSuffix),
+            'revealableSecret' => $plainTextSecret !== '' ? $plainTextSecret : null,
+            'secretAvailable' => $plainTextSecret !== '',
+            'webhookUrl' => $partner->webhook_url ?? '',
+        ]);
+    }
+
+    public function regenerateKeys(Request $request): JsonResponse
+    {
+        $partner = $this->resolveApprovedPartner($request);
+        $plainTextSecret = $this->partners->regenerateSecret($partner);
+
+        return response()->json([
+            'appKey' => $partner->app_key,
+            'maskedSecret' => sprintf('%s%s', str_repeat('*', 24), substr($plainTextSecret, -6)),
+            'revealableSecret' => $plainTextSecret,
+            'secretAvailable' => true,
             'webhookUrl' => $partner->webhook_url ?? '',
         ]);
     }

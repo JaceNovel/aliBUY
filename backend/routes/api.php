@@ -52,7 +52,10 @@ Route::prefix('partner/portal')->group(function () {
     Route::get('/stats', [PartnerPortalController::class, 'stats']);
     Route::get('/orders', [PartnerPortalController::class, 'orders']);
     Route::get('/wallet', [PartnerPortalController::class, 'wallet']);
+    Route::get('/withdrawals', [PartnerPortalController::class, 'withdrawals']);
+    Route::post('/withdrawals', [PartnerPortalController::class, 'requestWithdrawal']);
     Route::get('/keys', [PartnerPortalController::class, 'keys']);
+    Route::post('/keys/regenerate', [PartnerPortalController::class, 'regenerateKeys']);
     Route::get('/approval-guide', [PartnerPortalController::class, 'approvalGuide']);
     Route::get('/charter', [PartnerPortalController::class, 'charter']);
 });
@@ -108,6 +111,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/admin/partner-requests', [PartnerAdminController::class, 'index']);
     Route::post('/admin/partner-requests/{apiPartnerRequest}/approve', [PartnerAdminController::class, 'approve']);
     Route::post('/admin/partner-requests/{apiPartnerRequest}/reject', [PartnerAdminController::class, 'reject']);
+    Route::get('/admin/partner-withdrawals', [PartnerAdminController::class, 'withdrawals']);
+    Route::post('/admin/partner-withdrawals/{partnerWithdrawal}/approve', [PartnerAdminController::class, 'approveWithdrawal']);
+    Route::post('/admin/partner-withdrawals/{partnerWithdrawal}/reject', [PartnerAdminController::class, 'rejectWithdrawal']);
     Route::patch('/admin/partner-orders/{order}/status', [PartnerOrderAdminController::class, 'updateStatus']);
     Route::apiResource('orders', OrderController::class)->only(['index', 'store', 'show']);
     Route::post('/orders/{order}/promo', [OrderController::class, 'applyPromo']);

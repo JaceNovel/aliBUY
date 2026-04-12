@@ -256,7 +256,7 @@ export function PartnerApplicationForm({ initialAccess, loginHref, registerHref,
   if (access.status === "approved" && access.partner) {
     return (
       <div className="space-y-6">
-        <div id="partner-form" className="rounded-[30px] border border-[#cfe5d8] bg-[linear-gradient(180deg,#f4fff8_0%,#ffffff_100%)] p-6 shadow-[0_20px_50px_rgba(17,24,39,0.08)] sm:p-8">
+        <div id="partner-form" className="overflow-hidden rounded-[30px] border border-[#cfe5d8] bg-[radial-gradient(circle_at_top_left,rgba(17,155,106,0.14),transparent_34%),linear-gradient(180deg,#f4fff8_0%,#ffffff_100%)] p-6 shadow-[0_20px_50px_rgba(17,24,39,0.08)] sm:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-[#cfe5d8] bg-white px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#119b6a]">
@@ -289,11 +289,25 @@ export function PartnerApplicationForm({ initialAccess, loginHref, registerHref,
             </div>
           </div>
 
-          <div className="mt-6 rounded-[24px] border border-[#d8e9df] bg-white px-5 py-5">
+          <div className="mt-6 rounded-[24px] border border-[#d8e9df] bg-[linear-gradient(135deg,#ffffff_0%,#f3fbf6_100%)] px-5 py-5 shadow-[0_16px_35px_rgba(17,24,39,0.04)]">
             <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#119b6a]">Kit d’activation partenaire</div>
-            <p className="mt-2 text-[14px] leading-7 text-[#5e6b79]">
-              Téléchargez votre PDF dropshipping, votre charte partenaire et accédez directement à votre documentation API.
+            <p className="mt-2 max-w-[720px] text-[14px] leading-7 text-[#465869]">
+              Tous les liens utiles sont regroupes ici dans un bloc plus lisible: PDF dropshipping, charte officielle et documentation technique pour brancher votre compte sans zone sombre qui ecrase le texte.
             </p>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <div className="rounded-[18px] border border-[#e2ece6] bg-white px-4 py-4">
+                <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#119b6a]">PDF</div>
+                <div className="mt-2 text-[14px] font-semibold text-[#142133]">Guide dropshipping AfriPay</div>
+              </div>
+              <div className="rounded-[18px] border border-[#e2ece6] bg-white px-4 py-4">
+                <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#119b6a]">Charte</div>
+                <div className="mt-2 text-[14px] font-semibold text-[#142133]">Cadre partenaire et conformite</div>
+              </div>
+              <div className="rounded-[18px] border border-[#e2ece6] bg-white px-4 py-4">
+                <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#119b6a]">API</div>
+                <div className="mt-2 text-[14px] font-semibold text-[#142133]">Reference technique et headers</div>
+              </div>
+            </div>
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">

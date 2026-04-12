@@ -24,6 +24,7 @@ return new class extends Migration
             $table->string('email')->index();
             $table->string('app_key')->unique();
             $table->string('app_secret');
+            $table->text('plain_text_secret')->nullable();
             $table->text('webhook_url')->nullable();
             $table->boolean('is_active')->default(true)->index();
             $table->timestamps();

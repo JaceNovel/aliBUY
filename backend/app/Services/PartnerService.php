@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Mail\PartnerApprovedMail;
 use App\Models\ApiPartner;
 use App\Models\ApiPartnerRequest;
+use App\Models\PartnerTransaction;
 use App\Models\PartnerWallet;
+use App\Models\PartnerWithdrawal;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
@@ -14,6 +16,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
 class PartnerService
@@ -48,6 +51,7 @@ class PartnerService
                 'email' => strtolower($requestModel->email),
                 'app_key' => $appKey,
                 'app_secret' => Hash::make($plainTextSecret),
+                'plain_text_secret' => $plainTextSecret,
                 'webhook_url' => $webhookUrl ?: null,
                 'is_active' => true,
             ]);
@@ -68,6 +72,18 @@ class PartnerService
             'partner' => $partner->fresh('wallet'),
             'plain_text_secret' => $plainTextSecret,
         ];
+    }
+
+    public function regenerateSecret(ApiPartner $partner): string
+    {
+        $plainTextSecret = bin2hex(random_bytes(32));
+
+        $partner->forceFill([
+            'app_secret' => Hash::make($plainTextSecret),
+            'plain_text_secret' => $plainTextSecret,
+        ])->save();
+
+        return $plainTextSecret;
     }
 
     public function rejectRequest(ApiPartnerRequest $requestModel, ?User $user): ApiPartnerRequest
@@ -142,6 +158,137 @@ class PartnerService
             'created_at' => optional($partner->created_at)->toIso8601String(),
             'wallet_balance' => $partner->wallet ? (float) $partner->wallet->balance : 0.0,
         ];
+    }
+
+    public function transformWithdrawal(PartnerWithdrawal $withdrawal): array
+    {
+        $estimatedProcessingDelayHours = $withdrawal->method === 'bank_transfer' ? 72 : 24;
+
+        return [
+            'id' => (string) $withdrawal->id,
+            'partnerId' => (string) $withdrawal->partner_id,
+            'amount' => (float) $withdrawal->amount,
+            'method' => $withdrawal->method,
+            'status' => $withdrawal->status,
+            'bankAccountName' => $withdrawal->bank_account_name,
+            'bankName' => $withdrawal->bank_name,
+            'iban' => $withdrawal->iban,
+            'swiftCode' => $withdrawal->swift_code,
+            'mobileMoneyNumber' => $withdrawal->mobile_money_number,
+            'mobileMoneyCountryCode' => $withdrawal->mobile_money_country_code,
+            'mobileMoneyOperator' => $withdrawal->mobile_money_operator,
+            'adminNote' => $withdrawal->admin_note,
+            'processedAt' => optional($withdrawal->processed_at)->toIso8601String(),
+            'createdAt' => optional($withdrawal->created_at)->toIso8601String(),
+            'estimatedProcessingDelayHours' => $estimatedProcessingDelayHours,
+        ];
+    }
+
+    public function createWithdrawal(ApiPartner $partner, array $validated): PartnerWithdrawal
+    {
+        $wallet = $partner->wallet;
+        if (! $wallet) {
+          throw ValidationException::withMessages([
+              'wallet' => 'Wallet partenaire introuvable.',
+          ]);
+        }
+
+        $recentRequestExists = PartnerWithdrawal::query()
+            ->where('partner_id', $partner->id)
+            ->where('created_at', '>=', Carbon::now()->subDays(7))
+            ->exists();
+
+        if ($recentRequestExists) {
+            throw ValidationException::withMessages([
+                'amount' => 'Un retrait ne peut etre demande qu une seule fois par semaine.',
+            ]);
+        }
+
+        $amount = (float) ($validated['amount'] ?? 0);
+        if ($amount <= 0) {
+            throw ValidationException::withMessages([
+                'amount' => 'Le montant du retrait doit etre superieur a zero.',
+            ]);
+        }
+
+        if ($amount > (float) $wallet->balance) {
+            throw ValidationException::withMessages([
+                'amount' => 'Le montant du retrait depasse le solde actif du partenaire.',
+            ]);
+        }
+
+        return PartnerWithdrawal::query()->create([
+            'partner_id' => $partner->id,
+            'amount' => $amount,
+            'method' => $validated['method'],
+            'status' => 'pending',
+            'bank_account_name' => $validated['bank_account_name'] ?? null,
+            'bank_name' => $validated['bank_name'] ?? null,
+            'iban' => $validated['iban'] ?? null,
+            'swift_code' => $validated['swift_code'] ?? null,
+            'mobile_money_number' => $validated['mobile_money_number'] ?? null,
+            'mobile_money_country_code' => $validated['mobile_money_country_code'] ?? null,
+            'mobile_money_operator' => $validated['mobile_money_operator'] ?? null,
+        ]);
+    }
+
+    public function approveWithdrawal(PartnerWithdrawal $withdrawal, ?User $user, ?string $adminNote = null): PartnerWithdrawal
+    {
+        $this->assertAdmin($user);
+
+        if ($withdrawal->status !== 'pending') {
+            throw ValidationException::withMessages([
+                'status' => 'Ce retrait a deja ete traite.',
+            ]);
+        }
+
+        $partner = $withdrawal->partner()->with('wallet')->firstOrFail();
+        $wallet = $partner->wallet;
+        if (! $wallet || (float) $wallet->balance < (float) $withdrawal->amount) {
+            throw ValidationException::withMessages([
+                'amount' => 'Le solde partenaire est insuffisant pour approuver ce retrait.',
+            ]);
+        }
+
+        DB::transaction(function () use ($withdrawal, $wallet, $adminNote) {
+            $wallet->forceFill([
+                'balance' => (float) $wallet->balance - (float) $withdrawal->amount,
+            ])->save();
+
+            PartnerTransaction::query()->create([
+                'partner_id' => $withdrawal->partner_id,
+                'amount' => (float) $withdrawal->amount,
+                'type' => 'debit',
+                'description' => sprintf('Retrait approuve via %s', $withdrawal->method === 'bank_transfer' ? 'virement bancaire' : 'mobile money'),
+            ]);
+
+            $withdrawal->forceFill([
+                'status' => 'approved',
+                'admin_note' => $adminNote,
+                'processed_at' => now(),
+            ])->save();
+        });
+
+        return $withdrawal->fresh();
+    }
+
+    public function rejectWithdrawal(PartnerWithdrawal $withdrawal, ?User $user, ?string $adminNote = null): PartnerWithdrawal
+    {
+        $this->assertAdmin($user);
+
+        if ($withdrawal->status !== 'pending') {
+            throw ValidationException::withMessages([
+                'status' => 'Ce retrait a deja ete traite.',
+            ]);
+        }
+
+        $withdrawal->forceFill([
+            'status' => 'rejected',
+            'admin_note' => $adminNote,
+            'processed_at' => now(),
+        ])->save();
+
+        return $withdrawal;
     }
 
     protected function queueApprovalMail(ApiPartner $partner, ApiPartnerRequest $requestModel): void

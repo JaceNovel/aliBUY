@@ -1,5 +1,8 @@
 import "server-only";
 
+import { access } from "node:fs/promises";
+import path from "node:path";
+
 import { getAccountSettingsDiagnostics } from "@/lib/account-settings-store";
 
 type ManyChatStatusCard = {
@@ -14,6 +17,15 @@ export type ManyChatAdminStatus = {
   cronRoute: ManyChatStatusCard;
 };
 
+async function hasVercelCronConfigured() {
+  try {
+    await access(path.join(process.cwd(), "vercel.json"));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function getManyChatAdminStatus(): Promise<ManyChatAdminStatus> {
   const accountDiagnostics = await getAccountSettingsDiagnostics();
   const hasApiKey = Boolean(process.env.MANYCHAT_API_KEY?.trim());
@@ -21,6 +33,7 @@ export async function getManyChatAdminStatus(): Promise<ManyChatAdminStatus> {
   const hasCartFlowEnv = Boolean(process.env.MANYCHAT_CART_ABANDONED_FLOW_ID?.trim());
   const hasFallbackFlow = accountDiagnostics.anyManyChatFlowConfigured;
   const hasCronSecret = Boolean(process.env.CRON_SECRET?.trim() || process.env.MANYCHAT_CRON_SECRET?.trim());
+  const hasVercelCron = await hasVercelCronConfigured();
 
   return {
     apiKey: hasApiKey
@@ -30,7 +43,7 @@ export async function getManyChatAdminStatus(): Promise<ManyChatAdminStatus> {
         }
       : {
           ok: false,
-          detail: "Aucune variable MANYCHAT_API_KEY n'est detectee sur ce runtime frontend.",
+          detail: "Ajoutez MANYCHAT_API_KEY dans les variables d'environnement du service frontend pour activer les appels API ManyChat.",
         },
     orderFlow: hasOrderFlowEnv
       ? {
@@ -44,7 +57,7 @@ export async function getManyChatAdminStatus(): Promise<ManyChatAdminStatus> {
           }
         : {
             ok: false,
-            detail: "Ni flow paiement global ni fallback de flow ManyChat par compte n'ont ete detectes.",
+            detail: "Ajoutez MANYCHAT_ORDER_CONFIRMATION_FLOW_ID ou renseignez manychatFlowId sur les comptes qui doivent recevoir le flow paiement.",
           },
     cartFlow: hasCartFlowEnv
       ? {
@@ -58,12 +71,14 @@ export async function getManyChatAdminStatus(): Promise<ManyChatAdminStatus> {
           }
         : {
             ok: false,
-            detail: "Ni flow panier global ni fallback de flow ManyChat par compte n'ont ete detectes.",
+            detail: "Ajoutez MANYCHAT_CART_ABANDONED_FLOW_ID ou renseignez manychatFlowId sur les comptes utilises pour les relances panier/devis.",
           },
     cronRoute: {
       ok: true,
       detail: hasCronSecret
         ? "Route cron presente avec secret detecte pour l'autorisation des appels planifies."
+        : hasVercelCron
+          ? "Route cron presente et planification Vercel detectee via vercel.json. Le secret n'est pas requis pour les appels x-vercel-cron."
         : process.env.NODE_ENV === "production"
           ? "Route cron presente, mais aucun CRON_SECRET n'est detecte sur ce runtime."
           : "Route cron presente. Hors production, le secret peut etre omis.",

@@ -1,5 +1,13 @@
 import { SITE_URL } from "@/lib/site-config";
-import type { PartnerApiKeys, PartnerDashboardStats, PartnerOrdersResponse, PartnerWallet } from "@/types/partner-dashboard";
+import type {
+  AdminPartnerWithdrawalRecord,
+  PartnerApiKeys,
+  PartnerDashboardStats,
+  PartnerOrdersResponse,
+  PartnerWallet,
+  PartnerWithdrawalRequestPayload,
+  PartnerWithdrawalsResponse,
+} from "@/types/partner-dashboard";
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "").trim().replace(/\/$/, "");
 
@@ -436,4 +444,40 @@ export async function getWallet(): Promise<PartnerWallet> {
 
 export async function getApiKeys(): Promise<PartnerApiKeys> {
   return dashboardFetch<PartnerApiKeys>("/api/dashboard/keys");
+}
+
+export async function regenerateApiSecret(): Promise<PartnerApiKeys> {
+  return dashboardFetch<PartnerApiKeys>("/api/dashboard/keys", {
+    method: "POST",
+  });
+}
+
+export async function getWithdrawals(): Promise<PartnerWithdrawalsResponse> {
+  return dashboardFetch<PartnerWithdrawalsResponse>("/api/dashboard/withdrawals");
+}
+
+export async function requestWithdrawal(payload: PartnerWithdrawalRequestPayload): Promise<PartnerWithdrawalsResponse> {
+  await dashboardFetch<{ withdrawal: unknown }>("/api/dashboard/withdrawals", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return getWithdrawals();
+}
+
+export async function getAdminPartnerWithdrawals(): Promise<{ items: AdminPartnerWithdrawalRecord[] }> {
+  return dashboardFetch<{ items: AdminPartnerWithdrawalRecord[] }>("/api/admin/partner-withdrawals");
+}
+
+export async function updateAdminPartnerWithdrawal(id: string, action: "approve" | "reject", adminNote?: string): Promise<void> {
+  await dashboardFetch<{ withdrawal: unknown }>(`/api/admin/partner-withdrawals/${encodeURIComponent(id)}/${action}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ admin_note: adminNote ?? "" }),
+  });
 }

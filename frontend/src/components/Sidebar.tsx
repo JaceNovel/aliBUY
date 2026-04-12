@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Cable, CreditCard, LayoutDashboard, Settings, ShoppingBag, X } from "lucide-react";
+import { Cable, CreditCard, Landmark, LayoutDashboard, Settings, ShoppingBag, X } from "lucide-react";
 
 type SidebarProps = {
   open: boolean;
@@ -14,6 +14,7 @@ const navigationItems = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/orders", label: "Orders", icon: ShoppingBag },
   { href: "/dashboard/wallet", label: "Wallet", icon: CreditCard },
+  { href: "/dashboard/wallet", label: "Retraits", icon: Landmark },
   { href: "/dashboard/api", label: "API Keys", icon: Cable },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];

@@ -3,6 +3,7 @@ export type AdminSectionSlug =
   | "orders"
   | "products"
   | "partner-requests"
+  | "partner-withdrawals"
   | "aliexpress-sourcing"
   | "categories"
   | "promotions"
@@ -34,6 +35,7 @@ export const adminNavItems: AdminNavItem[] = [
   { slug: "orders", label: "Commandes", icon: "shopping-cart", description: "Toutes les commandes clients avec livraison, paiement et detail des articles.", href: "/admin/orders", publicHref: "/orders" },
   { slug: "products", label: "Produits", icon: "package", description: "Catalogue produit et fiches detail.", href: "/admin/products", publicHref: "/products" },
   { slug: "partner-requests", label: "Demandes partenaire", icon: "file-text", description: "Lecture des dossiers partenaire avec validation ou refus depuis l'admin.", href: "/admin/partner-requests", publicHref: "/partnership" },
+  { slug: "partner-withdrawals", label: "Retraits partenaire", icon: "landmark", description: "Suivi du solde actif, demandes de retrait et decisions d'approbation ou de refus.", href: "/admin/partner-withdrawals", publicHref: "/dashboard/wallet" },
   { slug: "aliexpress-sourcing", label: "AliExpress Sourcing", icon: "ship-wheel", description: "Import catalogue, comptes fournisseurs, lots d'achat et suivi DS AliExpress.", href: "/admin/aliexpress-sourcing", publicHref: "/products" },
   { slug: "categories", label: "Categories", icon: "list", description: "Taxonomie de navigation et familles produit.", href: "/admin/categories", publicHref: "/products" },
   { slug: "promotions", label: "Promotions", icon: "badge-percent", description: "Promos hero, badges et campagnes mode.", href: "/admin/promotions", publicHref: "/mode" },

@@ -48,7 +48,59 @@ export type PartnerApiKeys = {
   appKey: string;
   maskedSecret: string;
   revealableSecret?: string;
+  secretAvailable?: boolean;
   webhookUrl: string;
+};
+
+export type PartnerWithdrawalMethod = "bank_transfer" | "mobile_money";
+
+export type PartnerWithdrawalStatus = "pending" | "approved" | "rejected";
+
+export type PartnerWithdrawalRecord = {
+  id: string;
+  partnerId: string;
+  amount: number;
+  method: PartnerWithdrawalMethod;
+  status: PartnerWithdrawalStatus;
+  bankAccountName?: string | null;
+  bankName?: string | null;
+  iban?: string | null;
+  swiftCode?: string | null;
+  mobileMoneyNumber?: string | null;
+  mobileMoneyCountryCode?: string | null;
+  mobileMoneyOperator?: string | null;
+  adminNote?: string | null;
+  processedAt?: string | null;
+  createdAt: string | null;
+  estimatedProcessingDelayHours: number;
+};
+
+export type PartnerWithdrawalsResponse = {
+  activeBalance: number;
+  canRequest: boolean;
+  nextEligibleAt: string | null;
+  items: PartnerWithdrawalRecord[];
+};
+
+export type PartnerWithdrawalRequestPayload = {
+  amount: number;
+  method: PartnerWithdrawalMethod;
+  bankAccountName?: string;
+  bankName?: string;
+  iban?: string;
+  swiftCode?: string;
+  mobileMoneyNumber?: string;
+  mobileMoneyCountryCode?: string;
+  mobileMoneyOperator?: string;
+};
+
+export type AdminPartnerWithdrawalRecord = PartnerWithdrawalRecord & {
+  partner: {
+    id: string;
+    companyName: string;
+    email: string;
+    walletBalance: number;
+  };
 };
 
 export type PartnerPortalRequestSummary = {

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ApiPartnerRequest;
+use App\Models\PartnerWithdrawal;
 use App\Services\PartnerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -49,6 +50,56 @@ class PartnerAdminController extends Controller
 
         return response()->json([
             'request' => $this->partners->transformRequest($partnerRequest),
+        ]);
+    }
+
+    public function withdrawals(Request $request): JsonResponse
+    {
+        $this->partners->assertAdmin($request->user('sanctum'));
+
+        $items = PartnerWithdrawal::query()
+            ->with(['partner.wallet'])
+            ->latest()
+            ->get();
+
+        return response()->json([
+            'items' => $items->map(function (PartnerWithdrawal $withdrawal) {
+                $payload = $this->partners->transformWithdrawal($withdrawal);
+                $payload['partner'] = [
+                    'id' => (string) $withdrawal->partner_id,
+                    'companyName' => $withdrawal->partner?->company_name,
+                    'email' => $withdrawal->partner?->email,
+                    'walletBalance' => (float) ($withdrawal->partner?->wallet?->balance ?? 0),
+                ];
+
+                return $payload;
+            })->values()->all(),
+        ]);
+    }
+
+    public function approveWithdrawal(PartnerWithdrawal $partnerWithdrawal, Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'admin_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $withdrawal = $this->partners->approveWithdrawal($partnerWithdrawal, $request->user('sanctum'), $validated['admin_note'] ?? null);
+
+        return response()->json([
+            'withdrawal' => $this->partners->transformWithdrawal($withdrawal),
+        ]);
+    }
+
+    public function rejectWithdrawal(PartnerWithdrawal $partnerWithdrawal, Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'admin_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $withdrawal = $this->partners->rejectWithdrawal($partnerWithdrawal, $request->user('sanctum'), $validated['admin_note'] ?? null);
+
+        return response()->json([
+            'withdrawal' => $this->partners->transformWithdrawal($withdrawal),
         ]);
     }
 }
