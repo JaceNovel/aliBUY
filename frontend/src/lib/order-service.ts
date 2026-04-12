@@ -1,16 +1,14 @@
 import "server-only";
 
-import { cookies } from "next/headers";
-
 import { API_URL, buildApiUrl } from "@/lib/api";
+import { getBackendAccessTokenFromCookies } from "@/lib/backend-access-token";
 import type { AuthenticatedUser } from "@/lib/user-auth";
-import { createAuthenticatedUserSession } from "@/lib/user-auth";
 import { type OrderRecord, type OrderStatus, type OrderTabKey } from "@/lib/order-utils";
 import { ensureOrderSupportConversation } from "@/lib/customer-data-store";
 import { formatFcfa, getSourcingAlibabaPostPaymentAutomationState, getSourcingOrderMeta, type SourcingOrder } from "@/lib/alibaba-sourcing";
+import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
 import { SITE_URL } from "@/lib/site-config";
 import { getUserSourcingOrders } from "@/lib/sourcing-store";
-import { USER_SESSION_COOKIE } from "@/lib/user-session";
 
 const countryLabels: Record<string, string> = {
   CI: "Cote d'Ivoire",
@@ -36,21 +34,16 @@ function hasExternalOrdersApi() {
   }
 }
 
-function buildSessionCookieHeader(sessionToken: string) {
-  return `${USER_SESSION_COOKIE}=${encodeURIComponent(sessionToken)}`;
-}
-
-async function fetchUserOrderRecordsFromApi(user: AuthenticatedUser) {
-  const sessionToken = (await cookies()).get(USER_SESSION_COOKIE)?.value
-    ?? await createAuthenticatedUserSession(user).catch(() => null);
-  if (!sessionToken) {
+async function fetchUserOrderRecordsFromApi() {
+  const backendAccessToken = await getBackendAccessTokenFromCookies();
+  if (!backendAccessToken) {
     return null;
   }
 
   const response = await fetch(buildApiUrl("/api/orders"), {
-    headers: {
-      Cookie: buildSessionCookieHeader(sessionToken),
-    },
+    headers: await buildServerForwardHeaders({
+      accept: "application/json",
+    }),
     cache: "no-store",
   });
 
@@ -361,7 +354,7 @@ async function mapOrderRecord(order: SourcingOrder, user: AuthenticatedUser): Pr
 export async function getUserOrderRecords(user: AuthenticatedUser, options?: { preferProxy?: boolean }) {
   if (options?.preferProxy !== false && hasExternalOrdersApi()) {
     try {
-      const proxiedOrders = await fetchUserOrderRecordsFromApi(user);
+      const proxiedOrders = await fetchUserOrderRecordsFromApi();
       if (proxiedOrders) {
         return proxiedOrders;
       }

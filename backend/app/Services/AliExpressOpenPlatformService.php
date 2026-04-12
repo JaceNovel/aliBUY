@@ -327,17 +327,27 @@ class AliExpressOpenPlatformService
             throw new RuntimeException($this->extractOperationMessage($liveDetail['responseBody']) ?? 'Lecture du produit AliExpress impossible avant commande DS.');
         }
 
+        $liveRawPayload = [
+            'detail' => $this->getSellerPayload($liveDetail['responseBody']),
+            'response' => $liveDetail['responseBody'],
+            'existing' => $product['rawPayload'] ?? null,
+        ];
         $liveProduct = $this->mapDetailProduct(['itemId' => (string) ($product['sourceProductId'] ?? ''), 'product_id' => (string) ($product['sourceProductId'] ?? '')], $liveDetail['responseBody'], (string) ($product['title'] ?? $product['sourceProductId'] ?? ''));
         if ($liveProduct === null) {
-            throw new RuntimeException('Le produit AliExpress live n\'a pas retourne de SKU exploitable.');
+            $liveProduct = $product;
+            $liveProduct['rawPayload'] = $liveRawPayload;
         }
 
-        $skuId = $this->extractSkuId($liveProduct['rawPayload'] ?? null);
+        $skuId = $this->extractSkuId($liveRawPayload)
+            ?? $this->extractSkuId($liveProduct['rawPayload'] ?? null)
+            ?? $this->extractSkuIdFromVariantSkus($liveProduct['variantSkus'] ?? null);
         if ($skuId === null) {
             throw new RuntimeException('SKU AliExpress introuvable pour cet article. Reimporte le produit puis relance le lot DS.');
         }
 
-        $skuAttr = $this->extractSkuAttr($liveProduct['rawPayload'] ?? null, $skuId) ?? '';
+        $skuAttr = $this->extractSkuAttr($liveRawPayload, $skuId)
+            ?? $this->extractSkuAttr($liveProduct['rawPayload'] ?? null, $skuId)
+            ?? '';
         $freightResult = $this->callTopEndpoint($account, 'aliexpress.ds.freight.query', [
             'queryDeliveryReq' => json_encode([
                 'quantity' => (string) $quantity,
@@ -922,6 +932,9 @@ class AliExpressOpenPlatformService
 
         $title = $this->getString($searchItem['title'] ?? $searchItem['product_title'] ?? $searchItem['item_title'] ?? $searchItem['subject'] ?? null) ?? $query;
         $maxRawPrice = $priceBounds['max'] ?? $fallbackBounds['max'] ?? null;
+        $packageDimensions = $this->extractPackageDimensionsCm($searchItem) ?? $this->parsePackagingDimensions('Selon catalogue');
+        $weightGrams = $this->extractWeightGrams($searchItem) ?? 0;
+        $lotCbm = $this->formatLotCbm($packageDimensions);
 
         return [
             'sourceProductId' => $sourceProductId,
@@ -932,8 +945,9 @@ class AliExpressOpenPlatformService
             'image' => $primaryImage,
             'gallery' => $gallery,
             'packaging' => 'Selon catalogue',
-            'itemWeightGrams' => 0,
-            'lotCbm' => '0.0000',
+            'packageDimensionsCm' => $packageDimensions,
+            'itemWeightGrams' => $weightGrams,
+            'lotCbm' => $lotCbm,
             'minUsd' => $this->applyAliExpressMargin($minRawPrice),
             'maxUsd' => $maxRawPrice !== null ? $this->applyAliExpressMargin($maxRawPrice) : null,
             'moq' => 1,
@@ -958,7 +972,7 @@ class AliExpressOpenPlatformService
             ]],
             'specs' => [],
             'moqVerified' => true,
-            'weightVerified' => false,
+            'weightVerified' => $weightGrams > 0,
             'priceVerified' => true,
             'inventory' => 0,
             'description' => $title,
@@ -1075,11 +1089,19 @@ class AliExpressOpenPlatformService
 
         $title = $this->getString($baseInfo['subject'] ?? $detailResult['subject'] ?? $detailResult['product_title'] ?? $detailResult['title'] ?? $searchItem['title'] ?? null) ?? $query;
         $keywords = array_slice(array_values(array_filter(preg_split('/[^a-z0-9]+/i', strtolower($title)) ?: [], fn ($entry) => strlen($entry) > 2)), 0, 12);
-        $weightKg = $this->toFloat($packageInfo['gross_weight'] ?? null);
-        $weightGrams = $weightKg > 0 ? (int) round($weightKg * ($weightKg < 10 ? 1000 : 1)) : 0;
-        $packageLength = max(1, $this->toFloat($packageInfo['package_length'] ?? 20));
-        $packageWidth = max(1, $this->toFloat($packageInfo['package_width'] ?? 15));
-        $packageHeight = max(1, $this->toFloat($packageInfo['package_height'] ?? 8));
+        $packageDimensions = $this->extractPackageDimensionsCm($detailResult)
+            ?? $this->extractPackageDimensionsCm($searchItem)
+            ?? [
+                'lengthCm' => max(1, $this->toFloat($packageInfo['package_length'] ?? 20)),
+                'widthCm' => max(1, $this->toFloat($packageInfo['package_width'] ?? 15)),
+                'heightCm' => max(1, $this->toFloat($packageInfo['package_height'] ?? 8)),
+            ];
+        $weightGrams = $this->extractWeightGrams($detailResult)
+            ?? $this->extractWeightGrams($searchItem)
+            ?? (($weightKg = $this->toFloat($packageInfo['gross_weight'] ?? null)) > 0 ? (int) round($weightKg * ($weightKg < 10 ? 1000 : 1)) : 0);
+        $packageLength = $packageDimensions['lengthCm'];
+        $packageWidth = $packageDimensions['widthCm'];
+        $packageHeight = $packageDimensions['heightCm'];
         $variantGroups = [];
         $variantGroupIndex = [];
         $variantPricing = [];
@@ -1329,6 +1351,26 @@ class AliExpressOpenPlatformService
                 foreach ($current as $entry) {
                     $queue[] = $entry;
                 }
+            }
+        }
+
+        return null;
+    }
+
+    private function extractSkuIdFromVariantSkus($variantSkus): ?string
+    {
+        if (! is_array($variantSkus)) {
+            return null;
+        }
+
+        foreach ($variantSkus as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+
+            $skuId = $this->getString($entry['skuId'] ?? $entry['sku_id'] ?? $entry['id'] ?? null);
+            if ($skuId !== null) {
+                return $skuId;
             }
         }
 
@@ -1643,5 +1685,136 @@ class AliExpressOpenPlatformService
     private function isAssoc($value): bool
     {
         return is_array($value) && ! array_is_list($value);
+    }
+
+    private function extractWeightGrams($value, int $depth = 0, ?string $keyHint = null): ?int
+    {
+        if ($depth > 5 || $value === null) {
+            return null;
+        }
+
+        $direct = $this->parseWeightToGrams($value, $keyHint);
+        if ($direct !== null && $direct > 0) {
+            return $direct;
+        }
+
+        if (is_array($value)) {
+            foreach ($value as $nestedKey => $nestedValue) {
+                $candidate = $this->extractWeightGrams($nestedValue, $depth + 1, is_string($nestedKey) ? $nestedKey : $keyHint);
+                if ($candidate !== null && $candidate > 0) {
+                    return $candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function parseWeightToGrams($value, ?string $keyHint = null): ?int
+    {
+        if (is_numeric($value)) {
+            $number = (float) $value;
+            if ($number <= 0 || ! $this->isWeightKeyHint($keyHint)) {
+                return null;
+            }
+
+            return (int) round($number < 10 ? $number * 1000 : $number);
+        }
+
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $normalized = trim(strtolower($value));
+        if ($normalized === '') {
+            return null;
+        }
+
+        if (preg_match('/(\d+(?:[.,]\d+)?)\s*(kg|kilogram|kilograms)\b/i', $normalized, $matches) === 1) {
+            return (int) round((float) str_replace(',', '.', $matches[1]) * 1000);
+        }
+
+        if (preg_match('/(\d+(?:[.,]\d+)?)\s*(g|gram|grams)\b/i', $normalized, $matches) === 1) {
+            return (int) round((float) str_replace(',', '.', $matches[1]));
+        }
+
+        if ($this->isWeightKeyHint($keyHint) && preg_match('/\d+(?:[.,]\d+)?/', $normalized, $matches) === 1) {
+            $number = (float) str_replace(',', '.', $matches[0]);
+            return (int) round($number < 10 ? $number * 1000 : $number);
+        }
+
+        return null;
+    }
+
+    private function isWeightKeyHint(?string $keyHint): bool
+    {
+        return is_string($keyHint) && preg_match('/weight|gross[_ -]?weight|net[_ -]?weight|package[_ -]?weight|shipping[_ -]?weight|item[_ -]?weight|product[_ -]?weight|parcel[_ -]?weight|poids|kg|gram/i', $keyHint) === 1;
+    }
+
+    private function extractPackageDimensionsCm($value, int $depth = 0): ?array
+    {
+        if ($depth > 5 || ! is_array($value)) {
+            return null;
+        }
+
+        $length = $this->normalizeDimensionCm($value['package_length'] ?? $value['length'] ?? $value['lengthCm'] ?? $value['packageLength'] ?? null);
+        $width = $this->normalizeDimensionCm($value['package_width'] ?? $value['width'] ?? $value['widthCm'] ?? $value['packageWidth'] ?? null);
+        $height = $this->normalizeDimensionCm($value['package_height'] ?? $value['height'] ?? $value['heightCm'] ?? $value['packageHeight'] ?? null);
+
+        if ($length !== null && $width !== null && $height !== null) {
+            return [
+                'lengthCm' => $length,
+                'widthCm' => $width,
+                'heightCm' => $height,
+            ];
+        }
+
+        foreach ($value as $nestedValue) {
+            $candidate = $this->extractPackageDimensionsCm($nestedValue, $depth + 1);
+            if ($candidate !== null) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeDimensionCm($value): ?float
+    {
+        $number = $this->toFloat($value);
+        return $number > 0 ? round($number, 2) : null;
+    }
+
+    private function parsePackagingDimensions(?string $packaging): ?array
+    {
+        if (! is_string($packaging) || trim($packaging) === '') {
+            return null;
+        }
+
+        if (preg_match('/(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*cm/i', $packaging, $matches) !== 1) {
+            return null;
+        }
+
+        return [
+            'lengthCm' => round((float) str_replace(',', '.', $matches[1]), 2),
+            'widthCm' => round((float) str_replace(',', '.', $matches[2]), 2),
+            'heightCm' => round((float) str_replace(',', '.', $matches[3]), 2),
+        ];
+    }
+
+    private function formatLotCbm(?array $packageDimensions): string
+    {
+        if (! is_array($packageDimensions)) {
+            return '0.0000';
+        }
+
+        $length = (float) ($packageDimensions['lengthCm'] ?? 0);
+        $width = (float) ($packageDimensions['widthCm'] ?? 0);
+        $height = (float) ($packageDimensions['heightCm'] ?? 0);
+        if ($length <= 0 || $width <= 0 || $height <= 0) {
+            return '0.0000';
+        }
+
+        return number_format(($length * $width * $height) / 1000000, 4, '.', '');
     }
 }

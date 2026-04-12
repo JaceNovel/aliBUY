@@ -49,7 +49,12 @@ const CATEGORY_SORT_PRIORITY: Record<string, number> = {
 
 function isNoiseCategoryTitle(value: string) {
   const normalized = value.trim().toLowerCase();
-  return /^(usd|cny|eur|gbp|cad|aud|xof|fcfa|catalogue|autres produits)$/i.test(normalized);
+  return /^(usd|cny|eur|gbp|cad|aud|xof|fcfa|catalogue|autres produits|aliexpress|alibaba|general|misc|other|others)$/i.test(normalized);
+}
+
+function isNoiseCategorySlug(value: string) {
+  const normalized = value.trim().toLowerCase();
+  return /^(aliexpress|alibaba|general|misc|other|others)$/i.test(normalized);
 }
 
 function dedupeProducts(products: ProductCatalogItem[]) {
@@ -158,6 +163,9 @@ async function fetchRemoteCatalogCategories() {
       const title = typeof candidate.title === "string" && candidate.title.trim()
         ? candidate.title.trim()
         : slug;
+      if (isNoiseCategorySlug(slug) || isNoiseCategoryTitle(title)) {
+        return [] as CatalogCategoryRecord[];
+      }
       const productCount = typeof candidate.productCount === "number" && Number.isFinite(candidate.productCount)
         ? candidate.productCount
         : 0;
@@ -283,7 +291,7 @@ export const getCatalogCategories = cache(async function getCatalogCategories():
   }
 
   const localCategories = [...categories.values()]
-    .filter((category) => !isNoiseCategoryTitle(category.title))
+    .filter((category) => !isNoiseCategoryTitle(category.title) && !isNoiseCategorySlug(category.slug))
     .map((category) => {
       const products = dedupeProducts(category.products);
       const count = products.length;

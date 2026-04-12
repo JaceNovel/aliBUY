@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Str;
 use Throwable;
 
 class ProductService
@@ -65,39 +66,48 @@ class ProductService
 
     public function categories()
     {
-        return Product::query()
-            ->where('is_published', true)
-            ->get()
-            ->groupBy('category')
-            ->map(function ($products, $slug) {
-                $first = $products->first();
+        $categories = [];
 
-                return [
-                    'slug' => (string) $slug,
-                    'title' => $first instanceof Product ? $this->resolveCategoryTitle($first) : (string) $slug,
-                    'productCount' => $products->count(),
-                    'image' => $first instanceof Product ? (string) ($first->image ?? '/globe.svg') : '/globe.svg',
-                    'sourcePath' => $first instanceof Product ? $this->resolveCategoryPath($first) : [(string) $slug],
-                    'sourcePathLabel' => implode(' / ', $first instanceof Product ? $this->resolveCategoryPath($first) : [(string) $slug]),
+        foreach (Product::query()->where('is_published', true)->get() as $product) {
+            $category = $this->resolvePublicCategory($product);
+            $slug = $category['slug'];
+
+            if (! isset($categories[$slug])) {
+                $categories[$slug] = [
+                    'slug' => $slug,
+                    'title' => $category['title'],
+                    'productCount' => 0,
+                    'image' => (string) ($product->image ?? '/globe.svg'),
+                    'sourcePath' => $category['path'],
+                    'sourcePathLabel' => implode(' / ', $category['path']),
                 ];
-            })
+            }
+
+            $categories[$slug]['productCount']++;
+            if (($categories[$slug]['image'] ?? '') === '/globe.svg' && ! empty($product->image)) {
+                $categories[$slug]['image'] = (string) $product->image;
+            }
+        }
+
+        return collect(array_values($categories))
             ->sortBy('title', SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
     }
 
     public function category(string $slug): ?array
     {
-        $products = Product::query()->where('is_published', true)->where('category', $slug)->get();
+        $products = $this->publishedProductsForResolvedCategory($slug);
         $first = $products->first();
+        $resolved = $first instanceof Product ? $this->resolvePublicCategory($first) : null;
 
         return $first instanceof Product
             ? [
-                'slug' => $slug,
-                'title' => $this->resolveCategoryTitle($first),
+                'slug' => $resolved['slug'],
+                'title' => $resolved['title'],
                 'productCount' => $products->count(),
                 'image' => (string) ($first->image ?? '/globe.svg'),
-                'sourcePath' => $this->resolveCategoryPath($first),
-                'sourcePathLabel' => implode(' / ', $this->resolveCategoryPath($first)),
+                'sourcePath' => $resolved['path'],
+                'sourcePathLabel' => implode(' / ', $resolved['path']),
             ]
             : null;
     }
@@ -106,11 +116,12 @@ class ProductService
     {
         $category = trim((string) $request->query('category', ''));
         $perPage = min(max((int) $request->integer('limit', 20), 1), 40);
+        $page = max((int) $request->integer('page', 1), 1);
 
         if ($category === '') {
             return [
                 'items' => [],
-                'page' => max((int) $request->integer('page', 1), 1),
+                'page' => $page,
                 'nextPage' => null,
                 'hasMore' => false,
                 'pageSize' => $perPage,
@@ -120,17 +131,13 @@ class ProductService
         }
 
         try {
-            $products = Product::query()
-                ->where('is_published', true)
-                ->where('category', $category)
-                ->latest()
-                ->paginate($perPage);
+            $products = $this->paginateResolvedCategoryProducts($category, $perPage, $page);
 
             return $this->feedPayload($products, ['category' => $category, 'source' => 'category']);
         } catch (Throwable) {
             return [
                 'items' => [],
-                'page' => max((int) $request->integer('page', 1), 1),
+                'page' => $page,
                 'nextPage' => null,
                 'hasMore' => false,
                 'pageSize' => $perPage,
@@ -232,6 +239,44 @@ class ProductService
         return str_replace('-', ' ', (string) $product->category);
     }
 
+    protected function resolvePublicCategory(Product $product): array
+    {
+        $path = array_values(array_filter(array_map(
+            fn ($entry) => is_string($entry) ? trim($entry) : '',
+            $this->resolveCategoryPath($product)
+        )));
+        $usefulPath = array_values(array_filter($path, fn ($entry) => $this->isUsefulCategoryLabel($entry)));
+        $path = $usefulPath !== [] ? $usefulPath : $path;
+
+        $title = $this->resolveCategoryTitle($product);
+        if (! $this->isUsefulCategoryLabel($title) && $path !== []) {
+            $title = (string) end($path);
+        }
+
+        $columnCategory = trim((string) $product->category);
+        if (! $this->isUsefulCategoryLabel($title) && $this->isUsefulCategorySlug($columnCategory)) {
+            $title = str_replace('-', ' ', $columnCategory);
+        }
+
+        if (! $this->isUsefulCategoryLabel($title)) {
+            $title = 'Autres produits';
+        }
+
+        if ($path === []) {
+            $path = [$title];
+        }
+
+        $slug = $this->isUsefulCategorySlug($columnCategory)
+            ? $columnCategory
+            : $this->slugifyCategoryLabel($title);
+
+        return [
+            'slug' => $slug !== '' ? $slug : 'autres-produits',
+            'title' => $title,
+            'path' => $path,
+        ];
+    }
+
     protected function resolveCategoryPath(Product $product): array
     {
         $metadata = is_array($product->metadata) ? $product->metadata : [];
@@ -249,6 +294,73 @@ class ProductService
         }
 
         return [$this->resolveCategoryTitle($product)];
+    }
+
+    protected function publishedProductsForResolvedCategory(string $slug)
+    {
+        return Product::query()
+            ->where('is_published', true)
+            ->latest()
+            ->get()
+            ->filter(fn (Product $product) => $this->resolvePublicCategory($product)['slug'] === $slug)
+            ->values();
+    }
+
+    protected function paginateResolvedCategoryProducts(string $slug, int $perPage, int $page): LengthAwarePaginator
+    {
+        $products = $this->publishedProductsForResolvedCategory($slug);
+        $total = $products->count();
+        $items = $products->slice(($page - 1) * $perPage, $perPage)->values()->all();
+
+        return new LengthAwarePaginator(
+            $items,
+            $total,
+            $perPage,
+            $page,
+            ['path' => LengthAwarePaginator::resolveCurrentPath()]
+        );
+    }
+
+    protected function normalizeCategoryLabel(string $value): string
+    {
+        return trim(preg_replace('/\s+/', ' ', str_replace(['>', '/', '|', '_'], ' ', $value)) ?? '');
+    }
+
+    protected function isUsefulCategoryLabel(?string $value): bool
+    {
+        if (! is_string($value)) {
+            return false;
+        }
+
+        $normalized = $this->normalizeCategoryLabel($value);
+        if ($normalized === '' || mb_strlen($normalized) < 2 || mb_strlen($normalized) > 80) {
+            return false;
+        }
+
+        if (! preg_match('/[\p{L}]/u', $normalized)) {
+            return false;
+        }
+
+        return ! preg_match('/^(catalogue importe|produit aliexpress|produit alibaba|aliexpress|alibaba|general|misc|other|others|undefined|null|n\/?a|na|unknown|sans nom|untitled)$/iu', $normalized);
+    }
+
+    protected function isUsefulCategorySlug(?string $value): bool
+    {
+        if (! is_string($value)) {
+            return false;
+        }
+
+        $normalized = trim($value);
+        if ($normalized === '' || preg_match('/^\d+$/', $normalized)) {
+            return false;
+        }
+
+        return ! preg_match('/^(aliexpress|alibaba|general|misc|other|others)$/i', $normalized);
+    }
+
+    protected function slugifyCategoryLabel(string $value): string
+    {
+        return Str::slug($value);
     }
 
     protected function feedPayload(LengthAwarePaginator $products, array $extra = []): array

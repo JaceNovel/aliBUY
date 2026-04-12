@@ -1616,7 +1616,33 @@ class AlibabaAdminService
             }
         }
 
-        return is_array($decoded) ? array_values($decoded) : [];
+        $items = is_array($decoded) ? array_values($decoded) : [];
+
+        if ($fileName === 'alibaba-imported-products.json') {
+            $normalizedItems = [];
+            $changed = false;
+
+            foreach ($items as $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+
+                $normalized = $this->normalizeImportedProductMetrics($item);
+                if ($normalized !== $item) {
+                    $changed = true;
+                }
+
+                $normalizedItems[] = $normalized;
+            }
+
+            if ($changed) {
+                $this->writeJsonArray($fileName, $normalizedItems);
+            }
+
+            return $normalizedItems;
+        }
+
+        return $items;
     }
 
     private function normalizeRecordList(array $items): array
@@ -1654,5 +1680,178 @@ class AlibabaAdminService
         }
 
         return array_keys($value) !== range(0, count($value) - 1);
+    }
+
+    private function normalizeImportedProductMetrics(array $item): array
+    {
+        $rawPayload = is_array($item['rawPayload'] ?? null) ? $item['rawPayload'] : null;
+        if ($rawPayload === null) {
+            return $item;
+        }
+
+        $packageDimensions = is_array($item['packageDimensionsCm'] ?? null)
+            ? $item['packageDimensionsCm']
+            : null;
+
+        if (! $this->hasValidPackageDimensions($packageDimensions)) {
+            $packageDimensions = $this->extractPackageDimensionsCm($rawPayload) ?? $this->parsePackagingDimensions($this->stringOrNull($item['packaging'] ?? null));
+        }
+
+        $weightGrams = $this->toInt($item['itemWeightGrams'] ?? 0);
+        if ($weightGrams <= 0) {
+            $weightGrams = $this->extractWeightGrams($rawPayload) ?? 0;
+        }
+
+        $lotCbm = trim((string) ($item['lotCbm'] ?? ''));
+        if ($lotCbm === '' || $this->toFloat($lotCbm) <= 0) {
+            $lotCbm = $this->formatLotCbm($packageDimensions);
+        }
+
+        $item['packageDimensionsCm'] = $this->hasValidPackageDimensions($packageDimensions) ? $packageDimensions : null;
+        $item['itemWeightGrams'] = $weightGrams;
+        $item['lotCbm'] = $lotCbm !== '' ? $lotCbm : '0.0000';
+        $item['weightVerified'] = (($item['weightVerified'] ?? false) === true) || $weightGrams > 0;
+
+        return $item;
+    }
+
+    private function hasValidPackageDimensions($packageDimensions): bool
+    {
+        return is_array($packageDimensions)
+            && $this->toFloat($packageDimensions['lengthCm'] ?? 0) > 0
+            && $this->toFloat($packageDimensions['widthCm'] ?? 0) > 0
+            && $this->toFloat($packageDimensions['heightCm'] ?? 0) > 0;
+    }
+
+    private function extractWeightGrams($value, int $depth = 0, ?string $keyHint = null): ?int
+    {
+        if ($depth > 5 || $value === null) {
+            return null;
+        }
+
+        $direct = $this->parseWeightToGrams($value, $keyHint);
+        if ($direct !== null && $direct > 0) {
+            return $direct;
+        }
+
+        if (is_array($value)) {
+            foreach ($value as $nestedKey => $nestedValue) {
+                $candidate = $this->extractWeightGrams($nestedValue, $depth + 1, is_string($nestedKey) ? $nestedKey : $keyHint);
+                if ($candidate !== null && $candidate > 0) {
+                    return $candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function parseWeightToGrams($value, ?string $keyHint = null): ?int
+    {
+        if (is_numeric($value)) {
+            $number = (float) $value;
+            if ($number <= 0 || ! $this->isWeightKeyHint($keyHint)) {
+                return null;
+            }
+
+            return (int) round($number < 10 ? $number * 1000 : $number);
+        }
+
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $normalized = trim(strtolower($value));
+        if ($normalized === '') {
+            return null;
+        }
+
+        if (preg_match('/(\d+(?:[.,]\d+)?)\s*(kg|kilogram|kilograms)\b/i', $normalized, $matches) === 1) {
+            return (int) round((float) str_replace(',', '.', $matches[1]) * 1000);
+        }
+
+        if (preg_match('/(\d+(?:[.,]\d+)?)\s*(g|gram|grams)\b/i', $normalized, $matches) === 1) {
+            return (int) round((float) str_replace(',', '.', $matches[1]));
+        }
+
+        if ($this->isWeightKeyHint($keyHint) && preg_match('/\d+(?:[.,]\d+)?/', $normalized, $matches) === 1) {
+            $number = (float) str_replace(',', '.', $matches[0]);
+            return (int) round($number < 10 ? $number * 1000 : $number);
+        }
+
+        return null;
+    }
+
+    private function isWeightKeyHint(?string $keyHint): bool
+    {
+        return is_string($keyHint) && preg_match('/weight|gross[_ -]?weight|net[_ -]?weight|package[_ -]?weight|shipping[_ -]?weight|item[_ -]?weight|product[_ -]?weight|parcel[_ -]?weight|poids|kg|gram/i', $keyHint) === 1;
+    }
+
+    private function extractPackageDimensionsCm($value, int $depth = 0): ?array
+    {
+        if ($depth > 5 || ! is_array($value)) {
+            return null;
+        }
+
+        $length = $this->normalizeDimensionCm($value['package_length'] ?? $value['length'] ?? $value['lengthCm'] ?? $value['packageLength'] ?? null);
+        $width = $this->normalizeDimensionCm($value['package_width'] ?? $value['width'] ?? $value['widthCm'] ?? $value['packageWidth'] ?? null);
+        $height = $this->normalizeDimensionCm($value['package_height'] ?? $value['height'] ?? $value['heightCm'] ?? $value['packageHeight'] ?? null);
+
+        if ($length !== null && $width !== null && $height !== null) {
+            return [
+                'lengthCm' => $length,
+                'widthCm' => $width,
+                'heightCm' => $height,
+            ];
+        }
+
+        foreach ($value as $nestedValue) {
+            $candidate = $this->extractPackageDimensionsCm($nestedValue, $depth + 1);
+            if ($candidate !== null) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeDimensionCm($value): ?float
+    {
+        $number = $this->toFloat($value);
+        return $number > 0 ? round($number, 2) : null;
+    }
+
+    private function parsePackagingDimensions(?string $packaging): ?array
+    {
+        if (! is_string($packaging) || trim($packaging) === '') {
+            return null;
+        }
+
+        if (preg_match('/(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*cm/i', $packaging, $matches) !== 1) {
+            return null;
+        }
+
+        return [
+            'lengthCm' => round((float) str_replace(',', '.', $matches[1]), 2),
+            'widthCm' => round((float) str_replace(',', '.', $matches[2]), 2),
+            'heightCm' => round((float) str_replace(',', '.', $matches[3]), 2),
+        ];
+    }
+
+    private function formatLotCbm($packageDimensions): string
+    {
+        if (! is_array($packageDimensions)) {
+            return '0.0000';
+        }
+
+        $length = $this->toFloat($packageDimensions['lengthCm'] ?? 0);
+        $width = $this->toFloat($packageDimensions['widthCm'] ?? 0);
+        $height = $this->toFloat($packageDimensions['heightCm'] ?? 0);
+
+        if ($length <= 0 || $width <= 0 || $height <= 0) {
+            return '0.0000';
+        }
+
+        return number_format(($length * $width * $height) / 1000000, 4, '.', '');
     }
 }
