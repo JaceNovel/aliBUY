@@ -83,6 +83,10 @@ return Application::configure(basePath: dirname(__DIR__))
             return $jsonError($request, $exception->getMessage() ?: 'Erreur HTTP.', $exception->getStatusCode());
         });
 
+        $exceptions->render(function (RuntimeException $exception, Request $request) use ($jsonError) {
+            return $jsonError($request, $exception->getMessage() ?: 'Operation impossible.', 422);
+        });
+
         $exceptions->render(function (\Throwable $exception, Request $request) use ($jsonError) {
             return $jsonError($request, 'Erreur interne du serveur.', 500);
         });

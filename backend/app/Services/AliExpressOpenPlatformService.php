@@ -349,21 +349,37 @@ class AliExpressOpenPlatformService
         $skuAttr = $this->extractSkuAttr($liveRawPayload, $skuId)
             ?? $this->extractSkuAttr($liveProduct['rawPayload'] ?? null, $skuId)
             ?? '';
-        $freightResult = $this->callTopEndpoint($account, 'aliexpress.ds.freight.query', [
-            'queryDeliveryReq' => json_encode([
+        $freightResult = $this->queryDsFreight($account, [
+            'quantity' => (string) $quantity,
+            'shipToCountry' => $countryCode,
+            'productId' => (string) ($product['sourceProductId'] ?? ''),
+            'selectedSkuId' => $skuId,
+            'provinceCode' => $validatedAddress['stateCode'],
+            'cityCode' => $validatedAddress['cityCode'],
+            'language' => $language,
+            'currency' => 'USD',
+            'locale' => $language,
+        ]);
+
+        $carrierCode = $this->resolveCarrierCode($freightResult['responseBody']);
+        if ($carrierCode === null && ($validatedAddress['stateCode'] !== '' || $validatedAddress['cityCode'] !== '')) {
+            $fallbackFreightResult = $this->queryDsFreight($account, [
                 'quantity' => (string) $quantity,
                 'shipToCountry' => $countryCode,
                 'productId' => (string) ($product['sourceProductId'] ?? ''),
                 'selectedSkuId' => $skuId,
-                'provinceCode' => $validatedAddress['stateCode'],
-                'cityCode' => $validatedAddress['cityCode'],
                 'language' => $language,
                 'currency' => 'USD',
                 'locale' => $language,
-            ], JSON_UNESCAPED_SLASHES),
-        ]);
+            ]);
 
-        $carrierCode = $this->resolveCarrierCode($freightResult['responseBody']);
+            $fallbackCarrierCode = $this->resolveCarrierCode($fallbackFreightResult['responseBody']);
+            if ($fallbackCarrierCode !== null) {
+                $freightResult = $fallbackFreightResult;
+                $carrierCode = $fallbackCarrierCode;
+            }
+        }
+
         if ($carrierCode === null) {
             $message = $this->extractOperationMessage($freightResult['responseBody']);
             throw new RuntimeException($message !== null ? "Verification livraison DS impossible: {$message}" : "Aucune option de livraison AliExpress n'a ete retournee pour ce lot.");
@@ -386,7 +402,7 @@ class AliExpressOpenPlatformService
             ],
             'product_items' => [[
                 'product_id' => (string) ($product['sourceProductId'] ?? ''),
-                'product_count' => $quantity,
+                'product_count' => (string) $quantity,
                 'sku_attr' => $skuAttr,
                 'logistics_service_name' => $carrierCode,
                 'order_memo' => 'Batch AfriPay '.trim((string) ($product['shortTitle'] ?? $product['title'] ?? 'AliExpress')),
@@ -1500,6 +1516,13 @@ class AliExpressOpenPlatformService
             'city' => (string) ($cityMatch['name'] ?? $address['city'] ?? ''),
             'cityCode' => (string) ($cityMatch['code'] ?? $cityMatch['id'] ?? $cityMatch['name'] ?? $address['city'] ?? ''),
         ];
+    }
+
+    private function queryDsFreight(array $account, array $payload): array
+    {
+        return $this->callTopEndpoint($account, 'aliexpress.ds.freight.query', [
+            'queryDeliveryReq' => json_encode($payload, JSON_UNESCAPED_SLASHES),
+        ]);
     }
 
     private function normalizeAddressOptions($responseBody): array

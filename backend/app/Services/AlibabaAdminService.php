@@ -295,7 +295,7 @@ class AlibabaAdminService
         return $response;
     }
 
-    public function deleteImportedProducts(?string $importedProductId = null, ?string $sourceProductId = null): array
+    public function deleteImportedProducts(?string $importedProductId = null, ?string $sourceProductId = null, bool $siteReset = false): array
     {
         $products = $this->readJsonArray('alibaba-imported-products.json');
 
@@ -303,7 +303,16 @@ class AlibabaAdminService
             $deletedCount = count($products);
             $this->writeJsonArray('alibaba-imported-products.json', []);
 
-            return ['deletedCount' => $deletedCount];
+            $response = ['deletedCount' => $deletedCount];
+
+            if ($siteReset) {
+                $response = [
+                    ...$response,
+                    ...$this->resetAliExpressSiteCatalogState(),
+                ];
+            }
+
+            return $response;
         }
 
         $before = count($products);
@@ -331,6 +340,86 @@ class AlibabaAdminService
         $this->writeJsonArray('alibaba-imported-products.json', $remaining);
 
         return ['deleted' => true, 'deletedCount' => $deletedCount];
+    }
+
+    private function resetAliExpressSiteCatalogState(): array
+    {
+        $deletedCatalogProducts = 0;
+        $catalogWarning = null;
+
+        try {
+            $deletedCatalogProducts = Product::query()
+                ->where('source_provider', 'aliexpress')
+                ->delete();
+        } catch (Throwable $exception) {
+            $catalogWarning = 'Catalogue SQL non purge localement. Verifie la connexion base de donnees puis relance la purge site.';
+        }
+
+        $this->writeJsonArray('alibaba-import-jobs.json', []);
+        $this->writeJsonArray('alibaba-purchase-orders.json', []);
+        $this->writeJsonArray('catalog-mapping.json', []);
+        $this->writeJsonArray('alibaba-receptions.json', []);
+
+        return [
+            'deletedCatalogProducts' => $deletedCatalogProducts,
+            'siteConfigReset' => $this->resetSiteConfigReferences(),
+            ...(is_string($catalogWarning) ? ['warningMessage' => $catalogWarning] : []),
+        ];
+    }
+
+    private function resetSiteConfigReferences(): array
+    {
+        $freeDealPath = base_path('data/site/free-deal-config.json');
+        $modePromotionsPath = base_path('data/site/mode-promotions.json');
+
+        $freeDealReset = false;
+        if (File::exists($freeDealPath)) {
+            $payload = json_decode((string) File::get($freeDealPath), true);
+            if (is_array($payload)) {
+                $payload['productSlugs'] = [];
+                $payload['updatedAt'] = $this->nowIso();
+                File::put($freeDealPath, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES).PHP_EOL);
+                $freeDealReset = true;
+            }
+        }
+
+        $modePromotionsReset = false;
+        if (File::exists($modePromotionsPath)) {
+            $payload = json_decode((string) File::get($modePromotionsPath), true);
+            if (is_array($payload)) {
+                foreach ([
+                    'groupedOfferSlugs',
+                    'dailyDealSlugs',
+                    'premiumSelectionSlugs',
+                    'choiceDealSlugs',
+                    'trendPromoSlugs',
+                    'flashRushSlugs',
+                    'finalDropSlugs',
+                ] as $key) {
+                    $payload[$key] = [];
+                }
+
+                if (is_array($payload['heroSlides'] ?? null)) {
+                    $payload['heroSlides'] = array_map(function ($slide) {
+                        if (! is_array($slide)) {
+                            return $slide;
+                        }
+
+                        $slide['spotlightProductSlug'] = '';
+                        return $slide;
+                    }, $payload['heroSlides']);
+                }
+
+                $payload['updatedAt'] = $this->nowIso();
+                File::put($modePromotionsPath, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES).PHP_EOL);
+                $modePromotionsReset = true;
+            }
+        }
+
+        return [
+            'freeDealConfigCleared' => $freeDealReset,
+            'modePromotionsCleared' => $modePromotionsReset,
+        ];
     }
 
     public function reenrichImportedProduct(string $importedProductId): array

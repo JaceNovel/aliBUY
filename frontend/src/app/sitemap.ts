@@ -15,6 +15,7 @@ const STATIC_ROUTES = [
   "/protection-commandes",
   "/decouvrir-afripay",
   "/articles-gratuits",
+  "/docs",
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

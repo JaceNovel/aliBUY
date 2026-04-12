@@ -60,7 +60,11 @@ class AlibabaAdminController extends Controller
     {
         $this->alibabaAdmin->assertAdmin($request->user('sanctum'));
 
-        return response()->json($this->alibabaAdmin->deleteImportedProducts());
+        return response()->json($this->alibabaAdmin->deleteImportedProducts(
+            null,
+            null,
+            $request->boolean('siteReset')
+        ));
     }
 
     public function reenrichImport(Request $request, string $importedProductId): JsonResponse

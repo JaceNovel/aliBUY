@@ -311,7 +311,9 @@ export function PartnerApplicationForm({ initialAccess, loginHref, registerHref,
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link href={goLiveHref} className="inline-flex h-12 items-center justify-center rounded-[16px] bg-[#142133] px-5 text-[14px] font-semibold text-white transition hover:bg-[#0f1a29]">Ouvrir mon dashboard</Link>
+            <Link href={goLiveHref} className="inline-flex h-12 min-w-[240px] items-center justify-center rounded-lg bg-[#142133] px-5 text-center text-[14px] font-semibold !text-white shadow-[0_12px_24px_rgba(20,33,51,0.18)] transition hover:bg-[#0f1a29] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#119b6a]">
+              <span className="!text-white">Ouvrir mon dashboard</span>
+            </Link>
             <Link href="/api/partner/approval-guide" className="inline-flex h-12 items-center justify-center rounded-[16px] border border-[#b7dfc0] bg-white px-5 text-[14px] font-semibold text-[#067647] transition hover:border-[#0f9f4b] hover:text-[#0f9f4b]">Télécharger le PDF dropshipping AfriPay</Link>
             <Link href="/api/partner/charter" className="inline-flex h-12 items-center justify-center rounded-[16px] border border-[#cbd5e1] bg-white px-5 text-[14px] font-semibold text-[#344054] transition hover:border-[#142133] hover:text-[#142133]">Télécharger la charte partenaire</Link>
             <Link href="/dashboard/api" className="inline-flex h-12 items-center justify-center rounded-[16px] border border-[#d0d5dd] bg-white px-5 text-[14px] font-semibold text-[#344054] transition hover:border-[#142133] hover:text-[#142133]">Voir la documentation</Link>
