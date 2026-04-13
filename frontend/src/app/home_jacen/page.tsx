@@ -16,5 +16,5 @@ export default async function HiddenAdminLoginPage() {
     redirect("/admin");
   }
 
-  redirect("/admin/login");
+  redirect("/admin-login");
 }

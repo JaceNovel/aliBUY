@@ -8,7 +8,7 @@ import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
 function buildAdminLoginRedirect(request: Request, message?: string) {
   const requestUrl = getPublicAuthRequestUrl(request);
   const nextTarget = "/admin/aliexpress-sourcing/accounts";
-  const target = new URL("/admin/login", requestUrl.origin);
+  const target = new URL("/admin-login", requestUrl.origin);
   target.searchParams.set("next", nextTarget);
   if (message && message.trim()) {
     target.searchParams.set("oauth_error", message.trim());

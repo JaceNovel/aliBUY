@@ -54,6 +54,10 @@ function finalizeResponse(request: NextRequest, response: NextResponse) {
 }
 
 async function handleRequest(request: NextRequest, getClerkUserId?: () => Promise<string | null>) {
+  if (request.nextUrl.pathname === "/admin/login") {
+    return finalizeResponse(request, NextResponse.redirect(new URL("/admin-login", request.url)));
+  }
+
   const isAdminPageRequest = request.nextUrl.pathname === "/admin" || request.nextUrl.pathname.startsWith("/admin/");
   const isAdminApiRequest = request.nextUrl.pathname.startsWith("/api/admin");
   const isDashboardPageRequest = request.nextUrl.pathname === "/dashboard" || request.nextUrl.pathname.startsWith("/dashboard/");
@@ -70,7 +74,7 @@ async function handleRequest(request: NextRequest, getClerkUserId?: () => Promis
     if (!userId && !session?.sub) {
       if (isAdminPageRequest || isAdminApiRequest || isDashboardPageRequest || isDashboardApiRequest) {
         if (isAdminPageRequest) {
-          return finalizeResponse(request, NextResponse.redirect(new URL("/admin/login", request.url)));
+          return finalizeResponse(request, NextResponse.redirect(new URL("/admin-login", request.url)));
         }
 
         return finalizeResponse(request, new NextResponse("Not Found", { status: 404 }));

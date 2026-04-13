@@ -1,11 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ShoppingCart, Star } from "lucide-react";
+import { Star } from "lucide-react";
 import type { Metadata } from "next";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { getCatalogProducts } from "@/lib/catalog-service";
-import { formatTierAwarePrice, formatTierAwarePriceMeta } from "@/lib/product-price-display";
+import { formatTierAwarePrice } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
 import { normalizeStorefrontText, shuffleStorefrontItems } from "@/lib/public-storefront";
 import { SITE_NAME, SITE_URL } from "@/lib/site-config";
@@ -72,12 +72,6 @@ export default async function ProductsPage() {
                     <Star className="h-3 w-3 fill-[#f7b500] text-[#f7b500]" />
                     4.8
                   </div>
-                  <div className="absolute inset-x-2 bottom-2 translate-y-2 rounded-[8px] bg-white/95 px-3 py-2 opacity-0 shadow-[0_12px_28px_rgba(17,24,39,0.16)] transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
-                    <div className="flex items-center justify-between gap-2 text-[11px] font-bold text-[#191919]">
-                      <span>Voir les options</span>
-                      <ShoppingCart className="h-3.5 w-3.5 text-[#ff6a00]" />
-                    </div>
-                  </div>
                 </div>
                 <div className="p-3 sm:p-3.5">
                   <div className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#d85300] sm:text-[10px]">Catalogue</div>
@@ -86,10 +80,7 @@ export default async function ProductsPage() {
                   <div className="mt-2.5 flex items-end justify-between gap-2">
                     <div>
                       <div className="text-[15px] font-black tracking-[-0.04em] text-[#111827] sm:text-[17px]">{formatTierAwarePrice(pricing.formatPrice, product)}</div>
-                      {formatTierAwarePriceMeta(product) ? <div className="mt-1 line-clamp-1 text-[10px] font-semibold text-[#d85300]">{formatTierAwarePriceMeta(product)}</div> : null}
-                    </div>
-                    <div className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-[#111827] text-white transition group-hover:bg-[#ff6a00] sm:flex">
-                      <ShoppingCart className="h-4 w-4" />
+                      <div className="mt-1 line-clamp-1 text-[10px] font-semibold text-[#d85300]">Prix actualise</div>
                     </div>
                   </div>
                 </div>
