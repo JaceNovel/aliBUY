@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class PaymentService
@@ -49,7 +50,7 @@ class PaymentService
             default => $this->moneroo->initialize($this->buildGatewayPayload($order)),
         };
 
-        $paymentId = (string) ($payload['id'] ?? $payload['data']['id'] ?? '');
+        $paymentId = $this->resolvePaymentId($payload, $order);
         $checkoutUrl = $this->extractCheckoutUrl($payload);
         $status = (string) ($payload['status'] ?? $payload['data']['status'] ?? 'initialized');
 
@@ -231,6 +232,44 @@ class PaymentService
         return in_array(strtolower($status), ['successful', 'success', 'paid', 'approved', 'completed'], true)
             ? 'paid'
             : $status;
+    }
+
+    protected function resolvePaymentId(array $payload, Order $order): string
+    {
+        $candidates = [
+            $payload['id'] ?? null,
+            $payload['payment_id'] ?? null,
+            $payload['paymentId'] ?? null,
+            $payload['transaction_id'] ?? null,
+            $payload['transactionId'] ?? null,
+            $payload['reference'] ?? null,
+            $payload['data']['id'] ?? null,
+            $payload['data']['payment_id'] ?? null,
+            $payload['data']['paymentId'] ?? null,
+            $payload['data']['transaction_id'] ?? null,
+            $payload['data']['transactionId'] ?? null,
+            $payload['data']['reference'] ?? null,
+            $payload['data']['payment']['id'] ?? null,
+            $payload['data']['payment']['payment_id'] ?? null,
+            $payload['data']['payment']['paymentId'] ?? null,
+            $payload['data']['payment']['transaction_id'] ?? null,
+            $payload['data']['payment']['transactionId'] ?? null,
+            $payload['data']['payment']['reference'] ?? null,
+            $payload['payment']['id'] ?? null,
+            $payload['payment']['payment_id'] ?? null,
+            $payload['payment']['paymentId'] ?? null,
+            $payload['payment']['transaction_id'] ?? null,
+            $payload['payment']['transactionId'] ?? null,
+            $payload['payment']['reference'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_scalar($candidate) && trim((string) $candidate) !== '') {
+                return trim((string) $candidate);
+            }
+        }
+
+        return 'moneroo_'.$order->id.'_'.Str::uuid()->toString();
     }
 
     protected function extractCheckoutUrl(array $payload): ?string

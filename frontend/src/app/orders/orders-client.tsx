@@ -4,24 +4,30 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   CalendarDays,
+  CheckCircle2,
   ChevronDown,
   CircleDollarSign,
   ClipboardList,
   CreditCard,
+  FileText,
   MapPin,
   MessageCircle,
   ReceiptText,
   Search,
+  Send,
   ShieldCheck,
   Star,
   TicketPercent,
   Truck,
+  UserCheck,
   Volume2,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getOrderChatHref, getOrderConfirmReceiptHref, getOrderDeliveryProofHref, getOrderPaymentHref, getOrderTabs, getOrderTrackingHref, sidebarItems, type OrderRecord, type OrderTabKey } from "@/lib/orders-data";
 import { initializeMonerooPayment, verifyMonerooPayment } from "@/lib/api";
+
+type SidebarItemKey = (typeof sidebarItems)[number];
 
 type OrdersClientProps = {
   orders: OrderRecord[];
@@ -152,12 +158,204 @@ function isMissingSourcingOrderError(message: string | null | undefined) {
   return normalized === "commande sourcing introuvable." || normalized === "commande sourcing introuvable";
 }
 
+function getSectionTitle(activeSidebarItem: SidebarItemKey) {
+  if (activeSidebarItem === "Remboursements et apres-vente") {
+    return "Remboursements et apres-vente";
+  }
+
+  if (activeSidebarItem === "Avis") {
+    return "Avis commandes";
+  }
+
+  if (activeSidebarItem === "Coupons et credits") {
+    return "Coupons et credits";
+  }
+
+  if (activeSidebarItem === "Informations fiscales") {
+    return "Informations fiscales";
+  }
+
+  return "Vos commandes";
+}
+
+function OrdersSidePanel({
+  activeSidebarItem,
+  orders,
+  refundRequests,
+  reviewedOrders,
+  onRefundRequest,
+  onReviewOrder,
+}: {
+  activeSidebarItem: SidebarItemKey;
+  orders: OrderRecord[];
+  refundRequests: Record<string, "in_review" | "accepted" | "credited">;
+  reviewedOrders: Record<string, boolean>;
+  onRefundRequest: (orderId: string) => void;
+  onReviewOrder: (orderId: string) => void;
+}) {
+  const deliveredOrders = orders.filter((order) => order.tab === "delivered");
+  const pendingReviewOrders = deliveredOrders.filter((order) => !reviewedOrders[order.id]);
+  const usedCoupons = orders.filter((order) => order.promoCode);
+  const creditedRefunds = Object.entries(refundRequests).filter(([, status]) => status === "credited");
+  const requestedRefundOrders = orders.filter((order) => refundRequests[order.id]);
+
+  if (activeSidebarItem === "Remboursements et apres-vente") {
+    return (
+      <div className="mt-6 space-y-4">
+        <div className="rounded-[18px] bg-[#fff7f1] px-5 py-5 text-[14px] leading-6 text-[#6b3a12] ring-1 ring-[#f3d7bf]">
+          Une commande deja passee ne peut pas etre annulee. Le retour devient possible apres reception si l'article n'est pas conforme aux photos ou a la fiche produit. Dans ce cas, le retour est gratuit, le dossier passe en examen, puis l'admin peut l'accepter et indiquer l'adresse de retour.
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="rounded-[18px] bg-white px-5 py-5 ring-1 ring-[#e7e7e7]">
+            <div className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[#888]">En examen</div>
+            <div className="mt-2 text-[28px] font-black text-[#222]">{Object.values(refundRequests).filter((status) => status === "in_review").length}</div>
+          </div>
+          <div className="rounded-[18px] bg-white px-5 py-5 ring-1 ring-[#e7e7e7]">
+            <div className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[#888]">Acceptes</div>
+            <div className="mt-2 text-[28px] font-black text-[#222]">{Object.values(refundRequests).filter((status) => status === "accepted").length}</div>
+          </div>
+          <div className="rounded-[18px] bg-white px-5 py-5 ring-1 ring-[#e7e7e7]">
+            <div className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[#888]">Credits client</div>
+            <div className="mt-2 text-[28px] font-black text-[#222]">{creditedRefunds.length}</div>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {deliveredOrders.length === 0 ? (
+            <div className="rounded-[18px] bg-[#fafafa] px-5 py-7 text-[14px] leading-6 text-[#666] ring-1 ring-black/5">
+              Aucun article recu pour le moment. Les demandes de remboursement s'ouvrent apres reception, pour un article non conforme.
+            </div>
+          ) : null}
+
+          {deliveredOrders.map((order) => {
+            const status = refundRequests[order.id];
+            const label = status === "credited"
+              ? "Client credite"
+              : status === "accepted"
+                ? "Remboursement accepte - retour attendu"
+                : status === "in_review"
+                  ? "Dossier en examen"
+                  : "Demander un remboursement";
+
+            return (
+              <div key={order.id} className="flex flex-col gap-4 rounded-[18px] bg-white px-5 py-5 ring-1 ring-[#e7e7e7] lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="text-[15px] font-bold text-[#222]">{order.orderNumber}</div>
+                  <div className="mt-1 text-[13px] leading-5 text-[#666]">{order.title}</div>
+                  {status ? <div className="mt-2 text-[12px] font-semibold text-[#b55420]">{label}</div> : null}
+                </div>
+                <button type="button" onClick={() => onRefundRequest(order.id)} disabled={Boolean(status)} className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#ea5c00] px-5 text-[13px] font-semibold text-white transition hover:bg-[#d85400] disabled:bg-[#d9d9d9] disabled:text-[#777]">
+                  <Send className="h-4 w-4" />
+                  {label}
+                </button>
+              </div>
+            );
+          })}
+
+          {requestedRefundOrders.length ? (
+            <div className="rounded-[18px] bg-[#f6f7f9] px-5 py-5 text-[13px] leading-6 text-[#555] ring-1 ring-black/5">
+              Cote admin, ces dossiers doivent etre analyses, puis acceptes avec une adresse de retour. Le credit client s'affiche ici apres acceptation et reception de l'article retourne.
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  if (activeSidebarItem === "Avis") {
+    return (
+      <div className="mt-6 space-y-4">
+        <div className="rounded-[18px] bg-[#fff7f1] px-5 py-5 text-[14px] leading-6 text-[#6b3a12] ring-1 ring-[#f3d7bf]">
+          Apres reception, l'avis est obligatoire pour chaque commande. Chaque avis reste lie a sa commande et aide l'equipe a controler la qualite produit.
+        </div>
+        {deliveredOrders.length === 0 ? (
+          <div className="rounded-[18px] bg-[#fafafa] px-5 py-7 text-[14px] text-[#666] ring-1 ring-black/5">Aucune commande livree en attente d'avis.</div>
+        ) : null}
+        {deliveredOrders.map((order) => (
+          <div key={order.id} className="flex flex-col gap-4 rounded-[18px] bg-white px-5 py-5 ring-1 ring-[#e7e7e7] lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="text-[15px] font-bold text-[#222]">{order.orderNumber}</div>
+              <div className="mt-1 text-[13px] leading-5 text-[#666]">{order.title}</div>
+              <div className="mt-2 text-[12px] font-semibold text-[#b55420]">{reviewedOrders[order.id] ? "Avis recu" : "Avis obligatoire a completer"}</div>
+            </div>
+            <button type="button" onClick={() => onReviewOrder(order.id)} disabled={Boolean(reviewedOrders[order.id])} className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#222] px-5 text-[13px] font-semibold text-white transition hover:bg-[#333] disabled:bg-[#d9d9d9] disabled:text-[#777]">
+              <Star className="h-4 w-4" />
+              {reviewedOrders[order.id] ? "Avis envoye" : "Laisser un avis"}
+            </button>
+          </div>
+        ))}
+        {pendingReviewOrders.length ? <div className="text-[13px] font-semibold text-[#b55420]">{pendingReviewOrders.length} avis obligatoire(s) restant(s).</div> : null}
+      </div>
+    );
+  }
+
+  if (activeSidebarItem === "Coupons et credits") {
+    return (
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-[18px] bg-white px-5 py-5 ring-1 ring-[#e7e7e7]">
+          <div className="flex items-center gap-2 text-[16px] font-bold text-[#222]"><TicketPercent className="h-5 w-5" /> Coupons</div>
+          <div className="mt-4 space-y-3">
+            {usedCoupons.length === 0 ? <div className="text-[14px] leading-6 text-[#666]">Les coupons crees dans l'admin apparaitront ici quand ils seront disponibles pour ce compte.</div> : null}
+            {usedCoupons.map((order) => (
+              <div key={`${order.id}-${order.promoCode}`} className="rounded-[16px] bg-[#fff7f1] px-4 py-3 text-[13px] text-[#6b3a12]">
+                <span className="font-bold">{order.promoCode}</span> utilise sur {order.orderNumber} · {order.promoDiscountLabel}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-[18px] bg-white px-5 py-5 ring-1 ring-[#e7e7e7]">
+          <div className="flex items-center gap-2 text-[16px] font-bold text-[#222]"><CheckCircle2 className="h-5 w-5" /> Credits client</div>
+          <div className="mt-4 space-y-3">
+            {creditedRefunds.length === 0 ? <div className="text-[14px] leading-6 text-[#666]">Les credits de remboursement acceptes s'afficheront ici.</div> : null}
+            {creditedRefunds.map(([orderId]) => (
+              <div key={orderId} className="rounded-[16px] bg-[#effbf2] px-4 py-3 text-[13px] font-semibold text-[#1f7a39]">
+                Credit remboursement disponible pour la commande {orders.find((order) => order.id === orderId)?.orderNumber ?? orderId}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeSidebarItem === "Informations fiscales") {
+    return (
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-[18px] bg-white px-5 py-5 ring-1 ring-[#e7e7e7]">
+          <div className="flex items-center gap-2 text-[16px] font-bold text-[#222]"><FileText className="h-5 w-5" /> Profil fiscal</div>
+          <p className="mt-3 text-[14px] leading-6 text-[#666]">Un client entrepreneur ou entreprise peut renseigner son numero fiscal, sa raison sociale et son adresse de facturation pour recevoir des propositions de reduction et de partenariat.</p>
+          <Link href="/account/compte/informations-fiscales" className="mt-5 inline-flex h-11 items-center justify-center rounded-full bg-[#222] px-5 text-[13px] font-semibold text-white transition hover:bg-[#333]">
+            Completer mes informations
+          </Link>
+        </div>
+        <div className="rounded-[18px] bg-[#fff7f1] px-5 py-5 text-[#6b3a12] ring-1 ring-[#f3d7bf]">
+          <div className="flex items-center gap-2 text-[16px] font-bold"><UserCheck className="h-5 w-5" /> Avantages entreprise</div>
+          <div className="mt-4 space-y-2 text-[14px] leading-6">
+            <div>Reductions sur les commandes regulieres.</div>
+            <div>Propositions de partenariat AfriPay.</div>
+            <div>Suivi fiscal et facturation plus claire.</div>
+          </div>
+          <Link href="/partnership" className="mt-5 inline-flex h-11 items-center justify-center rounded-full border border-[#6b3a12] px-5 text-[13px] font-semibold transition hover:bg-white">
+            Voir le partenariat
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClientProps) {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDate, setSelectedDate] = useState("all");
   const [selectedTime, setSelectedTime] = useState("all");
   const [activeTab, setActiveTab] = useState<OrderTabKey>("all");
+  const [activeSidebarItem, setActiveSidebarItem] = useState<SidebarItemKey>("Toutes les commandes");
+  const [refundRequests, setRefundRequests] = useState<Record<string, "in_review" | "accepted" | "credited">>({});
+  const [reviewedOrders, setReviewedOrders] = useState<Record<string, boolean>>({});
   const isEnglish = languageCode === "en";
   const [paymentFeedback, setPaymentFeedback] = useState<string | null>(() => paymentAction?.payment?.trim() === "initialization_failed"
     ? (isEnglish
@@ -185,6 +383,35 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
 
   const orderTabs = useMemo(() => getOrderTabs(orders), [orders]);
   const pendingProofDefaultOrder = useMemo(() => orders.find((order) => order.status === "Paiement en attente") ?? orders[0] ?? null, [orders]);
+
+  useEffect(() => {
+    const refundRaw = window.localStorage.getItem("afripay-order-refunds");
+    const reviewRaw = window.localStorage.getItem("afripay-order-reviews");
+
+    if (refundRaw) {
+      try {
+        setRefundRequests(JSON.parse(refundRaw) as Record<string, "in_review" | "accepted" | "credited">);
+      } catch {
+        setRefundRequests({});
+      }
+    }
+
+    if (reviewRaw) {
+      try {
+        setReviewedOrders(JSON.parse(reviewRaw) as Record<string, boolean>);
+      } catch {
+        setReviewedOrders({});
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("afripay-order-refunds", JSON.stringify(refundRequests));
+  }, [refundRequests]);
+
+  useEffect(() => {
+    window.localStorage.setItem("afripay-order-reviews", JSON.stringify(reviewedOrders));
+  }, [reviewedOrders]);
 
   useEffect(() => {
     const payOrderId = paymentAction?.payOrderId?.trim() || (
@@ -292,6 +519,20 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
     });
   }, [activeTab, orders, searchTerm, selectedDate, selectedTime]);
 
+  const handleRefundRequest = (orderId: string) => {
+    setRefundRequests((current) => ({
+      ...current,
+      [orderId]: current[orderId] ?? "in_review",
+    }));
+  };
+
+  const handleReviewOrder = (orderId: string) => {
+    setReviewedOrders((current) => ({
+      ...current,
+      [orderId]: true,
+    }));
+  };
+
   if (orders.length === 0) {
     return (
       <div className="rounded-[24px] bg-white px-6 py-8 shadow-[0_8px_30px_rgba(24,39,75,0.05)] ring-1 ring-black/5">
@@ -309,10 +550,15 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
       <aside className="hidden self-start overflow-x-auto rounded-[22px] bg-[#f1f3f7] px-4 py-4 xl:sticky xl:top-8 xl:block xl:px-5 xl:py-6">
         <h2 className="text-[15px] font-semibold text-[#222]">Commandes</h2>
         <div className="mt-4 flex gap-2 text-[14px] text-[#333] xl:block xl:space-y-2">
-          {sidebarItems.map((item, index) => (
-            <div key={item} className={["shrink-0 rounded-[14px] px-4 py-2.5 leading-5", index === 0 ? "bg-white font-semibold" : "bg-white/60 xl:bg-transparent"].join(" ")}>
+          {sidebarItems.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setActiveSidebarItem(item)}
+              className={["w-full shrink-0 rounded-[14px] px-4 py-2.5 text-left leading-5 transition hover:bg-white", activeSidebarItem === item ? "bg-white font-semibold" : "bg-white/60 xl:bg-transparent"].join(" ")}
+            >
               {item}
-            </div>
+            </button>
           ))}
         </div>
       </aside>
@@ -322,21 +568,23 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
           <div className="rounded-[20px] bg-[#f1f3f7] px-3 py-3">
             <div className="text-[15px] font-semibold text-[#222]">Commandes</div>
             <div className="mt-3 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {sidebarItems.map((item, index) => {
+              {sidebarItems.map((item) => {
                 const meta = sidebarItemMeta[item as keyof typeof sidebarItemMeta];
                 const Icon = meta.icon;
 
                 return (
-                  <div
+                  <button
                     key={item}
+                    type="button"
+                    onClick={() => setActiveSidebarItem(item)}
                     className={[
                       "flex shrink-0 items-center gap-2 rounded-[14px] px-3 py-2.5 text-[12px] font-semibold",
-                      index === 0 ? "bg-white text-[#222] shadow-[0_6px_18px_rgba(17,24,39,0.06)]" : "bg-white/70 text-[#4a4a4a]",
+                      activeSidebarItem === item ? "bg-white text-[#222] shadow-[0_6px_18px_rgba(17,24,39,0.06)]" : "bg-white/70 text-[#4a4a4a]",
                     ].join(" ")}
                   >
                     <Icon className="h-4 w-4" />
                     <span className="whitespace-nowrap">{meta.label}</span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -344,7 +592,7 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
         </div>
 
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-          <h1 className="text-[20px] font-bold tracking-[-0.05em] text-[#222] sm:text-[28px] lg:text-[36px]">Vos commandes</h1>
+          <h1 className="text-[20px] font-bold tracking-[-0.05em] text-[#222] sm:text-[28px] lg:text-[36px]">{getSectionTitle(activeSidebarItem)}</h1>
           <Link href={`/orders/remittance-proof?orderId=${encodeURIComponent(pendingProofDefaultOrder?.id ?? orders[0].id)}`} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-[#222] px-3 text-[12px] font-semibold text-[#222] transition hover:border-[#ff6a00] hover:text-[#ff6a00] sm:h-11 sm:w-auto sm:px-6 sm:text-[14px]">
             <CreditCard className="h-4 w-4" />
             <span className="sm:hidden">Preuve</span>
@@ -358,6 +606,8 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
           </div>
         ) : null}
 
+        {activeSidebarItem === "Toutes les commandes" ? (
+        <>
         <div className="mt-5 flex gap-2.5 overflow-x-auto border-b border-[#e7e7e7] pb-1 text-[12px] text-[#333] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:gap-x-7 sm:gap-y-3 sm:overflow-visible sm:pb-0 sm:text-[14px]">
           {orderTabs.map((tab) => (
             <button
@@ -608,6 +858,17 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
             </article>
           ))}
         </div>
+        </>
+        ) : (
+          <OrdersSidePanel
+            activeSidebarItem={activeSidebarItem}
+            orders={orders}
+            refundRequests={refundRequests}
+            reviewedOrders={reviewedOrders}
+            onRefundRequest={handleRefundRequest}
+            onReviewOrder={handleReviewOrder}
+          />
+        )}
       </section>
     </div>
   );

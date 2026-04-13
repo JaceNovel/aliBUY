@@ -7,6 +7,7 @@ use Illuminate\Http\Client\Response;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class MonerooService
 {
@@ -35,9 +36,17 @@ class MonerooService
 
         try {
             return $this->tryInitializeWithFallbacks($payload);
+        } catch (ValidationException $exception) {
+            throw $exception;
         } catch (RequestException $exception) {
             throw ValidationException::withMessages([
                 'payment' => [$this->extractGatewayErrorMessage($exception)],
+            ]);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            throw ValidationException::withMessages([
+                'payment' => [$this->unexpectedGatewayErrorMessage()],
             ]);
         }
     }
@@ -48,9 +57,17 @@ class MonerooService
 
         try {
             return $this->tryVerifyWithFallbacks($transactionId);
+        } catch (ValidationException $exception) {
+            throw $exception;
         } catch (RequestException $exception) {
             throw ValidationException::withMessages([
                 'payment' => [$this->extractGatewayErrorMessage($exception)],
+            ]);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            throw ValidationException::withMessages([
+                'payment' => [$this->unexpectedGatewayErrorMessage()],
             ]);
         }
     }
@@ -114,6 +131,11 @@ class MonerooService
         }
 
         return 'Le paiement Moneroo a echoue.';
+    }
+
+    protected function unexpectedGatewayErrorMessage(): string
+    {
+        return 'Moneroo est momentanement indisponible ou mal configure. Verifiez les cles Moneroo puis reessayez.';
     }
 
     protected function tryInitializeWithFallbacks(array $payload): array

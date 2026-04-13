@@ -27,6 +27,7 @@ class PartnerApprovalGuidePdf
             'description' => $this->partnerRequest->description,
             'docsUrl' => $this->docsUrl(),
             'supportEmail' => 'support@afripay.space',
+            'date' => now()->format('d/m/Y'),
         ];
     }
 
