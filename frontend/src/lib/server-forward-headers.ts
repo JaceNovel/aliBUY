@@ -20,6 +20,8 @@ const FORWARDED_HEADER_NAMES = [
 
 type BuildServerForwardHeadersOptions = {
   includeAdminApiToken?: boolean;
+  includeCookies?: boolean;
+  includeBrowserOriginHeaders?: boolean;
 };
 
 export async function buildServerForwardHeaders(
@@ -30,12 +32,14 @@ export async function buildServerForwardHeaders(
   const forwarded = new Headers(initialHeaders);
   const cookieHeader = cookieStore.toString();
   const backendAccessToken = cookieStore.get(BACKEND_ACCESS_TOKEN_COOKIE)?.value?.trim() || "";
+  const includeCookies = options?.includeCookies ?? true;
+  const includeBrowserOriginHeaders = options?.includeBrowserOriginHeaders ?? true;
   const adminApiToken = options?.includeAdminApiToken
     ? process.env.ADMIN_API_TOKEN?.trim()
     : "";
   const usingTokenAuth = Boolean(backendAccessToken || adminApiToken);
 
-  if (cookieHeader && !usingTokenAuth) {
+  if (includeCookies && cookieHeader && !usingTokenAuth) {
     forwarded.set("cookie", cookieHeader);
   }
 
@@ -53,6 +57,10 @@ export async function buildServerForwardHeaders(
   }
 
   for (const headerName of FORWARDED_HEADER_NAMES) {
+    if (!includeBrowserOriginHeaders && (headerName === "origin" || headerName === "referer")) {
+      continue;
+    }
+
     if (usingTokenAuth && (headerName === "origin" || headerName === "referer")) {
       continue;
     }

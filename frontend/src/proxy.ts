@@ -73,6 +73,10 @@ async function handleRequest(request: NextRequest, getClerkUserId?: () => Promis
 
     if (!userId && !session?.sub) {
       if (isAdminPageRequest || isAdminApiRequest || isDashboardPageRequest || isDashboardApiRequest) {
+        if (isAdminPageRequest) {
+          return finalizeResponse(request, NextResponse.redirect(new URL("/home_jacen", request.url)));
+        }
+
         return finalizeResponse(request, new NextResponse("Not Found", { status: 404 }));
       }
 

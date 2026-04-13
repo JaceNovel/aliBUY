@@ -18,6 +18,7 @@ class PartnerOrderService
 {
     public function __construct(
         protected PaymentService $payments,
+        protected EmailAutomationService $emails,
     ) {
     }
 
@@ -117,6 +118,8 @@ class PartnerOrderService
             return [$order, $partnerOrder];
         });
 
+        $this->emails->sendOrderCreated($order->loadMissing('user'));
+
         $payment = $this->payments->initialize($order, 'moneroo');
 
         return [
@@ -215,6 +218,10 @@ class PartnerOrderService
                 'description' => $description,
             ]);
         });
+
+        if (in_array($status, ['processing', 'shipped', 'delivered', 'cancelled'], true)) {
+            $this->emails->sendTrackingUpdate($order->loadMissing('user'), $status, $description);
+        }
     }
 
     public function transformPartnerOrder(PartnerOrder $partnerOrder): array

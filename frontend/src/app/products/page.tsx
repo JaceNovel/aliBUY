@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { ShoppingCart, Star } from "lucide-react";
 import type { Metadata } from "next";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
@@ -38,7 +39,7 @@ export default async function ProductsPage() {
 
         <section className="rounded-[30px] bg-white px-6 py-6 shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 lg:px-8 lg:py-7">
           <div className="max-w-[760px]">
-            <div className="inline-flex rounded-full bg-[#fff1e7] px-4 py-2 text-[13px] font-semibold uppercase tracking-[0.16em] text-[#d85300]">
+            <div className="inline-flex rounded-[8px] bg-[#fff1e7] px-4 py-2 text-[13px] font-semibold uppercase tracking-[0.16em] text-[#d85300]">
               Catalogue AfriPay
             </div>
             <h1 className="mt-4 text-[30px] font-bold tracking-[-0.05em] text-[#222] sm:text-[38px]">
@@ -55,21 +56,42 @@ export default async function ProductsPage() {
             <div className="text-[16px] leading-8 text-[#555]">Aucun produit publie pour le moment depuis l&apos;admin sourcing.</div>
           </section>
         ) : (
-          <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+          <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
             {randomizedProducts.map((product) => (
               <Link
                 key={product.slug}
                 href={`/products/${product.slug}`}
-                className="rounded-[18px] bg-white p-2.5 shadow-[0_12px_30px_rgba(24,39,75,0.06)] ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(24,39,75,0.12)]"
+                className="group overflow-hidden rounded-[8px] border border-[#eceff3] bg-white shadow-[0_10px_26px_rgba(17,24,39,0.06)] transition duration-300 hover:-translate-y-1 hover:border-[#ff8a3d] hover:shadow-[0_18px_40px_rgba(17,24,39,0.13)]"
               >
-                <div className="aspect-square overflow-hidden rounded-[14px] bg-[#f5f5f5]">
-                  <Image src={product.image} alt={product.shortTitle} width={640} height={480} className="h-full w-full object-cover" />
+                <div className="relative aspect-[0.92] overflow-hidden bg-[#f6f7f9]">
+                  <Image src={product.image} alt={product.shortTitle} width={640} height={480} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.06]" />
+                  <div className="absolute left-2 top-2 rounded-[6px] bg-[#111827] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-white shadow-[0_8px_18px_rgba(17,24,39,0.18)]">
+                    AfriPay+
+                  </div>
+                  <div className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-[6px] bg-white/95 px-2 py-1 text-[10px] font-bold text-[#191919] shadow-[0_8px_18px_rgba(17,24,39,0.12)]">
+                    <Star className="h-3 w-3 fill-[#f7b500] text-[#f7b500]" />
+                    4.8
+                  </div>
+                  <div className="absolute inset-x-2 bottom-2 translate-y-2 rounded-[8px] bg-white/95 px-3 py-2 opacity-0 shadow-[0_12px_28px_rgba(17,24,39,0.16)] transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+                    <div className="flex items-center justify-between gap-2 text-[11px] font-bold text-[#191919]">
+                      <span>Voir les options</span>
+                      <ShoppingCart className="h-3.5 w-3.5 text-[#ff6a00]" />
+                    </div>
+                  </div>
                 </div>
-                <div className="mt-2">
-                  <div className="line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-4 tracking-[-0.03em] text-[#222] sm:min-h-[40px] sm:text-[13px] sm:leading-5">{product.shortTitle}</div>
-                  <div className="mt-1 line-clamp-1 text-[10px] text-[#667085] sm:text-[11px]">{normalizeStorefrontText(product.supplierName)}</div>
-                  <div className="mt-2 text-[15px] font-bold tracking-[-0.03em] text-[#111827] sm:text-[16px]">{formatTierAwarePrice(pricing.formatPrice, product)}</div>
-                  {formatTierAwarePriceMeta(product) ? <div className="mt-1 line-clamp-1 text-[10px] text-[#98a2b3]">{formatTierAwarePriceMeta(product)}</div> : null}
+                <div className="p-3 sm:p-3.5">
+                  <div className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#d85300] sm:text-[10px]">Catalogue</div>
+                  <div className="mt-2 line-clamp-2 min-h-[36px] text-[12px] font-bold leading-4 tracking-[-0.02em] text-[#1f2937] sm:min-h-[42px] sm:text-[13px] sm:leading-5">{product.shortTitle}</div>
+                  <div className="mt-2 line-clamp-1 text-[10px] font-semibold text-[#667085] sm:text-[11px]">{normalizeStorefrontText(product.supplierName)}</div>
+                  <div className="mt-2.5 flex items-end justify-between gap-2">
+                    <div>
+                      <div className="text-[15px] font-black tracking-[-0.04em] text-[#111827] sm:text-[17px]">{formatTierAwarePrice(pricing.formatPrice, product)}</div>
+                      {formatTierAwarePriceMeta(product) ? <div className="mt-1 line-clamp-1 text-[10px] font-semibold text-[#d85300]">{formatTierAwarePriceMeta(product)}</div> : null}
+                    </div>
+                    <div className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-[#111827] text-white transition group-hover:bg-[#ff6a00] sm:flex">
+                      <ShoppingCart className="h-4 w-4" />
+                    </div>
+                  </div>
                 </div>
               </Link>
             ))}

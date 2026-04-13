@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ScrollText, ShieldCheck, Sparkles, WandSparkles, type LucideIcon } from "lucide-react";
+import { ScrollText, ShieldCheck, ShoppingCart, Sparkles, Star, WandSparkles, type LucideIcon } from "lucide-react";
 import type { Metadata } from "next";
 
 import { CategoryMegaMenu, type CategoryMegaMenuCategory } from "@/components/category-mega-menu";
@@ -172,14 +172,6 @@ export default async function Home() {
           </div>
         </div>
 
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute left-[-6%] top-24 h-56 w-56 rounded-full bg-white/35 blur-3xl" />
-          <div className="absolute left-[18%] top-12 h-32 w-32 rounded-[38%] bg-[#ffb38a]/50 blur-2xl" />
-          <div className="absolute right-[8%] top-18 h-72 w-72 rounded-full bg-[#ffd3bc]/70 blur-3xl" />
-          <div className="absolute right-[24%] top-28 h-36 w-36 rounded-[32%] bg-white/45 blur-2xl" />
-          <div className="absolute left-1/2 top-44 h-20 w-20 -translate-x-1/2 rounded-full bg-[#ff6a00]/10 blur-xl" />
-        </div>
-
         <div className="relative z-20 mx-auto max-w-[1580px] px-4 sm:px-6 xl:px-10">
           <div className="sm:hidden">
             <div className="flex items-center justify-between gap-2 border-b border-black/6 py-3 text-[#2d2621]">
@@ -246,7 +238,7 @@ export default async function Home() {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className="inline-flex h-12 min-w-0 items-center justify-center rounded-[18px] bg-white/95 px-2 text-center text-[12px] font-semibold text-[#2b221c] shadow-[0_8px_18px_rgba(17,24,39,0.04)] ring-1 ring-black/4 transition hover:text-[#ff6a00]"
+                    className="inline-flex h-12 min-w-0 items-center justify-center rounded-[8px] bg-white/95 px-2 text-center text-[12px] font-semibold text-[#2b221c] shadow-[0_8px_18px_rgba(17,24,39,0.04)] ring-1 ring-black/4 transition hover:text-[#ff6a00]"
                   >
                     {item.label}
                   </Link>
@@ -297,7 +289,7 @@ export default async function Home() {
                     <span>{item.label}</span>
                     <span
                       className={[
-                        "absolute bottom-0 left-1/2 h-[5px] -translate-x-1/2 rounded-full bg-[#ff6a00] shadow-[0_6px_18px_rgba(255,106,0,0.28)] transition-all duration-300 ease-out",
+                        "absolute bottom-0 left-1/2 h-[5px] -translate-x-1/2 rounded-[8px] bg-[#ff6a00] shadow-[0_6px_18px_rgba(255,106,0,0.28)] transition-all duration-300 ease-out",
                         item.active ? "w-16 opacity-100 group-hover:w-20" : "w-0 opacity-0 group-hover:w-16 group-hover:opacity-100",
                       ].join(" ")}
                     />
@@ -322,7 +314,7 @@ export default async function Home() {
           </h2>
           <div className="grid gap-2.5 text-[#222] sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center lg:gap-5 lg:justify-end">
             {quickActions.map((item, index) => (
-              <div key={item.title} className="flex items-center gap-4 rounded-[18px] bg-white px-3 py-3 ring-1 ring-black/5 lg:bg-transparent lg:px-0 lg:py-0 lg:ring-0">
+              <div key={item.title} className="flex items-center gap-4 rounded-[8px] bg-white px-3 py-3 ring-1 ring-black/5 lg:bg-transparent lg:px-0 lg:py-0 lg:ring-0">
                 {index > 0 ? <span className="hidden h-8 w-px bg-[#d8d8d8] lg:block" /> : null}
                 <QuickActionItem item={item} />
               </div>
@@ -350,8 +342,8 @@ export default async function Home() {
       <div className="mx-auto max-w-[1580px] px-4 pb-14 pt-2 sm:px-6 sm:pt-4 xl:px-10">
 
         {featuredProducts.length === 0 ? (
-          <section className="rounded-[28px] bg-white px-6 py-8 text-center shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 sm:px-8 sm:py-10">
-            <div className="inline-flex items-center gap-2 rounded-full bg-[#fff2e9] px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85300]">
+          <section className="rounded-[8px] bg-white px-6 py-8 text-center shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5 sm:px-8 sm:py-10">
+            <div className="inline-flex items-center gap-2 rounded-[8px] bg-[#fff2e9] px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85300]">
               <Sparkles className="h-4 w-4" />
               Catalogue en attente
             </div>
@@ -368,36 +360,56 @@ export default async function Home() {
                 Voir tout
               </Link>
             </div>
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-6">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
               {marketplaceProducts.map((product) => (
                 <Link
                   key={product.slug}
                   href={`/products/${product.slug}`}
-                  className="group overflow-hidden rounded-[16px] bg-white p-2 ring-1 ring-[#e9edf3] transition hover:-translate-y-0.5 hover:shadow-[0_16px_28px_rgba(17,24,39,0.12)]"
+                  className="group overflow-hidden rounded-[8px] border border-[#eceff3] bg-white shadow-[0_10px_26px_rgba(17,24,39,0.06)] transition duration-300 hover:-translate-y-1 hover:border-[#ff8a3d] hover:shadow-[0_18px_40px_rgba(17,24,39,0.13)]"
                 >
-                  <div className="relative aspect-square overflow-hidden rounded-[14px] bg-[#f5f5f5]">
+                  <div className="relative aspect-[0.92] overflow-hidden bg-[#f6f7f9]">
                     <Image
                       src={getProductImageUrl(product.image, { width: 640, quality: 76 })}
                       alt={product.shortTitle}
                       width={640}
                       height={480}
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.06]"
                     />
-                    <div className="absolute left-2 top-2 rounded-full bg-[#5d7cff] px-2 py-0.5 text-[9px] font-semibold text-white">
+                    <div className="absolute left-2 top-2 rounded-[6px] bg-[#111827] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-white shadow-[0_8px_18px_rgba(17,24,39,0.18)]">
                       {normalizeStorefrontBadge(product.badge) || "AfriPay+"}
                     </div>
+                    <div className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-[6px] bg-white/95 px-2 py-1 text-[10px] font-bold text-[#191919] shadow-[0_8px_18px_rgba(17,24,39,0.12)]">
+                      <Star className="h-3 w-3 fill-[#f7b500] text-[#f7b500]" />
+                      4.8
+                    </div>
+                    <div className="absolute inset-x-2 bottom-2 translate-y-2 rounded-[8px] bg-white/95 px-3 py-2 opacity-0 shadow-[0_12px_28px_rgba(17,24,39,0.16)] transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+                      <div className="flex items-center justify-between gap-2 text-[11px] font-bold text-[#191919]">
+                        <span>Voir les options</span>
+                        <ShoppingCart className="h-3.5 w-3.5 text-[#ff6a00]" />
+                      </div>
+                    </div>
                   </div>
-                  <div className="pt-2">
-                    <div className="line-clamp-2 min-h-[38px] text-[11px] font-medium leading-4 text-[#2b2b2b] sm:min-h-[44px] sm:text-[12px]">
+                  <div className="p-3 sm:p-3.5">
+                    <div className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#d85300] sm:text-[10px]">Selection</div>
+                    <div className="mt-2 line-clamp-2 min-h-[36px] text-[12px] font-bold leading-4 tracking-[-0.02em] text-[#1f2937] sm:min-h-[42px] sm:text-[13px] sm:leading-5">
                       {product.shortTitle}
                     </div>
-                    <div className="mt-1 line-clamp-1 text-[10px] font-semibold text-[#ff5a36]">
-                      {formatTierAwarePriceMeta(product) || "Prix public actualise"}
+                    <div className="mt-2 line-clamp-1 text-[10px] font-semibold text-[#667085]">
+                      {normalizeStorefrontText(product.supplierName)}
                     </div>
-                    <div className="mt-1.5 text-[16px] font-black tracking-[-0.04em] text-[#111827] sm:text-[17px]">
-                      {formatTierAwarePrice(pricing.formatPrice, product)}
+                    <div className="mt-2.5 flex items-end justify-between gap-2">
+                      <div>
+                        <div className="text-[15px] font-black tracking-[-0.04em] text-[#111827] sm:text-[17px]">
+                          {formatTierAwarePrice(pricing.formatPrice, product)}
+                        </div>
+                        <div className="mt-1 line-clamp-1 text-[10px] font-semibold text-[#d85300]">
+                          {formatTierAwarePriceMeta(product) || "Prix actualise"}
+                        </div>
+                      </div>
+                      <div className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-[#111827] text-white transition group-hover:bg-[#ff6a00] sm:flex">
+                        <ShoppingCart className="h-4 w-4" />
+                      </div>
                     </div>
-                    <div className="mt-1 line-clamp-1 text-[10px] text-[#667085]">{normalizeStorefrontText(product.supplierName)}</div>
                   </div>
                 </Link>
               ))}

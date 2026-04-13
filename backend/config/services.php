@@ -60,4 +60,8 @@ return [
         'environment' => env('FEDAPAY_ENVIRONMENT', 'live'),
     ],
 
+    'email_automation' => [
+        'enabled' => env('EMAIL_AUTOMATION_ENABLED', true),
+    ],
+
 ];

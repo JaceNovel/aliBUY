@@ -17,6 +17,7 @@ class OrderService
 
     public function __construct(
         protected SourcingQuoteService $quotes,
+        protected EmailAutomationService $emails,
     ) {
     }
 
@@ -119,7 +120,7 @@ class OrderService
             ->whereIn('slug', collect($items)->pluck('slug')->filter()->unique()->values()->all())
             ->pluck('id', 'slug');
 
-        return DB::transaction(function () use ($validated, $user, $items, $itemsSubtotal, $shippingMethod, $shippingOption, $shippingPrice, $totalPrice, $paymentMethod, $promoCode, $productIdsBySlug) {
+        $order = DB::transaction(function () use ($validated, $user, $items, $itemsSubtotal, $shippingMethod, $shippingOption, $shippingPrice, $totalPrice, $paymentMethod, $promoCode, $productIdsBySlug) {
             $order = Order::query()->create([
                 'user_id' => $user?->id,
                 'order_number' => 'AFR-'.strtoupper(Str::random(10)),
@@ -182,6 +183,10 @@ class OrderService
 
             return $order->fresh(['payments', 'orderItems']);
         });
+
+        $this->emails->sendOrderCreated($order->loadMissing('user'));
+
+        return $order;
     }
 
     public function applyPromo(Order $order, string $code): array

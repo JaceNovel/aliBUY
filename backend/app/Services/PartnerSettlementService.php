@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
+use App\Models\OrderTracking;
 use App\Models\PartnerOrder;
 use App\Models\PartnerTransaction;
 use App\Models\PartnerWallet;
@@ -12,11 +13,6 @@ use Illuminate\Support\Facades\Log;
 
 class PartnerSettlementService
 {
-    public function __construct(
-        protected PartnerOrderService $partnerOrders,
-    ) {
-    }
-
     public function settlePaidOrder(Order $order): void
     {
         if ($order->payment_status !== 'paid') {
@@ -24,8 +20,9 @@ class PartnerSettlementService
         }
 
         $partnerOrder = null;
+        $shouldDispatchPaidUpdate = false;
 
-        DB::transaction(function () use ($order, &$partnerOrder) {
+        DB::transaction(function () use ($order, &$partnerOrder, &$shouldDispatchPaidUpdate) {
             $partnerOrder = PartnerOrder::query()
                 ->with('partner')
                 ->where('order_id', $order->id)
@@ -63,9 +60,18 @@ class PartnerSettlementService
 
             $order->forceFill(['status' => 'paid'])->save();
             $partnerOrder->forceFill(['status' => 'paid'])->save();
+            $shouldDispatchPaidUpdate = true;
         });
 
-        $this->partnerOrders->recordTrackingUpdate($order->fresh('partnerOrder'), 'paid', 'Paiement confirme et commission creditee au partenaire.');
+        if (! $shouldDispatchPaidUpdate) {
+            return;
+        }
+
+        OrderTracking::query()->create([
+            'order_id' => $order->id,
+            'status' => 'paid',
+            'description' => 'Paiement confirme et commission creditee au partenaire.',
+        ]);
 
         if ($partnerOrder && $partnerOrder->partner?->webhook_url) {
             $this->dispatchWebhook($partnerOrder, 'order.paid');

@@ -688,8 +688,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
   return (
     <>
-      <div className="mx-auto max-w-[1430px] space-y-6 bg-white pb-28 sm:space-y-8 sm:pb-12">
-        <section className="border border-[#e5e5e5] bg-white p-3 sm:p-4">
+      <div className="mx-auto max-w-[1430px] space-y-6 pb-28 sm:space-y-8 sm:pb-12">
+        <section className="overflow-hidden rounded-[8px] border border-[#eceff3] bg-white p-3 shadow-[0_16px_44px_rgba(17,24,39,0.08)] sm:p-4">
           <div className="hidden flex-wrap items-center gap-2 text-[12px] text-[#666] sm:flex">
             <Link href="/" className="transition hover:text-[#191919]">Accueil</Link>
             <ChevronRight className="h-3.5 w-3.5" />
@@ -698,7 +698,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
             <span className="max-w-[280px] truncate text-[#191919]">{product.shortTitle}</span>
           </div>
 
-          <div className="mt-0 grid gap-4 sm:mt-4 xl:grid-cols-[72px_minmax(0,500px)_minmax(0,1fr)_316px]">
+          <div className="mt-0 grid gap-5 sm:mt-4 xl:grid-cols-[72px_minmax(0,500px)_minmax(0,1fr)_316px]">
             <div className="order-2 hidden gap-2 overflow-x-auto pb-1 xl:order-1 xl:flex xl:flex-col xl:overflow-visible xl:pb-0">
               {product.gallery.map((image, index) => {
                 const isActive = activeMedia === "photo" && activeImage === index;
@@ -712,8 +712,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                       setActiveImage(index);
                     }}
                     className={[
-                      "relative h-[62px] min-w-[62px] overflow-hidden border bg-white transition xl:h-[62px] xl:min-w-[62px]",
-                      isActive ? "border-[#191919]" : "border-[#e5e5e5] hover:border-[#999]",
+                      "relative h-[62px] min-w-[62px] overflow-hidden rounded-[8px] border bg-white transition xl:h-[62px] xl:min-w-[62px]",
+                      isActive ? "border-[#ff6a00] shadow-[0_10px_24px_rgba(255,106,0,0.18)]" : "border-[#e5e5e5] hover:border-[#999]",
                     ].join(" ")}
                   >
                     <Image src={image} alt={`${product.shortTitle} aperçu ${index + 1}`} fill sizes="64px" className="object-cover" />
@@ -725,13 +725,13 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                   type="button"
                   onClick={() => setActiveMedia("video")}
                   className={[
-                    "relative h-[62px] min-w-[62px] overflow-hidden border bg-[#161820] transition xl:h-[62px] xl:min-w-[62px]",
-                    activeMedia === "video" ? "border-[#191919]" : "border-[#e5e5e5] hover:border-[#999]",
+                    "relative h-[62px] min-w-[62px] overflow-hidden rounded-[8px] border bg-[#161820] transition xl:h-[62px] xl:min-w-[62px]",
+                    activeMedia === "video" ? "border-[#ff6a00] shadow-[0_10px_24px_rgba(255,106,0,0.18)]" : "border-[#e5e5e5] hover:border-[#999]",
                   ].join(" ")}
                 >
                   {product.videoPoster ? <Image src={product.videoPoster} alt={`${product.shortTitle} vidéo`} fill sizes="96px" className="object-cover opacity-70" /> : null}
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#151515]">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-white text-[#151515]">
                       <Play className="ml-0.5 h-4.5 w-4.5 fill-current" />
                     </div>
                   </div>
@@ -741,18 +741,18 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
             <div className="order-1 xl:order-2">
               <div
-                className="relative -mx-3 -mt-3 overflow-hidden bg-white sm:mx-0 sm:mt-0 sm:border sm:border-[#ececec]"
+                className="relative -mx-3 -mt-3 overflow-hidden bg-white sm:mx-0 sm:mt-0 sm:rounded-[8px] sm:border sm:border-[#eceff3] sm:shadow-[0_12px_30px_rgba(17,24,39,0.06)]"
                 onTouchEnd={(event) => handleImageTouchEnd(event.changedTouches[0]?.clientX ?? 0)}
               >
                 <div className="absolute left-3 top-3 z-20 hidden items-center gap-2 sm:flex">
-                  <span className="inline-flex bg-[#111] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white">
+                  <span className="inline-flex rounded-[6px] bg-[#111] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white">
                     {product.badge || "AfriPay Select"}
                   </span>
-                  <div className="inline-flex border border-[#d9d9d9] bg-white p-1 text-[11px] font-semibold text-[#191919]">
+                  <div className="inline-flex rounded-[8px] border border-[#d9d9d9] bg-white p-1 text-[11px] font-semibold text-[#191919]">
                     <button
                       type="button"
                       onClick={() => setActiveMedia("photo")}
-                      className={["px-3 py-1.5", activeMedia === "photo" ? "bg-[#191919] text-white" : ""].join(" ")}
+                      className={["rounded-[6px] px-3 py-1.5", activeMedia === "photo" ? "bg-[#191919] text-white" : ""].join(" ")}
                     >
                       Photos
                     </button>
@@ -760,7 +760,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                       <button
                         type="button"
                         onClick={() => setActiveMedia("video")}
-                        className={["px-3 py-1.5", activeMedia === "video" ? "bg-[#191919] text-white" : ""].join(" ")}
+                        className={["rounded-[6px] px-3 py-1.5", activeMedia === "video" ? "bg-[#191919] text-white" : ""].join(" ")}
                       >
                         Vidéo
                       </button>
@@ -772,7 +772,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                   <button
                     type="button"
                     onClick={() => router.back()}
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/92 text-[#111] shadow-[0_8px_20px_rgba(0,0,0,0.12)]"
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] bg-white/92 text-[#111] shadow-[0_8px_20px_rgba(0,0,0,0.12)]"
                     aria-label="Retour"
                   >
                     <ArrowLeft className="h-5 w-5" />
@@ -781,7 +781,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     <button
                       type="button"
                       onClick={shareProduct}
-                      className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/92 text-[#111] shadow-[0_8px_20px_rgba(0,0,0,0.12)]"
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] bg-white/92 text-[#111] shadow-[0_8px_20px_rgba(0,0,0,0.12)]"
                       aria-label="Partager le produit"
                     >
                       <Share2 className="h-5 w-5" />
@@ -789,7 +789,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     <button
                       type="button"
                       onClick={toggleFavorite}
-                      className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/92 text-[#111] shadow-[0_8px_20px_rgba(0,0,0,0.12)]"
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] bg-white/92 text-[#111] shadow-[0_8px_20px_rgba(0,0,0,0.12)]"
                       aria-label="Ajouter aux favoris"
                     >
                       <Heart className={["h-5 w-5", isFavorite ? "fill-current text-[#f06f12]" : ""].join(" ")} />
@@ -798,7 +798,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 </div>
 
                 {shareFeedback ? (
-                  <div className="absolute right-3 top-3 z-10 bg-black/70 px-4 py-2 text-[12px] font-semibold text-white">
+                  <div className="absolute right-3 top-3 z-10 rounded-[8px] bg-black/70 px-4 py-2 text-[12px] font-semibold text-white">
                     {shareFeedback}
                   </div>
                 ) : null}
@@ -825,7 +825,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
                 {activeMedia === "photo" ? (
                   <div className="absolute bottom-4 left-4 z-20 sm:hidden">
-                    <div className="rounded-full bg-white/92 px-4 py-2 text-[13px] font-semibold text-[#191919] shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
+                    <div className="rounded-[8px] bg-white/92 px-4 py-2 text-[13px] font-semibold text-[#191919] shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
                       Article {activeImage + 1}/{product.gallery.length}
                     </div>
                   </div>
@@ -833,10 +833,10 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
                 {activeMedia === "photo" && product.gallery.length > 1 ? (
                   <>
-                    <button type="button" onClick={goToPreviousImage} className="absolute left-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-[#d9d9d9] bg-white text-[#1b1b1b] transition hover:border-[#191919] sm:inline-flex" aria-label="Image précédente">
+                    <button type="button" onClick={goToPreviousImage} className="absolute left-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-[8px] border border-[#d9d9d9] bg-white text-[#1b1b1b] transition hover:border-[#191919] sm:inline-flex" aria-label="Image précédente">
                       <ChevronRight className="h-5 w-5 rotate-180" />
                     </button>
-                    <button type="button" onClick={goToNextImage} className="absolute right-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-[#d9d9d9] bg-white text-[#1b1b1b] transition hover:border-[#191919] sm:inline-flex" aria-label="Image suivante">
+                    <button type="button" onClick={goToNextImage} className="absolute right-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-[8px] border border-[#d9d9d9] bg-white text-[#1b1b1b] transition hover:border-[#191919] sm:inline-flex" aria-label="Image suivante">
                       <ChevronRight className="h-5 w-5" />
                     </button>
                   </>
@@ -846,11 +846,11 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
             <div className="order-3 min-w-0 px-1 sm:px-0">
               <div className="hidden flex-wrap items-center gap-2 sm:flex">
-                <span className="inline-flex items-center gap-2 bg-[#fff7ef] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#de6a19]">
+                <span className="inline-flex items-center gap-2 rounded-[6px] bg-[#fff7ef] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#de6a19]">
                   <ShieldCheck className="h-4 w-4" />
                   Offre verifiee
                 </span>
-                <span className="inline-flex bg-[#f5f5f5] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#555]">
+                <span className="inline-flex rounded-[6px] bg-[#f5f5f5] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#555]">
                   {product.categoryTitle}
                 </span>
               </div>
@@ -866,8 +866,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 <span>{product.soldLabel || "60 vendus"}</span>
               </div>
 
-              <div className="mt-4 max-w-[620px] overflow-hidden rounded-[4px] border border-[#8ec8ff] sm:mt-4">
-                <div className="flex flex-wrap items-center justify-between gap-3 bg-[#3a97f0] px-4 py-3 text-white">
+              <div className="mt-4 max-w-[620px] overflow-hidden rounded-[8px] border border-[#ffd7bd] bg-[#fff8f3] sm:mt-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-[#111827] px-4 py-3 text-white">
                   <div className="text-[13px] font-bold sm:text-[14px]">En plein air · Offre bienvenue</div>
                   <div className="text-[12px] font-semibold sm:text-[13px]">Fin : 7 avril, 21:59 (GMT0)</div>
                 </div>
@@ -876,13 +876,13 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     <div className="text-[32px] font-bold leading-none tracking-[-0.04em] text-[#111] sm:text-[46px]">
                       {hasSubtotalRange ? `${formatMoney(subtotalRange.minUsd)} - ${formatMoney(subtotalRange.maxUsd)}` : formatMoney(subtotal)}
                     </div>
-                    <div className="bg-[#fff1f0] px-2 py-1 text-[13px] font-bold text-[#ff375f]">Economisez {promoSavingsLabel}</div>
+                    <div className="rounded-[6px] bg-[#fff1f0] px-2 py-1 text-[13px] font-bold text-[#ff375f]">Economisez {promoSavingsLabel}</div>
                   </div>
                   <div className="mt-2 text-[13px] text-[#888] line-through sm:text-[14px]">{promoOriginalLabel}</div>
                 </div>
               </div>
 
-              <div className="mt-3 flex max-w-[620px] items-center justify-between rounded-[4px] bg-[#fff1f1] px-4 py-3 text-[14px] text-[#e53b2d]">
+              <div className="mt-3 flex max-w-[620px] items-center justify-between rounded-[8px] bg-[#fff1f1] px-4 py-3 text-[14px] text-[#e53b2d]">
                 <span>-{promoSavingsLabel} sur {promoThresholdLabel}</span>
                 <ChevronRight className="h-4 w-4" />
               </div>
@@ -904,8 +904,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                               type="button"
                               onClick={() => handleVariantPreviewSelection(group, value)}
                               className={[
-                                "min-w-[76px] border bg-white px-3 py-2 text-[13px] font-medium transition",
-                                isSelected ? "border-[#191919] text-[#191919]" : "border-[#dcdcdc] text-[#241b15] hover:border-[#999]",
+                                "min-w-[76px] rounded-[8px] border bg-white px-3 py-2 text-[13px] font-medium transition",
+                                isSelected ? "border-[#ff6a00] bg-[#fff7ef] text-[#191919]" : "border-[#dcdcdc] text-[#241b15] hover:border-[#999]",
                               ].join(" ")}
                             >
                               {value}
@@ -920,7 +920,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
               <div className="mt-5 max-w-[620px] grid gap-2 sm:grid-cols-2">
                 {offerMetrics.map((metric) => (
-                  <div key={metric.label} className="border border-[#ededed] bg-[#fafafa] px-3 py-3">
+                  <div key={metric.label} className="rounded-[8px] border border-[#ededed] bg-[#fafafa] px-3 py-3">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#888]">{metric.label}</div>
                     <div className="mt-1 text-[14px] font-semibold text-[#241b15]">{metric.value}</div>
                   </div>
@@ -929,7 +929,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
             </div>
 
             <aside className="order-4 xl:sticky xl:top-4 xl:self-start">
-              <div className="overflow-hidden border border-[#e5e5e5] bg-white">
+              <div className="overflow-hidden rounded-[8px] border border-[#eceff3] bg-white shadow-[0_16px_44px_rgba(17,24,39,0.08)]">
                 <div className="border-b border-[#ececec] px-5 py-5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-[14px] text-[#191919]">
@@ -969,8 +969,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                           type="button"
                           onClick={() => triggerShippingSelectionAnimation(option.key)}
                           className={[
-                            "border px-4 py-3 text-left transition duration-300",
-                            shippingMethod === option.key ? "border-[#191919] bg-[#fafafa] shadow-[0_10px_24px_rgba(17,24,39,0.08)]" : "border-[#e5e5e5] bg-white hover:border-[#999]",
+                            "rounded-[8px] border px-4 py-3 text-left transition duration-300",
+                            shippingMethod === option.key ? "border-[#ff6a00] bg-[#fff7ef] shadow-[0_10px_24px_rgba(255,106,0,0.14)]" : "border-[#e5e5e5] bg-white hover:border-[#999]",
                             shippingSelectionPulse === option.key ? "scale-[1.02] -translate-y-0.5 shadow-[0_16px_34px_rgba(240,111,18,0.22)]" : "",
                           ].join(" ")}
                         >
@@ -992,11 +992,11 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                   <div className="border-t border-[#efefef] pt-4">
                     <div className="text-[14px] font-semibold text-[#191919]">Quantité</div>
                     <div className="mt-3 flex items-center gap-3">
-                      <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f5f5f5] text-[#55473b] transition hover:bg-[#ebebeb] disabled:cursor-not-allowed disabled:opacity-40">
+                      <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] bg-[#f5f5f5] text-[#55473b] transition hover:bg-[#ebebeb] disabled:cursor-not-allowed disabled:opacity-40">
                         <Minus className="h-4 w-4" />
                       </button>
                       <div className="min-w-[24px] text-center text-[20px] font-semibold tracking-[-0.04em] text-[#1e1712]">{orderQuantity}</div>
-                      <button type="button" onClick={() => updateOrderQuantity(1)} className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f5f5f5] text-[#55473b] transition hover:bg-[#ebebeb]">
+                      <button type="button" onClick={() => updateOrderQuantity(1)} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] bg-[#f5f5f5] text-[#55473b] transition hover:bg-[#ebebeb]">
                         <Plus className="h-4 w-4" />
                       </button>
                     </div>
@@ -1025,7 +1025,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                       type="button"
                       onClick={handlePrimaryBuyNow}
                       disabled={totalSelectedQuantity <= 0}
-                      className="inline-flex h-14 items-center justify-center gap-3 bg-[#d8001f] px-6 text-[17px] font-bold text-white transition hover:bg-[#bf001c]"
+                        className="inline-flex h-14 items-center justify-center gap-3 rounded-[8px] bg-[#f05a00] px-6 text-[17px] font-bold text-white transition hover:bg-[#d94f00] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <ShoppingCart className="h-4.5 w-4.5" />
                       Acheter maintenant
@@ -1035,7 +1035,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                       onClick={handlePrimaryAddToCart}
                       disabled={totalSelectedQuantity <= 0}
                       className={[
-                        "inline-flex h-14 items-center justify-center border border-[#1f1f1f] bg-white px-6 text-[17px] font-semibold text-[#221813] transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:border-[#d9d0c8] disabled:text-[#aaa29a]",
+                        "inline-flex h-14 items-center justify-center rounded-[8px] border border-[#1f1f1f] bg-white px-6 text-[17px] font-semibold text-[#221813] transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:border-[#d9d0c8] disabled:text-[#aaa29a]",
                         isCartAnimating ? "animate-[cartButtonPulse_680ms_ease-out]" : "",
                       ].join(" ")}
                     >
@@ -1044,15 +1044,15 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 border-t border-[#efefef] pt-4">
-                    <button type="button" onClick={shareProduct} className="inline-flex h-12 items-center justify-center gap-2 border border-[#e5e5e5] bg-[#fafafa] text-[14px] font-medium text-[#333] transition hover:-translate-y-0.5 hover:border-[#999]">
+                    <button type="button" onClick={shareProduct} className="inline-flex h-12 items-center justify-center gap-2 rounded-[8px] border border-[#e5e5e5] bg-[#fafafa] text-[14px] font-medium text-[#333] transition hover:-translate-y-0.5 hover:border-[#999]">
                       <Share2 className="h-4 w-4 transition group-hover:rotate-12" />
                       Partager
                     </button>
-                    <button type="button" onClick={toggleFavorite} className="inline-flex h-12 items-center justify-center gap-2 border border-[#e5e5e5] bg-[#fafafa] text-[14px] font-medium text-[#333] transition hover:-translate-y-0.5 hover:border-[#999]">
+                    <button type="button" onClick={toggleFavorite} className="inline-flex h-12 items-center justify-center gap-2 rounded-[8px] border border-[#e5e5e5] bg-[#fafafa] text-[14px] font-medium text-[#333] transition hover:-translate-y-0.5 hover:border-[#999]">
                       <Heart className={["h-4 w-4", isFavorite ? "fill-current text-[#f06f12]" : ""].join(" ")} />
                       Favoris
                     </button>
-                    <div className="inline-flex h-12 items-center justify-center gap-1 border border-[#efefef] bg-[#fafafa] text-[13px] font-medium text-[#555]">
+                    <div className="inline-flex h-12 items-center justify-center gap-1 rounded-[8px] border border-[#efefef] bg-[#fafafa] text-[13px] font-medium text-[#555]">
                       <Star className="h-4 w-4 fill-current text-[#f5b301]" />
                       Avis 4.8
                     </div>
@@ -1065,7 +1065,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-6">
-            <article className="border border-[#e5e5e5] bg-white p-6">
+            <article className="rounded-[8px] border border-[#eceff3] bg-white p-6 shadow-[0_10px_28px_rgba(17,24,39,0.05)]">
               <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#907e70]">Description</div>
               <h2 className="mt-3 text-[24px] font-bold text-[#221813] sm:text-[28px]">Présentation détaillée</h2>
               <div className="mt-6 grid gap-4">
@@ -1077,12 +1077,12 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               </div>
             </article>
 
-            <article className="border border-[#e5e5e5] bg-white p-6">
+            <article className="rounded-[8px] border border-[#eceff3] bg-white p-6 shadow-[0_10px_28px_rgba(17,24,39,0.05)]">
               <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#907e70]">Caractéristiques</div>
               <h2 className="mt-3 text-[24px] font-bold text-[#221813] sm:text-[28px]">Fiche technique</h2>
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
                 {characteristics.map((item) => (
-                  <div key={`${item.label}-${item.value}`} className="border border-[#efefef] bg-[#fafafa] px-5 py-4">
+                  <div key={`${item.label}-${item.value}`} className="rounded-[8px] border border-[#efefef] bg-[#fafafa] px-5 py-4">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#94806f]">{item.label}</div>
                     <div className="mt-2 text-[16px] font-semibold leading-6 text-[#261d17]">{item.value}</div>
                   </div>
@@ -1090,12 +1090,12 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               </div>
             </article>
 
-            <article className="border border-[#e5e5e5] bg-white p-6">
+            <article className="rounded-[8px] border border-[#eceff3] bg-white p-6 shadow-[0_10px_28px_rgba(17,24,39,0.05)]">
               <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#907e70]">Confiance AfriPay</div>
               <h2 className="mt-3 text-[24px] font-bold text-[#221813] sm:text-[28px]">Ce que vous validez vraiment</h2>
               <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {trustSignals.map((item) => (
-                  <div key={item.label} className="rounded-[18px] border border-[#efefef] bg-[linear-gradient(180deg,#ffffff_0%,#faf7f3_100%)] px-5 py-4">
+                  <div key={item.label} className="rounded-[8px] border border-[#efefef] bg-[#fafafa] px-5 py-4">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#94806f]">{item.label}</div>
                     <div className="mt-2 text-[15px] font-semibold leading-6 text-[#261d17]">{item.value}</div>
                   </div>
@@ -1103,11 +1103,11 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               </div>
             </article>
 
-            <article className="border border-[#e5e5e5] bg-white p-6">
+            <article className="rounded-[8px] border border-[#eceff3] bg-white p-6 shadow-[0_10px_28px_rgba(17,24,39,0.05)]">
               <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#907e70]">Service AfriPay</div>
               <div className="mt-6 grid gap-4 md:grid-cols-3">
                 {serviceHighlights.map((item) => (
-                  <div key={item.title} className="border border-[#efefef] bg-[#fafafa] px-5 py-5">
+                  <div key={item.title} className="rounded-[8px] border border-[#efefef] bg-[#fafafa] px-5 py-5">
                     <div className="text-[18px] font-bold text-[#221813]">{item.title}</div>
                     <p className="mt-3 text-[14px] leading-6 text-[#5f5145]">{item.description}</p>
                   </div>
@@ -1117,13 +1117,13 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
           </div>
 
           <div className="space-y-6 xl:sticky xl:top-6 xl:self-start">
-            <article className="border border-[#e5e5e5] bg-white p-5">
+            <article className="rounded-[8px] border border-[#eceff3] bg-white p-5 shadow-[0_10px_28px_rgba(17,24,39,0.05)]">
               <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#907e70]">Vendu par</div>
               <div className="mt-3 text-[22px] font-bold text-[#221813]">{storefrontSellerName}</div>
               <div className="mt-2 text-[14px] text-[#6c5e52]">{storefrontSellerLocation}</div>
               <div className="mt-5 space-y-3">
                 {supplierMetrics.map((metric) => (
-                  <div key={metric.label} className="flex items-center justify-between gap-4 bg-[#fafafa] px-4 py-3">
+                  <div key={metric.label} className="flex items-center justify-between gap-4 rounded-[8px] bg-[#fafafa] px-4 py-3">
                     <span className="text-[13px] font-medium text-[#746659]">{metric.label}</span>
                     <span className="text-[14px] font-semibold text-[#241b15]">{metric.value}</span>
                   </div>
@@ -1131,12 +1131,12 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               </div>
             </article>
 
-            <article className="border border-[#e5e5e5] bg-white p-5">
+            <article className="rounded-[8px] border border-[#eceff3] bg-white p-5 shadow-[0_10px_28px_rgba(17,24,39,0.05)]">
               <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#907e70]">Paiements acceptés</div>
               <div className="mt-5 grid gap-3">
                 {paymentMethods.map((method) => (
-                  <div key={method.label} className="flex items-center gap-3 bg-[#fafafa] px-4 py-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#221813] ring-1 ring-[#ece8e2]">
+                  <div key={method.label} className="flex items-center gap-3 rounded-[8px] bg-[#fafafa] px-4 py-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-white text-[#221813] ring-1 ring-[#ece8e2]">
                       {method.icon}
                     </div>
                     <div className="text-[14px] font-semibold text-[#221813]">{method.label}</div>
@@ -1148,7 +1148,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
         </section>
 
         {relatedProducts.length > 0 ? (
-          <section className="border border-[#e5e5e5] bg-white p-6">
+          <section className="rounded-[8px] border border-[#eceff3] bg-white p-6 shadow-[0_10px_28px_rgba(17,24,39,0.05)]">
             <div>
               <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#907e70]">Articles similaires</div>
               <h2 className="mt-2 text-[28px] font-bold text-[#221813]">Articles similaires</h2>
@@ -1158,9 +1158,9 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 <Link
                   key={relatedProduct.slug}
                   href={`/products/${relatedProduct.slug}`}
-                  className="group border border-[#efefef] bg-white p-3 transition hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(0,0,0,0.08)] sm:p-4"
+                  className="group overflow-hidden rounded-[8px] border border-[#efefef] bg-white p-3 transition hover:-translate-y-0.5 hover:border-[#ff8a3d] hover:shadow-[0_10px_24px_rgba(0,0,0,0.08)] sm:p-4"
                 >
-                  <div className="relative aspect-square overflow-hidden bg-[#fafafa]">
+                  <div className="relative aspect-square overflow-hidden rounded-[8px] bg-[#fafafa]">
                     <Image src={relatedProduct.image} alt={relatedProduct.title} fill sizes="(max-width: 1280px) 50vw, 25vw" className="object-cover transition duration-500 group-hover:scale-[1.04]" />
                   </div>
                   <div className="mt-3 line-clamp-2 text-[13px] font-semibold leading-5 text-[#221813] sm:mt-4 sm:text-[16px] sm:leading-6">{relatedProduct.title}</div>
@@ -1174,18 +1174,18 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
       {isImageLightboxOpen ? (
         <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/88 p-3 sm:p-6">
-          <button type="button" onClick={() => setIsImageLightboxOpen(false)} className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/35 text-white transition hover:border-white/50 sm:right-6 sm:top-6" aria-label="Fermer l'image agrandie">
+          <button type="button" onClick={() => setIsImageLightboxOpen(false)} className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-white/20 bg-black/35 text-white transition hover:border-white/50 sm:right-6 sm:top-6" aria-label="Fermer l'image agrandie">
             <X className="h-5 w-5" />
           </button>
 
           {product.gallery.length > 1 ? (
-            <button type="button" onClick={goToPreviousImage} className="absolute left-3 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/35 text-white transition hover:border-white/50 sm:left-6" aria-label="Image précédente">
+            <button type="button" onClick={goToPreviousImage} className="absolute left-3 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-[8px] border border-white/20 bg-black/35 text-white transition hover:border-white/50 sm:left-6" aria-label="Image précédente">
               <ChevronRight className="h-5 w-5 rotate-180" />
             </button>
           ) : null}
 
           <div className="flex max-h-full w-full max-w-[1280px] flex-col items-center gap-4">
-            <div className="relative h-[70vh] w-full overflow-hidden rounded-[22px] bg-[#111] sm:h-[78vh]">
+            <div className="relative h-[70vh] w-full overflow-hidden rounded-[8px] bg-[#111] sm:h-[78vh]">
               <Image
                 src={product.gallery[activeImage] ?? product.gallery[0]}
                 alt={`${product.title} - vue agrandie`}
@@ -1197,14 +1197,14 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
             </div>
 
             {product.gallery.length > 1 ? (
-              <div className="flex max-w-full gap-2 overflow-x-auto rounded-full bg-black/35 px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex max-w-full gap-2 overflow-x-auto rounded-[8px] bg-black/35 px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {product.gallery.map((image, index) => (
                   <button
                     key={`${image}-lightbox-${index}`}
                     type="button"
                     onClick={() => setActiveImage(index)}
                     className={[
-                      "relative h-[62px] min-w-[62px] overflow-hidden rounded-[14px] ring-2 transition",
+                      "relative h-[62px] min-w-[62px] overflow-hidden rounded-[8px] ring-2 transition",
                       activeImage === index ? "ring-[#ff6a00]" : "ring-transparent hover:ring-white/40",
                     ].join(" ")}
                   >
@@ -1216,7 +1216,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
           </div>
 
           {product.gallery.length > 1 ? (
-            <button type="button" onClick={goToNextImage} className="absolute right-3 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/35 text-white transition hover:border-white/50 sm:right-6" aria-label="Image suivante">
+            <button type="button" onClick={goToNextImage} className="absolute right-3 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-[8px] border border-white/20 bg-black/35 text-white transition hover:border-white/50 sm:right-6" aria-label="Image suivante">
               <ChevronRight className="h-5 w-5" />
             </button>
           ) : null}
@@ -1225,7 +1225,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
       {cartToastVisible ? (
         <div className="pointer-events-none fixed bottom-[calc(var(--mobile-bottom-nav-height)+var(--mobile-floating-cta-height)+92px)] right-4 z-[170] sm:bottom-8 sm:right-8">
-          <div className="flex items-center gap-2 rounded-full bg-[#161616] px-4 py-3 text-[13px] font-semibold text-white shadow-[0_18px_38px_rgba(0,0,0,0.24)] animate-[cartToastSlide_1.8s_ease-out_forwards] sm:px-5 sm:text-[14px]">
+          <div className="flex items-center gap-2 rounded-[8px] bg-[#161616] px-4 py-3 text-[13px] font-semibold text-white shadow-[0_18px_38px_rgba(0,0,0,0.24)] animate-[cartToastSlide_1.8s_ease-out_forwards] sm:px-5 sm:text-[14px]">
             <ShoppingCart className="h-4 w-4 text-[#ff8c2a]" />
             Ajouté au panier
           </div>

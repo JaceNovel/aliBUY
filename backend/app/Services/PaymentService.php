@@ -18,6 +18,7 @@ class PaymentService
         protected MonerooService $moneroo,
         protected FedaPayService $fedapay,
         protected PartnerSettlementService $partnerSettlement,
+        protected EmailAutomationService $emails,
     ) {
     }
 
@@ -45,6 +46,7 @@ class PaymentService
             ];
         }
 
+        $previousPaymentStatus = (string) $order->payment_status;
         $payload = match ($provider) {
             'fedapay' => $this->fedapay->initialize($this->buildGatewayPayload($order)),
             default => $this->moneroo->initialize($this->buildGatewayPayload($order)),
@@ -78,6 +80,10 @@ class PaymentService
             'payment_provider_payload' => $payload,
         ])->save();
 
+        if (! in_array($previousPaymentStatus, ['initialized', 'pending'], true)) {
+            $this->emails->sendPaymentInitialized($order->loadMissing('user'));
+        }
+
         Log::channel('payment')->info('payment.initialized', [
             'order_id' => $order->id,
             'order_number' => $order->order_number,
@@ -104,6 +110,7 @@ class PaymentService
 
         $status = (string) ($payload['status'] ?? $payload['data']['status'] ?? 'pending');
         $normalizedStatus = $this->normalizePaidStatus($status);
+        $previousPaymentStatus = (string) $order->payment_status;
 
         Payment::query()
             ->where('order_id', $order->id)
@@ -123,6 +130,10 @@ class PaymentService
         ])->save();
 
         $this->partnerSettlement->settlePaidOrder($order->fresh(['partnerOrder.partner', 'payments']));
+
+        if ($normalizedStatus === 'paid' && $previousPaymentStatus !== 'paid') {
+            $this->emails->sendPaymentConfirmed($order->loadMissing('user'));
+        }
 
         Log::channel('payment')->info('payment.verified', [
             'order_id' => $order->id,
@@ -171,6 +182,7 @@ class PaymentService
         }
 
         $status = $this->normalizePaidStatus((string) ($payload['status'] ?? $payload['data']['status'] ?? 'pending'));
+        $previousPaymentStatus = (string) ($payment->order?->payment_status ?? '');
         $payment->update([
             'status' => $status,
             'payload' => $payload,
@@ -186,6 +198,10 @@ class PaymentService
 
         if ($payment->order) {
             $this->partnerSettlement->settlePaidOrder($payment->order->fresh(['partnerOrder.partner', 'payments']));
+
+            if ($status === 'paid' && $previousPaymentStatus !== 'paid') {
+                $this->emails->sendPaymentConfirmed($payment->order->loadMissing('user'));
+            }
         }
 
         Log::channel('payment')->info('payment.webhook.received', [

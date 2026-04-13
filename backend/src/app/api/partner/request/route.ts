@@ -16,6 +16,9 @@ export async function POST(request: Request) {
     headers: await buildServerForwardHeaders({
       accept: "application/json",
       "content-type": "application/json",
+    }, {
+      includeCookies: false,
+      includeBrowserOriginHeaders: false,
     }),
     body: JSON.stringify({
       company_name: typeof payload?.companyName === "string" ? payload.companyName : payload?.company_name,

@@ -14,10 +14,6 @@ export const revalidate = 0;
 
 const categoryIcons = [Flame, Shirt, Watch, Bike, PackageCheck, Sparkles, Truck, RefreshCcw];
 
-function formatCompactMetric(product: { soldLabel: string; transactionsLabel: string; responseTime: string }) {
-  return normalizeStorefrontText(product.soldLabel || product.transactionsLabel || product.responseTime);
-}
-
 export default async function ModePage() {
   const [pricing, catalogProducts, categories] = await Promise.all([
     getPricingContext(),
@@ -63,8 +59,8 @@ export default async function ModePage() {
                     key={category.slug}
                     href={category.href}
                     className={[
-                      "flex min-h-[60px] items-center gap-3 rounded-[4px] border px-3 py-2 transition hover:border-[#ffb187] hover:bg-[#fff7f1]",
-                      index === 0 ? "border-[#1f2430] bg-[#1f2430] text-white" : "border-[#efefef] bg-[#fafafa] text-[#222]",
+                      "flex min-h-[60px] items-center gap-3 rounded-[4px] border px-3 py-2 transition hover:border-[#ffb187]",
+                      index === 0 ? "border-[#1f2430] bg-[#1f2430] text-white hover:bg-[#1f2430]" : "border-[#efefef] bg-[#fafafa] text-[#222] hover:bg-[#fff7f1]",
                     ].join(" ")}
                   >
                     <div className={[
@@ -73,7 +69,10 @@ export default async function ModePage() {
                     ].join(" ")}>
                       <Icon className="h-4 w-4" />
                     </div>
-                    <span className="line-clamp-2 text-[11px] font-semibold leading-4 sm:text-[12px]">{category.title}</span>
+                    <span className={[
+                      "line-clamp-2 text-[11px] font-semibold leading-4 sm:text-[12px]",
+                      index === 0 ? "text-white" : "text-[#222]",
+                    ].join(" ")}>{category.title}</span>
                   </Link>
                 );
               })}
@@ -93,7 +92,6 @@ export default async function ModePage() {
                     <div className="line-clamp-2 min-h-[32px] text-[10px] font-semibold leading-4 text-[#222] sm:text-[11px]">{product.shortTitle}</div>
                     {index % 3 === 0 ? <div className="mt-1 text-[9px] font-semibold text-[#ef4444]">Stock faible</div> : null}
                     <div className="mt-1 line-clamp-1 text-[9px] text-[#6b7280]">{normalizeStorefrontText(product.supplierName)}</div>
-                    <div className="mt-1 line-clamp-1 text-[9px] text-[#6b7280]">{formatCompactMetric(product)}</div>
                     <div className="mt-1 text-[12px] font-black tracking-[-0.03em] text-[#111827] sm:text-[13px]">{pricing.formatPrice(product.minUsd)}</div>
                   </div>
                 </Link>
@@ -128,7 +126,6 @@ export default async function ModePage() {
                   <div className="line-clamp-2 min-h-[32px] text-[10px] font-semibold leading-4 text-[#222] sm:text-[11px]">{product.shortTitle}</div>
                   {index % 4 === 1 ? <div className="mt-1 text-[9px] font-semibold text-[#ef4444]">Stock faible</div> : null}
                   <div className="mt-1 line-clamp-1 text-[9px] text-[#6b7280]">{normalizeStorefrontText(product.supplierName)}</div>
-                  <div className="mt-1 line-clamp-1 text-[9px] text-[#6b7280]">{formatCompactMetric(product)}</div>
                   <div className="mt-1 text-[12px] font-black tracking-[-0.03em] text-[#111827] sm:text-[13px]">{pricing.formatPrice(product.minUsd)}</div>
                 </div>
               </Link>
