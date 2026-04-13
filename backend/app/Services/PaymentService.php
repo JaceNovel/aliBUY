@@ -19,6 +19,7 @@ class PaymentService
         protected FedaPayService $fedapay,
         protected PartnerSettlementService $partnerSettlement,
         protected EmailAutomationService $emails,
+        protected ManyChatService $manychat,
     ) {
     }
 
@@ -131,8 +132,8 @@ class PaymentService
 
         $this->partnerSettlement->settlePaidOrder($order->fresh(['partnerOrder.partner', 'payments']));
 
-        if ($normalizedStatus === 'paid' && $previousPaymentStatus !== 'paid') {
-            $this->emails->sendPaymentConfirmed($order->loadMissing('user'));
+        if ($normalizedStatus === 'paid') {
+            $this->sendPaymentConfirmedAutomations($order->loadMissing('user'), $previousPaymentStatus !== 'paid');
         }
 
         Log::channel('payment')->info('payment.verified', [
@@ -199,8 +200,8 @@ class PaymentService
         if ($payment->order) {
             $this->partnerSettlement->settlePaidOrder($payment->order->fresh(['partnerOrder.partner', 'payments']));
 
-            if ($status === 'paid' && $previousPaymentStatus !== 'paid') {
-                $this->emails->sendPaymentConfirmed($payment->order->loadMissing('user'));
+            if ($status === 'paid') {
+                $this->sendPaymentConfirmedAutomations($payment->order->loadMissing('user'), $previousPaymentStatus !== 'paid');
             }
         }
 
@@ -213,14 +214,40 @@ class PaymentService
         return ['received' => true];
     }
 
+    protected function sendPaymentConfirmedAutomations(Order $order, bool $sendEmail): void
+    {
+        if ($sendEmail) {
+            $this->emails->sendPaymentConfirmed($order);
+        }
+
+        $this->manychat->sendOrderPaidFlow($order->loadMissing('user'));
+    }
+
     protected function buildGatewayPayload(Order $order): array
     {
+        $freeDeal = is_array($order->meta) && is_array($order->meta['freeDeal'] ?? null)
+            ? $order->meta['freeDeal']
+            : null;
+        $amount = (float) $order->total_price;
+        $currency = $order->payment_currency ?? 'XOF';
+        $returnUrl = rtrim((string) env('PAYMENT_RETURN_URL', config('services.frontend.url').'/orders'), '/').'?orderId='.$order->id;
+        $cancelUrl = (string) env('PAYMENT_CANCEL_URL', config('services.frontend.url').'/cart');
+        $description = 'Paiement commande sourcing '.$order->order_number;
+
+        if ($freeDeal !== null) {
+            $amount = (float) ($freeDeal['fixedPriceEur'] ?? 10);
+            $currency = 'EUR';
+            $returnUrl = rtrim((string) config('services.frontend.url'), '/').'/articles-gratuits/paiement?orderId='.$order->id;
+            $cancelUrl = rtrim((string) config('services.frontend.url'), '/').'/articles-gratuits';
+            $description = 'Paiement lot articles gratuits '.$order->order_number;
+        }
+
         $payload = [
-            'amount' => (float) $order->total_price,
-            'currency' => $order->payment_currency ?? 'XOF',
-            'description' => 'Paiement commande sourcing '.$order->order_number,
-            'return_url' => rtrim((string) env('PAYMENT_RETURN_URL', config('services.frontend.url').'/orders'), '/').'?orderId='.$order->id,
-            'cancel_url' => (string) env('PAYMENT_CANCEL_URL', config('services.frontend.url').'/cart'),
+            'amount' => $amount,
+            'currency' => $currency,
+            'description' => $description,
+            'return_url' => $returnUrl,
+            'cancel_url' => $cancelUrl,
             'customer' => [
                 'email' => $order->customer_email,
                 'first_name' => $order->customer_name,

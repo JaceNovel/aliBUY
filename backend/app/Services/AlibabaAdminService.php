@@ -975,8 +975,15 @@ class AlibabaAdminService
         $sourceProductId = $this->stringOrFallback($source['sourceProductId'] ?? $source['productId'] ?? null, (string) Str::uuid());
         $title = $this->stringOrFallback($source['title'] ?? $source['shortTitle'] ?? null, 'Produit AliExpress');
         $shortTitle = $this->stringOrFallback($source['shortTitle'] ?? null, $title);
-        $gallery = $this->normalizeGallery($source['gallery'] ?? null, $source['image'] ?? $source['imageUrl'] ?? null);
         $rawPayload = is_array($source['rawPayload'] ?? null) ? $source['rawPayload'] : $source;
+        $rawGallery = $this->extractRawMediaGallery($rawPayload);
+        $gallery = $this->normalizeGallery([
+            $source['gallery'] ?? null,
+            $rawGallery,
+        ], $source['image'] ?? $source['imageUrl'] ?? ($rawGallery[0] ?? null));
+        $primaryImage = $this->normalizeMediaUrl($this->stringOrFallback($source['image'] ?? $source['imageUrl'] ?? ($gallery[0] ?? null), '/globe.svg'));
+        $videoUrl = $this->normalizeMediaUrl($this->stringOrNull($source['videoUrl'] ?? null) ?? $this->extractRawVideoUrl($rawPayload));
+        $videoPoster = $this->normalizeMediaUrl($this->stringOrNull($source['videoPoster'] ?? null) ?? $this->extractRawVideoPoster($rawPayload) ?? $primaryImage);
         $campaignMode = $this->stringOrNull($input['campaignMode'] ?? null);
         if ($campaignMode !== null) {
             $rawPayload['afripayCampaign'] = ['mode' => $campaignMode];
@@ -1002,10 +1009,10 @@ class AlibabaAdminService
             'description' => $this->stringOrFallback($source['description'] ?? null, $title),
             'query' => $this->stringOrFallback($input['manualSeedQuery'] ?? $input['query'] ?? null, $sourceProductId),
             'keywords' => $this->normalizeStringArray($source['keywords'] ?? null),
-            'image' => $this->stringOrFallback($source['image'] ?? $source['imageUrl'] ?? ($gallery[0] ?? null), '/globe.svg'),
+            'image' => $primaryImage,
             'gallery' => $gallery,
-            'videoUrl' => $this->stringOrNull($source['videoUrl'] ?? null),
-            'videoPoster' => $this->stringOrNull($source['videoPoster'] ?? null),
+            'videoUrl' => $videoUrl,
+            'videoPoster' => $videoPoster,
             'packaging' => $this->stringOrFallback($source['packaging'] ?? null, 'Carton'),
             'packageDimensionsCm' => is_array($source['packageDimensionsCm'] ?? null) ? $source['packageDimensionsCm'] : null,
             'itemWeightGrams' => $this->toInt($source['itemWeightGrams'] ?? 0),
@@ -1048,10 +1055,19 @@ class AlibabaAdminService
     private function upsertCatalogProductFromImported(array $item): void
     {
         $resolvedCategory = $this->resolveCatalogCategoryData($item);
+        $rawPayload = is_array($item['rawPayload'] ?? null) ? $item['rawPayload'] : $item;
+        $rawGallery = $this->extractRawMediaGallery($rawPayload);
+        $gallery = $this->normalizeGallery([
+            $item['gallery'] ?? null,
+            $rawGallery,
+        ], $item['image'] ?? ($rawGallery[0] ?? null));
+        $image = $this->normalizeMediaUrl($this->stringOrFallback($item['image'] ?? ($gallery[0] ?? null), '/globe.svg'));
+        $videoUrl = $this->normalizeMediaUrl($this->stringOrNull($item['videoUrl'] ?? null) ?? $this->extractRawVideoUrl($rawPayload));
+        $videoPoster = $this->normalizeMediaUrl($this->stringOrNull($item['videoPoster'] ?? null) ?? $this->extractRawVideoPoster($rawPayload) ?? $image);
         $metadata = [
             'shortTitle' => $item['shortTitle'] ?? $item['title'],
-            'videoUrl' => $item['videoUrl'] ?? null,
-            'videoPoster' => $item['videoPoster'] ?? null,
+            'videoUrl' => $videoUrl,
+            'videoPoster' => $videoPoster,
             'maxUsd' => $item['maxUsd'] ?? null,
             'moqVerified' => $item['moqVerified'] ?? true,
             'weightVerified' => $item['weightVerified'] ?? (($item['itemWeightGrams'] ?? 0) > 0),
@@ -1092,8 +1108,8 @@ class AlibabaAdminService
             'price' => round($this->toFloat($item['minUsd'] ?? 0), 2),
             'category' => $resolvedCategory['slug'],
             'stock' => max(0, $this->toInt($item['inventory'] ?? 0)),
-            'image' => (string) ($item['image'] ?? '/globe.svg'),
-            'gallery' => is_array($item['gallery'] ?? null) ? array_values($item['gallery']) : [],
+            'image' => $image,
+            'gallery' => $gallery,
             'supplier_name' => (string) ($item['supplierName'] ?? 'AliExpress Supplier'),
             'supplier_location' => (string) ($item['supplierLocation'] ?? 'China'),
             'moq' => max(1, $this->toInt($item['moq'] ?? 1)),
@@ -1368,7 +1384,10 @@ class AlibabaAdminService
                 if (json_last_error() === JSON_ERROR_NONE) {
                     $normalized = $this->normalizeGallery($decoded, $fallbackImage);
                 } else {
-                    $normalized = array_values(array_filter(array_map('trim', preg_split('/[;,|]/', $trimmed) ?: [])));
+                    $normalized = array_values(array_filter(array_map(
+                        fn ($entry) => $this->normalizeMediaUrl(trim((string) $entry)),
+                        preg_split('/[;,|]/', $trimmed) ?: []
+                    )));
                 }
             }
         } elseif (is_array($gallery)) {
@@ -1380,12 +1399,12 @@ class AlibabaAdminService
 
                 $value = trim((string) $image);
                 if ($value !== '') {
-                    $normalized[] = $value;
+                    $normalized[] = $this->normalizeMediaUrl($value);
                 }
             }
         }
 
-        $fallback = trim((string) $fallbackImage);
+        $fallback = $this->normalizeMediaUrl(trim((string) $fallbackImage));
         if ($normalized === [] && $fallback !== '') {
             $normalized[] = $fallback;
         }
@@ -1395,6 +1414,124 @@ class AlibabaAdminService
         }
 
         return array_values(array_unique($normalized));
+    }
+
+    private function normalizeMediaUrl(?string $value): string
+    {
+        $normalized = trim((string) $value);
+        if ($normalized === '') {
+            return '';
+        }
+
+        if (str_starts_with($normalized, '//')) {
+            $normalized = 'https:'.$normalized;
+        }
+
+        return preg_replace('/(\.(?:jpg|jpeg|png|webp))_\d+x\d+\1$/i', '$1', $normalized) ?? $normalized;
+    }
+
+    private function collectRawMediaUrls($value, int $depth = 0, string $keyHint = ''): array
+    {
+        if ($depth > 6 || $value === null) {
+            return [];
+        }
+
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            if ($trimmed === '') {
+                return [];
+            }
+
+            $looksLikeMedia = preg_match('/^(https?:)?\/\//i', $trimmed) === 1
+                || str_starts_with($trimmed, '/');
+            $looksLikeImage = preg_match('/\.(?:jpg|jpeg|png|webp)(?:[?_].*)?$/i', $trimmed) === 1;
+
+            return ($looksLikeMedia && $looksLikeImage) ? [$this->normalizeMediaUrl($trimmed)] : [];
+        }
+
+        if (is_array($value)) {
+            $urls = [];
+            foreach ($value as $nestedKey => $nestedValue) {
+                $nextKeyHint = trim($keyHint.' '.(is_string($nestedKey) ? $nestedKey : ''));
+                if (is_string($nestedKey) && preg_match('/video|mp4|m3u8|webm/i', $nestedKey) === 1) {
+                    continue;
+                }
+
+                if (is_string($nestedKey) && preg_match('/image|img|photo|picture|gallery|poster|main_image|multi_image|url/i', $nestedKey) !== 1 && $depth >= 2) {
+                    continue;
+                }
+
+                $urls = array_merge($urls, $this->collectRawMediaUrls($nestedValue, $depth + 1, $nextKeyHint));
+            }
+
+            return $urls;
+        }
+
+        return [];
+    }
+
+    private function extractRawMediaGallery($rawPayload): array
+    {
+        return array_values(array_unique(array_filter($this->collectRawMediaUrls($rawPayload))));
+    }
+
+    private function extractRawVideoUrl($value, int $depth = 0): ?string
+    {
+        if ($depth > 6 || $value === null) {
+            return null;
+        }
+
+        if (is_string($value)) {
+            $normalized = $this->normalizeMediaUrl($value);
+            return preg_match('/\.(?:mp4|m3u8|webm)(?:\?|$)/i', $normalized) === 1 ? $normalized : null;
+        }
+
+        if (! is_array($value)) {
+            return null;
+        }
+
+        foreach ($value as $key => $nestedValue) {
+            if (is_string($key) && preg_match('/video|mp4|m3u8|webm/i', $key) === 1) {
+                $candidate = $this->extractRawVideoUrl($nestedValue, $depth + 1);
+                if ($candidate !== null) {
+                    return $candidate;
+                }
+            }
+        }
+
+        foreach ($value as $nestedValue) {
+            $candidate = $this->extractRawVideoUrl($nestedValue, $depth + 1);
+            if ($candidate !== null) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function extractRawVideoPoster($value, int $depth = 0): ?string
+    {
+        if ($depth > 6 || ! is_array($value)) {
+            return null;
+        }
+
+        foreach ($value as $key => $nestedValue) {
+            if (is_string($key) && preg_match('/poster|cover|thumbnail|thumb/i', $key) === 1) {
+                $gallery = $this->extractRawMediaGallery($nestedValue);
+                if ($gallery !== []) {
+                    return $gallery[0];
+                }
+            }
+        }
+
+        foreach ($value as $nestedValue) {
+            $candidate = $this->extractRawVideoPoster($nestedValue, $depth + 1);
+            if ($candidate !== null) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function normalizeVariantGroups($value): array

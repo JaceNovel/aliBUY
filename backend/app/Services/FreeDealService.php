@@ -34,6 +34,29 @@ class FreeDealService
         ];
     }
 
+    public function adminConfig(): array
+    {
+        return $this->config();
+    }
+
+    public function saveAdminConfig(array $input): array
+    {
+        $current = $this->config();
+        $next = $this->normalizeConfig([
+            ...$current,
+            ...$input,
+            'id' => 'free-deal-default',
+            'createdAt' => $current['createdAt'] ?? now()->toIso8601String(),
+            'updatedAt' => now()->toIso8601String(),
+        ]);
+
+        $path = base_path('data/site/free-deal-config.json');
+        File::ensureDirectoryExists(dirname($path));
+        File::put($path, json_encode($next, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES).PHP_EOL);
+
+        return $next;
+    }
+
     public function checkout(array $validated): array
     {
         $config = $this->config();
@@ -90,6 +113,10 @@ class FreeDealService
             'itemLimit' => $itemLimit,
             'referralGoal' => (int) ($config['referralGoal'] ?? 20),
         ];
+        $manychat = $this->manyChatContextFromCheckout($validated);
+        if ($manychat !== []) {
+            $meta['manychat'] = $manychat;
+        }
         $order->forceFill(['meta' => $meta])->save();
 
         $paymentPayload = $this->payments->initialize($order);
@@ -105,6 +132,7 @@ class FreeDealService
     {
         $path = base_path('data/site/free-deal-config.json');
         $default = [
+            'id' => 'free-deal-default',
             'enabled' => false,
             'pageTitle' => 'Articles gratuits',
             'heroBadge' => 'OFFRE TRAFIC',
@@ -122,6 +150,8 @@ class FreeDealService
             'compareAtMultiplier' => 1.55,
             'compareAtExtraEur' => 1.25,
             'productSlugs' => [],
+            'updatedAt' => now()->toIso8601String(),
+            'createdAt' => now()->toIso8601String(),
         ];
 
         if (! File::exists($path)) {
@@ -130,7 +160,43 @@ class FreeDealService
 
         $decoded = json_decode((string) File::get($path), true);
 
-        return is_array($decoded) ? array_merge($default, $decoded) : $default;
+        return is_array($decoded) ? $this->normalizeConfig(array_merge($default, $decoded)) : $default;
+    }
+
+    protected function normalizeConfig(array $config): array
+    {
+        $stringKeys = [
+            'id',
+            'pageTitle',
+            'heroBadge',
+            'heroTitle',
+            'heroSubtitle',
+            'bannerText',
+            'ctaLabel',
+            'shareTitle',
+            'shareDescription',
+            'dealTagText',
+            'productBadgeText',
+            'updatedAt',
+            'createdAt',
+        ];
+
+        foreach ($stringKeys as $key) {
+            $config[$key] = trim((string) ($config[$key] ?? ''));
+        }
+
+        $config['enabled'] = ($config['enabled'] ?? false) === true;
+        $config['itemLimit'] = max(7, min(25, (int) ($config['itemLimit'] ?? 7)));
+        $config['fixedPriceEur'] = round(max(0.5, (float) ($config['fixedPriceEur'] ?? 10)), 2);
+        $config['referralGoal'] = max(1, min(500, (int) ($config['referralGoal'] ?? 20)));
+        $config['compareAtMultiplier'] = round(max(1, (float) ($config['compareAtMultiplier'] ?? 1.55)), 2);
+        $config['compareAtExtraEur'] = round(max(0, (float) ($config['compareAtExtraEur'] ?? 1.25)), 2);
+        $config['productSlugs'] = array_values(array_unique(array_filter(array_map(
+            fn ($slug) => trim((string) $slug),
+            is_array($config['productSlugs'] ?? null) ? $config['productSlugs'] : []
+        ))));
+
+        return $config;
     }
 
     protected function products(array $slugs): array
@@ -161,5 +227,21 @@ class FreeDealService
     protected function fixedPriceFcfa(float $priceEur): int
     {
         return (int) round($priceEur * 655.957);
+    }
+
+    protected function manyChatContextFromCheckout(array $validated): array
+    {
+        $manychat = [
+            'subscriberId' => $this->normalizeOptionalString($validated['manychatSubscriberId'] ?? null),
+            'flowId' => $this->normalizeOptionalString($validated['manychatFlowId'] ?? null),
+            'paidTagId' => $this->normalizeOptionalString($validated['manychatPaidTagId'] ?? null),
+        ];
+
+        return array_filter($manychat, fn (string $value) => $value !== '');
+    }
+
+    protected function normalizeOptionalString(mixed $value): string
+    {
+        return is_scalar($value) ? trim((string) $value) : '';
     }
 }

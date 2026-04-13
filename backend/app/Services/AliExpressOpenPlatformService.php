@@ -382,7 +382,12 @@ class AliExpressOpenPlatformService
 
         if ($carrierCode === null) {
             $message = $this->extractOperationMessage($freightResult['responseBody']);
-            throw new RuntimeException($message !== null ? "Verification livraison DS impossible: {$message}" : "Aucune option de livraison AliExpress n'a ete retournee pour ce lot.");
+            $defaultCarrier = trim((string) env('ALIEXPRESS_DS_DEFAULT_LOGISTICS', ''));
+            if ($message === null && $defaultCarrier !== '') {
+                $carrierCode = $defaultCarrier;
+            } else {
+                throw new RuntimeException($message !== null ? "Verification livraison DS impossible: {$message}" : "Aucune option de livraison AliExpress n'a ete retournee pour ce lot.");
+            }
         }
 
         $buyNowPayload = [
@@ -1648,25 +1653,102 @@ class AliExpressOpenPlatformService
     private function resolveCarrierCode($freightResponseBody): ?string
     {
         $payload = $this->getSellerPayload($freightResponseBody);
-        $deliveryOptions = [];
-        if (is_array($payload['delivery_options'] ?? null)) {
-            $deliveryOptions = $payload['delivery_options'];
-        } elseif ($this->isAssoc($payload['delivery_options'] ?? null) && is_array($payload['delivery_options']['delivery_option_d_t_o'] ?? null)) {
-            $deliveryOptions = $payload['delivery_options']['delivery_option_d_t_o'];
-        }
-
-        foreach ($deliveryOptions as $option) {
+        foreach ($this->collectDeliveryOptions($payload) as $option) {
             if (! is_array($option)) {
                 continue;
             }
 
-            $vendorCode = $this->getString($option['code'] ?? $option['service_name'] ?? $option['logistics_service_name'] ?? $option['shipping_service'] ?? null);
+            $vendorCode = $this->getString($option['code']
+                ?? $option['service_name']
+                ?? $option['serviceName']
+                ?? $option['logistics_service_name']
+                ?? $option['logisticsServiceName']
+                ?? $option['shipping_service']
+                ?? $option['shippingService']
+                ?? $option['carrier_code']
+                ?? $option['carrierCode']
+                ?? $option['company']
+                ?? $option['company_name']
+                ?? null);
             if ($vendorCode !== null) {
                 return $vendorCode;
             }
         }
 
         return null;
+    }
+
+    private function collectDeliveryOptions($value, int $depth = 0): array
+    {
+        if ($depth > 6 || ! is_array($value)) {
+            return [];
+        }
+
+        if (! $this->isAssoc($value)) {
+            $options = [];
+            foreach ($value as $entry) {
+                if (is_array($entry) && $this->looksLikeDeliveryOption($entry)) {
+                    $options[] = $entry;
+                    continue;
+                }
+
+                $options = array_merge($options, $this->collectDeliveryOptions($entry, $depth + 1));
+            }
+
+            return $options;
+        }
+
+        $options = [];
+        foreach ([
+            'delivery_options',
+            'deliveryOptions',
+            'delivery_option_d_t_o',
+            'deliveryOptionDTO',
+            'delivery_option_dto',
+            'logistics_service_list',
+            'logisticsServiceList',
+            'shipping_options',
+            'shippingOptions',
+            'freight_options',
+            'freightOptions',
+        ] as $key) {
+            if (array_key_exists($key, $value)) {
+                $options = array_merge($options, $this->collectDeliveryOptions($value[$key], $depth + 1));
+            }
+        }
+
+        if ($this->looksLikeDeliveryOption($value)) {
+            $options[] = $value;
+        }
+
+        foreach ($value as $nested) {
+            $options = array_merge($options, $this->collectDeliveryOptions($nested, $depth + 1));
+        }
+
+        return $options;
+    }
+
+    private function looksLikeDeliveryOption(array $value): bool
+    {
+        foreach ([
+            'code',
+            'service_name',
+            'serviceName',
+            'logistics_service_name',
+            'logisticsServiceName',
+            'shipping_service',
+            'shippingService',
+            'carrier_code',
+            'carrierCode',
+            'company',
+            'company_name',
+        ] as $key) {
+            if ($this->getString($value[$key] ?? null) !== null) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function encodeOAuthState(string $accountId, string $redirectUri): string

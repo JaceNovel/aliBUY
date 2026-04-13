@@ -1,8 +1,8 @@
 import "server-only";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
-import { API_URL, buildApiUrl } from "@/lib/api";
+import { API_URL } from "@/lib/api";
 import { createAuthenticatedUserSession, getCurrentUser } from "@/lib/user-auth";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { getSourcingOrderMeta, type SourcingOrder } from "@/lib/alibaba-sourcing";
@@ -35,6 +35,15 @@ function hasExternalAdminApi() {
   }
 }
 
+async function buildAdminProxyUrl(path: string) {
+  const headerStore = await headers();
+  const host = headerStore.get("x-forwarded-host") || headerStore.get("host");
+  const proto = headerStore.get("x-forwarded-proto") || "https";
+  const origin = host ? `${proto}://${host}` : SITE_URL;
+
+  return new URL(path, origin).toString();
+}
+
 async function fetchAdminOrdersFromApi() {
   const sessionToken = (await cookies()).get(USER_SESSION_COOKIE)?.value
     ?? await getCurrentUser().then((user) => user ? createAuthenticatedUserSession(user) : null).catch(() => null);
@@ -42,7 +51,7 @@ async function fetchAdminOrdersFromApi() {
     return null;
   }
 
-  const response = await fetch(buildApiUrl("/api/admin/orders"), {
+  const response = await fetch(await buildAdminProxyUrl("/api/admin/orders"), {
     headers: {
       Cookie: `${USER_SESSION_COOKIE}=${encodeURIComponent(sessionToken)}`,
     },
@@ -68,7 +77,7 @@ async function fetchAdminOrderByIdFromApi(orderId: string) {
     return null;
   }
 
-  const response = await fetch(buildApiUrl(`/api/admin/orders/${encodeURIComponent(orderId)}`), {
+  const response = await fetch(await buildAdminProxyUrl(`/api/admin/orders/${encodeURIComponent(orderId)}`), {
     headers: {
       Cookie: `${USER_SESSION_COOKIE}=${encodeURIComponent(sessionToken)}`,
     },

@@ -170,12 +170,18 @@ class ProductService
     public function transformFeedItem(Product $product): array
     {
         $metadata = is_array($product->metadata) ? $product->metadata : [];
+        $gallery = is_array($product->gallery) && $product->gallery !== []
+            ? $product->gallery
+            : [$product->image ?? '/globe.svg'];
 
         return [
             'slug' => $product->slug,
             'title' => $product->title,
             'shortTitle' => (string) ($metadata['shortTitle'] ?? $product->title),
             'image' => (string) ($product->image ?? '/globe.svg'),
+            'gallery' => $gallery,
+            'videoUrl' => $metadata['videoUrl'] ?? null,
+            'videoPoster' => $metadata['videoPoster'] ?? null,
             'badge' => $product->badge,
             'minUsd' => (float) $product->price,
             'maxUsd' => $metadata['maxUsd'] ?? null,
@@ -193,13 +199,16 @@ class ProductService
     public function transformProduct(Product $product): array
     {
         $metadata = $product->metadata ?? [];
+        $gallery = is_array($product->gallery) && $product->gallery !== []
+            ? $product->gallery
+            : [$product->image ?? '/globe.svg'];
 
         return [
             'slug' => $product->slug,
             'title' => $product->title,
             'shortTitle' => $metadata['shortTitle'] ?? $product->title,
             'image' => (string) ($product->image ?? '/globe.svg'),
-            'gallery' => $product->gallery ?? [$product->image ?? '/globe.svg'],
+            'gallery' => $gallery,
             'videoUrl' => $metadata['videoUrl'] ?? null,
             'videoPoster' => $metadata['videoPoster'] ?? null,
             'badge' => $product->badge,

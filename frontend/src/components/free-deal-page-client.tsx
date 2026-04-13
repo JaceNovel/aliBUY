@@ -62,6 +62,12 @@ type CustomerFormState = {
   countryCode: string;
 };
 
+type ManyChatCheckoutContext = {
+  manychatSubscriberId?: string;
+  manychatFlowId?: string;
+  manychatPaidTagId?: string;
+};
+
 const INITIAL_FORM_STATE: CustomerFormState = {
   customerName: "",
   customerEmail: "",
@@ -87,6 +93,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
   const [feedback, setFeedback] = useState<string | null>(null);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
   const [showAddressForm, setShowAddressForm] = useState(false);
+  const [manychatContext, setManychatContext] = useState<ManyChatCheckoutContext>({});
 
   const isSelectable = access.status === "eligible" || access.status === "unlocked";
   const purchasedSlugSet = useMemo(
@@ -113,6 +120,26 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
         : isSelectionComplete
           ? "Adresse"
           : `Choisir ${remainingSelectionCount}`;
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const subscriberId = params.get("manychatSubscriberId")
+      || params.get("subscriberId")
+      || params.get("subscriber_id")
+      || params.get("mcsid");
+    const flowId = params.get("manychatFlowId") || params.get("flowId") || params.get("flow_id");
+    const paidTagId = params.get("manychatPaidTagId") || params.get("paidTagId") || params.get("paid_tag_id");
+
+    setManychatContext({
+      manychatSubscriberId: subscriberId?.trim() || undefined,
+      manychatFlowId: flowId?.trim() || undefined,
+      manychatPaidTagId: paidTagId?.trim() || undefined,
+    });
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -291,6 +318,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
         body: JSON.stringify({
           selectedSlugs,
           ...formState,
+          ...manychatContext,
         }),
       });
       const checkoutPayload = await checkoutResponse.json().catch(() => null);

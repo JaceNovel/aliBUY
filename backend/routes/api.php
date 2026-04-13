@@ -108,6 +108,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/admin/aliexpress/publish', [AlibabaAdminController::class, 'publish']);
     Route::post('/admin/aliexpress/purchase-orders', [AlibabaAdminController::class, 'purchaseOrders']);
     Route::post('/admin/aliexpress/purchase-orders/{orderId}/pay', [AlibabaAdminController::class, 'payPurchaseOrder']);
+    Route::get('/admin/free-deals', [FreeDealController::class, 'adminShow']);
+    Route::put('/admin/free-deals', [FreeDealController::class, 'adminSave']);
+    Route::post('/admin/free-deals', [FreeDealController::class, 'adminImport']);
     Route::get('/admin/partner-requests', [PartnerAdminController::class, 'index']);
     Route::post('/admin/partner-requests/{apiPartnerRequest}/approve', [PartnerAdminController::class, 'approve']);
     Route::post('/admin/partner-requests/{apiPartnerRequest}/reject', [PartnerAdminController::class, 'reject']);

@@ -64,4 +64,16 @@ return [
         'enabled' => env('EMAIL_AUTOMATION_ENABLED', true),
     ],
 
+    'manychat' => [
+        'base_url' => env('MANYCHAT_BASE_URL', 'https://api.manychat.com'),
+        'api_key' => env('MANYCHAT_API_KEY'),
+        'default_message_tag' => env('MANYCHAT_DEFAULT_MESSAGE_TAG', 'ACCOUNT_UPDATE'),
+        'order_confirmation_flow_id' => env('MANYCHAT_ORDER_CONFIRMATION_FLOW_ID'),
+        'paid_tag_id' => env('MANYCHAT_PAID_TAG_ID'),
+        'product_id_field' => env('MANYCHAT_CF_PRODUCT_ID'),
+        'amount_field' => env('MANYCHAT_CF_AMOUNT_ID'),
+        'order_number_field' => env('MANYCHAT_CF_ORDER_NUMBER_ID'),
+        'shipping_method_field' => env('MANYCHAT_CF_SHIPPING_METHOD_ID'),
+    ],
+
 ];
