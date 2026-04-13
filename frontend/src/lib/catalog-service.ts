@@ -1,6 +1,7 @@
 import { API_URL, buildApiUrl } from "@/lib/api";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { deriveVariantGroupsFromPricing, deriveVariantGroupsFromSkus, extractAlibabaVariantPricing, extractAlibabaVariantSkus } from "@/lib/product-variant-pricing";
+import { resolveCoherentItemWeightGrams, resolveCoherentPackageDimensionsCm } from "@/lib/product-weight";
 import { type ProductCatalogItem } from "@/lib/products-data";
 
 function normalizePackageDimensions(value: unknown) {
@@ -22,6 +23,19 @@ function normalizePackageDimensions(value: unknown) {
     widthCm,
     heightCm,
   };
+}
+
+function calculateLotCbm(packageDimensionsCm: NonNullable<ProductCatalogItem["packageDimensionsCm"]>) {
+  return ((packageDimensionsCm.lengthCm * packageDimensionsCm.widthCm * packageDimensionsCm.heightCm) / 1_000_000).toFixed(4);
+}
+
+function isPositiveLotCbm(value: string | undefined) {
+  if (!value) {
+    return false;
+  }
+
+  const parsed = Number(value.replace(",", "."));
+  return Number.isFinite(parsed) && parsed > 0;
 }
 
 async function fetchRemoteCatalogProducts() {
@@ -66,30 +80,58 @@ async function fetchRemoteCatalogProducts() {
       const maxUsd = typeof candidate.maxUsd === "number" && Number.isFinite(candidate.maxUsd) ? candidate.maxUsd : undefined;
       const moq = typeof candidate.moq === "number" && Number.isFinite(candidate.moq) && candidate.moq > 0 ? candidate.moq : 1;
       const unit = typeof candidate.unit === "string" && candidate.unit.trim() ? candidate.unit.trim() : "piece";
+      const shortTitle = typeof candidate.shortTitle === "string" && candidate.shortTitle.trim() ? candidate.shortTitle.trim() : title;
+      const query = typeof candidate.query === "string" && candidate.query.trim() ? candidate.query.trim() : undefined;
+      const keywords = Array.isArray(candidate.keywords)
+        ? candidate.keywords.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+        : [];
+      const categorySlug = typeof candidate.categorySlug === "string" && candidate.categorySlug.trim() ? candidate.categorySlug.trim() : undefined;
+      const categoryTitle = typeof candidate.categoryTitle === "string" && candidate.categoryTitle.trim() ? candidate.categoryTitle.trim() : undefined;
+      const categoryPath = Array.isArray(candidate.categoryPath)
+        ? candidate.categoryPath.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+        : undefined;
+      const specs = Array.isArray(candidate.specs) ? candidate.specs as ProductCatalogItem["specs"] : [];
+      const packaging = typeof candidate.packaging === "string" && candidate.packaging.trim() ? candidate.packaging.trim() : "Selon catalogue";
+      const rawLotCbm = typeof candidate.lotCbm === "string" && candidate.lotCbm.trim() ? candidate.lotCbm.trim() : undefined;
+      const rawPackageDimensionsCm = normalizePackageDimensions(candidate.packageDimensionsCm);
+      const weightContext = {
+        title,
+        shortTitle,
+        query,
+        keywords,
+        categorySlug,
+        categoryTitle,
+        categoryPath,
+        packaging,
+        unit,
+        specs: specs.map((spec) => `${spec.label} ${spec.value}`),
+        lotCbm: rawLotCbm,
+        moq,
+      };
+      const packageDimensionsCm = resolveCoherentPackageDimensionsCm(rawPackageDimensionsCm, weightContext);
+      const rawWeightGrams = typeof candidate.itemWeightGrams === "number" && Number.isFinite(candidate.itemWeightGrams) ? candidate.itemWeightGrams : undefined;
+      const itemWeightGrams = resolveCoherentItemWeightGrams(rawWeightGrams, weightContext);
+      const lotCbm = rawLotCbm && isPositiveLotCbm(rawLotCbm) ? rawLotCbm : calculateLotCbm(packageDimensionsCm);
 
       return [{
         slug,
         title,
-        shortTitle: typeof candidate.shortTitle === "string" && candidate.shortTitle.trim() ? candidate.shortTitle.trim() : title,
-        query: typeof candidate.query === "string" && candidate.query.trim() ? candidate.query.trim() : undefined,
-        keywords: Array.isArray(candidate.keywords)
-          ? candidate.keywords.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
-          : [],
-        categorySlug: typeof candidate.categorySlug === "string" && candidate.categorySlug.trim() ? candidate.categorySlug.trim() : undefined,
-        categoryTitle: typeof candidate.categoryTitle === "string" && candidate.categoryTitle.trim() ? candidate.categoryTitle.trim() : undefined,
-        categoryPath: Array.isArray(candidate.categoryPath)
-          ? candidate.categoryPath.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
-          : undefined,
+        shortTitle,
+        query,
+        keywords,
+        categorySlug,
+        categoryTitle,
+        categoryPath,
         image,
         gallery: Array.isArray(candidate.gallery)
           ? candidate.gallery.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
           : [image],
         videoUrl: typeof candidate.videoUrl === "string" && candidate.videoUrl.trim() ? candidate.videoUrl.trim() : undefined,
         videoPoster: typeof candidate.videoPoster === "string" && candidate.videoPoster.trim() ? candidate.videoPoster.trim() : undefined,
-        packaging: typeof candidate.packaging === "string" && candidate.packaging.trim() ? candidate.packaging.trim() : "Selon catalogue",
-        packageDimensionsCm: normalizePackageDimensions(candidate.packageDimensionsCm),
-        itemWeightGrams: typeof candidate.itemWeightGrams === "number" && Number.isFinite(candidate.itemWeightGrams) ? candidate.itemWeightGrams : 0,
-        lotCbm: typeof candidate.lotCbm === "string" && candidate.lotCbm.trim() ? candidate.lotCbm.trim() : "0.0000",
+        packaging,
+        packageDimensionsCm,
+        itemWeightGrams,
+        lotCbm,
         minUsd,
         maxUsd,
         moq,
@@ -116,7 +158,7 @@ async function fetchRemoteCatalogProducts() {
         variantPricing: Array.isArray(candidate.variantPricing) ? candidate.variantPricing as ProductCatalogItem["variantPricing"] : [],
         variantSkus: Array.isArray(candidate.variantSkus) ? candidate.variantSkus as ProductCatalogItem["variantSkus"] : [],
         tiers: Array.isArray(candidate.tiers) ? candidate.tiers as ProductCatalogItem["tiers"] : [{ quantityLabel: `${moq}+`, priceUsd: minUsd }],
-        specs: Array.isArray(candidate.specs) ? candidate.specs as ProductCatalogItem["specs"] : [],
+        specs,
         rawPayload: candidate.rawPayload ?? candidate,
       } satisfies ProductCatalogItem];
     });
@@ -148,6 +190,11 @@ function toCatalogProduct(product: Awaited<ReturnType<typeof getAlibabaImportedP
     : fallbackVariantGroups.length > 0
       ? fallbackVariantGroups
       : fallbackVariantGroupsFromSkus;
+  const lotCbm = isPositiveLotCbm(product.lotCbm)
+    ? product.lotCbm
+    : product.packageDimensionsCm
+      ? calculateLotCbm(product.packageDimensionsCm)
+      : product.lotCbm;
 
   return {
     slug: product.slug,
@@ -165,7 +212,7 @@ function toCatalogProduct(product: Awaited<ReturnType<typeof getAlibabaImportedP
     packaging: product.packaging,
     packageDimensionsCm: product.packageDimensionsCm,
     itemWeightGrams: product.itemWeightGrams,
-    lotCbm: product.lotCbm,
+    lotCbm,
     minUsd: product.minUsd,
     maxUsd: product.maxUsd,
     moq: product.moq,

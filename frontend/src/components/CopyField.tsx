@@ -16,9 +16,32 @@ type CopyFieldProps = {
   copyDisabled?: boolean;
 };
 
+async function copyText(value: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const input = document.createElement("textarea");
+  input.value = value;
+  input.setAttribute("readonly", "true");
+  input.style.position = "fixed";
+  input.style.left = "-9999px";
+  document.body.appendChild(input);
+  input.select();
+
+  const copied = document.execCommand("copy");
+  document.body.removeChild(input);
+
+  if (!copied) {
+    throw new Error("Copie indisponible.");
+  }
+}
+
 export function CopyField({ label, value, maskedValue, revealable = false, hint, copyValue, copyDisabled = false }: CopyFieldProps) {
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
   const canReveal = revealable && Boolean(maskedValue) && value !== maskedValue;
   const canCopy = !copyDisabled && typeof (copyValue ?? value) === "string" && (copyValue ?? value).trim().length > 0;
 
@@ -30,6 +53,15 @@ export function CopyField({ label, value, maskedValue, revealable = false, hint,
     const timeout = window.setTimeout(() => setCopied(false), 1800);
     return () => window.clearTimeout(timeout);
   }, [copied]);
+
+  useEffect(() => {
+    if (!copyError) {
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => setCopyError(false), 2200);
+    return () => window.clearTimeout(timeout);
+  }, [copyError]);
 
   const displayValue = canReveal && !revealed && maskedValue ? maskedValue : value;
 
@@ -54,8 +86,12 @@ export function CopyField({ label, value, maskedValue, revealable = false, hint,
                 return;
               }
 
-              await navigator.clipboard.writeText(copyValue ?? value);
-              setCopied(true);
+              try {
+                await copyText(copyValue ?? value);
+                setCopied(true);
+              } catch {
+                setCopyError(true);
+              }
             }}
             aria-label="Copier"
           >
@@ -65,6 +101,9 @@ export function CopyField({ label, value, maskedValue, revealable = false, hint,
       </div>
       <div className={`pointer-events-none absolute right-4 top-4 rounded-full px-3 py-1 text-xs font-semibold transition ${copied ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0"} bg-[#22c55e] text-[#052e16]`}>
         Copiee
+      </div>
+      <div className={`pointer-events-none absolute right-4 top-4 rounded-full px-3 py-1 text-xs font-semibold transition ${copyError ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0"} bg-[#f97316] text-white`}>
+        Copie impossible
       </div>
     </div>
   );

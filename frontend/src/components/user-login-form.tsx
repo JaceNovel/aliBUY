@@ -48,11 +48,7 @@ export function UserLoginForm({
         throw new Error(payload?.message ?? "Connexion impossible.");
       }
 
-      const destination = payload?.isAdmin
-        ? (nextPath.startsWith("/admin") ? nextPath : "/home_jacen")
-        : nextPath;
-
-      router.replace(destination);
+      router.replace(nextPath);
       router.refresh();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Connexion impossible.");

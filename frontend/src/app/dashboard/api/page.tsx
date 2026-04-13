@@ -46,6 +46,28 @@ function renderJsonBlock(value: unknown) {
   return JSON.stringify(value, null, 2);
 }
 
+async function copyTextToClipboard(value: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const input = document.createElement("textarea");
+  input.value = value;
+  input.setAttribute("readonly", "true");
+  input.style.position = "fixed";
+  input.style.left = "-9999px";
+  document.body.appendChild(input);
+  input.select();
+
+  const copied = document.execCommand("copy");
+  document.body.removeChild(input);
+
+  if (!copied) {
+    throw new Error("Copie indisponible.");
+  }
+}
+
 export default function DashboardApiPage() {
   const [keys, setKeys] = useState<PartnerApiKeys | null>(null);
   const [docs, setDocs] = useState<PartnerDocsPayload | null>(null);
@@ -176,7 +198,13 @@ export default function DashboardApiPage() {
                       setRegenerateMessage(null);
                       const payload = await regenerateApiSecret();
                       setKeys(payload);
-                      setRegenerateMessage("Nouveau secret genere. Pense a remplacer l ancien dans ton backend.");
+                      const nextSecret = payload.revealableSecret?.trim();
+                      if (nextSecret) {
+                        await copyTextToClipboard(nextSecret);
+                        setRegenerateMessage("Nouveau secret genere et copie. Remplace l ancien dans ton backend.");
+                      } else {
+                        setRegenerateMessage("Nouveau secret genere. Affiche-le puis copie-le pour remplacer l ancien dans ton backend.");
+                      }
                     } catch {
                       setRegenerateMessage("La regeneration a echoue. Reessaie apres avoir recharge la session.");
                     } finally {
@@ -185,9 +213,9 @@ export default function DashboardApiPage() {
                   }}
                 >
                   <RotateCcw className="h-4 w-4" />
-                  {regenerating ? "Generation..." : "Regenerer le secret"}
+                  {regenerating ? "Generation..." : revealableSecret ? "Regenerer le secret" : "Regenerer et copier le secret"}
                 </Button>
-                <div className="max-w-[420px] text-xs leading-6 text-[#8ea0c0]">Utilise cette action si ton compte a ete approuve avant la mise en place de l affichage securise, ou si tu veux reemettre une credential.</div>
+                <div className="max-w-[420px] text-xs leading-6 text-[#8ea0c0]">Si le secret est masque et non copiable, regenere-le ici: le nouveau secret sera affiche et copie automatiquement pour ton backend.</div>
                 {regenerateMessage ? <div className="w-full text-xs font-medium text-[#bbf7d0]">{regenerateMessage}</div> : null}
               </div>
             </>

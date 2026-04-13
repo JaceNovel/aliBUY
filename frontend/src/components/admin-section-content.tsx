@@ -24,11 +24,14 @@ type PricingLike = {
 };
 
 function formatPriceRange(formatPrice: (amountUsd: number) => string, minUsd: number, maxUsd?: number) {
-  if (typeof maxUsd === "number") {
-    return `${formatPrice(minUsd)} - ${formatPrice(maxUsd)}`;
+  const safeMinUsd = Number.isFinite(minUsd) ? minUsd : 0;
+  const safeMaxUsd = typeof maxUsd === "number" && Number.isFinite(maxUsd) ? maxUsd : undefined;
+
+  if (typeof safeMaxUsd === "number") {
+    return `${formatPrice(safeMinUsd)} - ${formatPrice(safeMaxUsd)}`;
   }
 
-  return formatPrice(minUsd);
+  return formatPrice(safeMinUsd);
 }
 
 export async function AdminSectionContent({ slug, pricing }: { slug: string; pricing: PricingLike }) {
@@ -41,7 +44,6 @@ export async function AdminSectionContent({ slug, pricing }: { slug: string; pri
   let summaryValue = "";
   let columns: string[] = [];
   let rows: Array<{ key: string; values: string[]; href?: string; actionLabel?: string; secondaryHref?: string; secondaryActionLabel?: string }> = [];
-  const catalogProducts = await getCatalogProducts();
 
   switch (meta.slug) {
     case "users": {
@@ -70,11 +72,19 @@ export async function AdminSectionContent({ slug, pricing }: { slug: string; pri
       break;
     }
     case "products": {
+      const catalogProducts = await getCatalogProducts().catch(() => []);
+
       summaryValue = `${catalogProducts.length} references catalogue`;
       columns = ["Produit", "Partenaire", "Prix", "MOQ", "Badge"];
       rows = catalogProducts.map((product) => ({
         key: product.slug,
-        values: [product.shortTitle, product.supplierName, formatPriceRange(pricing.formatPrice, product.minUsd, product.maxUsd), `${product.moq} ${product.unit}`, product.badge ?? "Catalogue"],
+        values: [
+          product.shortTitle || product.title || product.slug,
+          product.supplierName || "Selection AfriPay+",
+          formatPriceRange(pricing.formatPrice, product.minUsd, product.maxUsd),
+          `${Number.isFinite(product.moq) && product.moq > 0 ? product.moq : 1} ${product.unit || "piece"}`,
+          product.badge ?? "Catalogue",
+        ],
         href: `/products/${product.slug}`,
       }));
       break;

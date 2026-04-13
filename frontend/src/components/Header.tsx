@@ -1,6 +1,8 @@
 "use client";
 
 import { Menu, LogOut } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 import { Button } from "@/components/Button";
 
@@ -10,11 +12,30 @@ type HeaderProps = {
 };
 
 export function Header({ companyName, onOpenNavigation }: HeaderProps) {
+  const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const initials = companyName
     .split(" ")
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("") || "AP";
+  const logout = async () => {
+    if (isLoggingOut) {
+      return;
+    }
+
+    setIsLoggingOut(true);
+
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+    } finally {
+      router.replace("/");
+      router.refresh();
+    }
+  };
 
   return (
     <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-[#0b1224]/80 px-4 py-4 backdrop-blur xl:px-8">
@@ -36,9 +57,9 @@ export function Header({ companyName, onOpenNavigation }: HeaderProps) {
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#16203a] text-sm font-bold text-[#c7d2fe] ring-1 ring-white/10">
           {initials}
         </div>
-        <Button variant="ghost" className="hidden sm:inline-flex" onClick={() => window.location.assign("/login") }>
+        <Button variant="ghost" className="hidden sm:inline-flex" disabled={isLoggingOut} onClick={logout}>
           <LogOut className="h-4 w-4" />
-          Logout
+          {isLoggingOut ? "Logout..." : "Logout"}
         </Button>
       </div>
     </header>

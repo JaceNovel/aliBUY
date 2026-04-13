@@ -3,7 +3,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { UserLoginForm } from "@/components/user-login-form";
-import { isAdminEmail } from "@/lib/admin-auth";
 import { getSafeNextPath } from "@/lib/google-oauth";
 import { getPricingContext } from "@/lib/pricing";
 import { SITE_LOGO_PATH, SITE_NAME } from "@/lib/site-config";
@@ -50,7 +49,7 @@ export default async function LoginPage({
   const hasGoogleOauth = Boolean(process.env.GOOGLE_CLIENT_ID?.trim()) && Boolean(process.env.GOOGLE_CLIENT_SECRET?.trim());
 
   if (currentUser) {
-    redirect(isAdminEmail(currentUser.email) && nextPath.startsWith("/admin") ? nextPath : isAdminEmail(currentUser.email) ? "/home_jacen" : "/account");
+    redirect(nextPath);
   }
 
   return (

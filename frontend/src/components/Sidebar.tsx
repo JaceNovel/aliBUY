@@ -25,7 +25,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   return (
     <>
       <div className={`fixed inset-0 z-30 bg-[#020617]/70 backdrop-blur-sm transition md:hidden ${open ? "opacity-100" : "pointer-events-none opacity-0"}`} onClick={onClose} />
-      <aside className={`fixed inset-y-0 left-0 z-40 w-[280px] border-r border-white/10 bg-[radial-gradient(circle_at_top,#1e293b_0%,#0f172a_52%,#020617_100%)] px-5 py-6 shadow-[0_30px_80px_rgba(2,6,23,0.7)] transition md:static md:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside className={`fixed inset-y-0 left-0 z-40 w-[280px] overflow-y-auto border-r border-white/10 bg-[radial-gradient(circle_at_top,#1e293b_0%,#0f172a_52%,#020617_100%)] px-5 py-6 shadow-[0_30px_80px_rgba(2,6,23,0.7)] transition md:sticky md:top-0 md:h-screen md:translate-x-0 md:self-start ${open ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex items-center justify-between md:hidden">
           <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#818cf8]">AfriPay</div>
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 p-2 text-[#94a3b8]">

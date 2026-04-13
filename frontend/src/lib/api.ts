@@ -1,6 +1,5 @@
 import { SITE_URL } from "@/lib/site-config";
 import type {
-  AdminPartnerWithdrawalRecord,
   PartnerApiKeys,
   PartnerDashboardStats,
   PartnerOrdersResponse,
@@ -417,7 +416,7 @@ type DashboardRequestOptions = RequestInit & {
   query?: Record<string, string | number | boolean | null | undefined>;
 };
 
-async function dashboardFetch<T>(path: string, options: DashboardRequestOptions = {}): Promise<T> {
+export async function dashboardFetch<T>(path: string, options: DashboardRequestOptions = {}): Promise<T> {
   const { query, headers, ...init } = options;
   const response = await fetch(buildLocalUrl(path, query), {
     ...init,
@@ -475,18 +474,4 @@ export async function requestWithdrawal(payload: PartnerWithdrawalRequestPayload
   });
 
   return getWithdrawals();
-}
-
-export async function getAdminPartnerWithdrawals(): Promise<{ items: AdminPartnerWithdrawalRecord[] }> {
-  return dashboardFetch<{ items: AdminPartnerWithdrawalRecord[] }>("/api/admin/partner-withdrawals");
-}
-
-export async function updateAdminPartnerWithdrawal(id: string, action: "approve" | "reject", adminNote?: string): Promise<void> {
-  await dashboardFetch<{ withdrawal: unknown }>(`/api/admin/partner-withdrawals/${encodeURIComponent(id)}/${action}`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ admin_note: adminNote ?? "" }),
-  });
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
-import { getAdminPartnerWithdrawals, updateAdminPartnerWithdrawal } from "@/lib/api";
+import { getAdminPartnerWithdrawals, updateAdminPartnerWithdrawal } from "@/lib/admin-partner-withdrawals-api";
 import type { AdminPartnerWithdrawalRecord } from "@/types/partner-dashboard";
 
 function formatCfa(value: number) {

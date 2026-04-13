@@ -97,7 +97,7 @@ async function getAliExpressDashboardData(panel: string) {
     const remoteMessage = remoteMessageText ? ` (${remoteMessageText})` : "";
 
     if (response.status === 401) {
-      return buildRemoteDashboardUnavailableState(`la route /api/admin/aliexpress/dashboard a renvoye HTTP 401${remoteMessage}. Reconnectez-vous avec un compte admin via /home_jacen pour regenerer le token Laravel utilise par le frontend`);
+      return buildRemoteDashboardUnavailableState(`la route /api/admin/aliexpress/dashboard a renvoye HTTP 401${remoteMessage}. Reconnectez-vous avec un compte admin depuis l'acces prive pour regenerer le token Laravel utilise par le frontend`);
     }
 
     return buildRemoteDashboardUnavailableState(`la route /api/admin/aliexpress/dashboard a renvoye HTTP ${response.status}${remoteMessage}`);
