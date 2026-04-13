@@ -9,6 +9,44 @@ import { getAlibabaOperationsDashboardData } from "@/lib/alibaba-operations-serv
 import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
 import { getSourcingDashboardData } from "@/lib/sourcing-service";
 
+function normalizeAliExpressDashboardPayload(panel: string, payload: unknown) {
+  const fallback = buildRemoteDashboardUnavailableState(panel, "la reponse dashboard recue est incomplete ou invalide");
+  if (!payload || typeof payload !== "object") {
+    return fallback;
+  }
+
+  const candidate = payload as Record<string, unknown>;
+  const storage = candidate.storage && typeof candidate.storage === "object"
+    ? candidate.storage as Record<string, unknown>
+    : {};
+  const stats = candidate.stats && typeof candidate.stats === "object"
+    ? candidate.stats as Record<string, unknown>
+    : {};
+
+  return {
+    panel: normalizePanelSlug(typeof candidate.panel === "string" ? candidate.panel : panel),
+    mappings: Array.isArray(candidate.mappings) ? candidate.mappings : [],
+    importJobs: Array.isArray(candidate.importJobs) ? candidate.importJobs : [],
+    importedProducts: Array.isArray(candidate.importedProducts) ? candidate.importedProducts : [],
+    purchaseOrders: Array.isArray(candidate.purchaseOrders) ? candidate.purchaseOrders : [],
+    supplierAccounts: Array.isArray(candidate.supplierAccounts) ? candidate.supplierAccounts : [],
+    countries: Array.isArray(candidate.countries) ? candidate.countries : [],
+    addresses: Array.isArray(candidate.addresses) ? candidate.addresses : [],
+    receptions: Array.isArray(candidate.receptions) ? candidate.receptions : [],
+    storage: {
+      persistentAvailable: storage.persistentAvailable === true,
+      persistentRequired: storage.persistentRequired !== false,
+      issue: typeof storage.issue === "string" ? storage.issue : null,
+    },
+    stats: {
+      importedCount: typeof stats.importedCount === "number" && Number.isFinite(stats.importedCount) ? stats.importedCount : 0,
+      publishedCount: typeof stats.publishedCount === "number" && Number.isFinite(stats.publishedCount) ? stats.publishedCount : 0,
+      pendingPayments: typeof stats.pendingPayments === "number" && Number.isFinite(stats.pendingPayments) ? stats.pendingPayments : 0,
+      paidOrders: typeof stats.paidOrders === "number" && Number.isFinite(stats.paidOrders) ? stats.paidOrders : 0,
+    },
+  };
+}
+
 function buildRemoteDashboardUnavailableState(panel: string, detail?: string) {
   const target = API_URL || "backend externe configure";
   const issue = detail
@@ -55,7 +93,7 @@ async function getAliExpressDashboardData(panel: string) {
     });
 
     if (response.ok) {
-      return await response.json();
+      return normalizeAliExpressDashboardPayload(panel, await response.json().catch(() => null));
     }
 
     const payload = await response.json().catch(() => null) as { message?: unknown } | null;

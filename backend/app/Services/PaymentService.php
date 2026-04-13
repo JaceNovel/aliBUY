@@ -53,6 +53,12 @@ class PaymentService
         $checkoutUrl = $this->extractCheckoutUrl($payload);
         $status = (string) ($payload['status'] ?? $payload['data']['status'] ?? 'initialized');
 
+        if ($checkoutUrl === null) {
+            throw ValidationException::withMessages([
+                'payment' => ['Moneroo a initialise le paiement, mais aucune URL checkout exploitable n a ete retournee.'],
+            ]);
+        }
+
         Payment::query()->create([
             'order_id' => $order->id,
             'provider' => $provider,
@@ -248,11 +254,53 @@ class PaymentService
             $payload['data']['redirect_url'] ?? null,
             $payload['data']['redirectUrl'] ?? null,
             $payload['data']['url'] ?? null,
+            $payload['data']['payment']['checkout_url'] ?? null,
+            $payload['data']['payment']['checkoutUrl'] ?? null,
+            $payload['data']['payment']['payment_url'] ?? null,
+            $payload['data']['payment']['paymentUrl'] ?? null,
+            $payload['data']['payment']['redirect_url'] ?? null,
+            $payload['data']['payment']['redirectUrl'] ?? null,
+            $payload['data']['payment']['url'] ?? null,
+            $payload['payment']['checkout_url'] ?? null,
+            $payload['payment']['checkoutUrl'] ?? null,
+            $payload['payment']['payment_url'] ?? null,
+            $payload['payment']['paymentUrl'] ?? null,
+            $payload['payment']['redirect_url'] ?? null,
+            $payload['payment']['redirectUrl'] ?? null,
+            $payload['payment']['url'] ?? null,
+            $payload['links']['checkout'] ?? null,
+            $payload['links']['payment'] ?? null,
+            $payload['links']['redirect'] ?? null,
         ];
 
         foreach ($candidates as $candidate) {
             if (is_string($candidate) && trim($candidate) !== '') {
                 return trim($candidate);
+            }
+        }
+
+        return $this->findCheckoutUrl($payload);
+    }
+
+    protected function findCheckoutUrl($value): ?string
+    {
+        if (! is_array($value)) {
+            return null;
+        }
+
+        foreach ($value as $key => $candidate) {
+            $normalizedKey = is_string($key) ? strtolower($key) : '';
+            if (is_string($candidate) && trim($candidate) !== '' && str_starts_with(trim($candidate), 'http')) {
+                if (preg_match('/checkout|payment|pay|redirect|hosted|url/', $normalizedKey) === 1) {
+                    return trim($candidate);
+                }
+            }
+        }
+
+        foreach ($value as $candidate) {
+            $nested = $this->findCheckoutUrl($candidate);
+            if ($nested !== null) {
+                return $nested;
             }
         }
 

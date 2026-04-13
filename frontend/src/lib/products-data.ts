@@ -39,6 +39,9 @@ export type ProductCatalogItem = {
   title: string;
   shortTitle: string;
   keywords?: string[];
+  categorySlug?: string;
+  categoryTitle?: string;
+  categoryPath?: string[];
   image: string;
   gallery: string[];
   videoUrl?: string;

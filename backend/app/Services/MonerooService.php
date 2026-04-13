@@ -190,9 +190,9 @@ class MonerooService
         ]);
     }
 
-    protected function shouldFallbackToAlternateProtocol(Response $response, bool $hasAlternateAttempt): bool
+    protected function shouldFallbackToAlternateProtocol(?Response $response, bool $hasAlternateAttempt): bool
     {
-        if (! $hasAlternateAttempt) {
+        if (! $hasAlternateAttempt || ! $response) {
             return false;
         }
 

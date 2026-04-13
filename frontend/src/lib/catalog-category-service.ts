@@ -3,7 +3,6 @@ import "server-only";
 import { cache } from "react";
 
 import { extractAlibabaCategoryInfo, slugifyCategoryLabel } from "@/lib/alibaba-operations";
-import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { buildApiUrl } from "@/lib/api";
 import { getCatalogProducts } from "@/lib/catalog-service";
 import type { ProductCatalogItem } from "@/lib/products-data";
@@ -254,8 +253,7 @@ function mergeCatalogCategories(remoteCategories: CatalogCategoryRecord[], local
 export const getCatalogCategories = cache(async function getCatalogCategories(): Promise<CatalogCategoryRecord[]> {
   const remoteCategories = await fetchRemoteCatalogCategories();
 
-  const importedProducts = await getAlibabaImportedProducts();
-  const publishedProducts = importedProducts.filter((product) => product.publishedToSite && product.status !== "archived");
+  const publishedProducts = await getCatalogProducts({ fresh: true });
   const categories = new Map<string, CategoryAccumulator>();
 
   for (const product of publishedProducts) {

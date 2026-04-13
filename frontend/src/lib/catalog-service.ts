@@ -1,6 +1,6 @@
 import { API_URL, buildApiUrl } from "@/lib/api";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
-import { deriveVariantGroupsFromPricing, deriveVariantGroupsFromSkus } from "@/lib/product-variant-pricing";
+import { deriveVariantGroupsFromPricing, deriveVariantGroupsFromSkus, extractAlibabaVariantPricing, extractAlibabaVariantSkus } from "@/lib/product-variant-pricing";
 import { type ProductCatalogItem } from "@/lib/products-data";
 
 function normalizePackageDimensions(value: unknown) {
@@ -74,6 +74,11 @@ async function fetchRemoteCatalogProducts() {
         keywords: Array.isArray(candidate.keywords)
           ? candidate.keywords.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
           : [],
+        categorySlug: typeof candidate.categorySlug === "string" && candidate.categorySlug.trim() ? candidate.categorySlug.trim() : undefined,
+        categoryTitle: typeof candidate.categoryTitle === "string" && candidate.categoryTitle.trim() ? candidate.categoryTitle.trim() : undefined,
+        categoryPath: Array.isArray(candidate.categoryPath)
+          ? candidate.categoryPath.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+          : undefined,
         image,
         gallery: Array.isArray(candidate.gallery)
           ? candidate.gallery.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
@@ -129,8 +134,14 @@ async function fetchRemoteCatalogProducts() {
 }
 
 function toCatalogProduct(product: Awaited<ReturnType<typeof getAlibabaImportedProducts>>[number]): ProductCatalogItem {
-  const fallbackVariantGroups = deriveVariantGroupsFromPricing(product.variantPricing ?? []);
-  const fallbackVariantGroupsFromSkus = deriveVariantGroupsFromSkus(product.variantSkus ?? []);
+  const variantPricing = product.variantPricing && product.variantPricing.length > 0
+    ? product.variantPricing
+    : extractAlibabaVariantPricing(product.rawPayload);
+  const variantSkus = product.variantSkus && product.variantSkus.length > 0
+    ? product.variantSkus
+    : extractAlibabaVariantSkus(product.rawPayload);
+  const fallbackVariantGroups = deriveVariantGroupsFromPricing(variantPricing);
+  const fallbackVariantGroupsFromSkus = deriveVariantGroupsFromSkus(variantSkus);
   const variantGroups = product.variantGroups.length > 0
     ? product.variantGroups
     : fallbackVariantGroups.length > 0
@@ -142,6 +153,9 @@ function toCatalogProduct(product: Awaited<ReturnType<typeof getAlibabaImportedP
     title: product.title,
     shortTitle: product.shortTitle,
     keywords: product.keywords,
+    categorySlug: product.categorySlug,
+    categoryTitle: product.categoryTitle,
+    categoryPath: product.categoryPath,
     image: product.image,
     gallery: product.gallery,
     videoUrl: product.videoUrl,
@@ -168,8 +182,8 @@ function toCatalogProduct(product: Awaited<ReturnType<typeof getAlibabaImportedP
     chinaLocalFreightLabel: product.chinaLocalFreightLabel,
     overview: product.overview,
     variantGroups,
-    variantPricing: product.variantPricing,
-    variantSkus: product.variantSkus,
+    variantPricing,
+    variantSkus,
     tiers: product.tiers,
     specs: product.specs,
     rawPayload: product.rawPayload,
@@ -200,10 +214,17 @@ function mergeCatalogProducts(remoteProducts: ProductCatalogItem[], localProduct
       && local.packageDimensionsCm.heightCm > 0,
     );
 
+    const remoteGallery = product.gallery && product.gallery.length > 0 ? product.gallery : [];
+    const localGallery = local.gallery && local.gallery.length > 0 ? local.gallery : [];
+    const richestGallery = localGallery.length > remoteGallery.length ? localGallery : remoteGallery.length > 0 ? remoteGallery : localGallery;
+
     merged.set(product.slug, {
       ...product,
       keywords: product.keywords && product.keywords.length > 0 ? product.keywords : local.keywords,
-      gallery: product.gallery && product.gallery.length > 0 ? product.gallery : local.gallery,
+      categorySlug: product.categorySlug ?? local.categorySlug,
+      categoryTitle: product.categoryTitle ?? local.categoryTitle,
+      categoryPath: product.categoryPath && product.categoryPath.length > 0 ? product.categoryPath : local.categoryPath,
+      gallery: richestGallery,
       videoUrl: product.videoUrl ?? local.videoUrl,
       videoPoster: product.videoPoster ?? local.videoPoster,
       packaging: product.packaging !== "Selon catalogue" ? product.packaging : local.packaging,
