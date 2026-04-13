@@ -892,6 +892,7 @@ export function toCatalogProduct(item: AlibabaImportedProduct): ProductCatalogIt
     slug: item.slug,
     title: resolvedTitle,
     shortTitle: resolvedShortTitle,
+    query: item.query,
     keywords: item.keywords,
     categorySlug: item.categorySlug,
     categoryTitle: item.categoryTitle,

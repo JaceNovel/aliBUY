@@ -71,6 +71,7 @@ async function fetchRemoteCatalogProducts() {
         slug,
         title,
         shortTitle: typeof candidate.shortTitle === "string" && candidate.shortTitle.trim() ? candidate.shortTitle.trim() : title,
+        query: typeof candidate.query === "string" && candidate.query.trim() ? candidate.query.trim() : undefined,
         keywords: Array.isArray(candidate.keywords)
           ? candidate.keywords.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
           : [],
@@ -152,6 +153,7 @@ function toCatalogProduct(product: Awaited<ReturnType<typeof getAlibabaImportedP
     slug: product.slug,
     title: product.title,
     shortTitle: product.shortTitle,
+    query: product.query,
     keywords: product.keywords,
     categorySlug: product.categorySlug,
     categoryTitle: product.categoryTitle,
@@ -220,6 +222,7 @@ function mergeCatalogProducts(remoteProducts: ProductCatalogItem[], localProduct
 
     merged.set(product.slug, {
       ...product,
+      query: product.query ?? local.query,
       keywords: product.keywords && product.keywords.length > 0 ? product.keywords : local.keywords,
       categorySlug: product.categorySlug ?? local.categorySlug,
       categoryTitle: product.categoryTitle ?? local.categoryTitle,
