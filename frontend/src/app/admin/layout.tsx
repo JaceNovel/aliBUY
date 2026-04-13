@@ -7,7 +7,7 @@ export const revalidate = 0;
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   if (!(await isAdminAuthenticated())) {
-    redirect("/home_jacen");
+    redirect("/admin/login");
   }
 
   return <AdminShell>{children}</AdminShell>;

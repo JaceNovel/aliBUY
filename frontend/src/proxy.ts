@@ -63,10 +63,6 @@ async function handleRequest(request: NextRequest, getClerkUserId?: () => Promis
     return finalizeResponse(request, NextResponse.next());
   }
 
-  if (request.nextUrl.pathname === "/admin/login") {
-    return finalizeResponse(request, new NextResponse("Not Found", { status: 404 }));
-  }
-
   if (isProtectedRoute(request)) {
     const userId = getClerkUserId ? await getClerkUserId() : null;
     const session = await parseUserSessionToken(request.cookies.get(USER_SESSION_COOKIE)?.value);
@@ -74,7 +70,7 @@ async function handleRequest(request: NextRequest, getClerkUserId?: () => Promis
     if (!userId && !session?.sub) {
       if (isAdminPageRequest || isAdminApiRequest || isDashboardPageRequest || isDashboardApiRequest) {
         if (isAdminPageRequest) {
-          return finalizeResponse(request, NextResponse.redirect(new URL("/home_jacen", request.url)));
+          return finalizeResponse(request, NextResponse.redirect(new URL("/admin/login", request.url)));
         }
 
         return finalizeResponse(request, new NextResponse("Not Found", { status: 404 }));
