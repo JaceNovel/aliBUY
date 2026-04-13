@@ -53,8 +53,12 @@ async function fetchAdminOrdersFromApi() {
     return null;
   }
 
-  const payload = await response.json().catch(() => null) as { orders?: AdminOrderRecord[] } | null;
-  return Array.isArray(payload?.orders) ? payload.orders : null;
+  const payload = await response.json().catch(() => null) as { orders?: unknown[] } | null;
+  if (!Array.isArray(payload?.orders)) {
+    return null;
+  }
+
+  return payload.orders.map((order) => normalizeAdminOrderFromApi(order)).filter((order): order is AdminOrderRecord => Boolean(order));
 }
 
 async function fetchAdminOrderByIdFromApi(orderId: string) {
@@ -64,7 +68,7 @@ async function fetchAdminOrderByIdFromApi(orderId: string) {
     return null;
   }
 
-  const response = await fetch(buildApiUrl(`/api/admin/sourcing/orders/${encodeURIComponent(orderId)}`), {
+  const response = await fetch(buildApiUrl(`/api/admin/orders/${encodeURIComponent(orderId)}`), {
     headers: {
       Cookie: `${USER_SESSION_COOKIE}=${encodeURIComponent(sessionToken)}`,
     },
@@ -75,8 +79,49 @@ async function fetchAdminOrderByIdFromApi(orderId: string) {
     return null;
   }
 
-  const payload = await response.json().catch(() => null) as { order?: SourcingOrder | null } | null;
-  return payload?.order && typeof payload.order === "object" ? payload.order : null;
+  const payload = await response.json().catch(() => null) as { order?: unknown } | null;
+  return payload?.order && typeof payload.order === "object" ? payload.order as SourcingOrder : null;
+}
+
+function normalizeAdminOrderFromApi(order: unknown): AdminOrderRecord | null {
+  if (!isObjectRecord(order)) {
+    return null;
+  }
+
+  const id = typeof order.id === "string" || typeof order.id === "number" ? String(order.id) : "";
+  const orderNumber = typeof order.orderNumber === "string" ? order.orderNumber : id;
+  const items = Array.isArray(order.items) ? order.items : [];
+  const firstItem = items[0];
+  const firstItemTitle = isObjectRecord(firstItem)
+    ? (typeof firstItem.title === "string" ? firstItem.title : typeof firstItem.productName === "string" ? firstItem.productName : "")
+    : "";
+  const totalPriceFcfa = typeof order.totalPriceFcfa === "number"
+    ? order.totalPriceFcfa
+    : typeof order.totalPriceFcfa === "string"
+      ? Number(order.totalPriceFcfa)
+      : 0;
+
+  return {
+    id,
+    orderNumber,
+    documentNumber: orderNumber,
+    pdfExportsCount: 0,
+    customerName: typeof order.customerName === "string" ? order.customerName : "Client",
+    customerEmail: typeof order.customerEmail === "string" ? order.customerEmail : "",
+    customerPhone: typeof order.customerPhone === "string" ? order.customerPhone : "",
+    productTitle: firstItemTitle || `Commande ${orderNumber}`,
+    shippingMethod: typeof order.shippingMethod === "string" ? order.shippingMethod : "air",
+    paymentStatus: typeof order.paymentStatus === "string" ? order.paymentStatus : "pending",
+    status: typeof order.status === "string" ? order.status : "pending",
+    countryCode: typeof order.countryCode === "string" ? order.countryCode : "",
+    addressLine: [order.addressLine1, order.addressLine2, order.city, order.state, order.postalCode]
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .join(", "),
+    totalUsd: convertFcfaToUsd(Number.isFinite(totalPriceFcfa) ? totalPriceFcfa : 0),
+    createdAt: typeof order.createdAt === "string" ? order.createdAt : new Date(0).toISOString(),
+    href: `/admin/orders/${encodeURIComponent(id)}`,
+    parcelHref: `/admin/orders/${encodeURIComponent(id)}/parcel`,
+  };
 }
 
 export type AdminUserRecord = {
@@ -377,7 +422,7 @@ export async function getAdminOrders(options?: { preferProxy?: boolean }): Promi
   if (options?.preferProxy !== false && hasExternalAdminApi()) {
     try {
       const proxiedOrders = await fetchAdminOrdersFromApi();
-      if (proxiedOrders && proxiedOrders.length > 0) {
+      if (proxiedOrders) {
         return proxiedOrders;
       }
     } catch {

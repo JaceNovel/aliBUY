@@ -23,6 +23,39 @@ class OrderController extends Controller
         ]);
     }
 
+    public function adminIndex(Request $request): JsonResponse
+    {
+        $user = $request->user('sanctum');
+
+        if (! $user || ! $user->hasAdminAccess()) {
+            abort(403, 'Acces admin requis.');
+        }
+
+        $limit = min(max((int) $request->integer('limit', 200), 1), 500);
+        $orders = Order::query()
+            ->with('payments')
+            ->latest()
+            ->limit($limit)
+            ->get();
+
+        return response()->json([
+            'orders' => $orders->map(fn (Order $order) => $this->orders->transformOrder($order))->values()->all(),
+        ]);
+    }
+
+    public function adminShow(Order $order, Request $request): JsonResponse
+    {
+        $user = $request->user('sanctum');
+
+        if (! $user || ! $user->hasAdminAccess()) {
+            abort(403, 'Acces admin requis.');
+        }
+
+        return response()->json([
+            'order' => $this->orders->transformOrder($order->load('payments')),
+        ]);
+    }
+
     public function show(Order $order): JsonResponse
     {
         $user = request()->user('sanctum');

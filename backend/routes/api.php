@@ -115,6 +115,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/admin/partner-withdrawals/{partnerWithdrawal}/approve', [PartnerAdminController::class, 'approveWithdrawal']);
     Route::post('/admin/partner-withdrawals/{partnerWithdrawal}/reject', [PartnerAdminController::class, 'rejectWithdrawal']);
     Route::patch('/admin/partner-orders/{order}/status', [PartnerOrderAdminController::class, 'updateStatus']);
+    Route::get('/admin/orders', [OrderController::class, 'adminIndex']);
+    Route::get('/admin/orders/{order}', [OrderController::class, 'adminShow']);
     Route::apiResource('orders', OrderController::class)->only(['index', 'store', 'show']);
     Route::post('/orders/{order}/promo', [OrderController::class, 'applyPromo']);
 });
