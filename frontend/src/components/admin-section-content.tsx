@@ -34,6 +34,8 @@ function formatPriceRange(formatPrice: (amountUsd: number) => string, minUsd: nu
   return formatPrice(safeMinUsd);
 }
 
+const ADMIN_PRODUCTS_RENDER_LIMIT = 200;
+
 export async function AdminSectionContent({ slug, pricing }: { slug: string; pricing: PricingLike }) {
   const meta = getAdminSectionMeta(slug as never);
 
@@ -73,10 +75,13 @@ export async function AdminSectionContent({ slug, pricing }: { slug: string; pri
     }
     case "products": {
       const catalogProducts = await getCatalogProducts().catch(() => []);
+      const visibleProducts = catalogProducts.slice(0, ADMIN_PRODUCTS_RENDER_LIMIT);
 
-      summaryValue = `${catalogProducts.length} references catalogue`;
+      summaryValue = catalogProducts.length > visibleProducts.length
+        ? `${catalogProducts.length} references catalogue · ${visibleProducts.length} affichees`
+        : `${catalogProducts.length} references catalogue`;
       columns = ["Produit", "Partenaire", "Prix", "MOQ", "Badge"];
-      rows = catalogProducts.map((product) => ({
+      rows = visibleProducts.map((product) => ({
         key: product.slug,
         values: [
           product.shortTitle || product.title || product.slug,
