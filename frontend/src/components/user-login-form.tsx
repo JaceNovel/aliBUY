@@ -48,7 +48,11 @@ export function UserLoginForm({
         throw new Error(payload?.message ?? "Connexion impossible.");
       }
 
-      router.replace(nextPath);
+      const redirectPath = payload?.isAdmin
+        ? "/admin"
+        : nextPath;
+
+      router.replace(redirectPath);
       router.refresh();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Connexion impossible.");
