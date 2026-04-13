@@ -215,7 +215,7 @@ class PaymentService
 
     protected function buildGatewayPayload(Order $order): array
     {
-        return [
+        $payload = [
             'amount' => (float) $order->total_price,
             'currency' => $order->payment_currency ?? 'XOF',
             'description' => 'Paiement commande sourcing '.$order->order_number,
@@ -234,8 +234,14 @@ class PaymentService
                 'orderNumber' => $order->order_number,
                 'customerEmail' => $order->customer_email,
             ],
-            'methods' => config('services.moneroo.methods', []),
         ];
+
+        $methods = config('services.moneroo.methods', []);
+        if (is_array($methods) && $methods !== []) {
+            $payload['methods'] = $methods;
+        }
+
+        return $payload;
     }
 
     protected function normalizeProvider(string $provider): string

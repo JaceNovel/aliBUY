@@ -13,13 +13,19 @@ class MonerooService
 {
     protected function client(): PendingRequest
     {
+        $headers = [
+            'x-api-secret' => (string) config('services.moneroo.secret_key'),
+        ];
+
+        $apiKey = trim((string) config('services.moneroo.api_key'));
+        if ($apiKey !== '') {
+            $headers['x-api-key'] = $apiKey;
+        }
+
         return Http::baseUrl(rtrim((string) config('services.moneroo.base_url', 'https://api.moneroo.io'), '/'))
             ->acceptJson()
             ->asJson()
-            ->withHeaders([
-                'x-api-key' => (string) config('services.moneroo.api_key'),
-                'x-api-secret' => (string) config('services.moneroo.secret_key'),
-            ]);
+            ->withHeaders($headers);
     }
 
     protected function bearerClient(): PendingRequest
@@ -87,12 +93,11 @@ class MonerooService
 
     protected function assertConfigured(): void
     {
-        $apiKey = trim((string) config('services.moneroo.api_key'));
         $secretKey = trim((string) config('services.moneroo.secret_key'));
 
-        if ($apiKey === '' || $secretKey === '') {
+        if ($secretKey === '') {
             throw ValidationException::withMessages([
-                'payment' => ['Les identifiants Moneroo ne sont pas configures sur le backend.'],
+                'payment' => ['La cle Moneroo n est pas configuree sur le backend.'],
             ]);
         }
     }
