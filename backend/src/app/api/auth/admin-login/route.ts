@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { API_URL } from "@/lib/api";
 import { getAuthorizedAdminAccessByEmail, validateAdminCredentials } from "@/lib/admin-auth";
+import { getForceLoggedOutCookieConfig } from "@/lib/auth-session-flags";
 import { getBackendAccessTokenCookieConfig } from "@/lib/backend-access-token";
 import { getBackendBearerToken, mapBackendUserToSessionIdentity, postBackendAuth } from "@/lib/backend-auth-client";
 import { createUserSessionToken } from "@/lib/user-session";
@@ -21,6 +22,11 @@ async function createLocalAdminSession(email: string, backendBearerToken?: strin
   });
 
   const cookieStore = await cookies();
+  cookieStore.set({
+    ...getForceLoggedOutCookieConfig(),
+    value: "",
+    maxAge: 0,
+  });
   cookieStore.set({
     ...getUserSessionCookieConfig(),
     value: token,
@@ -84,6 +90,11 @@ export async function POST(request: Request) {
     const backendBearerToken = getBackendBearerToken(backendResult.body);
 
     const cookieStore = await cookies();
+    cookieStore.set({
+      ...getForceLoggedOutCookieConfig(),
+      value: "",
+      maxAge: 0,
+    });
     cookieStore.set({
       ...getUserSessionCookieConfig(),
       value: sessionToken,

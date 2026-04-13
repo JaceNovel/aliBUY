@@ -1,6 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 
+import { FORCE_LOGGED_OUT_COOKIE } from "@/lib/auth-session-flags";
 import { FREE_DEAL_DEVICE_COOKIE, FREE_DEAL_ROUTE } from "@/lib/free-deal-constants";
 import { parseUserSessionToken, USER_SESSION_COOKIE } from "@/lib/user-session";
 
@@ -68,7 +69,8 @@ async function handleRequest(request: NextRequest, getClerkUserId?: () => Promis
   }
 
   if (isProtectedRoute(request)) {
-    const userId = getClerkUserId ? await getClerkUserId() : null;
+    const forceLoggedOut = request.cookies.get(FORCE_LOGGED_OUT_COOKIE)?.value === "1";
+    const userId = !forceLoggedOut && getClerkUserId ? await getClerkUserId() : null;
     const session = await parseUserSessionToken(request.cookies.get(USER_SESSION_COOKIE)?.value);
 
     if (!userId && !session?.sub) {

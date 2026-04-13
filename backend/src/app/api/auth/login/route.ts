@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { API_URL } from "@/lib/api";
 import { getAuthorizedAdminAccessByEmail, validateAdminCredentials } from "@/lib/admin-auth";
+import { getForceLoggedOutCookieConfig } from "@/lib/auth-session-flags";
 import { getBackendAccessTokenCookieConfig } from "@/lib/backend-access-token";
 import { getBackendBearerToken, mapBackendUserToSessionIdentity, postBackendAuth } from "@/lib/backend-auth-client";
 import { hasConfiguredDatabaseUrl } from "@/lib/prisma";
@@ -14,6 +15,15 @@ export async function POST(request: Request) {
   const payload = await request.json().catch(() => null) as { email?: string; password?: string } | null;
   const email = payload?.email?.trim().toLowerCase() || "";
   const password = payload?.password || "";
+  const clearForcedLogout = async () => {
+    const cookieStore = await cookies();
+    cookieStore.set({
+      ...getForceLoggedOutCookieConfig(),
+      value: "",
+      maxAge: 0,
+    });
+    return cookieStore;
+  };
 
   if (!email || !password) {
     return NextResponse.json({ message: "Adresse e-mail et mot de passe requis." }, { status: 400 });
@@ -32,7 +42,7 @@ export async function POST(request: Request) {
 
       const backendIdentity = mapBackendUserToSessionIdentity(backendResult.body.user!);
       const backendToken = await createUserSessionToken(backendIdentity);
-      const cookieStore = await cookies();
+      const cookieStore = await clearForcedLogout();
       cookieStore.set({
         ...getUserSessionCookieConfig(),
         value: backendToken,
@@ -65,7 +75,7 @@ export async function POST(request: Request) {
 
       const backendIdentity = mapBackendUserToSessionIdentity(backendAdminResult.body.user!);
       const backendSessionToken = await createUserSessionToken(backendIdentity);
-      const cookieStore = await cookies();
+      const cookieStore = await clearForcedLogout();
       cookieStore.set({
         ...getUserSessionCookieConfig(),
         value: backendSessionToken,
@@ -88,7 +98,7 @@ export async function POST(request: Request) {
       displayName: access.isSuperAdmin ? "Super Admin" : `Admin ${access.role}`,
     });
 
-    const cookieStore = await cookies();
+    const cookieStore = await clearForcedLogout();
     cookieStore.set({
       ...getUserSessionCookieConfig(),
       value: adminToken,
@@ -98,7 +108,7 @@ export async function POST(request: Request) {
   }
 
   const token = await createAuthenticatedUserSession(user);
-  const cookieStore = await cookies();
+  const cookieStore = await clearForcedLogout();
   let backendBearerToken = "";
 
   if (API_URL) {

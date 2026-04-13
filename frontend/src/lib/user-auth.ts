@@ -7,6 +7,7 @@ import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 
+import { FORCE_LOGGED_OUT_COOKIE } from "@/lib/auth-session-flags";
 import { createUserSessionToken, getUserSessionMaxAgeSeconds, parseUserSessionToken, USER_SESSION_COOKIE } from "@/lib/user-session";
 import { createStoredUser, getStoredUserByEmail, getStoredUserById, type StoredUser, upsertStoredUserFromClerk } from "@/lib/user-store";
 
@@ -221,6 +222,11 @@ export async function ensurePersistedAuthenticatedUser(user: AuthenticatedUser) 
 }
 
 export const getCurrentUser = cache(async function getCurrentUser() {
+  const cookieStore = await cookies();
+  if (cookieStore.get(FORCE_LOGGED_OUT_COOKIE)?.value === "1") {
+    return null;
+  }
+
   let userId: string | null = null;
   try {
     ({ userId } = await auth());
@@ -258,7 +264,6 @@ export const getCurrentUser = cache(async function getCurrentUser() {
     }
   }
 
-  const cookieStore = await cookies();
   const session = await parseUserSessionToken(cookieStore.get(USER_SESSION_COOKIE)?.value);
   if (!session?.sub) {
     return null;

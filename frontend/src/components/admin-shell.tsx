@@ -9,6 +9,7 @@ import {
   FileText,
   Gift,
   Headset,
+  Landmark,
   LayoutDashboard,
   List,
   Mail,
@@ -36,6 +37,7 @@ const iconMap = {
   gift: Gift,
   mail: Mail,
   headset: Headset,
+  landmark: Landmark,
   "ship-wheel": ShipWheel,
   star: Star,
   sparkles: Sparkles,
@@ -90,7 +92,7 @@ export function AdminShell({ children }: AdminShellProps) {
 
             <nav className="space-y-1">
               {adminNavItems.map((item) => {
-                const Icon = iconMap[item.icon as keyof typeof iconMap];
+                const Icon = iconMap[item.icon as keyof typeof iconMap] ?? LayoutDashboard;
                 const subItems = adminNavSubItems[item.slug];
                 const isGroup = Boolean(subItems?.length);
                 const isGroupActive = isGroup ? pathname === item.href || pathname.startsWith(`${item.href}/`) : false;
