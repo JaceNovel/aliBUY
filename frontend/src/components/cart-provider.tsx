@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 
 import {
   buildCartItemKey,
@@ -149,9 +148,7 @@ function normalizeSharedCartContext(value: unknown): SharedCartImportContext | n
   };
 }
 
-export function CartProvider({ children }: { children: React.ReactNode }) {
-  const { isLoaded, userId } = useAuth();
-  const ownerScope = isLoaded ? (userId ? `clerk:${userId}` : "guest") : null;
+export function CartProvider({ children, ownerScope = "guest" }: { children: React.ReactNode; ownerScope?: string | null }) {
   const cartStorageKey = ownerScope ? buildScopedStorageKey(CART_STORAGE_KEY, ownerScope) : null;
   const sharedCartStorageKey = ownerScope ? buildScopedStorageKey(SHARED_CART_STORAGE_KEY, ownerScope) : null;
   const [items, setItems] = useState<CartStateItem[]>([]);

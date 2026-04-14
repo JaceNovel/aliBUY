@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { SignIn } from "@clerk/nextjs";
 
 import { authPageClerkAppearance } from "@/lib/clerk-theme";
+import { isClerkConfigured } from "@/lib/clerk-config";
 import { getSafeNextPath } from "@/lib/auth-navigation";
 import { getPricingContext } from "@/lib/pricing";
 import { SITE_LOGO_PATH, SITE_NAME } from "@/lib/site-config";
@@ -46,6 +47,7 @@ export default async function LoginPage({
   const nextPath = getSafeNextPath(resolvedSearchParams.next);
   const authNotice = getAuthNotice(pricing.languageCode, resolvedSearchParams.reason, nextPath);
   const oauthError = resolvedSearchParams.oauth_error?.trim() || "";
+  const clerkConfigured = isClerkConfigured();
 
   if (currentUser) {
     redirect(nextPath);
@@ -75,17 +77,24 @@ export default async function LoginPage({
             </div>
           ) : null}
 
-          <div className="mt-6">
-            <SignIn
-              routing="hash"
-              appearance={authPageClerkAppearance}
-              signUpUrl={`/register?next=${encodeURIComponent(nextPath)}${resolvedSearchParams.reason ? `&reason=${encodeURIComponent(resolvedSearchParams.reason)}` : ""}`}
-              forceRedirectUrl={nextPath}
-              fallbackRedirectUrl={nextPath}
-              withSignUp
-              oauthFlow="redirect"
-            />
-          </div>
+          {clerkConfigured ? (
+            <div className="mt-6">
+              <SignIn
+                routing="hash"
+                appearance={authPageClerkAppearance}
+                signUpUrl={`/register?next=${encodeURIComponent(nextPath)}${resolvedSearchParams.reason ? `&reason=${encodeURIComponent(resolvedSearchParams.reason)}` : ""}`}
+                forceRedirectUrl={nextPath}
+                fallbackRedirectUrl={nextPath}
+                withSignUp
+                oauthFlow="redirect"
+              />
+            </div>
+          ) : (
+            <div className="mt-6 rounded-[20px] border border-[#f5c2c7] bg-[#fff1f2] px-4 py-4 text-[13px] leading-6 text-[#b42318] sm:px-5 sm:text-[14px]">
+              <div className="font-semibold text-[#912018]">Connexion indisponible</div>
+              <div className="mt-2">Clerk n&apos;est pas configure sur cet environnement. Ajoutez NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY et CLERK_SECRET_KEY puis redeployez.</div>
+            </div>
+          )}
 
         </section>
       </div>

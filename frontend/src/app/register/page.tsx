@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { SignUp } from "@clerk/nextjs";
 
 import { getSafeNextPath } from "@/lib/auth-navigation";
+import { isClerkConfigured } from "@/lib/clerk-config";
 import { authPageClerkAppearance } from "@/lib/clerk-theme";
 import { getPricingContext } from "@/lib/pricing";
 import { SITE_LOGO_PATH, SITE_NAME } from "@/lib/site-config";
@@ -41,6 +42,7 @@ export default async function RegisterPage({
   const registerNotice = getRegisterNotice(pricing.languageCode, resolvedSearchParams.reason, nextPath);
   const oauthError = resolvedSearchParams.oauth_error?.trim() || "";
   const isEnglish = pricing.languageCode === "en";
+  const clerkConfigured = isClerkConfigured();
 
   if (currentUser) {
     redirect(nextPath);
@@ -70,16 +72,23 @@ export default async function RegisterPage({
             </div>
           ) : null}
 
-          <div className="mt-6">
-            <SignUp
-              routing="hash"
-              appearance={authPageClerkAppearance}
-              signInUrl={`/login?next=${encodeURIComponent(nextPath)}${resolvedSearchParams.reason ? `&reason=${encodeURIComponent(resolvedSearchParams.reason)}` : ""}`}
-              forceRedirectUrl={nextPath}
-              fallbackRedirectUrl={nextPath}
-              oauthFlow="redirect"
-            />
-          </div>
+          {clerkConfigured ? (
+            <div className="mt-6">
+              <SignUp
+                routing="hash"
+                appearance={authPageClerkAppearance}
+                signInUrl={`/login?next=${encodeURIComponent(nextPath)}${resolvedSearchParams.reason ? `&reason=${encodeURIComponent(resolvedSearchParams.reason)}` : ""}`}
+                forceRedirectUrl={nextPath}
+                fallbackRedirectUrl={nextPath}
+                oauthFlow="redirect"
+              />
+            </div>
+          ) : (
+            <div className="mt-6 rounded-[20px] border border-[#f5c2c7] bg-[#fff1f2] px-4 py-4 text-[13px] leading-6 text-[#b42318] sm:px-5 sm:text-[14px]">
+              <div className="font-semibold text-[#912018]">Inscription indisponible</div>
+              <div className="mt-2">Clerk n&apos;est pas configure sur cet environnement. Ajoutez NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY et CLERK_SECRET_KEY puis redeployez.</div>
+            </div>
+          )}
 
         </section>
       </div>
