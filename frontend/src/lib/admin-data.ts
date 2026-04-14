@@ -11,6 +11,7 @@ import type { AdminOrderParcelItem, AdminOrderParcelPhoto, AdminOrderParcelSnaps
 import { getCatalogCategories } from "@/lib/catalog-category-service";
 import { getCatalogProducts } from "@/lib/catalog-service";
 import { getQuoteRequests, getSupportConversations, getUserAddresses, getUserFavoriteSlugs, getUserSupportConversations } from "@/lib/customer-data-store";
+import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
 import { SITE_URL } from "@/lib/site-config";
 import { getSourcingOrders } from "@/lib/sourcing-store";
 import { USER_SESSION_COOKIE } from "@/lib/user-session";
@@ -51,18 +52,28 @@ async function fetchAdminOrdersFromApi() {
     return null;
   }
 
-  const response = await fetch(await buildAdminProxyUrl("/api/admin/orders"), {
+  const response = await fetch(`${API_URL}/api/admin/orders`, {
+    headers: await buildServerForwardHeaders({
+      accept: "application/json",
+    }, {
+      includeAdminApiToken: true,
+    }),
+    cache: "no-store",
+  }).catch(() => null);
+  const fallbackResponse = response && response.ok
+    ? response
+    : await fetch(await buildAdminProxyUrl("/api/admin/orders"), {
     headers: {
       Cookie: `${USER_SESSION_COOKIE}=${encodeURIComponent(sessionToken)}`,
     },
     cache: "no-store",
-  });
+  }).catch(() => null);
 
-  if (!response.ok) {
+  if (!fallbackResponse?.ok) {
     return null;
   }
 
-  const payload = await response.json().catch(() => null) as { orders?: unknown[] } | null;
+  const payload = await fallbackResponse.json().catch(() => null) as { orders?: unknown[] } | null;
   if (!Array.isArray(payload?.orders)) {
     return null;
   }
@@ -77,18 +88,28 @@ async function fetchAdminOrderByIdFromApi(orderId: string) {
     return null;
   }
 
-  const response = await fetch(await buildAdminProxyUrl(`/api/admin/orders/${encodeURIComponent(orderId)}`), {
+  const response = await fetch(`${API_URL}/api/admin/orders/${encodeURIComponent(orderId)}`, {
+    headers: await buildServerForwardHeaders({
+      accept: "application/json",
+    }, {
+      includeAdminApiToken: true,
+    }),
+    cache: "no-store",
+  }).catch(() => null);
+  const fallbackResponse = response && response.ok
+    ? response
+    : await fetch(await buildAdminProxyUrl(`/api/admin/orders/${encodeURIComponent(orderId)}`), {
     headers: {
       Cookie: `${USER_SESSION_COOKIE}=${encodeURIComponent(sessionToken)}`,
     },
     cache: "no-store",
-  });
+  }).catch(() => null);
 
-  if (!response.ok) {
+  if (!fallbackResponse?.ok) {
     return null;
   }
 
-  const payload = await response.json().catch(() => null) as { order?: unknown } | null;
+  const payload = await fallbackResponse.json().catch(() => null) as { order?: unknown } | null;
   return payload?.order && typeof payload.order === "object" ? payload.order as SourcingOrder : null;
 }
 

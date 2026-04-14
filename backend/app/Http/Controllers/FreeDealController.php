@@ -42,6 +42,17 @@ class FreeDealController extends Controller
         return response()->json($this->freeDeals->checkout($validated));
     }
 
+    public function verifyPayment(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'orderId' => ['required'],
+            'paymentId' => ['nullable', 'string'],
+            'provider' => ['nullable', 'in:moneroo,fedapay'],
+        ]);
+
+        return response()->json($this->freeDeals->verifyPayment($validated));
+    }
+
     public function adminShow(Request $request): JsonResponse
     {
         $this->alibabaAdmin->assertAdmin($request->user('sanctum'));

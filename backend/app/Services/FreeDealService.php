@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Product;
+use App\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Throwable;
@@ -126,6 +127,22 @@ class FreeDealService
             'checkoutUrl' => $paymentPayload['checkoutUrl'] ?? null,
             'paymentId' => $paymentPayload['paymentId'] ?? null,
         ];
+    }
+
+    public function verifyPayment(array $validated): array
+    {
+        $order = Order::query()->findOrFail($validated['orderId']);
+        $meta = is_array($order->meta) ? $order->meta : [];
+        if (! is_array($meta['freeDeal'] ?? null)) {
+            abort(404, 'Commande articles gratuits introuvable.');
+        }
+
+        $paymentId = trim((string) ($validated['paymentId'] ?? $order->payment_reference ?? ''));
+        if ($paymentId === '') {
+            abort(422, 'Aucun paiement Moneroo n\'est associe a cette commande.');
+        }
+
+        return $this->payments->verify($order, $paymentId, (string) ($validated['provider'] ?? 'moneroo'));
     }
 
     protected function config(): array

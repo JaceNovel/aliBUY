@@ -1536,7 +1536,16 @@ function mapImportedProductRecord(record: {
   const rawMediaGallery = extractRawMediaGallery(record.rawPayload ?? null);
   const normalizedImage = normalizeAlibabaMediaUrl(record.image) ?? record.image ?? rawMediaGallery[0];
   const normalizedGallery = toStringArray(record.gallery).map((image) => normalizeAlibabaMediaUrl(image) ?? image);
-  const effectiveGallery = normalizedGallery.length > 0 ? normalizedGallery : rawMediaGallery;
+  const galleryCandidates = [...new Set([
+    ...normalizedGallery,
+    ...rawMediaGallery,
+    normalizedImage,
+  ].filter((entry): entry is string => Boolean(entry)))];
+  const effectiveGallery = galleryCandidates.length > 0
+    ? galleryCandidates
+    : normalizedGallery.length > 0
+      ? normalizedGallery
+      : rawMediaGallery;
   const rawPriceBounds = extractRawPriceBounds(record.rawPayload ?? null);
   const rawWeightGrams = extractRawWeightGrams(record.rawPayload);
   const rawPackageDimensionsCm = extractRawPackageDimensions(record.rawPayload) ?? parsePackagingDimensions(record.packaging);

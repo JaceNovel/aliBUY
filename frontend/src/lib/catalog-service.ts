@@ -38,6 +38,67 @@ function isPositiveLotCbm(value: string | undefined) {
   return Number.isFinite(parsed) && parsed > 0;
 }
 
+function normalizeMediaUrl(value: unknown) {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (normalized.startsWith("//")) {
+    return `https:${normalized}`;
+  }
+
+  return /^https?:\/\//i.test(normalized) || normalized.startsWith("/") ? normalized : undefined;
+}
+
+function collectRawMediaUrls(value: unknown, depth = 0): string[] {
+  if (depth > 6 || value == null) {
+    return [];
+  }
+
+  if (typeof value === "string") {
+    const normalized = normalizeMediaUrl(value);
+    return normalized && /\.(?:jpg|jpeg|png|webp)(?:[?_].*)?$/i.test(normalized) ? [normalized] : [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => collectRawMediaUrls(entry, depth + 1));
+  }
+
+  if (typeof value !== "object") {
+    return [];
+  }
+
+  return Object.entries(value as Record<string, unknown>).flatMap(([key, nestedValue]) => {
+    if (/(video|mp4|m3u8|webm)/i.test(key)) {
+      return [];
+    }
+
+    if (/(image|img|photo|picture|gallery|poster|main_image|multi_image|url)/i.test(key) || depth < 2) {
+      return collectRawMediaUrls(nestedValue, depth + 1);
+    }
+
+    return [];
+  });
+}
+
+function buildRichGallery(input: { image?: string; gallery?: string[]; rawPayload?: unknown }) {
+  const candidates = [
+    ...(input.gallery ?? []),
+    ...collectRawMediaUrls(input.rawPayload),
+    input.image,
+  ].flatMap((entry) => {
+    const normalized = normalizeMediaUrl(entry);
+    return normalized ? [normalized] : [];
+  });
+
+  return [...new Set(candidates)];
+}
+
 async function fetchRemoteCatalogProducts() {
   if (!API_URL) {
     return null;
@@ -113,6 +174,14 @@ async function fetchRemoteCatalogProducts() {
       const itemWeightGrams = resolveCoherentItemWeightGrams(rawWeightGrams, weightContext);
       const lotCbm = rawLotCbm && isPositiveLotCbm(rawLotCbm) ? rawLotCbm : calculateLotCbm(packageDimensionsCm);
 
+      const gallery = buildRichGallery({
+        image,
+        gallery: Array.isArray(candidate.gallery)
+          ? candidate.gallery.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+          : [],
+        rawPayload: candidate.rawPayload ?? candidate,
+      });
+
       return [{
         slug,
         title,
@@ -123,9 +192,7 @@ async function fetchRemoteCatalogProducts() {
         categoryTitle,
         categoryPath,
         image,
-        gallery: Array.isArray(candidate.gallery)
-          ? candidate.gallery.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
-          : [image],
+        gallery: gallery.length > 0 ? gallery : [image],
         videoUrl: typeof candidate.videoUrl === "string" && candidate.videoUrl.trim() ? candidate.videoUrl.trim() : undefined,
         videoPoster: typeof candidate.videoPoster === "string" && candidate.videoPoster.trim() ? candidate.videoPoster.trim() : undefined,
         packaging,
@@ -206,7 +273,11 @@ function toCatalogProduct(product: Awaited<ReturnType<typeof getAlibabaImportedP
     categoryTitle: product.categoryTitle,
     categoryPath: product.categoryPath,
     image: product.image,
-    gallery: product.gallery,
+    gallery: buildRichGallery({
+      image: product.image,
+      gallery: product.gallery,
+      rawPayload: product.rawPayload,
+    }),
     videoUrl: product.videoUrl,
     videoPoster: product.videoPoster,
     packaging: product.packaging,

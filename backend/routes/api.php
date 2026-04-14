@@ -4,6 +4,7 @@ use App\Http\Controllers\AccountAddressController;
 use App\Http\Controllers\AccountProfileController;
 use App\Http\Controllers\AccountSecurityController;
 use App\Http\Controllers\AccountSettingsController;
+use App\Http\Controllers\AdminDiagnosticsController;
 use App\Http\Controllers\AlibabaAdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CartController;
@@ -46,6 +47,7 @@ Route::post('/location/reverse-geocode', [LocationController::class, 'reverseGeo
 Route::post('/location/resolve-maps-link', [LocationController::class, 'resolveMapsLink']);
 Route::get('/free-deals/state', [FreeDealController::class, 'state']);
 Route::post('/free-deals/checkout', [FreeDealController::class, 'checkout']);
+Route::post('/free-deals/verify-payment', [FreeDealController::class, 'verifyPayment']);
 Route::post('/partner/request', [PartnerRequestController::class, 'store']);
 Route::prefix('partner/portal')->group(function () {
     Route::get('/access', [PartnerPortalController::class, 'access']);
@@ -108,6 +110,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/admin/aliexpress/publish', [AlibabaAdminController::class, 'publish']);
     Route::post('/admin/aliexpress/purchase-orders', [AlibabaAdminController::class, 'purchaseOrders']);
     Route::post('/admin/aliexpress/purchase-orders/{orderId}/pay', [AlibabaAdminController::class, 'payPurchaseOrder']);
+    Route::get('/admin/diagnostics/manychat', [AdminDiagnosticsController::class, 'manychat']);
     Route::get('/admin/free-deals', [FreeDealController::class, 'adminShow']);
     Route::put('/admin/free-deals', [FreeDealController::class, 'adminSave']);
     Route::post('/admin/free-deals', [FreeDealController::class, 'adminImport']);
