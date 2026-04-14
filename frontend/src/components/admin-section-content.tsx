@@ -90,7 +90,7 @@ export async function AdminSectionContent({ slug, pricing }: { slug: string; pri
           `${Number.isFinite(product.moq) && product.moq > 0 ? product.moq : 1} ${product.unit || "piece"}`,
           product.badge ?? "Catalogue",
         ],
-        href: `/products/${product.slug}`,
+        href: `/products/${encodeURIComponent(product.slug)}`,
       }));
       break;
     }

@@ -9,5 +9,9 @@ export function hasValidClerkSecretKey() {
 }
 
 export function isClerkConfigured() {
+  return hasValidClerkPublishableKey();
+}
+
+export function isClerkServerConfigured() {
   return hasValidClerkPublishableKey() && hasValidClerkSecretKey();
 }

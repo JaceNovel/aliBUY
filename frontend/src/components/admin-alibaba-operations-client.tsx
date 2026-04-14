@@ -1264,6 +1264,11 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                             <Trash2 className="h-4 w-4" />
                             Supprimer
                           </button>
+                          {product.publishedToSite ? (
+                            <Link href={`/products/${encodeURIComponent(product.slug)}`} className="inline-flex h-10 items-center justify-center rounded-[12px] border border-[#dbe2ea] bg-white px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
+                              Voir produit
+                            </Link>
+                          ) : null}
                           {product.publishedToSite ? <span className="inline-flex h-10 items-center rounded-[12px] bg-[#eafaf0] px-4 text-[13px] font-semibold text-[#15803d]">Deja sur le site</span> : null}
                         </div>
                       </div>

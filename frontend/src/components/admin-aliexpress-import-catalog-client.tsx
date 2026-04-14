@@ -831,6 +831,11 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard }: { initi
                         <Trash2 className="h-4 w-4" />
                         Supprimer
                       </button>
+                      {product.publishedToSite ? (
+                        <Link href={`/products/${encodeURIComponent(product.slug)}`} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#d6dbe6] bg-white px-4 text-[13px] font-semibold text-[#1d4f91] transition hover:border-[#1d4f91] hover:text-[#173d71]">
+                          Voir produit
+                        </Link>
+                      ) : null}
                     </div>
                   </div>
                 </div>
