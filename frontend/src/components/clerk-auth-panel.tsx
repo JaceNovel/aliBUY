@@ -20,7 +20,7 @@ function buildAuthSwitchUrl(pathname: "/login" | "/register", nextPath: string, 
 
 export function ClerkAuthPanel({ mode, nextPath, reason }: ClerkAuthPanelProps) {
   return (
-    <div className="mt-6 min-h-[360px]">
+    <div className="mx-auto mt-6 min-h-[420px] w-full max-w-[480px]">
       <ClerkLoading>
         <div className="rounded-[24px] border border-[#d7dce5] bg-white/90 px-5 py-6 text-center text-[14px] font-semibold text-[#344054] shadow-[0_18px_45px_rgba(17,24,39,0.08)]">
           Chargement du formulaire securise...
