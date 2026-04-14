@@ -117,12 +117,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/admin/partner-requests', [PartnerAdminController::class, 'index']);
     Route::post('/admin/partner-requests/{apiPartnerRequest}/approve', [PartnerAdminController::class, 'approve']);
     Route::post('/admin/partner-requests/{apiPartnerRequest}/reject', [PartnerAdminController::class, 'reject']);
+    Route::post('/admin/partner-requests/{apiPartnerRequest}/block', [PartnerAdminController::class, 'block']);
+    Route::post('/admin/partner-requests/{apiPartnerRequest}/reactivate', [PartnerAdminController::class, 'reactivate']);
     Route::get('/admin/partner-withdrawals', [PartnerAdminController::class, 'withdrawals']);
     Route::post('/admin/partner-withdrawals/{partnerWithdrawal}/approve', [PartnerAdminController::class, 'approveWithdrawal']);
     Route::post('/admin/partner-withdrawals/{partnerWithdrawal}/reject', [PartnerAdminController::class, 'rejectWithdrawal']);
     Route::patch('/admin/partner-orders/{order}/status', [PartnerOrderAdminController::class, 'updateStatus']);
     Route::get('/admin/orders', [OrderController::class, 'adminIndex']);
     Route::get('/admin/orders/{order}', [OrderController::class, 'adminShow']);
+    Route::get('/admin/users', [UserController::class, 'adminIndex']);
+    Route::get('/admin/users/{user}', [UserController::class, 'adminShow']);
     Route::apiResource('orders', OrderController::class)->only(['index', 'store', 'show']);
     Route::post('/orders/{order}/promo', [OrderController::class, 'applyPromo']);
 });

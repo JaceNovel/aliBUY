@@ -6,7 +6,7 @@ import { buildApiUrl } from "@/lib/api";
 import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
 import { getCurrentUser } from "@/lib/user-auth";
 
-export type PartnerPortalStatus = "guest" | "none" | "pending" | "approved" | "rejected";
+export type PartnerPortalStatus = "guest" | "none" | "pending" | "approved" | "rejected" | "blocked";
 
 export type PartnerPortalAccess = {
   status: PartnerPortalStatus;
@@ -16,6 +16,8 @@ export type PartnerPortalAccess = {
     companyName: string;
     website: string | null;
     description: string;
+    decisionReason?: string | null;
+    reviewedAt?: string | null;
     createdAt: string | null;
   };
   partner: null | {
@@ -24,6 +26,8 @@ export type PartnerPortalAccess = {
     email: string;
     webhookUrl: string | null;
     isActive: boolean;
+    deactivatedReason?: string | null;
+    deactivatedAt?: string | null;
     walletBalance: number;
     createdAt: string | null;
   };

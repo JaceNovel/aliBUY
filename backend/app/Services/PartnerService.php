@@ -29,6 +29,8 @@ class PartnerService
             'email' => strtolower($validated['email']),
             'description' => trim($validated['description']),
             'status' => 'pending',
+            'decision_reason' => null,
+            'reviewed_at' => null,
         ]);
     }
 
@@ -61,7 +63,11 @@ class PartnerService
                 'balance' => 0,
             ]);
 
-            $requestModel->forceFill(['status' => 'approved'])->save();
+            $requestModel->forceFill([
+                'status' => 'approved',
+                'decision_reason' => null,
+                'reviewed_at' => now(),
+            ])->save();
 
             return $partner;
         });
@@ -86,7 +92,7 @@ class PartnerService
         return $plainTextSecret;
     }
 
-    public function rejectRequest(ApiPartnerRequest $requestModel, ?User $user): ApiPartnerRequest
+    public function rejectRequest(ApiPartnerRequest $requestModel, ?User $user, ?string $reason = null): ApiPartnerRequest
     {
         $this->assertAdmin($user);
 
@@ -96,9 +102,81 @@ class PartnerService
             ]);
         }
 
-        $requestModel->forceFill(['status' => 'rejected'])->save();
+        $requestModel->forceFill([
+            'status' => 'rejected',
+            'decision_reason' => $this->normalizeDecisionReason($reason, 'Dossier non coherent.'),
+            'reviewed_at' => now(),
+        ])->save();
 
         return $requestModel;
+    }
+
+    public function blockPartnerRequest(ApiPartnerRequest $requestModel, ?User $user, ?string $reason = null): ApiPartner
+    {
+        $this->assertAdmin($user);
+
+        if ($requestModel->status !== 'approved') {
+            throw ValidationException::withMessages([
+                'status' => 'Seules les demandes approuvees peuvent etre bloquees.',
+            ]);
+        }
+
+        $partner = ApiPartner::query()
+            ->where('email', strtolower($requestModel->email))
+            ->latest()
+            ->first();
+
+        if (! $partner) {
+            throw ValidationException::withMessages([
+                'partner' => 'Compte partenaire introuvable pour cette demande approuvee.',
+            ]);
+        }
+
+        $normalizedReason = $this->normalizeDecisionReason($reason, 'Compte partenaire bloque apres verification d activite suspecte.');
+
+        $partner->forceFill([
+            'is_active' => false,
+            'deactivated_reason' => $normalizedReason,
+            'deactivated_at' => now(),
+        ])->save();
+
+        $requestModel->forceFill([
+            'status' => 'blocked',
+            'decision_reason' => $normalizedReason,
+            'reviewed_at' => now(),
+        ])->save();
+
+        return $partner->fresh('wallet');
+    }
+
+    public function reactivatePartnerRequest(ApiPartnerRequest $requestModel, ?User $user): ApiPartner
+    {
+        $this->assertAdmin($user);
+
+        $partner = ApiPartner::query()
+            ->where('email', strtolower($requestModel->email))
+            ->latest()
+            ->first();
+
+        if (! $partner) {
+            throw ValidationException::withMessages([
+                'partner' => 'Compte partenaire introuvable pour cette demande.',
+            ]);
+        }
+
+        $partner->forceFill([
+            'is_active' => true,
+            'deactivated_reason' => null,
+            'deactivated_at' => null,
+        ])->save();
+
+        $requestModel->forceFill([
+            'status' => 'approved',
+            'decision_reason' => null,
+            'reviewed_at' => now(),
+        ])->save();
+
+        return $partner->fresh('wallet');
     }
 
     public function authenticateRequest(Request $request): ApiPartner
@@ -135,13 +213,27 @@ class PartnerService
 
     public function transformRequest(ApiPartnerRequest $requestModel): array
     {
+        $partner = ApiPartner::query()
+            ->with('wallet')
+            ->where('email', strtolower((string) $requestModel->email))
+            ->latest()
+            ->first();
+        $status = $requestModel->status;
+
+        if ($partner && ! $partner->is_active && in_array($requestModel->status, ['approved', 'blocked'], true)) {
+            $status = 'blocked';
+        }
+
         return [
             'id' => (string) $requestModel->id,
             'company_name' => $requestModel->company_name,
             'website' => $requestModel->website,
             'email' => $requestModel->email,
             'description' => $requestModel->description,
-            'status' => $requestModel->status,
+            'status' => $status,
+            'decision_reason' => $requestModel->decision_reason,
+            'reviewed_at' => optional($requestModel->reviewed_at)->toIso8601String(),
+            'partner' => $partner ? $this->transformPartner($partner) : null,
             'created_at' => optional($requestModel->created_at)->toIso8601String(),
         ];
     }
@@ -155,9 +247,18 @@ class PartnerService
             'app_key' => $partner->app_key,
             'webhook_url' => $partner->webhook_url,
             'is_active' => (bool) $partner->is_active,
+            'deactivated_reason' => $partner->deactivated_reason,
+            'deactivated_at' => optional($partner->deactivated_at)->toIso8601String(),
             'created_at' => optional($partner->created_at)->toIso8601String(),
             'wallet_balance' => $partner->wallet ? (float) $partner->wallet->balance : 0.0,
         ];
+    }
+
+    protected function normalizeDecisionReason(?string $reason, string $fallback): string
+    {
+        $normalized = trim((string) $reason);
+
+        return $normalized !== '' ? $normalized : $fallback;
     }
 
     public function transformWithdrawal(PartnerWithdrawal $withdrawal): array

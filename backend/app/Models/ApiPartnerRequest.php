@@ -15,5 +15,11 @@ class ApiPartnerRequest extends Model
         'email',
         'description',
         'status',
+        'decision_reason',
+        'reviewed_at',
+    ];
+
+    protected $casts = [
+        'reviewed_at' => 'datetime',
     ];
 }

@@ -56,6 +56,10 @@ export function ClerkGoogleOauthButton({ mode, nextPath }: ClerkGoogleOauthButto
     setIsSubmitting(true);
 
     try {
+      const origin = window.location.origin;
+      const redirectUrl = new URL(nextPath, origin).toString();
+      const redirectCallbackUrl = new URL(mode === "sign-in" ? "/login/sso-callback" : "/register/sso-callback", origin).toString();
+
       if (mode === "sign-in") {
         if (signInFetchStatus !== "idle" || !signIn) {
           throw new Error("Le service de connexion Google n est pas encore pret.");
@@ -63,8 +67,8 @@ export function ClerkGoogleOauthButton({ mode, nextPath }: ClerkGoogleOauthButto
 
         await signIn.sso({
           strategy: "oauth_google",
-          redirectUrl: nextPath,
-          redirectCallbackUrl: "/login/sso-callback",
+          redirectUrl,
+          redirectCallbackUrl,
         });
 
         return;
@@ -76,8 +80,8 @@ export function ClerkGoogleOauthButton({ mode, nextPath }: ClerkGoogleOauthButto
 
       await signUp.sso({
         strategy: "oauth_google",
-        redirectUrl: nextPath,
-        redirectCallbackUrl: "/register/sso-callback",
+        redirectUrl,
+        redirectCallbackUrl,
       });
     } catch (error) {
       setErrorMessage(extractErrorMessage(error));
@@ -100,6 +104,10 @@ export function ClerkGoogleOauthButton({ mode, nextPath }: ClerkGoogleOauthButto
       {errorMessage ? (
         <div className="rounded-[16px] bg-[#fff1f2] px-4 py-3 text-[14px] font-medium text-[#b42318] ring-1 ring-[#f5c2c7]">
           {errorMessage}
+        </div>
+      ) : isSubmitting ? (
+        <div className="rounded-[16px] bg-[#fff8f1] px-4 py-3 text-[14px] font-medium text-[#c2410c] ring-1 ring-[#fed7aa]">
+          Redirection Google en cours. Si rien ne s ouvre, verifiez la configuration Clerk du domaine et des URLs de redirection.
         </div>
       ) : null}
     </div>

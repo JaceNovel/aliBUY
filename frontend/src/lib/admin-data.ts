@@ -113,6 +113,102 @@ async function fetchAdminOrderByIdFromApi(orderId: string) {
   return payload?.order && typeof payload.order === "object" ? payload.order as SourcingOrder : null;
 }
 
+async function fetchAdminUsersOverviewFromApi() {
+  const sessionToken = (await cookies()).get(USER_SESSION_COOKIE)?.value
+    ?? await getCurrentUser().then((user) => user ? createAuthenticatedUserSession(user) : null).catch(() => null);
+  if (!sessionToken) {
+    return null;
+  }
+
+  const response = API_URL
+    ? await fetch(`${API_URL}/api/admin/users`, {
+      headers: await buildServerForwardHeaders({
+        accept: "application/json",
+      }, {
+        includeAdminApiToken: true,
+      }),
+      cache: "no-store",
+    }).catch(() => null)
+    : null;
+  const fallbackResponse = response && response.ok
+    ? response
+    : await fetch(await buildAdminProxyUrl("/api/admin/users"), {
+      headers: {
+        Cookie: `${USER_SESSION_COOKIE}=${encodeURIComponent(sessionToken)}`,
+      },
+      cache: "no-store",
+    }).catch(() => null);
+
+  if (!fallbackResponse?.ok) {
+    return null;
+  }
+
+  const payload = await fallbackResponse.json().catch(() => null) as { users?: unknown[] } | null;
+  if (!Array.isArray(payload?.users)) {
+    return null;
+  }
+
+  return payload.users.map((user) => normalizeAdminUserFromApi(user)).filter((user): user is AdminUserRecord => Boolean(user));
+}
+
+async function fetchAdminUserDetailFromApi(userId: string) {
+  const sessionToken = (await cookies()).get(USER_SESSION_COOKIE)?.value
+    ?? await getCurrentUser().then((user) => user ? createAuthenticatedUserSession(user) : null).catch(() => null);
+  if (!sessionToken) {
+    return null;
+  }
+
+  const response = API_URL
+    ? await fetch(`${API_URL}/api/admin/users/${encodeURIComponent(userId)}`, {
+      headers: await buildServerForwardHeaders({
+        accept: "application/json",
+      }, {
+        includeAdminApiToken: true,
+      }),
+      cache: "no-store",
+    }).catch(() => null)
+    : null;
+  const fallbackResponse = response && response.ok
+    ? response
+    : await fetch(await buildAdminProxyUrl(`/api/admin/users/${encodeURIComponent(userId)}`), {
+      headers: {
+        Cookie: `${USER_SESSION_COOKIE}=${encodeURIComponent(sessionToken)}`,
+      },
+      cache: "no-store",
+    }).catch(() => null);
+
+  if (!fallbackResponse?.ok) {
+    return null;
+  }
+
+  const payload = await fallbackResponse.json().catch(() => null) as {
+    user?: unknown;
+    addresses?: unknown[];
+    orders?: unknown[];
+  } | null;
+  if (!payload?.user) {
+    return null;
+  }
+
+  const user = normalizeAdminUserFromApi(payload.user);
+  if (!user) {
+    return null;
+  }
+
+  return {
+    user,
+    addresses: Array.isArray(payload.addresses)
+      ? payload.addresses.map((address) => normalizeAdminUserAddressFromApi(address)).filter((address): address is AdminUserAddressRecord => Boolean(address))
+      : [],
+    orders: Array.isArray(payload.orders)
+      ? payload.orders.map((order) => normalizeAdminUserDetailOrderFromApi(order)).filter((order): order is AdminUserOrderDetailRecord => Boolean(order))
+      : [],
+    quotes: [],
+    conversations: [],
+    favorites: [],
+  } satisfies AdminUserDetailRecord;
+}
+
 function normalizeAdminOrderFromApi(order: unknown): AdminOrderRecord | null {
   if (!isObjectRecord(order)) {
     return null;
@@ -154,15 +250,142 @@ function normalizeAdminOrderFromApi(order: unknown): AdminOrderRecord | null {
   };
 }
 
+function normalizeAdminUserFromApi(user: unknown): AdminUserRecord | null {
+  if (!isObjectRecord(user)) {
+    return null;
+  }
+
+  const id = typeof user.id === "string" || typeof user.id === "number" ? String(user.id) : "";
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    displayName: typeof user.displayName === "string" ? user.displayName : typeof user.name === "string" ? user.name : `Utilisateur ${id}`,
+    email: typeof user.email === "string" ? user.email : "",
+    phone: typeof user.phone === "string" ? user.phone : "",
+    createdAt: typeof user.createdAt === "string" ? user.createdAt : new Date(0).toISOString(),
+    ordersCount: typeof user.ordersCount === "number" ? user.ordersCount : Number(user.ordersCount ?? 0),
+    paidOrdersCount: typeof user.paidOrdersCount === "number" ? user.paidOrdersCount : Number(user.paidOrdersCount ?? 0),
+    addressesCount: typeof user.addressesCount === "number" ? user.addressesCount : Number(user.addressesCount ?? 0),
+    quotesCount: typeof user.quotesCount === "number" ? user.quotesCount : Number(user.quotesCount ?? 0),
+    conversationsCount: typeof user.conversationsCount === "number" ? user.conversationsCount : Number(user.conversationsCount ?? 0),
+    status: typeof user.status === "string" ? user.status : "Nouveau",
+  };
+}
+
+function normalizeAdminUserAddressFromApi(address: unknown): AdminUserAddressRecord | null {
+  if (!isObjectRecord(address)) {
+    return null;
+  }
+
+  const id = typeof address.id === "string" || typeof address.id === "number" ? String(address.id) : "";
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    label: typeof address.label === "string" ? address.label : "",
+    recipientName: typeof address.recipientName === "string" ? address.recipientName : "",
+    phone: typeof address.phone === "string" ? address.phone : "",
+    email: typeof address.email === "string" ? address.email : "",
+    addressLine1: typeof address.addressLine1 === "string" ? address.addressLine1 : "",
+    addressLine2: typeof address.addressLine2 === "string" ? address.addressLine2 : "",
+    city: typeof address.city === "string" ? address.city : "",
+    state: typeof address.state === "string" ? address.state : "",
+    postalCode: typeof address.postalCode === "string" ? address.postalCode : "",
+    countryCode: typeof address.countryCode === "string" ? address.countryCode : "",
+    isDefault: Boolean(address.isDefault),
+    createdAt: typeof address.createdAt === "string" ? address.createdAt : "",
+  };
+}
+
+function normalizeAdminUserDetailOrderFromApi(order: unknown): AdminUserOrderDetailRecord | null {
+  if (!isObjectRecord(order)) {
+    return null;
+  }
+
+  const id = typeof order.id === "string" || typeof order.id === "number" ? String(order.id) : "";
+  if (!id) {
+    return null;
+  }
+
+  const totalPriceFcfa = typeof order.totalPriceFcfa === "number"
+    ? order.totalPriceFcfa
+    : typeof order.totalPriceFcfa === "string"
+      ? Number(order.totalPriceFcfa)
+      : 0;
+
+  return {
+    id,
+    orderNumber: typeof order.orderNumber === "string" ? order.orderNumber : id,
+    customerName: typeof order.customerName === "string" ? order.customerName : "",
+    customerEmail: typeof order.customerEmail === "string" ? order.customerEmail : "",
+    customerPhone: typeof order.customerPhone === "string" ? order.customerPhone : "",
+    addressLine: [order.addressLine1, order.addressLine2, order.city, order.state, order.postalCode, order.countryCode]
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .join(", "),
+    status: typeof order.status === "string" ? order.status : "pending",
+    paymentStatus: typeof order.paymentStatus === "string" ? order.paymentStatus : "pending",
+    paymentProvider: typeof order.paymentProvider === "string" ? order.paymentProvider : "",
+    totalPriceFcfa: Number.isFinite(totalPriceFcfa) ? totalPriceFcfa : 0,
+    createdAt: typeof order.createdAt === "string" ? order.createdAt : new Date(0).toISOString(),
+  };
+}
+
 export type AdminUserRecord = {
   id: string;
   displayName: string;
   email: string;
+  phone?: string;
   createdAt: string;
   ordersCount: number;
+  paidOrdersCount?: number;
+  addressesCount?: number;
   quotesCount: number;
   conversationsCount: number;
   status: string;
+};
+
+export type AdminUserAddressRecord = {
+  id: string;
+  label?: string;
+  recipientName: string;
+  phone?: string;
+  email?: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  countryCode?: string;
+  isDefault?: boolean;
+  createdAt?: string;
+};
+
+export type AdminUserOrderDetailRecord = {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  addressLine: string;
+  status: string;
+  paymentStatus: string;
+  paymentProvider: string;
+  totalPriceFcfa: number;
+  createdAt: string;
+};
+
+export type AdminUserDetailRecord = {
+  user: AdminUserRecord & { role?: string };
+  addresses: AdminUserAddressRecord[];
+  orders: AdminUserOrderDetailRecord[];
+  quotes: AdminQuoteRecord[];
+  conversations: AdminUserSupportConversation[];
+  favorites: AdminCatalogProduct[];
 };
 
 export type AdminOrderRecord = {
@@ -486,6 +709,17 @@ export async function getAdminOrders(options?: { preferProxy?: boolean }): Promi
 }
 
 export async function getAdminUsersOverview(): Promise<AdminUserRecord[]> {
+  if (API_URL) {
+    try {
+      const proxiedUsers = await fetchAdminUsersOverviewFromApi();
+      if (proxiedUsers) {
+        return proxiedUsers;
+      }
+    } catch {
+      // Fall back to the local store when the backend API is unreachable.
+    }
+  }
+
   const [users, orders, quotes, conversations] = await Promise.all([
     getStoredUsers(),
     getSourcingOrders(),
@@ -503,8 +737,11 @@ export async function getAdminUsersOverview(): Promise<AdminUserRecord[]> {
       id: user.id,
       displayName: user.displayName,
       email: user.email,
+      phone: "",
       createdAt: user.createdAt,
       ordersCount,
+      paidOrdersCount: 0,
+      addressesCount: 0,
       quotesCount,
       conversationsCount,
       status,
@@ -512,7 +749,18 @@ export async function getAdminUsersOverview(): Promise<AdminUserRecord[]> {
   });
 }
 
-export async function getAdminUserDetail(userId: string) {
+export async function getAdminUserDetail(userId: string): Promise<AdminUserDetailRecord | null> {
+  if (API_URL) {
+    try {
+      const proxiedUserDetail = await fetchAdminUserDetailFromApi(userId);
+      if (proxiedUserDetail) {
+        return proxiedUserDetail;
+      }
+    } catch {
+      // Fall back to the local store when the backend API is unreachable.
+    }
+  }
+
   const user = await getStoredUserById(userId);
   if (!user) {
     return null;
@@ -532,9 +780,46 @@ export async function getAdminUserDetail(userId: string) {
   const favorites = products.filter((product: AdminCatalogProduct) => favoriteSlugs.includes(product.slug));
 
   return {
-    user,
-    addresses,
-    orders: userOrders,
+    user: {
+      id: user.id,
+      displayName: user.displayName,
+      email: user.email,
+      phone: "",
+      createdAt: user.createdAt,
+      ordersCount: userOrders.length,
+      paidOrdersCount: userOrders.filter((order) => order.paymentStatus === "paid").length,
+      addressesCount: addresses.length,
+      quotesCount: userQuotes.length,
+      conversationsCount: conversations.length,
+      status: userOrders.length > 0 || userQuotes.length > 0 || conversations.length > 0 ? "Actif" : "Nouveau",
+    },
+    addresses: addresses.map((address) => ({
+      id: address.id,
+      recipientName: address.recipientName,
+      phone: address.phone,
+      email: address.email,
+      addressLine1: address.addressLine1,
+      addressLine2: address.addressLine2,
+      city: address.city,
+      state: address.state,
+      postalCode: address.postalCode,
+      countryCode: address.countryCode,
+    })),
+    orders: userOrders.map((order) => ({
+      id: order.id,
+      orderNumber: order.orderNumber,
+      customerName: order.customerName,
+      customerEmail: order.customerEmail,
+      customerPhone: order.customerPhone,
+      addressLine: [order.addressLine1, order.addressLine2, order.city, order.state, order.postalCode, order.countryCode]
+        .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+        .join(", "),
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      paymentProvider: "",
+      totalPriceFcfa: order.totalPriceFcfa,
+      createdAt: order.createdAt,
+    })),
     quotes: userQuotes,
     conversations,
     favorites,

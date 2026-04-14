@@ -7,6 +7,19 @@ export type AdminPartnerRequestItem = {
   email: string;
   description: string;
   status: AdminPartnerRequestStatus;
+  decisionReason: string | null;
+  reviewedAt: string | null;
+  partner: null | {
+    id: string;
+    companyName: string;
+    email: string;
+    webhookUrl: string | null;
+    isActive: boolean;
+    deactivatedReason: string | null;
+    deactivatedAt: string | null;
+    walletBalance: number;
+    createdAt: string | null;
+  };
   createdAt: string | null;
 };
 
@@ -34,7 +47,12 @@ export function normalizeAdminPartnerRequestItem(value: unknown): AdminPartnerRe
   const description = normalizeString(candidate.description);
   const status = normalizeString(candidate.status) || "pending";
   const website = normalizeString(candidate.website) || null;
+  const decisionReason = normalizeString(candidate.decision_reason) || null;
+  const reviewedAt = normalizeString(candidate.reviewed_at) || null;
   const createdAt = normalizeString(candidate.created_at) || null;
+  const partnerCandidate = candidate.partner && typeof candidate.partner === "object"
+    ? candidate.partner as Record<string, unknown>
+    : null;
 
   if (!id || !companyName || !email) {
     return null;
@@ -47,6 +65,19 @@ export function normalizeAdminPartnerRequestItem(value: unknown): AdminPartnerRe
     email,
     description,
     status,
+    decisionReason,
+    reviewedAt,
+    partner: partnerCandidate ? {
+      id: normalizeString(partnerCandidate.id),
+      companyName: normalizeString(partnerCandidate.company_name),
+      email: normalizeString(partnerCandidate.email),
+      webhookUrl: normalizeString(partnerCandidate.webhook_url) || null,
+      isActive: Boolean(partnerCandidate.is_active),
+      deactivatedReason: normalizeString(partnerCandidate.deactivated_reason) || null,
+      deactivatedAt: normalizeString(partnerCandidate.deactivated_at) || null,
+      walletBalance: typeof partnerCandidate.wallet_balance === "number" ? partnerCandidate.wallet_balance : Number(partnerCandidate.wallet_balance ?? 0),
+      createdAt: normalizeString(partnerCandidate.created_at) || null,
+    } : null,
     createdAt,
   };
 }

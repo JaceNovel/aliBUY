@@ -107,6 +107,8 @@ export type PartnerPortalRequestSummary = {
   companyName: string;
   website: string | null;
   description: string;
+  decisionReason?: string | null;
+  reviewedAt?: string | null;
   createdAt: string | null;
 };
 
@@ -116,12 +118,14 @@ export type PartnerPortalAccountSummary = {
   email: string;
   webhookUrl: string | null;
   isActive: boolean;
+  deactivatedReason?: string | null;
+  deactivatedAt?: string | null;
   walletBalance: number;
   createdAt: string | null;
 };
 
 export type PartnerPortalAccessResponse = {
-  status: "guest" | "none" | "pending" | "approved" | "rejected";
+  status: "guest" | "none" | "pending" | "approved" | "rejected" | "blocked";
   hasDashboardAccess: boolean;
   email: string | null;
   request: PartnerPortalRequestSummary | null;

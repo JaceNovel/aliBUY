@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MessagesSquare, Package2, Quote, Users } from "lucide-react";
+import { CreditCard, MapPin, MessagesSquare, Package2, Quote, Users } from "lucide-react";
 import { redirect } from "next/navigation";
 
 import { getAdminUsersOverview } from "@/lib/admin-data";
@@ -13,7 +13,7 @@ export default async function AdminUsersPage() {
   const users = await getAdminUsersOverview();
   const activeUsers = users.filter((user) => user.status === "Actif").length;
   const usersWithOrders = users.filter((user) => user.ordersCount > 0).length;
-  const usersWithSupport = users.filter((user) => user.conversationsCount > 0).length;
+  const usersWithPaidOrders = users.filter((user) => (user.paidOrdersCount ?? 0) > 0).length;
 
   return (
     <div className="space-y-5">
@@ -32,7 +32,7 @@ export default async function AdminUsersPage() {
         {[
           { label: "Comptes actifs", value: String(activeUsers), icon: Users },
           { label: "Avec commandes", value: String(usersWithOrders), icon: Package2 },
-          { label: "Avec support", value: String(usersWithSupport), icon: MessagesSquare },
+          { label: "Paiements confirmes", value: String(usersWithPaidOrders), icon: CreditCard },
         ].map((card) => {
           const Icon = card.icon;
           return (
@@ -54,10 +54,11 @@ export default async function AdminUsersPage() {
             <thead>
               <tr className="text-[12px] uppercase tracking-[0.08em] text-[#98a2b3]">
                 <th className="py-3 pr-4 font-semibold">Utilisateur</th>
+                <th className="py-3 pr-4 font-semibold">Contact</th>
                 <th className="py-3 pr-4 font-semibold">Statut</th>
                 <th className="py-3 pr-4 font-semibold">Commandes</th>
-                <th className="py-3 pr-4 font-semibold">Devis</th>
-                <th className="py-3 pr-4 font-semibold">Support</th>
+                <th className="py-3 pr-4 font-semibold">Payees</th>
+                <th className="py-3 pr-4 font-semibold">Adresses</th>
                 <th className="py-3 pr-4 font-semibold">Inscription</th>
                 <th className="py-3 pr-4 font-semibold">Accès</th>
               </tr>
@@ -69,12 +70,13 @@ export default async function AdminUsersPage() {
                     <div className="font-semibold">{user.displayName}</div>
                     <div className="text-[#667085]">{user.email}</div>
                   </td>
+                  <td className="py-3.5 pr-4 text-[#667085]">{user.phone || "Non renseigne"}</td>
                   <td className="py-3.5 pr-4">
                     <span className={["inline-flex rounded-full px-3 py-1 text-[12px] font-semibold", user.status === "Actif" ? "bg-[#dcfae6] text-[#16a34a]" : "bg-[#eef2f6] text-[#475467]"].join(" ")}>{user.status}</span>
                   </td>
                   <td className="py-3.5 pr-4">{user.ordersCount}</td>
-                  <td className="py-3.5 pr-4">{user.quotesCount}</td>
-                  <td className="py-3.5 pr-4">{user.conversationsCount}</td>
+                  <td className="py-3.5 pr-4">{user.paidOrdersCount ?? 0}</td>
+                  <td className="py-3.5 pr-4">{user.addressesCount ?? 0}</td>
                   <td className="py-3.5 pr-4">{new Date(user.createdAt).toLocaleDateString("fr-FR")}</td>
                   <td className="py-3.5 pr-4">
                     <div className="flex flex-wrap gap-2">
@@ -83,8 +85,8 @@ export default async function AdminUsersPage() {
                         Fiche complète
                       </Link>
                       <Link href={`/admin/users/${user.id}`} className="inline-flex items-center gap-1 rounded-full border border-[#e4e7ec] px-3 py-1.5 text-[12px] font-semibold text-[#344054] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
-                        <Quote className="h-3.5 w-3.5" />
-                        Activité
+                        <MapPin className="h-3.5 w-3.5" />
+                        Commandes et adresse
                       </Link>
                     </div>
                   </td>

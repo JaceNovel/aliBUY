@@ -19,6 +19,8 @@ class ApiPartner extends Model
         'plain_text_secret',
         'webhook_url',
         'is_active',
+        'deactivated_reason',
+        'deactivated_at',
     ];
 
     protected $hidden = [
@@ -29,6 +31,7 @@ class ApiPartner extends Model
     protected $casts = [
         'is_active' => 'boolean',
         'plain_text_secret' => 'encrypted',
+        'deactivated_at' => 'datetime',
     ];
 
     public function logs(): HasMany

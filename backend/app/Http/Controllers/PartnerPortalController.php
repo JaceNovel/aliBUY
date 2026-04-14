@@ -39,7 +39,9 @@ class PartnerPortalController extends Controller
 
         $status = $partner && $partner->is_active
             ? 'approved'
-            : ($latestRequest?->status ?? 'none');
+            : ($partner && ! $partner->is_active
+              ? 'blocked'
+              : ($latestRequest?->status ?? 'none'));
 
         return response()->json([
             'status' => $status,
@@ -48,6 +50,8 @@ class PartnerPortalController extends Controller
                 'companyName' => $latestRequest->company_name,
                 'website' => $latestRequest->website,
                 'description' => $latestRequest->description,
+                'decisionReason' => $latestRequest->decision_reason,
+                'reviewedAt' => optional($latestRequest->reviewed_at)->toIso8601String(),
                 'createdAt' => optional($latestRequest->created_at)->toIso8601String(),
             ] : null,
             'partner' => $partner ? [
@@ -56,6 +60,8 @@ class PartnerPortalController extends Controller
                 'email' => $partner->email,
                 'webhookUrl' => $partner->webhook_url,
                 'isActive' => (bool) $partner->is_active,
+                'deactivatedReason' => $partner->deactivated_reason,
+                'deactivatedAt' => optional($partner->deactivated_at)->toIso8601String(),
                 'walletBalance' => $partner->wallet ? (float) $partner->wallet->balance : 0.0,
                 'createdAt' => optional($partner->created_at)->toIso8601String(),
             ] : null,

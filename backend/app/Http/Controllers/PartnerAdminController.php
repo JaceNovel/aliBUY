@@ -46,10 +46,38 @@ class PartnerAdminController extends Controller
 
     public function reject(ApiPartnerRequest $apiPartnerRequest, Request $request): JsonResponse
     {
-        $partnerRequest = $this->partners->rejectRequest($apiPartnerRequest, $request->user('sanctum'));
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $partnerRequest = $this->partners->rejectRequest($apiPartnerRequest, $request->user('sanctum'), $validated['reason'] ?? null);
 
         return response()->json([
             'request' => $this->partners->transformRequest($partnerRequest),
+        ]);
+    }
+
+    public function block(ApiPartnerRequest $apiPartnerRequest, Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $partner = $this->partners->blockPartnerRequest($apiPartnerRequest, $request->user('sanctum'), $validated['reason'] ?? null);
+
+        return response()->json([
+            'partner' => $this->partners->transformPartner($partner),
+            'request' => $this->partners->transformRequest($apiPartnerRequest->fresh()),
+        ]);
+    }
+
+    public function reactivate(ApiPartnerRequest $apiPartnerRequest, Request $request): JsonResponse
+    {
+        $partner = $this->partners->reactivatePartnerRequest($apiPartnerRequest, $request->user('sanctum'));
+
+        return response()->json([
+            'partner' => $this->partners->transformPartner($partner),
+            'request' => $this->partners->transformRequest($apiPartnerRequest->fresh()),
         ]);
     }
 

@@ -173,6 +173,7 @@ export function PartnerApplicationForm({ initialAccess, loginHref, registerHref,
   const [error, setError] = useState<string | null>(null);
 
   const requestDate = useMemo(() => formatDate(access.request?.createdAt), [access.request?.createdAt]);
+  const decisionReason = access.request?.decisionReason?.trim() || access.partner?.deactivatedReason?.trim() || "";
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -324,6 +325,31 @@ export function PartnerApplicationForm({ initialAccess, loginHref, registerHref,
     );
   }
 
+  if (access.status === "blocked" && access.partner) {
+    return (
+      <div className="space-y-6">
+        <div id="partner-form" className="overflow-hidden rounded-[30px] border border-[#e5e7eb] bg-[linear-gradient(180deg,#fcfcfd_0%,#f3f4f6_100%)] p-6 shadow-[0_20px_50px_rgba(17,24,39,0.08)] sm:p-8">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#d1d5db] bg-white px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#111827]">
+            <ShieldCheck className="h-4 w-4" />
+            Compte partenaire bloque
+          </div>
+          <h2 className="mt-4 text-[28px] font-black tracking-[-0.05em] text-[#142133] sm:text-[38px]">Acces LIVE suspendu pour ce compte</h2>
+          <p className="mt-4 max-w-[760px] text-[15px] leading-8 text-[#5e6b79]">
+            Le compte <span className="font-semibold text-[#142133]">{access.email}</span> avait deja ete approuve, mais l acces partenaire a ete coupe apres verification.
+          </p>
+          <div className="mt-6 rounded-[22px] border border-[#d1d5db] bg-white px-5 py-5">
+            <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#6b7280]">Motif</div>
+            <div className="mt-2 text-[15px] font-semibold text-[#111827]">{decisionReason || "Tentatives suspectes detectees sur le compte partenaire."}</div>
+          </div>
+          <div className="mt-6 rounded-[22px] border border-[#e7eef5] bg-[#f9fcff] px-5 py-5 text-[14px] leading-7 text-[#5e6b79]">
+            Si la situation est reguliere, contactez l equipe AfriPay pour demander une nouvelle verification administrative du dossier.
+          </div>
+        </div>
+        <PartnerBottomCta goLiveHref={goLiveHref} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
@@ -387,7 +413,7 @@ export function PartnerApplicationForm({ initialAccess, loginHref, registerHref,
         <div className="mt-6 flex flex-wrap gap-3">
           <button
             type="submit"
-            disabled={isSubmitting || access.status === "pending"}
+            disabled={isSubmitting || access.status === "pending" || access.status === "blocked"}
             className="inline-flex h-12 items-center justify-center rounded-[16px] bg-[#119b6a] px-6 text-[15px] font-semibold text-white transition hover:bg-[#0f875d] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? "Envoi en cours..." : access.status === "rejected" ? "Soumettre une nouvelle demande" : access.status === "pending" ? "Demande en attente" : "Envoyer ma demande"}
@@ -406,13 +432,15 @@ export function PartnerApplicationForm({ initialAccess, loginHref, registerHref,
           <section className="rounded-[28px] border border-[#e6edf3] bg-white p-6 shadow-[0_18px_40px_rgba(17,24,39,0.06)]">
             <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#476073]">Statut</div>
             <h3 className="mt-3 text-[24px] font-black tracking-[-0.05em] text-[#142133]">
-            {access.status === "pending" ? "Validation en cours" : access.status === "rejected" ? "Demande à reprendre" : "Avant ouverture du dashboard"}
+            {access.status === "pending" ? "Validation en cours" : access.status === "rejected" ? "Refus de partenariat" : access.status === "blocked" ? "Compte partenaire bloque" : "Avant ouverture du dashboard"}
             </h3>
             <p className="mt-3 text-[15px] leading-7 text-[#5e6b79]">
               {access.status === "pending"
                 ? "Votre dossier a bien été reçu. Tant qu’il n’est pas approuvé, le dashboard vendeur reste fermé et non visible."
                 : access.status === "rejected"
-                  ? "La demande précédente n’a pas été retenue. Vous pouvez corriger votre dossier et soumettre une nouvelle version."
+                  ? `Refus de partenariat${decisionReason ? ` - ${decisionReason}` : " - dossier non coherent."} Vous pouvez corriger votre dossier et soumettre une nouvelle version.`
+                  : access.status === "blocked"
+                    ? `Le compte partenaire a ete bloque${decisionReason ? ` - ${decisionReason}` : "."} L acces LIVE reste ferme jusqu a nouvelle verification admin.`
                   : "Le dashboard vendeur n’est jamais public. Il n’apparaît qu’après validation manuelle du compte et ouverture de son accès spécifique."}
             </p>
             {requestDate ? <div className="mt-4 rounded-[18px] border border-[#e7eef5] bg-[#f9fcff] px-4 py-3 text-[13px] text-[#6b7280]">Dernière demande envoyée le <span className="font-semibold text-[#142133]">{requestDate}</span>.</div> : null}

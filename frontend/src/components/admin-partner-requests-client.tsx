@@ -5,6 +5,7 @@ import { Check, Copy, RefreshCcw, ShieldCheck, X } from "lucide-react";
 
 import {
   extractApiErrorMessage,
+  normalizeAdminPartnerRequestItem,
   normalizeAdminPartnerRequests,
   type AdminPartnerRequestItem,
   type ApprovedPartnerCredentials,
@@ -58,6 +59,10 @@ function statusLabel(status: string) {
     return "Refusee";
   }
 
+  if (status === "blocked") {
+    return "Bloquee";
+  }
+
   return "En attente";
 }
 
@@ -70,6 +75,10 @@ function statusClass(status: string) {
     return "bg-[#fee2e2] text-[#dc2626]";
   }
 
+  if (status === "blocked") {
+    return "bg-[#111827] text-white";
+  }
+
   return "bg-[#fff4db] text-[#b45309]";
 }
 
@@ -80,6 +89,7 @@ export function AdminPartnerRequestsClient({ initialRequests, warning, manyChatS
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [decisionReason, setDecisionReason] = useState(initialRequests[0]?.decisionReason ?? "");
   const [approvalResult, setApprovalResult] = useState<ApprovedPartnerCredentials | null>(null);
   const [copiedField, setCopiedField] = useState<"appKey" | "appSecret" | null>(null);
 
@@ -104,14 +114,25 @@ export function AdminPartnerRequestsClient({ initialRequests, warning, manyChatS
 
   useEffect(() => {
     setWebhookUrl(selectedRequest?.website ?? "");
+    setDecisionReason(selectedRequest?.decisionReason ?? "");
   }, [selectedRequest?.id, selectedRequest?.website]);
 
   const counts = useMemo(() => ({
     total: requests.length,
     pending: requests.filter((request) => request.status === "pending").length,
     approved: requests.filter((request) => request.status === "approved").length,
+    blocked: requests.filter((request) => request.status === "blocked").length,
     rejected: requests.filter((request) => request.status === "rejected").length,
   }), [requests]);
+
+  function updateRequestInState(id: string, candidate: unknown) {
+    const normalized = normalizeAdminPartnerRequestItem(candidate);
+    if (!normalized) {
+      return;
+    }
+
+    setRequests((current) => current.map((entry) => entry.id === id ? normalized : entry));
+  }
 
   async function refreshRequests() {
     setBusyAction("refresh");
@@ -119,7 +140,7 @@ export function AdminPartnerRequestsClient({ initialRequests, warning, manyChatS
     setNotice(null);
 
     try {
-      const response = await fetch("/api/admin/partner-requests/list", {
+      const response = await fetch("/api/admin/partner-requests", {
         cache: "no-store",
       });
       const payload = await response.json().catch(() => null);
@@ -160,11 +181,7 @@ export function AdminPartnerRequestsClient({ initialRequests, warning, manyChatS
         return;
       }
 
-      setRequests((current) => current.map((entry) => (
-        entry.id === request.id
-          ? { ...entry, status: "approved", website: payload?.partner?.webhook_url ?? entry.website }
-          : entry
-      )));
+      updateRequestInState(request.id, payload?.request);
       setApprovalResult({
         companyName: request.companyName,
         email: typeof payload?.partner?.email === "string" ? payload.partner.email : request.email,
@@ -188,6 +205,12 @@ export function AdminPartnerRequestsClient({ initialRequests, warning, manyChatS
     try {
       const response = await fetch(`/api/admin/partner-requests/${encodeURIComponent(request.id)}/reject`, {
         method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          reason: decisionReason.trim() || undefined,
+        }),
       });
       const payload = await response.json().catch(() => null);
 
@@ -196,14 +219,67 @@ export function AdminPartnerRequestsClient({ initialRequests, warning, manyChatS
         return;
       }
 
-      setRequests((current) => current.map((entry) => (
-        entry.id === request.id
-          ? { ...entry, status: "rejected" }
-          : entry
-      )));
+      updateRequestInState(request.id, payload?.request);
       setNotice("La demande partenaire a ete refusee.");
     } catch {
       setError("Impossible de refuser cette demande partenaire.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function blockRequest(request: AdminPartnerRequestItem) {
+    setBusyAction(`block:${request.id}`);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await fetch(`/api/admin/partner-requests/${encodeURIComponent(request.id)}/block`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          reason: decisionReason.trim() || undefined,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        setError(extractApiErrorMessage(payload, "Impossible de bloquer ce compte partenaire."));
+        return;
+      }
+
+      updateRequestInState(request.id, payload?.request);
+      setNotice("Le compte partenaire a ete bloque et l acces LIVE a ete coupe.");
+    } catch {
+      setError("Impossible de bloquer ce compte partenaire.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function reactivateRequest(request: AdminPartnerRequestItem) {
+    setBusyAction(`reactivate:${request.id}`);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await fetch(`/api/admin/partner-requests/${encodeURIComponent(request.id)}/reactivate`, {
+        method: "POST",
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        setError(extractApiErrorMessage(payload, "Impossible de reactiver ce compte partenaire."));
+        return;
+      }
+
+      updateRequestInState(request.id, payload?.request);
+      setDecisionReason("");
+      setNotice("Le compte partenaire a ete reactive.");
+    } catch {
+      setError("Impossible de reactiver ce compte partenaire.");
     } finally {
       setBusyAction(null);
     }
@@ -252,11 +328,12 @@ export function AdminPartnerRequestsClient({ initialRequests, warning, manyChatS
         <section className="rounded-[16px] border border-[#bbf7d0] bg-[#f0fdf4] px-4 py-3 text-[14px] text-[#166534]">{notice}</section>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {[
           { label: "Total", value: counts.total, accent: "text-[#101828]" },
           { label: "En attente", value: counts.pending, accent: "text-[#b45309]" },
           { label: "Approuvees", value: counts.approved, accent: "text-[#15803d]" },
+          { label: "Bloquees", value: counts.blocked, accent: "text-[#111827]" },
           { label: "Refusees", value: counts.rejected, accent: "text-[#dc2626]" },
         ].map((card) => (
           <article key={card.label} className="rounded-[18px] border border-[#e7ebf1] bg-white px-5 py-5 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
@@ -352,6 +429,18 @@ export function AdminPartnerRequestsClient({ initialRequests, warning, manyChatS
                   <div className="mt-3 whitespace-pre-wrap text-[15px] leading-7 text-[#101828]">{selectedRequest.description || "Aucune description fournie."}</div>
                 </div>
 
+                <div className="rounded-[16px] border border-[#edf1f6] bg-white px-4 py-4">
+                  <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Motif admin</div>
+                  <textarea
+                    value={decisionReason}
+                    onChange={(event) => setDecisionReason(event.target.value)}
+                    rows={4}
+                    placeholder={selectedRequest.status === "approved" || selectedRequest.status === "blocked" ? "Motif de blocage ou note admin" : "Motif de refus, ex: Dossier non coherent"}
+                    className="mt-3 w-full rounded-[12px] border border-[#d0d5dd] px-3 py-3 text-[14px] outline-none focus:border-[#2563eb]"
+                  />
+                  <div className="mt-2 text-[12px] text-[#667085]">{selectedRequest.decisionReason || "Le motif sera visible cote client lorsque la demande est refusee ou que le compte partenaire est bloque."}</div>
+                </div>
+
                 {selectedRequest.status === "pending" ? (
                   <div className="rounded-[16px] border border-[#dbeafe] bg-[#f8fbff] px-4 py-4">
                     <div className="text-[13px] font-semibold text-[#1d4ed8]">Validation</div>
@@ -380,6 +469,42 @@ export function AdminPartnerRequestsClient({ initialRequests, warning, manyChatS
                       >
                         <X className="h-4 w-4" />
                         Refuser
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {selectedRequest.status === "approved" ? (
+                  <div className="rounded-[16px] border border-[#e5e7eb] bg-[#f9fafb] px-4 py-4">
+                    <div className="text-[13px] font-semibold text-[#111827]">Blocage post-approbation</div>
+                    <div className="mt-2 text-[13px] leading-6 text-[#475467]">Utilisez ce bloc si vous detectez des tentatives suspectes ou un usage non conforme apres validation.</div>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => blockRequest(selectedRequest)}
+                        disabled={busyAction === `block:${selectedRequest.id}`}
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] bg-[#111827] px-4 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <X className="h-4 w-4" />
+                        Bloquer le compte
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {selectedRequest.status === "blocked" ? (
+                  <div className="rounded-[16px] border border-[#d1d5db] bg-[#f9fafb] px-4 py-4">
+                    <div className="text-[13px] font-semibold text-[#111827]">Compte actuellement bloque</div>
+                    <div className="mt-2 text-[13px] leading-6 text-[#475467]">Le dashboard partenaire est coupe pour ce compte. Reactivez-le seulement apres verification.</div>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => reactivateRequest(selectedRequest)}
+                        disabled={busyAction === `reactivate:${selectedRequest.id}`}
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] border border-[#bbf7d0] bg-white px-4 text-[14px] font-semibold text-[#15803d] transition hover:bg-[#f0fdf4] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <ShieldCheck className="h-4 w-4" />
+                        Reactiver le compte
                       </button>
                     </div>
                   </div>

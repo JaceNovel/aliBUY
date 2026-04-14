@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Heart, Mail, MapPin, MessageSquare, Package2, Quote, ShieldUser } from "lucide-react";
+import { CreditCard, Heart, Mail, MapPin, MessageSquare, Package2, Phone, Quote, ShieldUser } from "lucide-react";
 
 import { getAdminUserDetail } from "@/lib/admin-data";
 import { hasAdminPermission } from "@/lib/admin-auth";
@@ -44,6 +44,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
               <h1 className="mt-2 text-[30px] font-black tracking-[-0.05em] text-[#1f2937]">{detail.user.displayName}</h1>
               <div className="mt-2 flex flex-wrap items-center gap-3 text-[14px] text-[#667085]">
                 <span className="inline-flex items-center gap-2"><Mail className="h-4 w-4" />{detail.user.email}</span>
+                <span className="inline-flex items-center gap-2"><Phone className="h-4 w-4" />{detail.user.phone || "Telephone non renseigne"}</span>
                 <span className="inline-flex items-center gap-2"><ShieldUser className="h-4 w-4" />ID: {detail.user.id}</span>
               </div>
             </div>
@@ -57,8 +58,8 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
       <section className="grid gap-4 md:grid-cols-4">
         {[
           { label: "Commandes", value: String(detail.orders.length), icon: Package2 },
-          { label: "Devis", value: String(detail.quotes.length), icon: Quote },
-          { label: "Conversations", value: String(detail.conversations.length), icon: MessageSquare },
+          { label: "Paiements confirmes", value: String(detail.orders.filter((order) => order.paymentStatus === "paid").length), icon: CreditCard },
+          { label: "Adresses", value: String(detail.addresses.length), icon: MapPin },
           { label: "Favoris", value: String(detail.favorites.length), icon: Heart },
         ].map((card) => {
           const Icon = card.icon;
@@ -80,8 +81,9 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
               <div key={address.id} className="rounded-[16px] border border-[#edf1f6] px-4 py-4 text-[14px] text-[#344054]">
                 <div className="font-semibold text-[#101828]">{address.recipientName}</div>
                 <div className="mt-1 inline-flex items-center gap-2 text-[#667085]"><MapPin className="h-4 w-4" />{address.addressLine1}</div>
-                <div className="mt-1 text-[#667085]">{[address.city, address.state, address.countryCode].filter(Boolean).join(", ")}</div>
-                <div className="mt-1 text-[#667085]">{address.phone}</div>
+                <div className="mt-1 text-[#667085]">{[address.addressLine2, address.city, address.state, address.postalCode, address.countryCode].filter(Boolean).join(", ")}</div>
+                <div className="mt-1 text-[#667085]">{address.phone || "Telephone non renseigne"}</div>
+                <div className="mt-1 text-[#667085]">{address.email || detail.user.email}</div>
               </div>
             )) : <div className="rounded-[16px] bg-[#fbfcfe] px-4 py-4 text-[14px] text-[#667085]">Aucune adresse enregistrée.</div>}
           </div>
@@ -92,7 +94,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
           <div className="mt-4 grid gap-3 text-[14px] text-[#344054]">
             <div className="rounded-[16px] border border-[#edf1f6] px-4 py-3"><span className="font-semibold text-[#101828]">Bio:</span> {settings.bio || "Non renseignée"}</div>
             <div className="rounded-[16px] border border-[#edf1f6] px-4 py-3"><span className="font-semibold text-[#101828]">Entreprise:</span> {settings.companyName || "Non renseignée"}</div>
-            <div className="rounded-[16px] border border-[#edf1f6] px-4 py-3"><span className="font-semibold text-[#101828]">Téléphone:</span> {settings.phone || "Non renseigné"}</div>
+            <div className="rounded-[16px] border border-[#edf1f6] px-4 py-3"><span className="font-semibold text-[#101828]">Téléphone:</span> {detail.user.phone || settings.phone || "Non renseigné"}</div>
             <div className="rounded-[16px] border border-[#edf1f6] px-4 py-3"><span className="font-semibold text-[#101828]">Mise à jour:</span> {new Date(settings.updatedAt).toLocaleString("fr-FR")}</div>
           </div>
         </article>
@@ -103,10 +105,15 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
             {detail.orders.length ? detail.orders.map((order: AdminUserOrder) => (
               <div key={order.id} className="rounded-[16px] border border-[#edf1f6] px-4 py-4 text-[14px] text-[#344054]">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="font-semibold text-[#101828]">{order.id}</div>
+                  <div className="font-semibold text-[#101828]">{order.orderNumber || order.id}</div>
                   <span className="rounded-full bg-[#eef2f6] px-3 py-1 text-[12px] font-semibold text-[#475467]">{order.status}</span>
                 </div>
-                <div className="mt-2 text-[#667085]">Montant: {order.totalPriceFcfa.toLocaleString("fr-FR")} FCFA</div>
+                <div className="mt-2 text-[#667085]">Client: {order.customerName || detail.user.displayName}</div>
+                <div className="mt-1 text-[#667085]">Email: {order.customerEmail || detail.user.email}</div>
+                <div className="mt-1 text-[#667085]">Telephone: {order.customerPhone || detail.user.phone || "Non renseigne"}</div>
+                <div className="mt-1 text-[#667085]">Adresse: {order.addressLine || "Non renseignee"}</div>
+                <div className="mt-1 text-[#667085]">Paiement: {order.paymentStatus} {order.paymentProvider ? `via ${order.paymentProvider}` : ""}</div>
+                <div className="mt-1 text-[#667085]">Montant: {order.totalPriceFcfa.toLocaleString("fr-FR")} FCFA</div>
                 <div className="mt-1 text-[#667085]">Créée le {new Date(order.createdAt).toLocaleString("fr-FR")}</div>
               </div>
             )) : <div className="rounded-[16px] bg-[#fbfcfe] px-4 py-4 text-[14px] text-[#667085]">Aucune commande trouvée.</div>}
