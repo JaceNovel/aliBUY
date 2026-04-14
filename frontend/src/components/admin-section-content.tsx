@@ -236,13 +236,13 @@ export async function AdminSectionContent({ slug, pricing }: { slug: string; pri
                       <td key={`${row.key}-${index}`} className="py-3.5 pr-4 leading-6">
                         {row.actionLabel && value === row.actionLabel && row.href ? (
                           <div className="flex flex-wrap gap-2">
-                            <Link href={row.href} className="inline-flex h-9 items-center justify-center rounded-full border border-[#d7dce5] px-4 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a5b] hover:text-[#ff6a5b]">
+                            <a href={row.href} className="inline-flex h-9 items-center justify-center rounded-full border border-[#d7dce5] px-4 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a5b] hover:text-[#ff6a5b]">
                               {value}
-                            </Link>
+                            </a>
                             {row.secondaryHref && row.secondaryActionLabel ? (
-                              <Link href={row.secondaryHref} className="inline-flex h-9 items-center justify-center rounded-full border border-[#ffd6bf] bg-[#fff6f0] px-4 text-[12px] font-semibold text-[#d85300] transition hover:opacity-80">
+                              <a href={row.secondaryHref} className="inline-flex h-9 items-center justify-center rounded-full border border-[#ffd6bf] bg-[#fff6f0] px-4 text-[12px] font-semibold text-[#d85300] transition hover:opacity-80">
                                 {row.secondaryActionLabel}
-                              </Link>
+                              </a>
                             ) : null}
                           </div>
                         ) : value}

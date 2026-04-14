@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 
 import {
   buildCartItemKey,
@@ -49,6 +50,45 @@ type CartContextValue = {
 const CART_STORAGE_KEY = "afripay_cart_v1";
 const SHARED_CART_STORAGE_KEY = "afripay_cart_shared_v1";
 const CartContext = createContext<CartContextValue | null>(null);
+
+function buildScopedStorageKey(baseKey: string, ownerScope: string) {
+  return `${baseKey}:${ownerScope}`;
+}
+
+function readCartItemsFromStorage(storageKey: string): CartStateItem[] {
+  const stored = window.localStorage.getItem(storageKey);
+  if (!stored) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(stored) as CartStateItem[];
+    return parsed
+      .map((item) => ({
+        slug: item.slug,
+        quantity: item.quantity,
+        selectedVariants: normalizeVariantSelection(item.selectedVariants),
+      }))
+      .filter((item) => item.slug && item.quantity > 0);
+  } catch {
+    window.localStorage.removeItem(storageKey);
+    return [];
+  }
+}
+
+function readSharedCartContextFromStorage(storageKey: string): SharedCartImportContext | null {
+  const stored = window.localStorage.getItem(storageKey);
+  if (!stored) {
+    return null;
+  }
+
+  try {
+    return normalizeSharedCartContext(JSON.parse(stored));
+  } catch {
+    window.localStorage.removeItem(storageKey);
+    return null;
+  }
+}
 
 function parseVariantSelection(value: unknown): VariantSelection | undefined {
   if (typeof value !== "object" || value === null) {
@@ -110,65 +150,49 @@ function normalizeSharedCartContext(value: unknown): SharedCartImportContext | n
 }
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<CartStateItem[]>(() => {
-    if (typeof window === "undefined") {
-      return [];
-    }
-
-    const stored = window.localStorage.getItem(CART_STORAGE_KEY);
-    if (!stored) {
-      return [];
-    }
-
-    try {
-      const parsed = JSON.parse(stored) as CartStateItem[];
-      return parsed
-        .map((item) => ({
-          slug: item.slug,
-          quantity: item.quantity,
-          selectedVariants: normalizeVariantSelection(item.selectedVariants),
-        }))
-        .filter((item) => item.slug && item.quantity > 0);
-    } catch {
-      window.localStorage.removeItem(CART_STORAGE_KEY);
-      return [];
-    }
-  });
-  const [sharedCartContext, setSharedCartContextState] = useState<SharedCartImportContext | null>(() => {
-    if (typeof window === "undefined") {
-      return null;
-    }
-
-    const stored = window.localStorage.getItem(SHARED_CART_STORAGE_KEY);
-    if (!stored) {
-      return null;
-    }
-
-    try {
-      return normalizeSharedCartContext(JSON.parse(stored));
-    } catch {
-      window.localStorage.removeItem(SHARED_CART_STORAGE_KEY);
-      return null;
-    }
-  });
+  const { isLoaded, userId } = useAuth();
+  const ownerScope = isLoaded ? (userId ? `clerk:${userId}` : "guest") : null;
+  const cartStorageKey = ownerScope ? buildScopedStorageKey(CART_STORAGE_KEY, ownerScope) : null;
+  const sharedCartStorageKey = ownerScope ? buildScopedStorageKey(SHARED_CART_STORAGE_KEY, ownerScope) : null;
+  const [items, setItems] = useState<CartStateItem[]>([]);
+  const [sharedCartContext, setSharedCartContextState] = useState<SharedCartImportContext | null>(null);
+  const [hydratedStorageKey, setHydratedStorageKey] = useState<string | null>(null);
   const reminderTimerRef = useRef<number | null>(null);
   const syncTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
-  }, [items]);
-
-  useEffect(() => {
-    if (!sharedCartContext) {
-      window.localStorage.removeItem(SHARED_CART_STORAGE_KEY);
+    if (!cartStorageKey || !sharedCartStorageKey || typeof window === "undefined") {
       return;
     }
 
-    window.localStorage.setItem(SHARED_CART_STORAGE_KEY, JSON.stringify(sharedCartContext));
-  }, [sharedCartContext]);
+    setItems(readCartItemsFromStorage(cartStorageKey));
+    setSharedCartContextState(readSharedCartContextFromStorage(sharedCartStorageKey));
+    setHydratedStorageKey(cartStorageKey);
+  }, [cartStorageKey, sharedCartStorageKey]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (!cartStorageKey || hydratedStorageKey !== cartStorageKey) {
+      return;
+    }
+
+    window.localStorage.setItem(cartStorageKey, JSON.stringify(items));
+  }, [cartStorageKey, hydratedStorageKey, items]);
+
+  useEffect(() => {
+    if (!cartStorageKey || !sharedCartStorageKey || hydratedStorageKey !== cartStorageKey) {
+      return;
+    }
+
+    if (!sharedCartContext) {
+      window.localStorage.removeItem(sharedCartStorageKey);
+      return;
+    }
+
+    window.localStorage.setItem(sharedCartStorageKey, JSON.stringify(sharedCartContext));
+  }, [cartStorageKey, hydratedStorageKey, sharedCartContext, sharedCartStorageKey]);
+
+  useEffect(() => {
+    if (!cartStorageKey || hydratedStorageKey !== cartStorageKey || typeof window === "undefined") {
       return undefined;
     }
 
@@ -224,7 +248,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         reminderTimerRef.current = null;
       }
     };
-  }, [items]);
+  }, [cartStorageKey, hydratedStorageKey, items]);
 
   const value = useMemo<CartContextValue>(() => ({
     items,

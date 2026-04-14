@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
 import { CartProvider } from "@/components/cart-provider";
 import { DeferredGlobalWidgets } from "@/components/deferred-global-widgets";
 import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_LOGO_PATH, SITE_NAME, SITE_SHARE_IMAGE_PATH, SITE_URL } from "@/lib/site-config";
@@ -104,14 +105,22 @@ export default async function RootLayout({
   );
 
   return (
-    <html suppressHydrationWarning lang="fr-FR" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify([organizationJsonLd, websiteJsonLd, ...navigationJsonLd]) }}
-        />
-        {app}
-      </body>
-    </html>
+    <ClerkProvider
+      signInUrl="/login"
+      signUpUrl="/register"
+      signInFallbackRedirectUrl="/account"
+      signUpFallbackRedirectUrl="/account"
+      afterSignOutUrl="/"
+    >
+      <html suppressHydrationWarning lang="fr-FR" className="h-full antialiased">
+        <body className="min-h-full flex flex-col">
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify([organizationJsonLd, websiteJsonLd, ...navigationJsonLd]) }}
+          />
+          {app}
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

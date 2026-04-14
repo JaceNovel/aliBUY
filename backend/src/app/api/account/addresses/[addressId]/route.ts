@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { API_URL, buildApiUrl } from "@/lib/api";
 import { getBackendAccessTokenFromCookies } from "@/lib/backend-access-token";
+import { deleteUserAddress, setUserDefaultAddress, updateUserAddress } from "@/lib/customer-data-store";
 import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
 import { getCurrentUser } from "@/lib/user-auth";
 
@@ -15,16 +16,14 @@ export async function PUT(request: Request, context: { params: Promise<{ address
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });
   }
 
-  if (!API_URL) {
-    return NextResponse.json({ message: "Gestion d'adresses indisponible sans backend Laravel." }, { status: 503 });
-  }
-
-  if (!(await getBackendAccessTokenFromCookies())) {
-    return NextResponse.json({ message: "Session backend expiree. Reconnectez-vous puis reessayez." }, { status: 401 });
-  }
-
   const payload = await request.json().catch(() => null);
   const { addressId } = await context.params;
+  const backendAccessToken = await getBackendAccessTokenFromCookies();
+  if (user.authProvider === "clerk" || !API_URL || !backendAccessToken) {
+    const address = await updateUserAddress(user.id, addressId, payload ?? {});
+    return NextResponse.json({ address });
+  }
+
   const response = await fetch(buildApiUrl(`/api/account/addresses/${encodeURIComponent(addressId)}`), {
     method: "PUT",
     headers: await buildServerForwardHeaders({
@@ -45,16 +44,19 @@ export async function PATCH(request: Request, context: { params: Promise<{ addre
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });
   }
 
-  if (!API_URL) {
-    return NextResponse.json({ message: "Gestion d'adresses indisponible sans backend Laravel." }, { status: 503 });
-  }
-
-  if (!(await getBackendAccessTokenFromCookies())) {
-    return NextResponse.json({ message: "Session backend expiree. Reconnectez-vous puis reessayez." }, { status: 401 });
-  }
-
   const payload = await request.json().catch(() => null);
   const { addressId } = await context.params;
+  const backendAccessToken = await getBackendAccessTokenFromCookies();
+  if (user.authProvider === "clerk" || !API_URL || !backendAccessToken) {
+    if (payload && typeof payload === "object" && "isDefault" in payload) {
+      const address = await setUserDefaultAddress(user.id, addressId);
+      return NextResponse.json({ address });
+    }
+
+    const address = await setUserDefaultAddress(user.id, addressId);
+    return NextResponse.json({ address });
+  }
+
   const response = await fetch(buildApiUrl(`/api/account/addresses/${encodeURIComponent(addressId)}`), {
     method: "PATCH",
     headers: await buildServerForwardHeaders({
@@ -75,15 +77,13 @@ export async function DELETE(_request: Request, context: { params: Promise<{ add
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });
   }
 
-  if (!API_URL) {
-    return NextResponse.json({ message: "Gestion d'adresses indisponible sans backend Laravel." }, { status: 503 });
-  }
-
-  if (!(await getBackendAccessTokenFromCookies())) {
-    return NextResponse.json({ message: "Session backend expiree. Reconnectez-vous puis reessayez." }, { status: 401 });
-  }
-
   const { addressId } = await context.params;
+  const backendAccessToken = await getBackendAccessTokenFromCookies();
+  if (user.authProvider === "clerk" || !API_URL || !backendAccessToken) {
+    await deleteUserAddress(user.id, addressId);
+    return NextResponse.json({ ok: true });
+  }
+
   const response = await fetch(buildApiUrl(`/api/account/addresses/${encodeURIComponent(addressId)}`), {
     method: "DELETE",
     headers: await buildServerForwardHeaders({ accept: "application/json" }),

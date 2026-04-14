@@ -1,9 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { SignUp } from "@clerk/nextjs";
 
-import { UserRegisterForm } from "@/components/user-register-form";
-import { getSafeNextPath } from "@/lib/google-oauth";
+import { getSafeNextPath } from "@/lib/auth-navigation";
+import { authPageClerkAppearance } from "@/lib/clerk-theme";
 import { getPricingContext } from "@/lib/pricing";
 import { SITE_LOGO_PATH, SITE_NAME } from "@/lib/site-config";
 import { getCurrentUser } from "@/lib/user-auth";
@@ -40,7 +41,6 @@ export default async function RegisterPage({
   const registerNotice = getRegisterNotice(pricing.languageCode, resolvedSearchParams.reason, nextPath);
   const oauthError = resolvedSearchParams.oauth_error?.trim() || "";
   const isEnglish = pricing.languageCode === "en";
-  const hasGoogleOauth = Boolean(process.env.GOOGLE_CLIENT_ID?.trim()) && Boolean(process.env.GOOGLE_CLIENT_SECRET?.trim());
 
   if (currentUser) {
     redirect(nextPath);
@@ -65,17 +65,19 @@ export default async function RegisterPage({
 
           {oauthError ? (
             <div className="mt-6 rounded-[20px] border border-[#f5c2c7] bg-[#fff1f2] px-4 py-4 text-[13px] leading-6 text-[#b42318] sm:px-5 sm:text-[14px]">
-              <div className="font-semibold text-[#912018]">Connexion Google indisponible</div>
+              <div className="font-semibold text-[#912018]">Connexion Google obsolete</div>
               <div className="mt-2">{oauthError}</div>
             </div>
           ) : null}
 
           <div className="mt-6">
-            <UserRegisterForm
-              nextPath={nextPath}
-              loginHref={`/login?next=${encodeURIComponent(nextPath)}${resolvedSearchParams.reason ? `&reason=${encodeURIComponent(resolvedSearchParams.reason)}` : ""}`}
-              googleAuthHref={hasGoogleOauth ? `/api/auth/google/start?mode=register&next=${encodeURIComponent(nextPath)}` : null}
-              submitLabel={isEnglish ? "Create account" : "Creer un compte"}
+            <SignUp
+              routing="hash"
+              appearance={authPageClerkAppearance}
+              signInUrl={`/login?next=${encodeURIComponent(nextPath)}${resolvedSearchParams.reason ? `&reason=${encodeURIComponent(resolvedSearchParams.reason)}` : ""}`}
+              forceRedirectUrl={nextPath}
+              fallbackRedirectUrl={nextPath}
+              oauthFlow="redirect"
             />
           </div>
 

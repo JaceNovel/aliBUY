@@ -70,8 +70,8 @@ async function handleRequest(request: NextRequest, getClerkUserId?: () => Promis
 
   if (isProtectedRoute(request)) {
     const forceLoggedOut = request.cookies.get(FORCE_LOGGED_OUT_COOKIE)?.value === "1";
-    const userId = !forceLoggedOut && getClerkUserId ? await getClerkUserId() : null;
-    const session = await parseUserSessionToken(request.cookies.get(USER_SESSION_COOKIE)?.value);
+    const userId = getClerkUserId ? await getClerkUserId() : null;
+    const session = forceLoggedOut ? null : await parseUserSessionToken(request.cookies.get(USER_SESSION_COOKIE)?.value);
 
     if (!userId && !session?.sub) {
       if (isAdminPageRequest || isAdminApiRequest || isDashboardPageRequest || isDashboardApiRequest) {

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AdminParcelPrintActions } from "@/components/admin-parcel-print-actions";
@@ -33,7 +32,7 @@ export default async function AdminOrderParcelPage({ params }: { params: Promise
         <div className="rounded-[18px] border border-[#e6eaf0] bg-[#fbfcfe] px-4 py-4 print:hidden">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Historique d'exports PDF</div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Historique d&apos;exports PDF</div>
               <div className="mt-1 text-[14px] font-semibold text-[#1f2937]">{exportHistory.length} export(s) enregistres</div>
             </div>
           </div>

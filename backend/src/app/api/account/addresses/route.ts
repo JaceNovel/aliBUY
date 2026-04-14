@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { API_URL, buildApiUrl } from "@/lib/api";
 import { getBackendAccessTokenFromCookies } from "@/lib/backend-access-token";
+import { createUserAddress, getUserAddresses } from "@/lib/customer-data-store";
 import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
 import { getCurrentUser } from "@/lib/user-auth";
 
@@ -15,12 +16,10 @@ export async function GET() {
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });
   }
 
-  if (!API_URL) {
-    return NextResponse.json({ addresses: [] });
-  }
-
-  if (!(await getBackendAccessTokenFromCookies())) {
-    return NextResponse.json({ addresses: [] });
+  const backendAccessToken = await getBackendAccessTokenFromCookies();
+  if (user.authProvider === "clerk" || !API_URL || !backendAccessToken) {
+    const addresses = await getUserAddresses(user.id);
+    return NextResponse.json({ addresses });
   }
 
   const response = await fetch(buildApiUrl("/api/account/addresses"), {
@@ -40,12 +39,10 @@ export async function POST(request: Request) {
   }
 
   const payload = await request.json().catch(() => null);
-  if (!API_URL) {
-    return NextResponse.json({ message: "Gestion d'adresses indisponible sans backend Laravel." }, { status: 503 });
-  }
-
-  if (!(await getBackendAccessTokenFromCookies())) {
-    return NextResponse.json({ message: "Session backend expiree. Reconnectez-vous puis reessayez." }, { status: 401 });
+  const backendAccessToken = await getBackendAccessTokenFromCookies();
+  if (user.authProvider === "clerk" || !API_URL || !backendAccessToken) {
+    const address = await createUserAddress(user.id, payload ?? {});
+    return NextResponse.json({ address }, { status: 201 });
   }
 
   const response = await fetch(buildApiUrl("/api/account/addresses"), {

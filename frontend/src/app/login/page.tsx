@@ -1,9 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { SignIn } from "@clerk/nextjs";
 
-import { UserLoginForm } from "@/components/user-login-form";
-import { getSafeNextPath } from "@/lib/google-oauth";
+import { authPageClerkAppearance } from "@/lib/clerk-theme";
+import { getSafeNextPath } from "@/lib/auth-navigation";
 import { getPricingContext } from "@/lib/pricing";
 import { SITE_LOGO_PATH, SITE_NAME } from "@/lib/site-config";
 import { getCurrentUser } from "@/lib/user-auth";
@@ -45,8 +46,6 @@ export default async function LoginPage({
   const nextPath = getSafeNextPath(resolvedSearchParams.next);
   const authNotice = getAuthNotice(pricing.languageCode, resolvedSearchParams.reason, nextPath);
   const oauthError = resolvedSearchParams.oauth_error?.trim() || "";
-  const isEnglish = pricing.languageCode === "en";
-  const hasGoogleOauth = Boolean(process.env.GOOGLE_CLIENT_ID?.trim()) && Boolean(process.env.GOOGLE_CLIENT_SECRET?.trim());
 
   if (currentUser) {
     redirect(nextPath);
@@ -71,19 +70,20 @@ export default async function LoginPage({
 
           {oauthError ? (
             <div className="mt-6 rounded-[20px] border border-[#f5c2c7] bg-[#fff1f2] px-4 py-4 text-[13px] leading-6 text-[#b42318] sm:px-5 sm:text-[14px]">
-              <div className="font-semibold text-[#912018]">Connexion Google indisponible</div>
+              <div className="font-semibold text-[#912018]">Connexion Google obsolete</div>
               <div className="mt-2">{oauthError}</div>
             </div>
           ) : null}
 
           <div className="mt-6">
-            <UserLoginForm
-              nextPath={nextPath}
-              registerHref={`/register?next=${encodeURIComponent(nextPath)}${resolvedSearchParams.reason ? `&reason=${encodeURIComponent(resolvedSearchParams.reason)}` : ""}`}
-              googleAuthHref={hasGoogleOauth ? `/api/auth/google/start?mode=login&next=${encodeURIComponent(nextPath)}` : null}
-              submitLabel={isEnglish ? "Sign in" : "Se connecter"}
-              emailLabel={isEnglish ? "Email address" : "Adresse e-mail"}
-              passwordLabel={isEnglish ? "Password" : "Mot de passe"}
+            <SignIn
+              routing="hash"
+              appearance={authPageClerkAppearance}
+              signUpUrl={`/register?next=${encodeURIComponent(nextPath)}${resolvedSearchParams.reason ? `&reason=${encodeURIComponent(resolvedSearchParams.reason)}` : ""}`}
+              forceRedirectUrl={nextPath}
+              fallbackRedirectUrl={nextPath}
+              withSignUp
+              oauthFlow="redirect"
             />
           </div>
 

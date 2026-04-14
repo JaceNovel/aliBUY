@@ -223,9 +223,7 @@ export async function ensurePersistedAuthenticatedUser(user: AuthenticatedUser) 
 
 export const getCurrentUser = cache(async function getCurrentUser() {
   const cookieStore = await cookies();
-  if (cookieStore.get(FORCE_LOGGED_OUT_COOKIE)?.value === "1") {
-    return null;
-  }
+  const forceLoggedOut = cookieStore.get(FORCE_LOGGED_OUT_COOKIE)?.value === "1";
 
   let userId: string | null = null;
   try {
@@ -262,6 +260,10 @@ export const getCurrentUser = cache(async function getCurrentUser() {
     } catch {
       // Ignore Clerk runtime errors and fall back to cookie-based session.
     }
+  }
+
+  if (forceLoggedOut) {
+    return null;
   }
 
   const session = await parseUserSessionToken(cookieStore.get(USER_SESSION_COOKIE)?.value);
