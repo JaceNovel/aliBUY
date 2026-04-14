@@ -107,16 +107,25 @@ export default async function RootLayout({
   );
   const clerkEnabled = isClerkConfigured();
   const app = clerkEnabled ? (
-    <ClerkCartProvider>
-      {appContent}
-    </ClerkCartProvider>
+    <ClerkProvider
+      signInUrl="/login"
+      signUpUrl="/register"
+      signInFallbackRedirectUrl="/account"
+      signUpFallbackRedirectUrl="/account"
+      afterSignOutUrl="/"
+      appearance={{ cssLayerName: "clerk" }}
+    >
+      <ClerkCartProvider>
+        {appContent}
+      </ClerkCartProvider>
+    </ClerkProvider>
   ) : (
     <CartProvider>
       {appContent}
     </CartProvider>
   );
 
-  const document = (
+  return (
     <html suppressHydrationWarning lang="fr-FR" className="h-full antialiased">
       <body className="min-h-full flex flex-col">
         <script
@@ -127,16 +136,4 @@ export default async function RootLayout({
       </body>
     </html>
   );
-
-  return clerkEnabled ? (
-    <ClerkProvider
-      signInUrl="/login"
-      signUpUrl="/register"
-      signInFallbackRedirectUrl="/account"
-      signUpFallbackRedirectUrl="/account"
-      afterSignOutUrl="/"
-    >
-      {document}
-    </ClerkProvider>
-  ) : document;
 }

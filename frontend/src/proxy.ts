@@ -4,7 +4,7 @@ import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server
 import { FORCE_LOGGED_OUT_COOKIE } from "@/lib/auth-session-flags";
 import { FREE_DEAL_DEVICE_COOKIE, FREE_DEAL_ROUTE } from "@/lib/free-deal-constants";
 import { parseUserSessionToken, USER_SESSION_COOKIE } from "@/lib/user-session";
-import { isClerkConfigured } from "@/lib/clerk-config";
+import { isClerkServerConfigured } from "@/lib/clerk-config";
 
 const isProtectedRoute = createRouteMatcher([
   "/account(.*)",
@@ -21,7 +21,7 @@ const isProtectedRoute = createRouteMatcher([
   "/api/admin(.*)",
 ]);
 
-const clerkEnabled = isClerkConfigured();
+const clerkEnabled = isClerkServerConfigured();
 
 function shouldAttachFreeDealDeviceCookie(pathname: string) {
   return pathname === FREE_DEAL_ROUTE
