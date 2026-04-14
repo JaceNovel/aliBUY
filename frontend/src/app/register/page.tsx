@@ -1,11 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { SignUp } from "@clerk/nextjs";
 
+import { ClerkAuthPanel } from "@/components/clerk-auth-panel";
 import { getSafeNextPath } from "@/lib/auth-navigation";
 import { isClerkConfigured } from "@/lib/clerk-config";
-import { authPageClerkAppearance } from "@/lib/clerk-theme";
 import { getPricingContext } from "@/lib/pricing";
 import { SITE_LOGO_PATH, SITE_NAME } from "@/lib/site-config";
 import { getCurrentUser } from "@/lib/user-auth";
@@ -73,16 +72,7 @@ export default async function RegisterPage({
           ) : null}
 
           {clerkConfigured ? (
-            <div className="mt-6">
-              <SignUp
-                routing="hash"
-                appearance={authPageClerkAppearance}
-                signInUrl={`/login?next=${encodeURIComponent(nextPath)}${resolvedSearchParams.reason ? `&reason=${encodeURIComponent(resolvedSearchParams.reason)}` : ""}`}
-                forceRedirectUrl={nextPath}
-                fallbackRedirectUrl={nextPath}
-                oauthFlow="redirect"
-              />
-            </div>
+            <ClerkAuthPanel mode="sign-up" nextPath={nextPath} reason={resolvedSearchParams.reason} />
           ) : (
             <div className="mt-6 rounded-[20px] border border-[#f5c2c7] bg-[#fff1f2] px-4 py-4 text-[13px] leading-6 text-[#b42318] sm:px-5 sm:text-[14px]">
               <div className="font-semibold text-[#912018]">Inscription indisponible</div>

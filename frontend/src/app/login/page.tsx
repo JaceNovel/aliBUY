@@ -1,9 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { SignIn } from "@clerk/nextjs";
 
-import { authPageClerkAppearance } from "@/lib/clerk-theme";
+import { ClerkAuthPanel } from "@/components/clerk-auth-panel";
 import { isClerkConfigured } from "@/lib/clerk-config";
 import { getSafeNextPath } from "@/lib/auth-navigation";
 import { getPricingContext } from "@/lib/pricing";
@@ -78,17 +77,7 @@ export default async function LoginPage({
           ) : null}
 
           {clerkConfigured ? (
-            <div className="mt-6">
-              <SignIn
-                routing="hash"
-                appearance={authPageClerkAppearance}
-                signUpUrl={`/register?next=${encodeURIComponent(nextPath)}${resolvedSearchParams.reason ? `&reason=${encodeURIComponent(resolvedSearchParams.reason)}` : ""}`}
-                forceRedirectUrl={nextPath}
-                fallbackRedirectUrl={nextPath}
-                withSignUp
-                oauthFlow="redirect"
-              />
-            </div>
+            <ClerkAuthPanel mode="sign-in" nextPath={nextPath} reason={resolvedSearchParams.reason} />
           ) : (
             <div className="mt-6 rounded-[20px] border border-[#f5c2c7] bg-[#fff1f2] px-4 py-4 text-[13px] leading-6 text-[#b42318] sm:px-5 sm:text-[14px]">
               <div className="font-semibold text-[#912018]">Connexion indisponible</div>
