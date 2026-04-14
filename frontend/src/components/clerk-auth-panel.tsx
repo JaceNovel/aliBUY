@@ -2,6 +2,7 @@
 
 import { ClerkLoaded, ClerkLoading, SignIn, SignUp } from "@clerk/nextjs";
 
+import { ClerkGoogleOauthButton } from "@/components/clerk-google-oauth-button";
 import { authPageClerkAppearance } from "@/lib/clerk-theme";
 
 type ClerkAuthPanelProps = {
@@ -27,26 +28,27 @@ export function ClerkAuthPanel({ mode, nextPath, reason }: ClerkAuthPanelProps) 
         </div>
       </ClerkLoading>
       <ClerkLoaded>
-        {mode === "sign-in" ? (
-          <SignIn
-            routing="hash"
-            appearance={authPageClerkAppearance}
-            signUpUrl={buildAuthSwitchUrl("/register", nextPath, reason)}
-            forceRedirectUrl={nextPath}
-            fallbackRedirectUrl={nextPath}
-            withSignUp
-            oauthFlow="redirect"
-          />
-        ) : (
-          <SignUp
-            routing="hash"
-            appearance={authPageClerkAppearance}
-            signInUrl={buildAuthSwitchUrl("/login", nextPath, reason)}
-            forceRedirectUrl={nextPath}
-            fallbackRedirectUrl={nextPath}
-            oauthFlow="redirect"
-          />
-        )}
+        <div className="space-y-5">
+          <ClerkGoogleOauthButton mode={mode} nextPath={nextPath} />
+          {mode === "sign-in" ? (
+            <SignIn
+              routing="hash"
+              appearance={authPageClerkAppearance}
+              signUpUrl={buildAuthSwitchUrl("/register", nextPath, reason)}
+              forceRedirectUrl={nextPath}
+              fallbackRedirectUrl={nextPath}
+              withSignUp
+            />
+          ) : (
+            <SignUp
+              routing="hash"
+              appearance={authPageClerkAppearance}
+              signInUrl={buildAuthSwitchUrl("/login", nextPath, reason)}
+              forceRedirectUrl={nextPath}
+              fallbackRedirectUrl={nextPath}
+            />
+          )}
+        </div>
       </ClerkLoaded>
     </div>
   );

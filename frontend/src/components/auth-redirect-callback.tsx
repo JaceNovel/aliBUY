@@ -74,7 +74,14 @@ export function AuthRedirectCallback({
           </div>
         ) : null}
       </div>
-      <AuthenticateWithRedirectCallback />
+      <AuthenticateWithRedirectCallback
+        signInUrl="/login"
+        signUpUrl="/register"
+        signInFallbackRedirectUrl={defaultRedirectPath}
+        signUpFallbackRedirectUrl={defaultRedirectPath}
+        signInForceRedirectUrl={resolvedRedirectPath}
+        signUpForceRedirectUrl={resolvedRedirectPath}
+      />
     </div>
   );
 }
