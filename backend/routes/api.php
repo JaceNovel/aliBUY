@@ -100,6 +100,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/admin/aliexpress/dashboard', [AlibabaAdminController::class, 'dashboard']);
     Route::post('/admin/aliexpress/search', [AlibabaAdminController::class, 'search']);
     Route::post('/admin/aliexpress/fetch-remote', [AlibabaAdminController::class, 'fetchRemote']);
+    Route::post('/admin/aliexpress/probe', [AlibabaAdminController::class, 'probe']);
     Route::post('/admin/aliexpress/import', [AlibabaAdminController::class, 'import']);
     Route::delete('/admin/aliexpress/import', [AlibabaAdminController::class, 'purgeImports']);
     Route::post('/admin/aliexpress/import/reenrich', [AlibabaAdminController::class, 'reenrichAllImports']);

@@ -39,6 +39,19 @@ class AlibabaAdminController extends Controller
         return response()->json($this->alibabaAdmin->fetchRemote($request->json()->all()));
     }
 
+    public function probe(Request $request): JsonResponse
+    {
+        $this->alibabaAdmin->assertAdmin($request->user('sanctum'));
+
+        try {
+            return response()->json($this->alibabaAdmin->probe($request->json()->all()));
+        } catch (RuntimeException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+    }
+
     public function import(Request $request): JsonResponse
     {
         $this->alibabaAdmin->assertAdmin($request->user('sanctum'));

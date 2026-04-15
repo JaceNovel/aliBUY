@@ -308,6 +308,89 @@ class AliExpressOpenPlatformService
         ];
     }
 
+    public function probeDsApi(array $account, array $input): array
+    {
+        $prepared = $this->prepareAccount($account, true);
+        $account = $prepared['account'];
+        $operation = $this->normalizeDsOperation($input['operation'] ?? $input['apiName'] ?? null);
+
+        if ($operation === null) {
+            throw new RuntimeException('Operation AliExpress DS manquante.');
+        }
+
+        $result = match ($operation) {
+            'aliexpress.ds.feedname.get' => $this->callTopEndpoint($account, $operation, array_filter([
+                'app_signature' => $this->getString($input['appSignature'] ?? $input['app_signature'] ?? null),
+            ], fn ($value) => $value !== null && $value !== '')),
+            'aliexpress.ds.feed.itemids.get' => $this->callTopEndpoint($account, $operation, array_filter([
+                'page_size' => (string) max(1, min(200, (int) ($input['pageSize'] ?? $input['page_size'] ?? 50))),
+                'feed_name' => $this->requireProbeString($input, ['feedName', 'feed_name'], 'feed_name'),
+                'search_id' => $this->getString($input['searchId'] ?? $input['search_id'] ?? null),
+            ], fn ($value) => $value !== null && $value !== '')),
+            'aliexpress.ds.product.get' => $this->callTopEndpoint($account, $operation, [
+                'ship_to_country' => strtoupper($this->requireProbeString($input, ['shipToCountry', 'ship_to_country'], 'ship_to_country', (string) env('ALIEXPRESS_DS_SHIP_TO_COUNTRY', 'FR'))),
+                'product_id' => $this->requireProbeString($input, ['productId', 'product_id'], 'product_id'),
+                'target_currency' => strtoupper($this->stringOrDefault($input['targetCurrency'] ?? $input['target_currency'] ?? null, 'USD')),
+                'target_language' => $this->stringOrDefault($input['targetLanguage'] ?? $input['target_language'] ?? null, (string) env('ALIEXPRESS_DS_LOCALE', 'fr_FR')),
+                'remove_personal_benefit' => $this->normalizeProbeBoolean($input['removePersonalBenefit'] ?? $input['remove_personal_benefit'] ?? false),
+            ]),
+            'aliexpress.ds.freight.query' => $this->queryDsFreight($account, array_filter([
+                'quantity' => (string) max(1, (int) ($input['quantity'] ?? 1)),
+                'shipToCountry' => strtoupper($this->requireProbeString($input, ['shipToCountry', 'ship_to_country'], 'ship_to_country', (string) env('ALIEXPRESS_DS_SHIP_TO_COUNTRY', 'FR'))),
+                'productId' => $this->requireProbeString($input, ['productId', 'product_id'], 'product_id'),
+                'provinceCode' => $this->getString($input['provinceCode'] ?? $input['province_code'] ?? null),
+                'cityCode' => $this->getString($input['cityCode'] ?? $input['city_code'] ?? null),
+                'language' => $this->stringOrDefault($input['language'] ?? null, (string) env('ALIEXPRESS_DS_LOCALE', 'fr_FR')),
+                'locale' => $this->stringOrDefault($input['locale'] ?? null, (string) env('ALIEXPRESS_DS_LOCALE', 'fr_FR')),
+                'currency' => strtoupper($this->stringOrDefault($input['currency'] ?? null, 'USD')),
+                'selectedSkuId' => $this->requireProbeString($input, ['selectedSkuId', 'selected_sku_id'], 'selectedSkuId'),
+            ], fn ($value) => $value !== null && $value !== '')),
+            'aliexpress.ds.address.get' => $this->callTopEndpoint($account, $operation, [
+                'countryCode' => strtoupper($this->requireProbeString($input, ['countryCode', 'country_code'], 'countryCode')),
+                'language' => $this->stringOrDefault($input['language'] ?? null, (string) env('ALIEXPRESS_DS_LOCALE', 'fr_FR')),
+                'isMultiLanguage' => $this->normalizeProbeBoolean($input['isMultiLanguage'] ?? $input['is_multi_language'] ?? true),
+            ]),
+            'aliexpress.ds.order.tracking.get' => $this->callTopEndpoint($account, $operation, [
+                'ae_order_id' => $this->requireProbeString($input, ['aeOrderId', 'ae_order_id'], 'ae_order_id'),
+                'language' => $this->stringOrDefault($input['language'] ?? null, (string) env('ALIEXPRESS_DS_LOCALE', 'fr_FR')),
+            ]),
+            'aliexpress.trade.ds.order.get' => $this->callTopEndpoint($account, $operation, [
+                'single_order_query' => json_encode([
+                    'order_id' => $this->requireProbeString($input, ['orderId', 'order_id'], 'order_id'),
+                ], JSON_UNESCAPED_SLASHES),
+            ]),
+            'aliexpress.ds.image.searchv2' => $this->callTopEndpoint($account, 'aliexpress.ds.image.searchV2', [
+                'param0' => json_encode(array_filter([
+                    'search_type' => $this->getString($input['searchType'] ?? $input['search_type'] ?? null),
+                    'image_base64' => $this->requireProbeString($input, ['imageBase64', 'image_base64'], 'image_base64'),
+                    'currency' => strtoupper($this->stringOrDefault($input['currency'] ?? null, 'USD')),
+                    'lang' => $this->stringOrDefault($input['lang'] ?? $input['language'] ?? null, 'en'),
+                    'sort_type' => $this->getString($input['sortType'] ?? $input['sort_type'] ?? null),
+                    'sort_order' => $this->getString($input['sortOrder'] ?? $input['sort_order'] ?? null),
+                    'ship_to' => strtoupper($this->stringOrDefault($input['shipTo'] ?? $input['ship_to'] ?? null, (string) env('ALIEXPRESS_DS_SHIP_TO_COUNTRY', 'FR'))),
+                ], fn ($value) => $value !== null && $value !== ''), JSON_UNESCAPED_SLASHES),
+            ]),
+            'aliexpress.ds.text.search' => $this->callTopEndpoint($account, $operation, array_filter([
+                'keyWord' => $this->requireProbeString($input, ['query', 'keyWord', 'keyword'], 'keyWord'),
+                'local' => $this->stringOrDefault($input['local'] ?? null, (string) env('ALIEXPRESS_DS_LOCALE', 'fr_FR')),
+                'countryCode' => strtoupper($this->stringOrDefault($input['countryCode'] ?? $input['country_code'] ?? null, (string) env('ALIEXPRESS_DS_SHIP_TO_COUNTRY', 'FR'))),
+                'categoryId' => ($categoryId = (int) ($input['categoryId'] ?? $input['category_id'] ?? 0)) > 0 ? (string) $categoryId : null,
+                'sortBy' => $this->normalizeSortBy($input['sortBy'] ?? null),
+                'pageSize' => (string) max(1, min(50, (int) ($input['pageSize'] ?? $input['page_size'] ?? 20))),
+                'pageIndex' => (string) max(1, (int) ($input['pageIndex'] ?? $input['page_index'] ?? 1)),
+                'currency' => strtoupper($this->stringOrDefault($input['currency'] ?? null, 'USD')),
+                'searchExtend' => $this->normalizeSearchExtend($input['searchExtend'] ?? $input['search_extend'] ?? null),
+                'selectionName' => $this->getString($input['selectionName'] ?? $input['selection_name'] ?? null),
+            ], fn ($value) => $value !== null && $value !== '')),
+            default => throw new RuntimeException("Operation AliExpress DS non supportee: {$operation}"),
+        };
+
+        return [
+            'account' => $account,
+            'result' => $result,
+        ];
+    }
+
     public function prepareDraftOrder(array $account, array $product, array $address, int $quantity): array
     {
         $prepared = $this->prepareAccount($account, true);
@@ -719,6 +802,63 @@ class AliExpressOpenPlatformService
         $safeDirection = in_array($direction, ['asc', 'desc'], true) ? $direction : 'desc';
 
         return $safeField.','.$safeDirection;
+    }
+
+    private function normalizeDsOperation($value): ?string
+    {
+        $normalized = strtolower(trim((string) $value));
+        if ($normalized === '') {
+            return null;
+        }
+
+        $normalized = str_replace(['/', '\\', ' '], ['.', '.', ''], $normalized);
+
+        return match ($normalized) {
+            'ds.feedname.get', 'aliexpress.ds.feedname.get' => 'aliexpress.ds.feedname.get',
+            'ds.feed.itemids.get', 'aliexpress.ds.feed.itemids.get' => 'aliexpress.ds.feed.itemids.get',
+            'ds.product.get', 'aliexpress.ds.product.get' => 'aliexpress.ds.product.get',
+            'ds.freight.query', 'aliexpress.ds.freight.query' => 'aliexpress.ds.freight.query',
+            'ds.address.get', 'aliexpress.ds.address.get' => 'aliexpress.ds.address.get',
+            'ds.order.tracking.get', 'aliexpress.ds.order.tracking.get' => 'aliexpress.ds.order.tracking.get',
+            'trade.ds.order.get', 'aliexpress.trade.ds.order.get' => 'aliexpress.trade.ds.order.get',
+            'ds.image.searchv2', 'aliexpress.ds.image.searchv2', 'aliexpress.ds.image.searchv2' => 'aliexpress.ds.image.searchv2',
+            'ds.text.search', 'aliexpress.ds.text.search' => 'aliexpress.ds.text.search',
+            default => $normalized,
+        };
+    }
+
+    private function requireProbeString(array $input, array $keys, string $fieldName, ?string $default = null): string
+    {
+        foreach ($keys as $key) {
+            $value = $this->getString($input[$key] ?? null);
+            if ($value !== null && $value !== '') {
+                return $value;
+            }
+        }
+
+        if ($default !== null && trim($default) !== '') {
+            return trim($default);
+        }
+
+        throw new RuntimeException("Parametre AliExpress DS manquant: {$fieldName}.");
+    }
+
+    private function stringOrDefault($value, string $default): string
+    {
+        $normalized = $this->getString($value);
+
+        return $normalized !== null && $normalized !== '' ? $normalized : $default;
+    }
+
+    private function normalizeProbeBoolean($value): string
+    {
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        $normalized = strtolower(trim((string) $value));
+
+        return in_array($normalized, ['1', 'true', 'yes', 'oui'], true) ? 'true' : 'false';
     }
 
     private function normalizeSearchExtend($value): ?string

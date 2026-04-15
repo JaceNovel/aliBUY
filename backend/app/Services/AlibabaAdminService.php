@@ -218,6 +218,38 @@ class AlibabaAdminService
         throw new RuntimeException("Produit AliExpress introuvable dans le stockage backend actuel. L'import exact live n'est pas encore porte en PHP; ajoute d'abord un snapshot via l'ancien flux ou importe depuis une source deja connue.");
     }
 
+    public function probe(array $input): array
+    {
+        $account = $this->resolveLiveAccount($this->stringOrNull($input['supplierAccountId'] ?? null), true);
+        if ($account === null) {
+            throw new RuntimeException("Aucun compte AliExpress connecte n'est disponible pour executer un appel DS live.");
+        }
+
+        $result = $this->openPlatform->probeDsApi($account, $input);
+        $this->persistResolvedLiveAccount($result['account']);
+
+        $apiResult = $result['result'];
+        $this->appendLog(
+            'catalog-probe',
+            (string) ($apiResult['endpoint'] ?? ($input['operation'] ?? 'aliexpress.ds.unknown')),
+            ($apiResult['ok'] ?? false) ? 'success' : 'failed',
+            $input,
+            [
+                'status' => $apiResult['status'] ?? null,
+                'requestBody' => $apiResult['requestBody'] ?? null,
+                'responseBody' => $apiResult['responseBody'] ?? null,
+            ]
+        );
+
+        return [
+            'ok' => (bool) ($apiResult['ok'] ?? false),
+            'endpoint' => (string) ($apiResult['endpoint'] ?? ''),
+            'status' => (int) ($apiResult['status'] ?? 0),
+            'requestBody' => $apiResult['requestBody'] ?? [],
+            'responseBody' => $apiResult['responseBody'] ?? null,
+        ];
+    }
+
     public function import(array $input): array
     {
         $query = trim((string) ($input['query'] ?? ''));

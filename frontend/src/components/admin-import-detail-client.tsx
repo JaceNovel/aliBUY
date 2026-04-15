@@ -6,6 +6,10 @@ import { BellRing, CheckCircle2, ExternalLink, KeyRound, Mail, Phone, ShieldChec
 
 import type { AdminImportRequest, AdminImportRequestStatus } from "@/lib/admin-data";
 import {
+  aliExpressDsCatalogApis,
+  aliExpressDsErrors,
+  aliExpressDsNotes,
+  aliExpressDsOrderApis,
   authTokenEndpointNotes,
   buyerAuthorizationFlow,
   callbackMessages,
@@ -373,6 +377,67 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
                 <div className="mt-2 text-[13px] leading-6 text-[#667085]">{rule.detail}</div>
               </div>
             ))}
+          </div>
+        </section>
+
+        <section className="rounded-[18px] border border-[#dcdfe4] bg-white p-5 shadow-[0_2px_10px_rgba(16,24,40,0.04)] sm:p-7">
+          <h2 className="text-[22px] font-bold tracking-[-0.04em] text-black">AliExpress DS feeds, recherche et execution live</h2>
+          <div className="mt-3 text-[13px] leading-6 text-[#667085]">
+            Ces endpoints couvrent la decouverte de collections DS, la recherche texte ou image, la normalisation d&apos;adresse, la verification logistique et le cycle commande / tracking specifique AliExpress dropshipping.
+          </div>
+
+          <div className="mt-6 grid gap-5 xl:grid-cols-2">
+            {[
+              { title: "Catalogue et discovery", items: aliExpressDsCatalogApis, accent: "text-[#2f67f6]" },
+              { title: "Commande et suivi DS", items: aliExpressDsOrderApis, accent: "text-[#f0631b]" },
+            ].map((section) => (
+              <article key={section.title} className="rounded-[16px] border border-[#edf1f6] p-4">
+                <div className={`text-[12px] font-semibold uppercase tracking-[0.14em] ${section.accent}`}>{section.title}</div>
+                <div className="mt-4 space-y-3">
+                  {section.items.map((api) => (
+                    <div key={api.path} className="rounded-[14px] bg-[#fcfcfd] px-4 py-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-[15px] font-semibold text-[#111827]">{api.name}</div>
+                        <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-[#667085]">{api.path}</span>
+                      </div>
+                      <div className="mt-2 text-[13px] leading-6 text-[#667085]">{api.purpose}</div>
+                      {api.note ? <div className="mt-2 text-[12px] leading-5 text-[#98a2b3]">{api.note}</div> : null}
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="mt-6 grid gap-5 xl:grid-cols-2">
+            <article className="rounded-[16px] border border-[#edf1f6] p-4">
+              <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#98a2b3]">Notes d'integration DS</div>
+              <div className="mt-4 grid gap-3">
+                {aliExpressDsNotes.map((note) => (
+                  <div key={note.key} className="rounded-[14px] bg-[#f8fafc] px-4 py-4">
+                    <div className="text-[15px] font-semibold text-[#111827]">{note.key}</div>
+                    <div className="mt-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#2f67f6]">{note.value}</div>
+                    {note.detail ? <div className="mt-2 text-[13px] leading-6 text-[#667085]">{note.detail}</div> : null}
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className="rounded-[16px] border border-[#edf1f6] p-4">
+              <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#98a2b3]">Watchlist erreurs DS</div>
+              <div className="mt-4 space-y-3">
+                {aliExpressDsErrors.map((error) => (
+                  <div key={error.code} className="rounded-[14px] border border-[#edf1f6] px-4 py-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-[#fff4ea] px-2.5 py-1 text-[11px] font-semibold text-[#f0631b]">{error.code}</span>
+                      <div className="text-[15px] font-semibold text-[#111827]">{error.title}</div>
+                    </div>
+                    <div className="mt-2 text-[13px] leading-6 text-[#667085]"><span className="font-semibold text-[#344054]">Cause:</span> {error.cause}</div>
+                    <div className="mt-1 text-[13px] leading-6 text-[#667085]"><span className="font-semibold text-[#344054]">Resolution:</span> {error.resolution}</div>
+                  </div>
+                ))}
+              </div>
+            </article>
           </div>
         </section>
 

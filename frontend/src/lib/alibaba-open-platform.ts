@@ -217,6 +217,56 @@ export const essentialApis: ApiReferenceItem[] = [
   { name: "Order webhook", path: "ICBU_TRADE_SYNC_MSG / ICBU ORDER SYNC MESSAGE", purpose: "Recevoir les changements d'etat en push et re-puller le detail par ordre si besoin." },
 ];
 
+export const aliExpressDsCatalogApis: ApiReferenceItem[] = [
+  { name: "DS feed names", path: "aliexpress.ds.feedname.get", purpose: "Lister les collections DS disponibles et leur volumetrie produit.", note: "Le parametre app_signature est optionnel; le feed name retourne est ensuite reutilise pour feed.itemids.get." },
+  { name: "DS feed item ids", path: "aliexpress.ds.feed.itemids.get", purpose: "Paginator les product_id d'un feed DS via feed_name et search_id.", note: "search_id expire rapidement; le repasser tel quel pour la page suivante." },
+  { name: "DS text search", path: "aliexpress.ds.text.search", purpose: "Rechercher des produits DS par mot-cle, pays, devise, tri et filtres searchExtend." },
+  { name: "DS image search", path: "aliexpress.ds.image.searchV2", purpose: "Rechercher des produits DS a partir d'une image base64, avec tri et pays cible.", note: "Utile en sourcing inverse quand on part d'une photo client." },
+  { name: "DS product detail", path: "aliexpress.ds.product.get", purpose: "Lire la fiche detaillee DS: SKU, medias, package_info, store_info, evaluations et logistique de base." },
+];
+
+export const aliExpressDsOrderApis: ApiReferenceItem[] = [
+  { name: "DS freight query", path: "aliexpress.ds.freight.query", purpose: "Charger les options de livraison reelles pour un SKU et une adresse cible.", note: "Le code transporteur exact retourne ici doit etre reutilise dans ds.order.create." },
+  { name: "DS address get", path: "aliexpress.ds.address.get", purpose: "Normaliser les provinces et villes supportees par pays avant creation de commande." },
+  { name: "DS order create", path: "aliexpress.ds.order.create", purpose: "Creer une commande dropshipping et, si whiteliste, tenter l'auto-paiement USD." },
+  { name: "DS order tracking", path: "aliexpress.ds.order.tracking.get", purpose: "Lire le tracking detaille d'une commande DS par ae_order_id." },
+  { name: "DS trade order get", path: "aliexpress.trade.ds.order.get", purpose: "Lire l'etat, les montants, les lignes et les infos logistiques de la commande creee." },
+];
+
+export const aliExpressDsNotes: KeyValueReference[] = [
+  { key: "feed_name", value: "vient de aliexpress.ds.feedname.get", detail: "Ne pas inventer le nom du flux; si le commercial fournit un nom, attendre sa propagation si aucun resultat ne sort immediatement." },
+  { key: "sub_product_id US", value: "preferer pour le marche US", detail: "La doc DS indique d'utiliser sub_product_id plutot que main_product_id pour les contraintes privees du marche americain." },
+  { key: "freight before create", value: "obligatoire", detail: "Toujours verifier le SKU et la route via ds.freight.query juste avant ds.order.create pour eviter DELIVERY_METHOD_NOT_EXIST." },
+  { key: "auto-pay", value: "USD + whitelist", detail: "Le paiement automatique DS exige appKey whiteliste, buyer account valide et PayPal relie cote AliExpress." },
+];
+
+export const aliExpressDsErrors: ErrorReference[] = [
+  {
+    code: "602 / 605",
+    title: "Product unavailable or missing",
+    cause: "Le produit n'est plus vendable dans le pays cible ou le product_id n'existe plus.",
+    resolution: "Rechercher un article alternatif via text.search ou image.searchV2 puis recharger le detail produit DS.",
+  },
+  {
+    code: "505 / DELIVERY_NOT_AVAILABLE_TO_YOUR_ADDRESS",
+    title: "No delivery route",
+    cause: "Aucune option logistique n'est disponible pour l'adresse cible et le SKU selectionne.",
+    resolution: "Verifier pays, province, ville, sku_id puis relancer ds.freight.query avec une adresse normalisee par ds.address.get.",
+  },
+  {
+    code: "B_DROPSHIPPER_DELIVERY_ADDRESS_VALIDATE_FAIL",
+    title: "Address validation failed",
+    cause: "Ville, province, telephone ou contact_person ne correspondent pas aux regles AliExpress du pays cible.",
+    resolution: "Normaliser country/zip/province/city avec ds.address.get puis verifier aussi le format telephone et la longueur du contact.",
+  },
+  {
+    code: "OrderCreated, autoPay fail : APIPayFail",
+    title: "Order created but payment failed",
+    cause: "La commande DS existe deja cote AliExpress mais l'etape auto-pay a echoue.",
+    resolution: "Traiter le cas comme une creation reussie, puis verifier whitelist, buyer account et PayPal avant paiement manuel ou relance.",
+  },
+];
+
 export const categoryApis: ApiReferenceItem[] = [
   { name: "Category tree", path: "/icbu/product/category/get", purpose: "Charger l'arbre des categories; cat_id=0 retourne les categories de premier niveau.", note: "Requiert accessToken selon l'exemple SDK fourni." },
   { name: "Category ID mapping", path: "/alibaba/icbu/category/id/mapping", purpose: "Mapper ancienne et nouvelle categorie, attribut ou valeur via convert_type 1/2/3." },

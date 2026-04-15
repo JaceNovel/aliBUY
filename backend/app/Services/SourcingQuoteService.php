@@ -28,8 +28,8 @@ class SourcingQuoteService
             $product = $productsBySlug[$item['slug']] ?? null;
             $metadata = is_array($product?->metadata) ? $product->metadata : [];
             $quantity = (int) $item['quantity'];
-            $weightKg = $this->resolveWeightKg($metadata);
-            $volumeCbm = $this->resolveVolumeCbm($metadata);
+            $weightKg = $this->resolveWeightKg($metadata, $product);
+            $volumeCbm = $this->resolveVolumeCbm($metadata, $product);
             $supplierPriceFcfa = $this->resolveSupplierPriceFcfa($product?->price, $metadata);
             $marginAmountFcfa = $this->computeMarginAmount($supplierPriceFcfa, $settings);
             $finalUnitPriceFcfa = $supplierPriceFcfa + $marginAmountFcfa;
@@ -264,7 +264,7 @@ class SourcingQuoteService
         return 0;
     }
 
-    protected function resolveWeightKg(array $metadata): float
+    protected function resolveWeightKg(array $metadata, ?Product $product = null): float
     {
         if (isset($metadata['weightKg']) && is_numeric($metadata['weightKg'])) {
             return round((float) $metadata['weightKg'], 3);
@@ -274,20 +274,155 @@ class SourcingQuoteService
             return round(((float) $metadata['itemWeightGrams']) / 1000, 3);
         }
 
-        return 0.0;
+        $volumeCbm = $this->resolveLotCbmValue($metadata, $product);
+        if ($volumeCbm > 0) {
+            return round(max($volumeCbm * 140, 0.25), 3);
+        }
+
+        return round($this->inferFallbackWeightKg($metadata, $product), 3);
     }
 
-    protected function resolveVolumeCbm(array $metadata): float
+    protected function resolveVolumeCbm(array $metadata, ?Product $product = null): float
     {
         if (isset($metadata['volumeCbm']) && is_numeric($metadata['volumeCbm'])) {
             return round((float) $metadata['volumeCbm'], 4);
         }
 
-        if (isset($metadata['lotCbm']) && is_numeric($metadata['lotCbm'])) {
-            return round((float) $metadata['lotCbm'], 4);
+        $lotCbm = $this->resolveLotCbmValue($metadata, $product);
+        if ($lotCbm > 0) {
+            return round($lotCbm, 4);
         }
 
-        return 0.0;
+        $dimensions = $this->resolvePackageDimensionsCm($metadata, $product);
+        if ($dimensions !== null) {
+            return round(($dimensions['lengthCm'] * $dimensions['widthCm'] * $dimensions['heightCm']) / 1_000_000, 4);
+        }
+
+        return round($this->inferFallbackVolumeCbm($metadata, $product), 4);
+    }
+
+    protected function resolveLotCbmValue(array $metadata, ?Product $product = null): float
+    {
+        if (isset($metadata['lotCbm']) && is_numeric($metadata['lotCbm'])) {
+            return (float) $metadata['lotCbm'];
+        }
+
+        $dimensions = $this->resolvePackageDimensionsCm($metadata, $product);
+        if ($dimensions === null) {
+            return 0.0;
+        }
+
+        return ($dimensions['lengthCm'] * $dimensions['widthCm'] * $dimensions['heightCm']) / 1_000_000;
+    }
+
+    protected function resolvePackageDimensionsCm(array $metadata, ?Product $product = null): ?array
+    {
+        $dimensions = $metadata['packageDimensionsCm'] ?? null;
+        if (is_array($dimensions)) {
+            $length = isset($dimensions['lengthCm']) && is_numeric($dimensions['lengthCm']) ? (float) $dimensions['lengthCm'] : 0.0;
+            $width = isset($dimensions['widthCm']) && is_numeric($dimensions['widthCm']) ? (float) $dimensions['widthCm'] : 0.0;
+            $height = isset($dimensions['heightCm']) && is_numeric($dimensions['heightCm']) ? (float) $dimensions['heightCm'] : 0.0;
+            if ($length > 0 && $width > 0 && $height > 0) {
+                return [
+                    'lengthCm' => round($length, 1),
+                    'widthCm' => round($width, 1),
+                    'heightCm' => round($height, 1),
+                ];
+            }
+        }
+
+        return $this->inferFallbackDimensionsCm($metadata, $product);
+    }
+
+    protected function inferFallbackWeightKg(array $metadata, ?Product $product = null): float
+    {
+        $haystack = $this->buildProductHaystack($metadata, $product);
+
+        if (preg_match('/jewelry|bijou|bracelet|necklace|pendant|ring|earring/i', $haystack) === 1) {
+            return 0.02;
+        }
+
+        if (preg_match('/keyboard|clavier/i', $haystack) === 1) {
+            return 0.85;
+        }
+
+        if (preg_match('/mouse|souris/i', $haystack) === 1) {
+            return 0.18;
+        }
+
+        if (preg_match('/shoe|chaussure|boot|sneaker|bag|sac/i', $haystack) === 1) {
+            return 0.95;
+        }
+
+        if (preg_match('/phone|smartphone|tablet|ipad/i', $haystack) === 1) {
+            return 0.25;
+        }
+
+        return 0.25;
+    }
+
+    protected function inferFallbackDimensionsCm(array $metadata, ?Product $product = null): ?array
+    {
+        $haystack = $this->buildProductHaystack($metadata, $product);
+
+        if (preg_match('/jewelry|bijou|bracelet|necklace|pendant|ring|earring/i', $haystack) === 1) {
+            return ['lengthCm' => 8.0, 'widthCm' => 6.0, 'heightCm' => 2.0];
+        }
+
+        if (preg_match('/keyboard|clavier/i', $haystack) === 1) {
+            return ['lengthCm' => 46.0, 'widthCm' => 16.0, 'heightCm' => 5.0];
+        }
+
+        if (preg_match('/mouse|souris/i', $haystack) === 1) {
+            return ['lengthCm' => 14.0, 'widthCm' => 9.0, 'heightCm' => 5.0];
+        }
+
+        if (preg_match('/shoe|chaussure|boot|sneaker|bag|sac/i', $haystack) === 1) {
+            return ['lengthCm' => 34.0, 'widthCm' => 22.0, 'heightCm' => 12.0];
+        }
+
+        if (preg_match('/phone|smartphone|tablet|ipad/i', $haystack) === 1) {
+            return ['lengthCm' => 18.0, 'widthCm' => 10.0, 'heightCm' => 5.0];
+        }
+
+        return ['lengthCm' => 24.0, 'widthCm' => 16.0, 'heightCm' => 8.0];
+    }
+
+    protected function inferFallbackVolumeCbm(array $metadata, ?Product $product = null): float
+    {
+        $dimensions = $this->inferFallbackDimensionsCm($metadata, $product);
+        if ($dimensions === null) {
+            return 0.0;
+        }
+
+        return ($dimensions['lengthCm'] * $dimensions['widthCm'] * $dimensions['heightCm']) / 1_000_000;
+    }
+
+    protected function buildProductHaystack(array $metadata, ?Product $product = null): string
+    {
+        $specs = [];
+        if (is_array($metadata['specs'] ?? null)) {
+            foreach ($metadata['specs'] as $spec) {
+                if (! is_array($spec)) {
+                    continue;
+                }
+
+                $label = is_string($spec['label'] ?? null) ? trim((string) $spec['label']) : '';
+                $value = is_string($spec['value'] ?? null) ? trim((string) $spec['value']) : '';
+                if ($label !== '' || $value !== '') {
+                    $specs[] = trim($label.' '.$value);
+                }
+            }
+        }
+
+        return mb_strtolower(trim(implode(' ', array_filter([
+            is_string($product?->title) ? $product->title : '',
+            is_string($product?->category) ? $product->category : '',
+            is_string($metadata['shortTitle'] ?? null) ? (string) $metadata['shortTitle'] : '',
+            is_string($metadata['packaging'] ?? null) ? (string) $metadata['packaging'] : '',
+            is_string($metadata['unit'] ?? null) ? (string) $metadata['unit'] : '',
+            implode(' ', $specs),
+        ]))));
     }
 
     protected function computeMarginAmount(int $supplierPriceFcfa, array $settings): int
