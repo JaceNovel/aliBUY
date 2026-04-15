@@ -9,7 +9,7 @@ import { getSourcingOrderById } from "@/lib/sourcing-store";
 export default async function FreeDealPaymentPage({
   searchParams,
 }: {
-  searchParams: Promise<{ orderId?: string; paymentId?: string; paymentStatus?: string; status?: string }>;
+  searchParams: Promise<{ orderId?: string; paymentId?: string; paymentStatus?: string; status?: string; provider?: string; token?: string }>;
 }) {
   const pricing = await getPricingContext();
   const resolvedSearchParams = await searchParams;
@@ -41,12 +41,17 @@ export default async function FreeDealPaymentPage({
           shippingMethod: order.shippingMethod,
           shippingLabel: "Lot promo acquisition",
           paymentStatus: order.paymentStatus,
+          paymentProvider: order.paymentProvider,
+          paymentReference: order.monerooPaymentId,
+          paymentCheckoutUrl: order.monerooCheckoutUrl,
+          paymentProviderStatus: order.monerooPaymentStatus,
           monerooPaymentId: order.monerooPaymentId,
           monerooCheckoutUrl: order.monerooCheckoutUrl,
           monerooPaymentStatus: order.monerooPaymentStatus,
           paymentCurrency: order.paymentCurrency,
-          returnPaymentId: resolvedSearchParams.paymentId,
+          returnPaymentId: resolvedSearchParams.paymentId ?? resolvedSearchParams.token,
           returnPaymentStatus: resolvedSearchParams.paymentStatus || resolvedSearchParams.status,
+          returnProvider: resolvedSearchParams.provider === "paypal" ? "paypal" : undefined,
           heading: "Finaliser l'offre articles gratuits",
           description: `Vous payez uniquement le forfait fixe de ${meta.freeDeal.fixedPriceFcfa ? formatFcfa(meta.freeDeal.fixedPriceFcfa) : formatFcfa(order.totalPriceFcfa)} pour ce lot. Une fois reglee, la page se bloque sur cet appareil jusqu'au prochain debloquage par partage.`,
           badgeLabel: "Offre acquisition",

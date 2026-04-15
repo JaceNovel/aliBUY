@@ -8,6 +8,12 @@ type EnvConfig = {
   monerooWebhookSecret: string;
   fedapayApiUrl: string;
   fedapayApiKey: string;
+  paypalApiUrl: string;
+  paypalEnvironment: string;
+  paypalClientId: string;
+  paypalClientSecret: string;
+  paypalFallbackCurrency: string;
+  paypalXofPerEur: string;
   paymentWebhookSecret: string;
   adminApiToken: string;
 };
@@ -56,6 +62,24 @@ export const env: EnvConfig = {
   },
   get fedapayApiKey() {
     return getOptionalEnv("FEDAPAY_API_KEY", "replace-me");
+  },
+  get paypalApiUrl() {
+    return getOptionalEnv("PAYPAL_API_BASE_URL", "");
+  },
+  get paypalEnvironment() {
+    return getOptionalEnv("PAYPAL_ENVIRONMENT", "sandbox");
+  },
+  get paypalClientId() {
+    return getOptionalEnv("PAYPAL_CLIENT_ID", "");
+  },
+  get paypalClientSecret() {
+    return getOptionalEnv("PAYPAL_CLIENT_SECRET", "");
+  },
+  get paypalFallbackCurrency() {
+    return getOptionalEnv("PAYPAL_FALLBACK_CURRENCY", "EUR");
+  },
+  get paypalXofPerEur() {
+    return getOptionalEnv("PAYPAL_XOF_PER_EUR", "655.957");
   },
   get paymentWebhookSecret() {
     return getOptionalEnv("PAYMENT_WEBHOOK_SECRET", "replace-me");

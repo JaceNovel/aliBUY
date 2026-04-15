@@ -317,7 +317,7 @@ export type SourcingOrder = SourcingCheckoutAddress & {
   freightStatus: FreightStatus;
   supplierOrderStatus: SupplierOrderStatus;
   paymentStatus: PaymentStatus;
-  paymentProvider?: "moneroo";
+  paymentProvider?: "moneroo" | "paypal";
   paymentCurrency: string;
   alibabaTradeIds: string[];
   freightPayload?: unknown;

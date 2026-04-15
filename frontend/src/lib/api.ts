@@ -24,6 +24,8 @@ const SERVER_FALLBACK_API_URL = inferServerFallbackApiUrl();
 
 export const PRODUCTS_FEED_PAGE_SIZE = 20;
 
+export type PaymentProvider = "moneroo" | "paypal";
+
 export type ProductFeedItem = {
   slug: string;
   title: string;
@@ -162,6 +164,10 @@ export type ApiOrder = {
   totalPriceFcfa: number;
   paymentStatus: "unpaid" | "initialized" | "pending" | "paid" | "failed" | "cancelled";
   paymentCurrency: string;
+  paymentProvider?: PaymentProvider;
+  paymentReference?: string;
+  paymentCheckoutUrl?: string;
+  paymentProviderStatus?: string;
   monerooPaymentId?: string;
   monerooCheckoutUrl?: string;
   monerooPaymentStatus?: string;
@@ -339,7 +345,7 @@ export function getOrderById(orderId: string) {
     .then((payload) => payload.order);
 }
 
-export function initializeMonerooPayment(orderId: string) {
+export function initializeOrderPayment(orderId: string, provider: PaymentProvider = "moneroo") {
   return apiFetch<{
     order: ApiOrder;
     paymentId?: string;
@@ -350,11 +356,11 @@ export function initializeMonerooPayment(orderId: string) {
     headers: {
       "content-type": "application/json",
     },
-    body: JSON.stringify({ orderId }),
+    body: JSON.stringify({ orderId, provider }),
   });
 }
 
-export function verifyMonerooPayment(orderId: string, paymentId?: string) {
+export function verifyOrderPayment(orderId: string, paymentId?: string, provider: PaymentProvider = "moneroo") {
   return apiFetch<{
     order: ApiOrder;
     paymentId?: string;
@@ -365,8 +371,16 @@ export function verifyMonerooPayment(orderId: string, paymentId?: string) {
     headers: {
       "content-type": "application/json",
     },
-    body: JSON.stringify(paymentId ? { orderId, paymentId } : { orderId }),
+    body: JSON.stringify(paymentId ? { orderId, paymentId, provider } : { orderId, provider }),
   });
+}
+
+export function initializeMonerooPayment(orderId: string) {
+  return initializeOrderPayment(orderId, "moneroo");
+}
+
+export function verifyMonerooPayment(orderId: string, paymentId?: string) {
+  return verifyOrderPayment(orderId, paymentId, "moneroo");
 }
 
 export function applyOrderPromoCode(orderId: string, code: string) {

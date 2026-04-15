@@ -17,6 +17,7 @@ class PaymentService
         protected OrderService $orders,
         protected MonerooService $moneroo,
         protected FedaPayService $fedapay,
+        protected PayPalService $paypal,
         protected PartnerSettlementService $partnerSettlement,
         protected EmailAutomationService $emails,
         protected ManyChatService $manychat,
@@ -38,7 +39,11 @@ class PaymentService
             ]);
         }
 
-        if (in_array($order->payment_status, ['initialized', 'pending'], true) && $order->payment_checkout_url) {
+        if (
+            in_array($order->payment_status, ['initialized', 'pending'], true)
+            && $order->payment_checkout_url
+            && ($order->payment_provider === $provider || $order->payment_provider === null)
+        ) {
             return [
                 'order' => $this->orders->transformOrder($order->fresh('payments')),
                 'paymentId' => $order->payment_reference,
@@ -50,16 +55,17 @@ class PaymentService
         $previousPaymentStatus = (string) $order->payment_status;
         $payload = match ($provider) {
             'fedapay' => $this->fedapay->initialize($this->buildGatewayPayload($order)),
+            'paypal' => $this->paypal->initialize($this->buildGatewayPayload($order, $provider)),
             default => $this->moneroo->initialize($this->buildGatewayPayload($order)),
         };
 
         $paymentId = $this->resolvePaymentId($payload, $order);
         $checkoutUrl = $this->extractCheckoutUrl($payload);
-        $status = (string) ($payload['status'] ?? $payload['data']['status'] ?? 'initialized');
+        $status = $this->normalizeGatewayStatus((string) ($payload['status'] ?? $payload['data']['status'] ?? 'initialized'));
 
         if ($checkoutUrl === null) {
             throw ValidationException::withMessages([
-                'payment' => ['Moneroo a initialise le paiement, mais aucune URL checkout exploitable n a ete retournee.'],
+                'payment' => ['Le prestataire de paiement a initialise la transaction, mais aucune URL de redirection exploitable n a ete retournee.'],
             ]);
         }
 
@@ -106,11 +112,12 @@ class PaymentService
         $provider = $this->normalizeProvider($provider);
         $payload = match ($provider) {
             'fedapay' => $this->fedapay->verify($paymentId),
+            'paypal' => $this->paypal->verify($paymentId),
             default => $this->moneroo->verify($paymentId),
         };
 
         $status = (string) ($payload['status'] ?? $payload['data']['status'] ?? 'pending');
-        $normalizedStatus = $this->normalizePaidStatus($status);
+        $normalizedStatus = $this->normalizeGatewayStatus($status);
         $previousPaymentStatus = (string) $order->payment_status;
 
         Payment::query()
@@ -154,25 +161,46 @@ class PaymentService
     {
         $provider = $this->normalizeProvider($provider);
         $rawBody = (string) $request->getContent();
-        $signature = (string) ($provider === 'fedapay'
-            ? $request->header('x-fedapay-signature', '')
-            : $request->header('x-moneroo-signature', ''));
+        $payload = $request->json()->all();
 
-        $signatureValid = $provider === 'fedapay'
-            ? $this->fedapay->isValidWebhookSignature($signature, $rawBody)
-            : $this->moneroo->isValidWebhookSignature($signature, $rawBody);
+        $signatureValid = match ($provider) {
+            'paypal' => $this->paypal->isValidWebhookSignature([
+                'paypal-transmission-id' => (string) $request->header('paypal-transmission-id', ''),
+                'paypal-transmission-time' => (string) $request->header('paypal-transmission-time', ''),
+                'paypal-transmission-sig' => (string) $request->header('paypal-transmission-sig', ''),
+                'paypal-cert-url' => (string) $request->header('paypal-cert-url', ''),
+                'paypal-auth-algo' => (string) $request->header('paypal-auth-algo', ''),
+            ], $rawBody, $payload),
+            'fedapay' => $this->fedapay->isValidWebhookSignature((string) $request->header('x-fedapay-signature', ''), $rawBody),
+            default => $this->moneroo->isValidWebhookSignature((string) $request->header('x-moneroo-signature', ''), $rawBody),
+        };
 
         if (! $signatureValid) {
             throw new AuthorizationException('Invalid webhook signature.');
         }
 
-        $payload = $request->json()->all();
-        $paymentId = (string) ($payload['id'] ?? $payload['data']['id'] ?? '');
+        $paymentId = match ($provider) {
+            'paypal' => $this->extractPayPalWebhookOrderId($payload),
+            default => (string) ($payload['id'] ?? $payload['data']['id'] ?? ''),
+        };
+
         if ($paymentId === '') {
             return ['received' => true, 'ignored' => true];
         }
 
-        $payment = Payment::query()->where('transaction_id', $paymentId)->latest()->first();
+        $payment = Payment::query()
+            ->where('transaction_id', $paymentId)
+            ->orWhere('provider_reference', $paymentId)
+            ->latest()
+            ->first();
+
+        if (! $payment && $provider === 'paypal') {
+            $order = Order::query()->where('payment_reference', $paymentId)->latest()->first();
+            if ($order) {
+                $payment = Payment::query()->where('order_id', $order->id)->where('provider', 'paypal')->latest()->first();
+            }
+        }
+
         if (! $payment) {
             Log::channel('payment')->warning('payment.webhook.unmatched', [
                 'provider' => $provider,
@@ -182,11 +210,15 @@ class PaymentService
             return ['received' => true, 'ignored' => true];
         }
 
-        $status = $this->normalizePaidStatus((string) ($payload['status'] ?? $payload['data']['status'] ?? 'pending'));
+        $resolvedPayload = $provider === 'paypal'
+            ? $this->paypal->verify($paymentId)
+            : $payload;
+
+        $status = $this->normalizeGatewayStatus((string) ($resolvedPayload['status'] ?? $resolvedPayload['data']['status'] ?? $payload['status'] ?? $payload['data']['status'] ?? 'pending'));
         $previousPaymentStatus = (string) ($payment->order?->payment_status ?? '');
         $payment->update([
             'status' => $status,
-            'payload' => $payload,
+            'payload' => $resolvedPayload,
             'verified_at' => now(),
         ]);
 
@@ -194,7 +226,7 @@ class PaymentService
             'payment_status' => $status,
             'payment_provider' => $provider,
             'payment_reference' => $paymentId,
-            'payment_provider_payload' => $payload,
+            'payment_provider_payload' => $resolvedPayload,
         ])->save();
 
         if ($payment->order) {
@@ -214,6 +246,24 @@ class PaymentService
         return ['received' => true];
     }
 
+    protected function extractPayPalWebhookOrderId(array $payload): string
+    {
+        $candidates = [
+            $payload['resource']['supplementary_data']['related_ids']['order_id'] ?? null,
+            $payload['resource']['resource']['supplementary_data']['related_ids']['order_id'] ?? null,
+            $payload['resource']['id'] ?? null,
+            $payload['id'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_scalar($candidate) && trim((string) $candidate) !== '') {
+                return trim((string) $candidate);
+            }
+        }
+
+        return '';
+    }
+
     protected function sendPaymentConfirmedAutomations(Order $order, bool $sendEmail): void
     {
         if ($sendEmail) {
@@ -223,21 +273,21 @@ class PaymentService
         $this->manychat->sendOrderPaidFlow($order->loadMissing('user'));
     }
 
-    protected function buildGatewayPayload(Order $order): array
+    protected function buildGatewayPayload(Order $order, string $provider = 'moneroo'): array
     {
         $freeDeal = is_array($order->meta) && is_array($order->meta['freeDeal'] ?? null)
             ? $order->meta['freeDeal']
             : null;
         $amount = (float) $order->total_price;
         $currency = $order->payment_currency ?? 'XOF';
-        $returnUrl = rtrim((string) env('PAYMENT_RETURN_URL', config('services.frontend.url').'/orders'), '/').'?orderId='.$order->id;
+        $returnUrl = rtrim((string) env('PAYMENT_RETURN_URL', config('services.frontend.url').'/orders'), '/').'?orderId='.$order->id.'&provider='.$provider;
         $cancelUrl = (string) env('PAYMENT_CANCEL_URL', config('services.frontend.url').'/cart');
         $description = 'Paiement commande sourcing '.$order->order_number;
 
         if ($freeDeal !== null) {
             $amount = (float) ($freeDeal['fixedPriceEur'] ?? 10);
             $currency = 'EUR';
-            $returnUrl = rtrim((string) config('services.frontend.url'), '/').'/articles-gratuits/paiement?orderId='.$order->id;
+            $returnUrl = rtrim((string) config('services.frontend.url'), '/').'/articles-gratuits/paiement?orderId='.$order->id.'&provider='.$provider;
             $cancelUrl = rtrim((string) config('services.frontend.url'), '/').'/articles-gratuits';
             $description = 'Paiement lot articles gratuits '.$order->order_number;
         }
@@ -273,14 +323,20 @@ class PaymentService
 
     protected function normalizeProvider(string $provider): string
     {
-        return in_array($provider, ['moneroo', 'fedapay'], true) ? $provider : 'moneroo';
+        return in_array($provider, ['moneroo', 'fedapay', 'paypal'], true) ? $provider : 'moneroo';
     }
 
-    protected function normalizePaidStatus(string $status): string
+    protected function normalizeGatewayStatus(string $status): string
     {
-        return in_array(strtolower($status), ['successful', 'success', 'paid', 'approved', 'completed'], true)
-            ? 'paid'
-            : $status;
+        return match (strtolower(trim($status))) {
+            '', 'unpaid' => 'unpaid',
+            'initiated', 'initialized', 'created' => 'initialized',
+            'pending', 'processing', 'in_progress', 'in progress', 'approved', 'payer_action_required' => 'pending',
+            'successful', 'success', 'paid', 'completed', 'captured', 'succeeded', 'processed', 'complete' => 'paid',
+            'failed', 'error', 'expired', 'declined', 'denied' => 'failed',
+            'cancelled', 'canceled', 'voided' => 'cancelled',
+            default => 'pending',
+        };
     }
 
     protected function resolvePaymentId(array $payload, Order $order): string
@@ -310,6 +366,7 @@ class PaymentService
             $payload['payment']['transaction_id'] ?? null,
             $payload['payment']['transactionId'] ?? null,
             $payload['payment']['reference'] ?? null,
+            $payload['token'] ?? null,
         ];
 
         foreach ($candidates as $candidate) {
@@ -359,6 +416,8 @@ class PaymentService
             $payload['links']['checkout'] ?? null,
             $payload['links']['payment'] ?? null,
             $payload['links']['redirect'] ?? null,
+            $payload['approve_link'] ?? null,
+            $payload['approveLink'] ?? null,
         ];
 
         foreach ($candidates as $candidate) {
@@ -376,10 +435,14 @@ class PaymentService
             return null;
         }
 
+        if (($value['rel'] ?? null) === 'approve' && is_string($value['href'] ?? null) && str_starts_with(trim((string) $value['href']), 'http')) {
+            return trim((string) $value['href']);
+        }
+
         foreach ($value as $key => $candidate) {
             $normalizedKey = is_string($key) ? strtolower($key) : '';
             if (is_string($candidate) && trim($candidate) !== '' && str_starts_with(trim($candidate), 'http')) {
-                if (preg_match('/checkout|payment|pay|redirect|hosted|url/', $normalizedKey) === 1) {
+                if (preg_match('/checkout|payment|pay|redirect|hosted|url|approve|href/', $normalizedKey) === 1) {
                     return trim($candidate);
                 }
             }

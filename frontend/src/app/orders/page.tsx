@@ -8,7 +8,7 @@ import { redirect } from "next/navigation";
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ orderId?: string; paymentId?: string; paymentStatus?: string; status?: string; payOrderId?: string; payment?: string }>;
+  searchParams: Promise<{ orderId?: string; paymentId?: string; paymentStatus?: string; status?: string; payOrderId?: string; payment?: string; provider?: string; token?: string }>;
 }) {
   const pricing = await getPricingContext();
   const user = await getCurrentUser();
@@ -27,10 +27,11 @@ export default async function OrdersPage({
         languageCode={pricing.languageCode}
         paymentAction={{
           orderId: resolvedSearchParams.orderId,
-          paymentId: resolvedSearchParams.paymentId,
+          paymentId: resolvedSearchParams.paymentId ?? resolvedSearchParams.token,
           paymentStatus: resolvedSearchParams.paymentStatus ?? resolvedSearchParams.status,
           payOrderId: resolvedSearchParams.payOrderId,
           payment: resolvedSearchParams.payment,
+          provider: resolvedSearchParams.provider,
         }}
       />
     </InternalPageShell>

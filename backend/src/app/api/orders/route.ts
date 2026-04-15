@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { API_URL, buildApiUrl, type ApiOrder } from "@/lib/api";
-import { getSourcingOrderMeta, type SourcingOrder } from "@/lib/alibaba-sourcing";
+import type { SourcingOrder } from "@/lib/alibaba-sourcing";
 import { getManyChatAccountProfile } from "@/lib/account-manychat";
 import { getBackendAccessTokenFromCookies } from "@/lib/backend-access-token";
 import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
@@ -34,6 +34,10 @@ function mapSourcingOrderToApiOrder(order: SourcingOrder): ApiOrder {
     totalPriceFcfa: order.totalPriceFcfa,
     paymentStatus: order.paymentStatus,
     paymentCurrency: order.paymentCurrency,
+    paymentProvider: order.paymentProvider,
+    paymentReference: order.monerooPaymentId,
+    paymentCheckoutUrl: order.monerooCheckoutUrl,
+    paymentProviderStatus: order.monerooPaymentStatus,
     monerooPaymentId: order.monerooPaymentId,
     monerooCheckoutUrl: order.monerooCheckoutUrl,
     monerooPaymentStatus: order.monerooPaymentStatus,

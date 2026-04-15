@@ -347,7 +347,7 @@ function normalizeSourcingOrderFromApi(order: unknown): SourcingOrder | null {
     freightStatus: typeof order.freightStatus === "string" ? order.freightStatus as SourcingOrder["freightStatus"] : "not_requested",
     supplierOrderStatus: typeof order.supplierOrderStatus === "string" ? order.supplierOrderStatus as SourcingOrder["supplierOrderStatus"] : "not_created",
     paymentStatus: typeof order.paymentStatus === "string" ? order.paymentStatus as SourcingOrder["paymentStatus"] : "pending",
-    paymentProvider: order.paymentProvider === "moneroo" ? "moneroo" : undefined,
+    paymentProvider: order.paymentProvider === "paypal" ? "paypal" : order.paymentProvider === "moneroo" ? "moneroo" : undefined,
     paymentCurrency: typeof order.paymentCurrency === "string" ? order.paymentCurrency : "XOF",
     alibabaTradeIds: Array.isArray(order.alibabaTradeIds) ? order.alibabaTradeIds.filter((value): value is string => typeof value === "string") : [],
     freightPayload: order.freightPayload,

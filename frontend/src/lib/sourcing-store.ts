@@ -355,7 +355,7 @@ function normalizeOrder(record: Record<string, unknown>): SourcingOrder {
     freightStatus: String(record.freightStatus) as SourcingOrder["freightStatus"],
     supplierOrderStatus: String(record.supplierOrderStatus) as SourcingOrder["supplierOrderStatus"],
     paymentStatus: String(record.paymentStatus ?? "unpaid") as SourcingOrder["paymentStatus"],
-    paymentProvider: record.paymentProvider === "moneroo" ? "moneroo" : undefined,
+    paymentProvider: record.paymentProvider === "paypal" ? "paypal" : record.paymentProvider === "moneroo" ? "moneroo" : undefined,
     paymentCurrency: String(record.paymentCurrency ?? "XOF"),
     alibabaTradeIds: Array.isArray(record.alibabaTradeIds) ? record.alibabaTradeIds.map((item) => String(item)) : [],
     freightPayload: record.freightPayload,

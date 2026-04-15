@@ -7,7 +7,7 @@ import { AlertTriangle, Check, ChevronDown, CircleHelp, LocateFixed, Minus, Plus
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useCart, useCartQuote } from "@/components/cart-provider";
-import { buildLocalUrl, createOrder, initializeMonerooPayment, previewPromoCode } from "@/lib/api";
+import { buildLocalUrl, createOrder, initializeOrderPayment, previewPromoCode } from "@/lib/api";
 import {
   formatShippingTradeLabel,
   formatSourcingAmount,
@@ -68,7 +68,7 @@ type ReverseGeocodeResponse = {
   displayName?: string;
 };
 
-type CheckoutPaymentBadgeKey = "visa" | "mastercard" | "mobile-money" | "pay-later";
+type CheckoutPaymentBadgeKey = "visa" | "mastercard" | "mobile-money" | "pay-later" | "paypal";
 
 function CheckoutPaymentBadge({ brand }: { brand: CheckoutPaymentBadgeKey }) {
   if (brand === "visa") {
@@ -95,6 +95,14 @@ function CheckoutPaymentBadge({ brand }: { brand: CheckoutPaymentBadgeKey }) {
       <div className="flex h-10 min-w-[56px] items-center justify-center gap-2 rounded-[12px] border border-[#d6f5df] bg-white px-3 shadow-[0_6px_16px_rgba(17,24,39,0.04)]">
         <PaymentMethodIcon kind="mobile-money" size={22} className="h-[22px] w-[22px] object-contain" />
         <span className="text-[9px] font-extrabold uppercase tracking-[0.08em] text-[#15803d]">MM</span>
+      </div>
+    );
+  }
+
+  if (brand === "paypal") {
+    return (
+      <div className="flex h-10 min-w-[56px] items-center justify-center rounded-[12px] border border-[#d7e7ff] bg-white px-3 shadow-[0_6px_16px_rgba(17,24,39,0.04)]">
+        <span className="text-[14px] font-black tracking-[-0.04em] text-[#1457d8]">PayPal</span>
       </div>
     );
   }
@@ -171,7 +179,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hasUserSelectedShipping, setHasUserSelectedShipping] = useState(false);
   const [selectedShipping, setSelectedShipping] = useState<ShippingMethodKey>("air");
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"card" | "mobile" | "pay_on_delivery">("card");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"card" | "mobile" | "paypal" | "pay_on_delivery">("card");
   const [payOnDeliveryIdentityFirstName, setPayOnDeliveryIdentityFirstName] = useState("");
   const [payOnDeliveryIdentityLastName, setPayOnDeliveryIdentityLastName] = useState("");
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(savedAddresses.length === 0);
@@ -253,6 +261,13 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
       title: "Mobile Money",
       subtitle: "Via checkout Moneroo",
       badges: ["mobile-money"] as CheckoutPaymentBadgeKey[],
+      disabled: false,
+    },
+    {
+      key: "paypal" as const,
+      title: "PayPal",
+      subtitle: "Paiement securise, debite en EUR si le total est en FCFA",
+      badges: ["paypal"] as CheckoutPaymentBadgeKey[],
       disabled: false,
     },
     ...(!isEuropeanUnionDestination ? [{
@@ -655,8 +670,9 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
       }
 
       try {
-        const paymentPayload = await initializeMonerooPayment(payload.order.id);
-        const checkoutUrl = paymentPayload.checkoutUrl || paymentPayload.order?.monerooCheckoutUrl;
+        const paymentProvider = selectedPaymentMethod === "paypal" ? "paypal" : "moneroo";
+        const paymentPayload = await initializeOrderPayment(payload.order.id, paymentProvider);
+        const checkoutUrl = paymentPayload.checkoutUrl || paymentPayload.order?.paymentCheckoutUrl || paymentPayload.order?.monerooCheckoutUrl;
 
         if (checkoutUrl) {
           clearCart();
@@ -667,13 +683,14 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
         }
 
         setIsSubmitting(false);
-        router.push(`/orders?payment=initialization_failed&payOrderId=${encodeURIComponent(payload.order.id)}&orderId=${encodeURIComponent(payload.order.id)}`);
+        router.push(`/orders?payment=initialization_failed&provider=${encodeURIComponent(paymentProvider)}&payOrderId=${encodeURIComponent(payload.order.id)}&orderId=${encodeURIComponent(payload.order.id)}`);
       } catch (paymentError) {
         setIsSubmitting(false);
+        const paymentProviderLabel = selectedPaymentMethod === "paypal" ? "PayPal" : "Moneroo";
         setErrorMessage(paymentError instanceof Error
-          ? `${paymentError.message} La commande a ete creee, mais le checkout Moneroo ne s'est pas ouvert automatiquement.`
-          : "La commande a ete creee, mais le checkout Moneroo ne s'est pas ouvert automatiquement.");
-        router.push(`/orders?payment=initialization_failed&payOrderId=${encodeURIComponent(payload.order.id)}&orderId=${encodeURIComponent(payload.order.id)}`);
+          ? `${paymentError.message} La commande a ete creee, mais le checkout ${paymentProviderLabel} ne s'est pas ouvert automatiquement.`
+          : `La commande a ete creee, mais le checkout ${paymentProviderLabel} ne s'est pas ouvert automatiquement.`);
+        router.push(`/orders?payment=initialization_failed&provider=${encodeURIComponent(selectedPaymentMethod === "paypal" ? "paypal" : "moneroo")}&payOrderId=${encodeURIComponent(payload.order.id)}&orderId=${encodeURIComponent(payload.order.id)}`);
       }
     } catch (error) {
       setIsSubmitting(false);

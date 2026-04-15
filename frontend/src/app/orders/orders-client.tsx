@@ -25,7 +25,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getOrderChatHref, getOrderConfirmReceiptHref, getOrderDeliveryProofHref, getOrderPaymentHref, getOrderTabs, getOrderTrackingHref, sidebarItems, type OrderRecord, type OrderTabKey } from "@/lib/orders-data";
-import { initializeMonerooPayment, verifyMonerooPayment } from "@/lib/api";
+import { initializeOrderPayment, verifyOrderPayment, type PaymentProvider } from "@/lib/api";
 
 type SidebarItemKey = (typeof sidebarItems)[number];
 
@@ -38,8 +38,17 @@ type OrdersClientProps = {
     paymentStatus?: string;
     payOrderId?: string;
     payment?: string;
+    provider?: string;
   };
 };
+
+function normalizePaymentProvider(input?: string | null): PaymentProvider {
+  return input === "paypal" ? "paypal" : "moneroo";
+}
+
+function getPaymentProviderLabel(provider: PaymentProvider) {
+  return provider === "paypal" ? "PayPal" : "Moneroo";
+}
 
 const sidebarItemMeta = {
   "Toutes les commandes": { label: "Commandes", icon: ClipboardList },
@@ -423,7 +432,9 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
     const paymentId = paymentAction?.paymentId?.trim();
     const paymentStatus = paymentAction?.paymentStatus?.trim();
     const payment = paymentAction?.payment?.trim();
-    const actionKey = [payOrderId ?? "", orderId ?? "", paymentId ?? "", paymentStatus ?? "", payment ?? ""].join("|");
+    const provider = normalizePaymentProvider(paymentAction?.provider?.trim());
+    const providerLabel = getPaymentProviderLabel(provider);
+    const actionKey = [payOrderId ?? "", orderId ?? "", paymentId ?? "", paymentStatus ?? "", payment ?? "", provider].join("|");
 
     if (!actionKey.replace(/\|/g, "")) {
       return;
@@ -439,23 +450,19 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
       const timeoutId = window.setTimeout(() => {
         setIsPaymentBusy(true);
         setPaymentFeedback(payment === "initialization_failed"
-          ? (isEnglish
-              ? "Retrying Moneroo checkout..."
-              : "Nouvelle tentative d'ouverture du checkout Moneroo...")
-          : (isEnglish
-              ? "Opening Moneroo checkout..."
-              : "Ouverture du checkout Moneroo..."));
+          ? (isEnglish ? `Retrying ${providerLabel} checkout...` : `Nouvelle tentative d'ouverture du checkout ${providerLabel}...`)
+          : (isEnglish ? `Opening ${providerLabel} checkout...` : `Ouverture du checkout ${providerLabel}...`));
 
-        void initializeMonerooPayment(payOrderId)
+        void initializeOrderPayment(payOrderId, provider)
           .then((payload) => {
             if (!payload?.checkoutUrl) {
-              throw new Error(isEnglish ? "Unable to open Moneroo checkout." : "Impossible d'ouvrir le checkout Moneroo.");
+              throw new Error(isEnglish ? `Unable to open ${providerLabel} checkout.` : `Impossible d'ouvrir le checkout ${providerLabel}.`);
             }
 
             window.location.href = payload.checkoutUrl;
           })
           .catch((error) => {
-            setPaymentFeedback(error instanceof Error ? error.message : isEnglish ? "Unable to open Moneroo checkout." : "Impossible d'ouvrir le checkout Moneroo.");
+            setPaymentFeedback(error instanceof Error ? error.message : isEnglish ? `Unable to open ${providerLabel} checkout.` : `Impossible d'ouvrir le checkout ${providerLabel}.`);
           })
           .finally(() => {
             setIsPaymentBusy(false);
@@ -471,16 +478,16 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
       const timeoutId = window.setTimeout(() => {
         setIsPaymentBusy(true);
         setPaymentFeedback(paymentStatus
-          ? (isEnglish ? `Moneroo return received: ${paymentStatus}. Verifying payment...` : `Retour Moneroo recu: ${paymentStatus}. Verification du paiement en cours...`)
-          : (isEnglish ? "Verifying Moneroo payment..." : "Verification du paiement Moneroo en cours..."));
+          ? (isEnglish ? `${providerLabel} return received: ${paymentStatus}. Verifying payment...` : `Retour ${providerLabel} recu: ${paymentStatus}. Verification du paiement en cours...`)
+          : (isEnglish ? `Verifying ${providerLabel} payment...` : `Verification du paiement ${providerLabel} en cours...`));
 
-        void verifyMonerooPayment(orderId, paymentId)
+        void verifyOrderPayment(orderId, paymentId, provider)
           .then((payload) => {
             setPaymentFeedback(payload.order.paymentStatus === "paid"
               ? (isEnglish ? "Payment confirmed. Your order is now marked as paid." : "Paiement confirme. Votre commande est maintenant marquee comme payee.")
               : (isEnglish
-                  ? `Latest Moneroo status: ${payload.order.monerooPaymentStatus || payload.order.paymentStatus}.`
-                  : `Dernier statut Moneroo: ${payload.order.monerooPaymentStatus || payload.order.paymentStatus}.`));
+                  ? `Latest ${providerLabel} status: ${payload.order.paymentProviderStatus || payload.order.monerooPaymentStatus || payload.order.paymentStatus}.`
+                  : `Dernier statut ${providerLabel}: ${payload.order.paymentProviderStatus || payload.order.monerooPaymentStatus || payload.order.paymentStatus}.`));
             router.refresh();
           })
           .catch((error) => {
@@ -491,7 +498,7 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
               return;
             }
 
-            setPaymentFeedback(message || (isEnglish ? "Unable to verify Moneroo payment." : "Impossible de verifier le paiement Moneroo."));
+            setPaymentFeedback(message || (isEnglish ? `Unable to verify ${providerLabel} payment.` : `Impossible de verifier le paiement ${providerLabel}.`));
           })
           .finally(() => {
             setIsPaymentBusy(false);

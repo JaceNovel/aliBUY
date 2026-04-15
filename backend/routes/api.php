@@ -146,6 +146,7 @@ Route::prefix('payments')->group(function () {
     });
     Route::post('/webhook', [PaymentController::class, 'webhook']);
     Route::post('/moneroo/webhook', [PaymentController::class, 'monerooWebhook']);
+    Route::post('/paypal/webhook', [PaymentController::class, 'paypalWebhook']);
 });
 
 Route::middleware('auth:sanctum')->group(function () {

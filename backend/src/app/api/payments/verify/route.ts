@@ -3,8 +3,9 @@ import { NextResponse } from "next/server";
 import { API_URL, buildApiUrl } from "@/lib/api";
 import { getManyChatAccountProfile } from "@/lib/account-manychat";
 import { getBackendAccessTokenFromCookies } from "@/lib/backend-access-token";
+import { persistHostedCheckoutPaymentToOrder } from "@/lib/hosted-checkout-sourcing";
 import { verifyMonerooPayment as verifyLocalMonerooPayment } from "@/lib/moneroo";
-import { persistMonerooPaymentToOrder } from "@/lib/moneroo-sourcing";
+import { getPayPalCurrencyCode, getPayPalProcessedAt, normalizePayPalPaymentStatus, verifyPayPalPayment } from "@/lib/paypal";
 import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
 import { getSourcingOrderById } from "@/lib/sourcing-store";
 import { getSourcingOrderMeta, withSourcingOrderMeta } from "@/lib/alibaba-sourcing";
@@ -26,6 +27,9 @@ function emptyManyChatAccountProfile() {
 
 export async function POST(request: Request) {
   const payload = await request.json().catch(() => null);
+  const provider = payload && typeof payload === "object" && "provider" in payload && String(payload.provider).trim() === "paypal"
+    ? "paypal"
+    : "moneroo";
   const user = await requireUser();
   if (!user) {
     if (!API_URL) {
@@ -58,7 +62,7 @@ export async function POST(request: Request) {
       ? String(payload.paymentId)
       : order.monerooPaymentId;
     if (!paymentId) {
-      return NextResponse.json({ message: "Aucun paiement Moneroo n'est associe a cette commande." }, { status: 422 });
+      return NextResponse.json({ message: provider === "paypal" ? "Aucun paiement PayPal n'est associe a cette commande." : "Aucun paiement Moneroo n'est associe a cette commande." }, { status: 422 });
     }
 
     const accountManyChat = await getManyChatAccountProfile(user).catch(() => emptyManyChatAccountProfile());
@@ -73,13 +77,38 @@ export async function POST(request: Request) {
         })
       : order;
 
-    const payment = await verifyLocalMonerooPayment(paymentId);
-    const nextOrder = await persistMonerooPaymentToOrder({ order: orderWithManyChat, payment, verified: true });
+    const payment = provider === "paypal" ? await verifyPayPalPayment(paymentId) : await verifyLocalMonerooPayment(paymentId);
+    const nextOrder = await persistHostedCheckoutPaymentToOrder({
+      order: orderWithManyChat,
+      verified: true,
+      payment: provider === "paypal"
+        ? {
+            provider,
+            id: payment.id,
+            status: payment.status,
+            normalizedStatus: normalizePayPalPaymentStatus(payment.status),
+            checkoutUrl: payment.links?.find((link) => link.rel === "approve")?.href,
+            currency: getPayPalCurrencyCode(payment),
+            payload: payment,
+            processedAt: getPayPalProcessedAt(payment),
+          }
+        : {
+            provider,
+            id: payment.id,
+            status: payment.status,
+            normalizedStatus: payment.status && ["initiated", "initialized"].includes(payment.status.toLowerCase()) ? "initialized" : payment.status && ["pending", "processing", "in_progress", "in progress"].includes(payment.status.toLowerCase()) ? "pending" : payment.status && ["success", "successful", "succeeded", "completed", "complete", "paid", "processed"].includes(payment.status.toLowerCase()) ? "paid" : payment.status && ["failed", "error", "expired", "declined"].includes(payment.status.toLowerCase()) ? "failed" : payment.status && ["cancelled", "canceled"].includes(payment.status.toLowerCase()) ? "cancelled" : "unpaid",
+            checkoutUrl: payment.checkout_url,
+            currency: payment.currency && typeof payment.currency === "string" ? payment.currency : typeof payment.currency === "object" && payment.currency ? payment.currency.code : undefined,
+            payload: payment,
+            initiatedAt: payment.initiated_at,
+            processedAt: payment.processed_at,
+          },
+    });
 
     return NextResponse.json({
       order: nextOrder,
       paymentId: payment.id,
-      checkoutUrl: payment.checkout_url || nextOrder.monerooCheckoutUrl,
+      checkoutUrl: provider === "paypal" ? payment.links?.find((link) => link.rel === "approve")?.href : payment.checkout_url || nextOrder.monerooCheckoutUrl,
       paymentStatus: nextOrder.paymentStatus,
     });
   }

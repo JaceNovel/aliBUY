@@ -18,7 +18,7 @@ class PaymentController extends Controller
     {
         $validated = $request->validate([
             'orderId' => ['required'],
-            'provider' => ['nullable', 'in:moneroo,fedapay'],
+            'provider' => ['nullable', 'in:moneroo,fedapay,paypal'],
         ]);
 
         $order = Order::query()->findOrFail($validated['orderId']);
@@ -33,7 +33,7 @@ class PaymentController extends Controller
         $validated = $request->validate([
             'orderId' => ['required'],
             'paymentId' => ['required', 'string'],
-            'provider' => ['nullable', 'in:moneroo,fedapay'],
+            'provider' => ['nullable', 'in:moneroo,fedapay,paypal'],
         ]);
 
         $order = Order::query()->findOrFail($validated['orderId']);
@@ -51,5 +51,10 @@ class PaymentController extends Controller
     public function monerooWebhook(Request $request): JsonResponse
     {
         return response()->json($this->payments->handleWebhook('moneroo', $request));
+    }
+
+    public function paypalWebhook(Request $request): JsonResponse
+    {
+        return response()->json($this->payments->handleWebhook('paypal', $request));
     }
 }

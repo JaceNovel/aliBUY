@@ -60,6 +60,16 @@ return [
         'environment' => env('FEDAPAY_ENVIRONMENT', 'live'),
     ],
 
+    'paypal' => [
+        'base_url' => env('PAYPAL_API_BASE_URL', env('PAYPAL_ENVIRONMENT', 'live') === 'sandbox' ? 'https://api-m.sandbox.paypal.com' : 'https://api-m.paypal.com'),
+        'client_id' => env('PAYPAL_CLIENT_ID'),
+        'client_secret' => env('PAYPAL_CLIENT_SECRET'),
+        'webhook_id' => env('PAYPAL_WEBHOOK_ID'),
+        'environment' => env('PAYPAL_ENVIRONMENT', 'live'),
+        'fallback_currency' => env('PAYPAL_FALLBACK_CURRENCY', 'EUR'),
+        'xof_per_eur' => env('PAYPAL_XOF_PER_EUR', 655.957),
+    ],
+
     'email_automation' => [
         'enabled' => env('EMAIL_AUTOMATION_ENABLED', true),
     ],
