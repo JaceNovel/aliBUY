@@ -366,11 +366,17 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
   const [refundRequests, setRefundRequests] = useState<Record<string, "in_review" | "accepted" | "credited">>({});
   const [reviewedOrders, setReviewedOrders] = useState<Record<string, boolean>>({});
   const isEnglish = languageCode === "en";
-  const [paymentFeedback, setPaymentFeedback] = useState<string | null>(() => paymentAction?.payment?.trim() === "initialization_failed"
-    ? (isEnglish
-        ? "The order was created, but Moneroo could not be opened automatically. Please try again from your order."
-        : "La commande a ete creee, mais Moneroo n'a pas pu s'ouvrir automatiquement. Relancez le paiement depuis votre commande.")
-    : null);
+  const [paymentFeedback, setPaymentFeedback] = useState<string | null>(() => {
+    if (paymentAction?.payment?.trim() !== "initialization_failed") {
+      return null;
+    }
+
+    const provider = normalizePaymentProvider(paymentAction?.provider?.trim());
+    const providerLabel = getPaymentProviderLabel(provider);
+    return isEnglish
+      ? `The order was created, but ${providerLabel} could not be opened automatically. Please try again from your order.`
+      : `La commande a ete creee, mais ${providerLabel} n'a pas pu s'ouvrir automatiquement. Relancez le paiement depuis votre commande.`;
+  });
   const [isPaymentBusy, setIsPaymentBusy] = useState(false);
   const handledPaymentActionRef = useRef<string | null>(null);
 

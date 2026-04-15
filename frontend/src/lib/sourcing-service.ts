@@ -123,6 +123,7 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
 
   const quote = await createAlibabaSourcingQuote(sanitizedItems, settings, {
     disableFreeAir: !deliveryPlan.workflow.freeDeliveryEligible,
+    countryCode: input.countryCode,
   });
   if (quote.items.length === 0) {
     throw new Error("Les articles selectionnes ne correspondent plus a des produits Alibaba publiés. Rechargez le panier puis reessayez.");

@@ -143,6 +143,8 @@ Route::prefix('payments')->group(function () {
         Route::post('/verify', [PaymentController::class, 'verify']);
         Route::post('/moneroo/initialize', [PaymentController::class, 'init']);
         Route::post('/moneroo/verify', [PaymentController::class, 'verify']);
+        Route::post('/paypal/proxy/init', [PaymentController::class, 'proxyPayPalInit']);
+        Route::post('/paypal/proxy/verify', [PaymentController::class, 'proxyPayPalVerify']);
     });
     Route::post('/webhook', [PaymentController::class, 'webhook']);
     Route::post('/moneroo/webhook', [PaymentController::class, 'monerooWebhook']);

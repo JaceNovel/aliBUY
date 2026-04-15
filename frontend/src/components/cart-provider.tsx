@@ -305,7 +305,7 @@ export function useCart() {
   return context;
 }
 
-export function useCartQuote(options?: { disableFreeAir?: boolean; deliveryMode?: SourcingDeliveryMode }) {
+export function useCartQuote(options?: { disableFreeAir?: boolean; deliveryMode?: SourcingDeliveryMode; countryCode?: string }) {
   const { items } = useCart();
   const [quote, setQuote] = useState<AlibabaSourcingQuote>(() => createEmptyQuote());
   const [settings, setSettings] = useState<SourcingSettings | null>(null);
@@ -337,6 +337,7 @@ export function useCartQuote(options?: { disableFreeAir?: boolean; deliveryMode?
             items,
             disableFreeAir: options?.disableFreeAir === true,
             deliveryMode: options?.deliveryMode === "forwarder" ? "forwarder" : "direct",
+            countryCode: options?.countryCode,
           }),
           signal: controller.signal,
         });
@@ -367,7 +368,7 @@ export function useCartQuote(options?: { disableFreeAir?: boolean; deliveryMode?
     return () => {
       controller.abort();
     };
-  }, [items, options?.deliveryMode, options?.disableFreeAir]);
+  }, [items, options?.countryCode, options?.deliveryMode, options?.disableFreeAir]);
 
   return useMemo(() => ({ quote, settings, isLoading }), [quote, settings, isLoading]);
 }

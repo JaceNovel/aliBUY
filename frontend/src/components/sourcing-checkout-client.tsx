@@ -11,6 +11,7 @@ import { buildLocalUrl, createOrder, initializeOrderPayment, previewPromoCode } 
 import {
   formatShippingTradeLabel,
   formatSourcingAmount,
+  isEuropeanUnionCountry,
   isSupportedDirectDeliveryCountry,
   resolveSourcingDeliveryPlan,
   type SourcingDeliveryMode,
@@ -38,12 +39,8 @@ const defaultForm = {
   notes: "",
 };
 
-const EU_COUNTRY_CODES = [
-  "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT",
-  "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
-] as const;
-
 const PAY_ON_DELIVERY_LIMIT_FCFA = 30_000;
+const SHIPPING_PREFERENCE_STORAGE_KEY = "afripay_sourcing_shipping_preference";
 
 type SourcingCheckoutClientProps = {
   initialUser: {
@@ -211,11 +208,23 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
     },
   }), [deliveryMode, form.city, form.countryCode, form.googleMapsUrl, forwarderAddressBlock, forwarderParcelMarking]);
 
-  const { quote, isLoading } = useCartQuote({ disableFreeAir: !deliveryPlan.workflow.freeDeliveryEligible, deliveryMode });
+  const { quote, isLoading } = useCartQuote({ disableFreeAir: !deliveryPlan.workflow.freeDeliveryEligible, deliveryMode, countryCode: form.countryCode });
   const shippingOptions = quote.shippingOptions;
   const usesInternalReceptionAddress = deliveryPlan.deliveryProfile.usesInternalReceptionAddress === true;
   const isDirectAliExpressFlow = deliveryMode !== "forwarder" && !usesInternalReceptionAddress;
   const requiresTransitAddress = deliveryPlan.deliveryProfile.unsupportedCountry === true || !isSupportedDirectDeliveryCountry(form.countryCode);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const stored = window.sessionStorage.getItem(SHIPPING_PREFERENCE_STORAGE_KEY);
+    if (stored === "air" || stored === "sea" || stored === "freight") {
+      setHasUserSelectedShipping(true);
+      setSelectedShipping(stored as ShippingMethodKey);
+    }
+  }, []);
 
   useEffect(() => {
     if (shippingOptions.length === 0) {
@@ -233,6 +242,14 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
     }
   }, [hasUserSelectedShipping, quote.recommendedMethod, selectedShipping, shippingOptions]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.sessionStorage.setItem(SHIPPING_PREFERENCE_STORAGE_KEY, selectedShipping);
+  }, [selectedShipping]);
+
   const selectedOption = useMemo(() => shippingOptions.find((option) => option.key === selectedShipping) ?? shippingOptions[0] ?? null, [selectedShipping, shippingOptions]);
   const baseTotalPrice = quote.cartProductsTotalFcfa + (selectedOption?.priceFcfa ?? 0);
   const itemsMissingVariants = useMemo(
@@ -245,7 +262,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
   const selectedShippingLabel = selectedOption
     ? `${selectedOption.isFree ? "gratuit" : formatSourcingAmount(selectedOption.priceFcfa, { currencyCode, locale })}`
     : formatSourcingAmount(0, { currencyCode, locale });
-  const isEuropeanUnionDestination = EU_COUNTRY_CODES.includes(canonicalizeCountryCode(form.countryCode, "TG") as (typeof EU_COUNTRY_CODES)[number]);
+  const isEuropeanUnionDestination = isEuropeanUnionCountry(form.countryCode);
   const payOnDeliveryEligible = !isEuropeanUnionDestination && totalPrice <= PAY_ON_DELIVERY_LIMIT_FCFA;
   const payOnDeliveryLimitLabel = formatSourcingAmount(PAY_ON_DELIVERY_LIMIT_FCFA, { currencyCode, locale });
   const paymentChoices = [

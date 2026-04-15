@@ -109,7 +109,7 @@ function resolveStatus(order: SourcingOrder): OrderStatus {
   }
 
   if (order.paymentStatus === "initialized" || order.paymentStatus === "pending") {
-    return "Expedition en attente";
+    return "Paiement en attente";
   }
 
   return "Paiement en attente";
@@ -162,7 +162,7 @@ function resolveRemoteOrderStatus(order: RemoteOrderRecord): OrderStatus {
   }
 
   if (order.paymentStatus === "initialized" || order.paymentStatus === "pending") {
-    return "Expedition en attente";
+    return "Paiement en attente";
   }
 
   return "Paiement en attente";
@@ -207,7 +207,7 @@ function buildRemoteLogistics(order: RemoteOrderRecord, status: OrderStatus): Or
     corridorLabel,
     destinationCountry: destination,
     transitMode,
-    merchantPickupCompleted: order.paymentStatus !== "unpaid" && order.paymentStatus !== "failed" && order.paymentStatus !== "cancelled",
+    merchantPickupCompleted: order.paymentStatus === "paid",
     trackingCode: buildTrackingNumber({ id: order.id, orderNumber: order.orderNumber }),
     lastUpdate,
   };
@@ -376,7 +376,7 @@ function buildLogistics(order: SourcingOrder, status: OrderStatus) {
     corridorLabel,
     destinationCountry: destination,
     transitMode,
-    merchantPickupCompleted: order.paymentStatus !== "unpaid",
+    merchantPickupCompleted: order.paymentStatus === "paid",
     trackingCode: buildTrackingNumber({ id: order.id, orderNumber: order.orderNumber }),
     lastUpdate: effectiveLastUpdate,
     deliveryRouteType: workflow?.routeType,

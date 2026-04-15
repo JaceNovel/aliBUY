@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useCart, useCartQuote } from "@/components/cart-provider";
-import { buildCartItemKey, formatSourcingAmount, resolveSourcingDeliveryPlan } from "@/lib/alibaba-sourcing";
+import { buildCartItemKey, formatSourcingAmount, isEuropeanUnionCountry, resolveSourcingDeliveryPlan } from "@/lib/alibaba-sourcing";
 import { PaymentMethodIcon } from "@/components/payment-method-icon";
 
 type SharedCartSummary = {
@@ -22,6 +22,8 @@ type SharedCartSummary = {
 };
 
 type PaymentSecurityBadgeKey = "visa" | "mastercard" | "mobile-money" | "moneroo";
+
+const SHIPPING_PREFERENCE_STORAGE_KEY = "afripay_sourcing_shipping_preference";
 
 function PaymentSecurityBadge({ brand }: { brand: PaymentSecurityBadgeKey }) {
   if (brand === "visa") {
@@ -72,8 +74,10 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
   }), [initialCountryCode]);
   const { quote, isLoading } = useCartQuote({
     disableFreeAir: !deliveryPlan.workflow.freeDeliveryEligible,
+    countryCode: initialCountryCode,
     deliveryMode: "direct",
   });
+  const isEuropeanUnionDestination = useMemo(() => isEuropeanUnionCountry(initialCountryCode), [initialCountryCode]);
   const [shareMessage, setShareMessage] = useState("");
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
   const [sharePulse, setSharePulse] = useState(false);
@@ -81,8 +85,18 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
   const [favoriteSlugs, setFavoriteSlugs] = useState<string[]>([]);
   const [favoriteBusySlug, setFavoriteBusySlug] = useState<string | null>(null);
   const [selectedCartKeys, setSelectedCartKeys] = useState<string[]>([]);
+  const [selectedShippingKey, setSelectedShippingKey] = useState<string | null>(null);
   const [selectionPulse, setSelectionPulse] = useState(false);
-  const shipping = useMemo(() => quote.shippingOptions.find((option) => option.key === quote.recommendedMethod) ?? quote.shippingOptions[0], [quote.recommendedMethod, quote.shippingOptions]);
+  const shipping = useMemo(() => {
+    if (selectedShippingKey) {
+      const selectedOption = quote.shippingOptions.find((option) => option.key === selectedShippingKey);
+      if (selectedOption) {
+        return selectedOption;
+      }
+    }
+
+    return quote.shippingOptions.find((option) => option.key === quote.recommendedMethod) ?? quote.shippingOptions[0];
+  }, [quote.recommendedMethod, quote.shippingOptions, selectedShippingKey]);
   const totalFcfa = quote.cartProductsTotalFcfa + (shipping?.priceFcfa ?? 0);
   const totalWeightLabel = quote.totalWeightKg > 0 ? `${quote.totalWeightKg.toFixed(2)} kg` : "Selon catalogue";
   const totalVolumeLabel = quote.totalCbm > 0 ? `${quote.totalCbm.toFixed(4)} CBM` : "Selon catalogue";
@@ -116,7 +130,9 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
   ]), [currencyCode, locale, securePaymentBonusFcfa, welcomeCouponDiscountFcfa, welcomeCouponThresholdFcfa]);
   const paymentSecurityBadges: PaymentSecurityBadgeKey[] = ["visa", "mastercard", "mobile-money", "moneroo"];
   const localizedRemainingFreeShippingLabel = formatSourcingAmount(quote.freeAirRemainingFcfa, { currencyCode, locale });
-  const shippingThresholdMessage = deliveryPlan.workflow.freeDeliveryEligible
+  const shippingThresholdMessage = isEuropeanUnionDestination
+    ? quote.freeShippingMessage
+    : deliveryPlan.workflow.freeDeliveryEligible
     ? quote.recommendedMethod === "sea"
       ? "Le moyen de livraison peut etre changé si le poids est trop conséquent. Pour profiter de la livraison gratuite, les commandes ne doivent pas dépasser 2.5 kg."
       : shipping?.key === "air" && shipping.isFree
@@ -142,9 +158,39 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
     ...option,
     priceLabel: option.isFree ? "Livraison gratuite" : formatSourcingAmount(option.priceFcfa, { currencyCode, locale }),
     isRecommended: option.key === quote.recommendedMethod,
+    isSelected: option.key === (shipping?.key ?? quote.recommendedMethod),
     Icon: option.key === "sea" ? ShipWheel : option.key === "air" ? Plane : Truck,
-  })), [currencyCode, locale, quote.recommendedMethod, quote.shippingOptions]);
+  })), [currencyCode, locale, quote.recommendedMethod, quote.shippingOptions, shipping?.key]);
   const compactMobileShippingOptions = useMemo(() => shippingOptionCards.filter((option) => option.key === "air" || option.key === "sea"), [shippingOptionCards]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const stored = window.sessionStorage.getItem(SHIPPING_PREFERENCE_STORAGE_KEY);
+    if (stored === "air" || stored === "sea" || stored === "freight") {
+      setSelectedShippingKey(stored);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (quote.shippingOptions.length === 0) {
+      return;
+    }
+
+    if (!selectedShippingKey || !quote.shippingOptions.some((option) => option.key === selectedShippingKey)) {
+      setSelectedShippingKey(quote.recommendedMethod);
+    }
+  }, [quote.recommendedMethod, quote.shippingOptions, selectedShippingKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !selectedShippingKey) {
+      return;
+    }
+
+    window.sessionStorage.setItem(SHIPPING_PREFERENCE_STORAGE_KEY, selectedShippingKey);
+  }, [selectedShippingKey]);
 
   useEffect(() => {
     setSelectedCartKeys((current) => {
@@ -808,22 +854,30 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
             <div className="rounded-[16px] border border-dashed border-[#d0d5dd] px-4 py-4 text-[13px] text-[#667085]">
               Le devis d'expédition est en cours de calcul.
             </div>
-          ) : shippingOptionCards.map(({ Icon, isRecommended, priceLabel, ...option }) => (
-            <article key={option.key} className={[
-              "rounded-[18px] border px-4 py-4 transition",
-              isRecommended ? "border-[#f80632] bg-[#fff7f8] shadow-[0_12px_26px_rgba(248,6,50,0.08)]" : "border-[#e4e7ec] bg-[#fbfcfd]",
-            ].join(" ")}>
+          ) : shippingOptionCards.map(({ Icon, isRecommended, isSelected, priceLabel, ...option }) => (
+            <button
+              key={option.key}
+              type="button"
+              onClick={() => setSelectedShippingKey(option.key)}
+              className={[
+                "rounded-[18px] border px-4 py-4 text-left transition",
+                isSelected ? "border-[#111827] bg-[#fafafa] shadow-[0_14px_28px_rgba(17,24,39,0.08)]" : isRecommended ? "border-[#f80632] bg-[#fff7f8] shadow-[0_12px_26px_rgba(248,6,50,0.08)]" : "border-[#e4e7ec] bg-[#fbfcfd] hover:border-[#cbd5e1]",
+              ].join(" ")}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="inline-flex h-10 w-10 items-center justify-center rounded-[12px] bg-white text-[#1f2937] ring-1 ring-[#e4e7ec]">
                   <Icon className="h-5 w-5" />
                 </div>
-                {isRecommended ? <div className="rounded-full bg-[#f80632] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white">Recommandé</div> : null}
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {isSelected ? <div className="rounded-full bg-[#111827] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white">Choisi</div> : null}
+                  {isRecommended ? <div className="rounded-full bg-[#f80632] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white">Recommandé</div> : null}
+                </div>
               </div>
               <div className="mt-3 text-[18px] font-black tracking-[-0.03em] text-[#1f2937]">{option.label}</div>
               <div className="mt-1 text-[13px] font-semibold text-[#344054]">{priceLabel}</div>
               <div className="mt-2 text-[12px] leading-5 text-[#667085]">Délai : {option.deliveryWindow}</div>
               <div className="mt-1 text-[12px] leading-5 text-[#667085]">Tarification : {option.tradeLabel}</div>
-            </article>
+            </button>
           ))}
         </div>
       </section>
@@ -945,21 +999,29 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
               <div className="col-span-2 rounded-[14px] border border-dashed border-[#d0d5dd] px-3 py-3 text-[12px] text-[#667085]">
                 Le devis d'expédition est en cours de calcul.
               </div>
-            ) : compactMobileShippingOptions.map(({ Icon, isRecommended, priceLabel, ...option }) => (
-              <article key={option.key} className={[
-                "rounded-[16px] border px-3 py-3",
-                isRecommended ? "border-[#f4b8c2] bg-[#fff7f8]" : "border-[#e4e7ec] bg-[#fbfcfd]",
-              ].join(" ")}>
+            ) : compactMobileShippingOptions.map(({ Icon, isRecommended, isSelected, priceLabel, ...option }) => (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => setSelectedShippingKey(option.key)}
+                className={[
+                  "rounded-[16px] border px-3 py-3 text-left",
+                  isSelected ? "border-[#111827] bg-[#fafafa]" : isRecommended ? "border-[#f4b8c2] bg-[#fff7f8]" : "border-[#e4e7ec] bg-[#fbfcfd]",
+                ].join(" ")}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] bg-white text-[#1f2937] ring-1 ring-[#e4e7ec]">
                     <Icon className="h-4 w-4" />
                   </div>
-                  {isRecommended ? <span className="rounded-full bg-[#f80632] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-white">Top</span> : null}
+                  <div className="flex flex-wrap items-center justify-end gap-1">
+                    {isSelected ? <span className="rounded-full bg-[#111827] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-white">Choisi</span> : null}
+                    {isRecommended ? <span className="rounded-full bg-[#f80632] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-white">Top</span> : null}
+                  </div>
                 </div>
                 <div className="mt-2 text-[14px] font-black tracking-[-0.03em] text-[#1f2937]">{option.label}</div>
                 <div className="mt-0.5 text-[12px] font-semibold text-[#344054]">{priceLabel}</div>
                 <div className="mt-1 text-[10px] leading-4 text-[#667085]">{option.deliveryWindow}</div>
-              </article>
+              </button>
             ))}
           </div>
         </section>

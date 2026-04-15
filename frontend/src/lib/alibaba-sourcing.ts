@@ -380,6 +380,10 @@ export const INTERNAL_RECEPTION_COUNTRY_CODES = ["TG", "BJ", "GH", "CI", "BF"] a
 export const SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES = (Object.keys(COUNTRY_CONFIG) as CountryCode[])
   .filter((code) => !INTERNAL_RECEPTION_COUNTRY_CODES.includes(code as (typeof INTERNAL_RECEPTION_COUNTRY_CODES)[number]));
 export const SUPPORTED_FORWARDER_COUNTRY_CODES = ["CN"] as const;
+export const EUROPEAN_UNION_COUNTRY_CODES = [
+  "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT",
+  "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+] as const;
 
 export function isInternalReceptionCountry(countryCode?: string) {
   const normalizedCode = canonicalizeCountryCode(countryCode, "TG");
@@ -389,6 +393,11 @@ export function isInternalReceptionCountry(countryCode?: string) {
 export function isSupportedDirectDeliveryCountry(countryCode?: string) {
   const normalizedCode = canonicalizeCountryCode(countryCode, "TG") as CountryCode;
   return SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES.includes(normalizedCode);
+}
+
+export function isEuropeanUnionCountry(countryCode?: string) {
+  const normalizedCode = canonicalizeCountryCode(countryCode, "TG");
+  return EUROPEAN_UNION_COUNTRY_CODES.includes(normalizedCode as (typeof EUROPEAN_UNION_COUNTRY_CODES)[number]);
 }
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {

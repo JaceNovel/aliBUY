@@ -8,6 +8,7 @@ import {
   formatFcfa,
   formatVariantSelection,
   getProductSourcingMetrics,
+  isEuropeanUnionCountry,
   normalizeVariantSelection,
   type CartComputedItem,
   type CartInputItem,
@@ -96,7 +97,7 @@ export async function getAlibabaSourcingCatalogPreview(settings: SourcingSetting
 export async function createAlibabaSourcingQuote(
   inputItems: CartInputItem[],
   settings: SourcingSettings,
-  options?: { disableFreeAir?: boolean; deliveryMode?: SourcingDeliveryMode },
+  options?: { disableFreeAir?: boolean; deliveryMode?: SourcingDeliveryMode; countryCode?: string },
 ) {
   const products = await getCatalogProducts();
   const productsBySlug = new Map(products.map((product) => [product.slug, product]));
@@ -196,10 +197,12 @@ export async function createAlibabaSourcingQuote(
   const totalCbm = Number(resolvedValidItems.reduce((sum, item) => sum + item.volumeCbm * item.quantity, 0).toFixed(4));
   const airCostFcfa = Math.ceil(totalWeightKg * settings.airRatePerKgFcfa);
   const seaCostFcfa = Math.ceil(totalCbm * settings.seaSellRatePerCbmFcfa);
+  const isEuropeanUnionDestination = options?.deliveryMode !== "forwarder" && isEuropeanUnionCountry(options?.countryCode);
+  const europeanExpressFeeFcfa = Math.round((2.99 / 0.92) * 602);
   const shouldPreferSea = totalWeightKg > settings.airWeightThresholdKg;
-  const airIsFree = !options?.disableFreeAir && !shouldPreferSea && settings.freeAirEnabled && cartProductsTotalFcfa >= settings.freeAirThresholdFcfa;
-  const showBothOptions = shouldPreferSea;
-  const freeAirRemainingFcfa = Math.max(settings.freeAirThresholdFcfa - cartProductsTotalFcfa, 0);
+  const airIsFree = !isEuropeanUnionDestination && !options?.disableFreeAir && !shouldPreferSea && settings.freeAirEnabled && cartProductsTotalFcfa >= settings.freeAirThresholdFcfa;
+  const showBothOptions = true;
+  const freeAirRemainingFcfa = isEuropeanUnionDestination ? 0 : Math.max(settings.freeAirThresholdFcfa - cartProductsTotalFcfa, 0);
 
   if (options?.deliveryMode === "forwarder") {
     return {
@@ -233,25 +236,25 @@ export async function createAlibabaSourcingQuote(
     ? [
         {
           key: "air",
-          label: "Avion",
-          priceFcfa: airIsFree ? 0 : airCostFcfa,
+          label: isEuropeanUnionDestination ? "Express" : "Avion",
+          priceFcfa: isEuropeanUnionDestination ? europeanExpressFeeFcfa : airIsFree ? 0 : airCostFcfa,
           deliveryWindow: settings.airEstimatedDays,
           isFree: airIsFree,
-          tradeLabel: `Express payant · ${formatFcfa(settings.airRatePerKgFcfa)}/kg`,
-          tradeDescriptor: "Express payant",
-          tradeRateFcfa: settings.airRatePerKgFcfa,
-          tradeRateUnit: "kg",
+          tradeLabel: isEuropeanUnionDestination ? "Livraison express domicile · 2,99 EUR" : `Express payant · ${formatFcfa(settings.airRatePerKgFcfa)}/kg`,
+          tradeDescriptor: isEuropeanUnionDestination ? undefined : "Express payant",
+          tradeRateFcfa: isEuropeanUnionDestination ? undefined : settings.airRatePerKgFcfa,
+          tradeRateUnit: isEuropeanUnionDestination ? undefined : "kg",
         },
         {
           key: "sea",
-          label: "Bateau",
-          priceFcfa: seaCostFcfa,
+          label: isEuropeanUnionDestination ? "Standard gratuit" : "Bateau",
+          priceFcfa: isEuropeanUnionDestination ? 0 : seaCostFcfa,
           deliveryWindow: settings.seaEstimatedDays,
-          isFree: false,
-          tradeLabel: `Groupage · ${formatFcfa(settings.seaSellRatePerCbmFcfa)}/m3`,
-          tradeDescriptor: "Groupage",
-          tradeRateFcfa: settings.seaSellRatePerCbmFcfa,
-          tradeRateUnit: "m3",
+          isFree: isEuropeanUnionDestination,
+          tradeLabel: isEuropeanUnionDestination ? "Livraison standard offerte dans l'Union europeenne" : `Groupage · ${formatFcfa(settings.seaSellRatePerCbmFcfa)}/m3`,
+          tradeDescriptor: isEuropeanUnionDestination ? undefined : "Groupage",
+          tradeRateFcfa: isEuropeanUnionDestination ? undefined : settings.seaSellRatePerCbmFcfa,
+          tradeRateUnit: isEuropeanUnionDestination ? undefined : "m3",
         },
       ]
     : [
@@ -274,9 +277,11 @@ export async function createAlibabaSourcingQuote(
     totalWeightKg,
     totalCbm,
     shippingOptions,
-    recommendedMethod: showBothOptions ? "sea" : "air",
+    recommendedMethod: isEuropeanUnionDestination || shouldPreferSea ? "sea" : "air",
     freeAirRemainingFcfa,
-    freeShippingMessage: shouldPreferSea
+    freeShippingMessage: isEuropeanUnionDestination
+      ? "Livraison standard gratuite pour les destinations de l'Union europeenne. Passez en express pour 2,99 EUR."
+      : shouldPreferSea
       ? `Le moyen de livraison peut etre change si le poids est trop consequent. Pour profiter de la livraison gratuite, les commandes ne doivent pas depasser ${settings.airWeightThresholdKg} kg.`
       : airIsFree
         ? `Livraison gratuite debloquee des ${formatFcfa(settings.freeAirThresholdFcfa)} pour une commande ne depassant pas ${settings.airWeightThresholdKg} kg.`

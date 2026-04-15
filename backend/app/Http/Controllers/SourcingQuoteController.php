@@ -21,6 +21,7 @@ class SourcingQuoteController extends Controller
             is_array($payload['items'] ?? null) ? $payload['items'] : [],
             [
                 'disableFreeAir' => ($payload['disableFreeAir'] ?? null) === true,
+                'countryCode' => is_string($payload['countryCode'] ?? null) ? (string) $payload['countryCode'] : null,
                 'deliveryMode' => ($payload['deliveryMode'] ?? null) === 'forwarder' ? 'forwarder' : 'direct',
             ],
         ));

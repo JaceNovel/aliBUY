@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
 import { PaymentMethodIcon } from "@/components/payment-method-icon";
-import { isSupportedDirectDeliveryCountry } from "@/lib/alibaba-sourcing";
+import { isEuropeanUnionCountry, isSupportedDirectDeliveryCountry } from "@/lib/alibaba-sourcing";
 import { CURRENCY_CONFIG, type CurrencyCode } from "@/lib/pricing-options";
 import { resolveProductPriceSummaryUsd, resolveProductUnitPriceUsd, resolveVariantSku } from "@/lib/product-variant-pricing";
 
@@ -420,7 +420,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     maximumFractionDigits: 0,
   }).format(20000);
   const supportsDirectAliExpressDelivery = isSupportedDirectDeliveryCountry(product.countryCode);
-  const shippingChoices = supportsDirectAliExpressDelivery
+  const supportsEuropeanDirectDelivery = supportsDirectAliExpressDelivery && isEuropeanUnionCountry(product.countryCode);
+  const shippingChoices = supportsEuropeanDirectDelivery
     ? [
         {
           key: "air" as const,
@@ -432,7 +433,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
         {
           key: "sea" as const,
           title: "Standard",
-          description: "Livraison standard offerte pour la France.",
+          description: "Livraison standard offerte pour les destinations européennes.",
           feeLabel: "Gratuit",
           summaryLabel: "Standard (Gratuit)",
         },

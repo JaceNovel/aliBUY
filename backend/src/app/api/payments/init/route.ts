@@ -14,6 +14,45 @@ async function requireUser() {
   return getCurrentUser().catch(() => null);
 }
 
+async function initializeBackendProxyPayPalPayment(input: {
+  amount: number;
+  currency: string;
+  description: string;
+  return_url: string;
+  cancel_url: string;
+  metadata: Record<string, string>;
+}) {
+  if (!API_URL || !process.env.ADMIN_API_TOKEN?.trim()) {
+    return null;
+  }
+
+  const response = await fetch(buildApiUrl("/api/payments/paypal/proxy/init"), {
+    method: "POST",
+    headers: await buildServerForwardHeaders({
+      accept: "application/json",
+      "content-type": "application/json",
+    }, {
+      includeAdminApiToken: true,
+    }),
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+
+  const body = await response.json().catch(() => null) as {
+    message?: string;
+    paymentId?: string;
+    checkoutUrl?: string;
+    paymentStatus?: string;
+    payment?: unknown;
+  } | null;
+
+  if (!response.ok || !body?.paymentId) {
+    throw new Error(body?.message || "Impossible d'initialiser le paiement PayPal.");
+  }
+
+  return body;
+}
+
 export async function POST(request: Request) {
   const user = await requireUser();
   if (!user) {
@@ -44,26 +83,31 @@ export async function POST(request: Request) {
     const [firstName, ...lastNameParts] = order.customerName.trim().split(/\s+/);
     const returnUrl = `${SITE_URL.replace(/\/$/, "")}/orders?orderId=${encodeURIComponent(order.id)}&provider=${provider}`;
     if (provider === "paypal") {
-      const payment = await initializePayPalPayment({
-          amount: order.totalPriceFcfa,
-          currency: order.paymentCurrency || "XOF",
-          description: `Paiement commande sourcing ${order.orderNumber}`,
-          return_url: returnUrl,
-          cancel_url: `${SITE_URL.replace(/\/$/, "")}/orders`,
-          metadata: {
-            orderId: order.id,
-            orderNumber: order.orderNumber,
-            customerEmail: order.customerEmail,
-          },
-        });
+      const paymentInput = {
+        amount: order.totalPriceFcfa,
+        currency: order.paymentCurrency || "XOF",
+        description: `Paiement commande sourcing ${order.orderNumber}`,
+        return_url: returnUrl,
+        cancel_url: `${SITE_URL.replace(/\/$/, "")}/orders`,
+        metadata: {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          customerEmail: order.customerEmail,
+        },
+      };
+      const proxiedPayment = await initializeBackendProxyPayPalPayment(paymentInput);
+      const payment = proxiedPayment?.payment && typeof proxiedPayment.payment === "object"
+        ? proxiedPayment.payment as Parameters<typeof extractPayPalCheckoutUrl>[0]
+        : await initializePayPalPayment(paymentInput);
+      const checkoutUrl = proxiedPayment?.checkoutUrl || extractPayPalCheckoutUrl(payment);
       const nextOrder = await persistHostedCheckoutPaymentToOrder({
         order,
         payment: {
           provider,
-          id: payment.id,
-          status: payment.status,
-          normalizedStatus: normalizePayPalPaymentStatus(payment.status),
-          checkoutUrl: extractPayPalCheckoutUrl(payment),
+          id: proxiedPayment?.paymentId || payment.id,
+          status: proxiedPayment?.paymentStatus || payment.status,
+          normalizedStatus: normalizePayPalPaymentStatus(proxiedPayment?.paymentStatus || payment.status),
+          checkoutUrl,
           currency: getPayPalCurrencyCode(payment),
           payload: payment,
         },
@@ -71,8 +115,8 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         order: nextOrder,
-        paymentId: payment.id,
-        checkoutUrl: extractPayPalCheckoutUrl(payment),
+        paymentId: proxiedPayment?.paymentId || payment.id,
+        checkoutUrl,
         paymentStatus: nextOrder.paymentStatus,
       });
     }

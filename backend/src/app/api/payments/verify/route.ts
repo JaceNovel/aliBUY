@@ -15,6 +15,38 @@ async function requireUser() {
   return getCurrentUser().catch(() => null);
 }
 
+async function verifyBackendProxyPayPalPayment(paymentId: string) {
+  if (!API_URL || !process.env.ADMIN_API_TOKEN?.trim()) {
+    return null;
+  }
+
+  const response = await fetch(buildApiUrl("/api/payments/paypal/proxy/verify"), {
+    method: "POST",
+    headers: await buildServerForwardHeaders({
+      accept: "application/json",
+      "content-type": "application/json",
+    }, {
+      includeAdminApiToken: true,
+    }),
+    body: JSON.stringify({ paymentId }),
+    cache: "no-store",
+  });
+
+  const body = await response.json().catch(() => null) as {
+    message?: string;
+    paymentId?: string;
+    checkoutUrl?: string;
+    paymentStatus?: string;
+    payment?: unknown;
+  } | null;
+
+  if (!response.ok || !body?.paymentId) {
+    throw new Error(body?.message || "Impossible de verifier le paiement PayPal.");
+  }
+
+  return body;
+}
+
 function emptyManyChatAccountProfile() {
   return {
     phone: undefined,
@@ -78,16 +110,20 @@ export async function POST(request: Request) {
       : order;
 
     if (provider === "paypal") {
-      const payment = await verifyPayPalPayment(paymentId);
+      const proxiedPayment = await verifyBackendProxyPayPalPayment(paymentId);
+      const payment = proxiedPayment?.payment && typeof proxiedPayment.payment === "object"
+        ? proxiedPayment.payment as Parameters<typeof getPayPalCurrencyCode>[0]
+        : await verifyPayPalPayment(paymentId);
+      const checkoutUrl = proxiedPayment?.checkoutUrl || payment.links?.find((link) => link.rel === "approve")?.href;
       const nextOrder = await persistHostedCheckoutPaymentToOrder({
         order: orderWithManyChat,
         verified: true,
         payment: {
           provider,
-          id: payment.id,
-          status: payment.status,
-          normalizedStatus: normalizePayPalPaymentStatus(payment.status),
-          checkoutUrl: payment.links?.find((link) => link.rel === "approve")?.href,
+          id: proxiedPayment?.paymentId || payment.id,
+          status: proxiedPayment?.paymentStatus || payment.status,
+          normalizedStatus: normalizePayPalPaymentStatus(proxiedPayment?.paymentStatus || payment.status),
+          checkoutUrl,
           currency: getPayPalCurrencyCode(payment),
           payload: payment,
           processedAt: getPayPalProcessedAt(payment),
@@ -96,8 +132,8 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         order: nextOrder,
-        paymentId: payment.id,
-        checkoutUrl: payment.links?.find((link) => link.rel === "approve")?.href,
+        paymentId: proxiedPayment?.paymentId || payment.id,
+        checkoutUrl,
         paymentStatus: nextOrder.paymentStatus,
       });
     }

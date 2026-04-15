@@ -68,8 +68,12 @@ class SourcingQuoteService
         $totalCbm = round($totalCbm, 4);
         $airCostFcfa = (int) ceil($totalWeightKg * $settings['airRatePerKgFcfa']);
         $seaCostFcfa = (int) ceil($totalCbm * $settings['seaSellRatePerCbmFcfa']);
+        $isEuropeanUnionDestination = ($options['deliveryMode'] ?? 'direct') !== 'forwarder'
+            && $this->isEuropeanUnionCountry($options['countryCode'] ?? null);
+        $europeanExpressFeeFcfa = (int) round((2.99 / 0.92) * 602);
         $shouldPreferSea = $totalWeightKg > $settings['airWeightThresholdKg'];
-        $airIsFree = ! ($options['disableFreeAir'] ?? false)
+        $airIsFree = ! $isEuropeanUnionDestination
+            && ! ($options['disableFreeAir'] ?? false)
             && ! $shouldPreferSea
             && $settings['freeAirEnabled']
             && $cartProductsTotalFcfa >= $effectiveFreeAirThresholdFcfa;
@@ -101,42 +105,30 @@ class SourcingQuoteService
             ];
         }
 
-        $shippingOptions = $shouldPreferSea
-            ? [
-                [
-                    'key' => 'air',
-                    'label' => 'Avion',
-                    'priceFcfa' => $airIsFree ? 0 : $airCostFcfa,
-                    'deliveryWindow' => $settings['airEstimatedDays'],
-                    'isFree' => $airIsFree,
-                    'tradeLabel' => 'Express payant · '.$this->formatFcfa($settings['airRatePerKgFcfa']).'/kg',
-                    'tradeDescriptor' => 'Express payant',
-                    'tradeRateFcfa' => $settings['airRatePerKgFcfa'],
-                    'tradeRateUnit' => 'kg',
-                ],
-                [
-                    'key' => 'sea',
-                    'label' => 'Bateau',
-                    'priceFcfa' => $seaCostFcfa,
-                    'deliveryWindow' => $settings['seaEstimatedDays'],
-                    'isFree' => false,
-                    'tradeLabel' => 'Groupage · '.$this->formatFcfa($settings['seaSellRatePerCbmFcfa']).'/m3',
-                    'tradeDescriptor' => 'Groupage',
-                    'tradeRateFcfa' => $settings['seaSellRatePerCbmFcfa'],
-                    'tradeRateUnit' => 'm3',
-                ],
-            ]
-            : [[
+        $shippingOptions = [
+            [
                 'key' => 'air',
-                'label' => 'Avion',
-                'priceFcfa' => $airIsFree ? 0 : $airCostFcfa,
+                'label' => $isEuropeanUnionDestination ? 'Express' : 'Avion',
+                'priceFcfa' => $isEuropeanUnionDestination ? $europeanExpressFeeFcfa : ($airIsFree ? 0 : $airCostFcfa),
                 'deliveryWindow' => $settings['airEstimatedDays'],
                 'isFree' => $airIsFree,
-                'tradeLabel' => 'Express · '.$this->formatFcfa($settings['airRatePerKgFcfa']).'/kg',
-                'tradeDescriptor' => 'Express',
-                'tradeRateFcfa' => $settings['airRatePerKgFcfa'],
-                'tradeRateUnit' => 'kg',
-            ]];
+                'tradeLabel' => $isEuropeanUnionDestination ? 'Livraison express domicile · 2,99 EUR' : 'Express payant · '.$this->formatFcfa($settings['airRatePerKgFcfa']).'/kg',
+                'tradeDescriptor' => $isEuropeanUnionDestination ? null : 'Express payant',
+                'tradeRateFcfa' => $isEuropeanUnionDestination ? null : $settings['airRatePerKgFcfa'],
+                'tradeRateUnit' => $isEuropeanUnionDestination ? null : 'kg',
+            ],
+            [
+                'key' => 'sea',
+                'label' => $isEuropeanUnionDestination ? 'Standard gratuit' : 'Bateau',
+                'priceFcfa' => $isEuropeanUnionDestination ? 0 : $seaCostFcfa,
+                'deliveryWindow' => $settings['seaEstimatedDays'],
+                'isFree' => $isEuropeanUnionDestination,
+                'tradeLabel' => $isEuropeanUnionDestination ? 'Livraison standard offerte dans l\'Union europeenne' : 'Groupage · '.$this->formatFcfa($settings['seaSellRatePerCbmFcfa']).'/m3',
+                'tradeDescriptor' => $isEuropeanUnionDestination ? null : 'Groupage',
+                'tradeRateFcfa' => $isEuropeanUnionDestination ? null : $settings['seaSellRatePerCbmFcfa'],
+                'tradeRateUnit' => $isEuropeanUnionDestination ? null : 'm3',
+            ],
+        ];
 
         return [
             'items' => $computedItems,
@@ -144,13 +136,15 @@ class SourcingQuoteService
             'totalWeightKg' => $totalWeightKg,
             'totalCbm' => $totalCbm,
             'shippingOptions' => $shippingOptions,
-            'recommendedMethod' => $shouldPreferSea ? 'sea' : 'air',
-            'freeAirRemainingFcfa' => max($effectiveFreeAirThresholdFcfa - $cartProductsTotalFcfa, 0),
-            'freeShippingMessage' => $shouldPreferSea
+            'recommendedMethod' => $isEuropeanUnionDestination || $shouldPreferSea ? 'sea' : 'air',
+            'freeAirRemainingFcfa' => $isEuropeanUnionDestination ? 0 : max($effectiveFreeAirThresholdFcfa - $cartProductsTotalFcfa, 0),
+            'freeShippingMessage' => $isEuropeanUnionDestination
+                ? 'Livraison standard gratuite pour les destinations de l\'Union europeenne. Passez en express pour 2,99 EUR.'
+                : ($shouldPreferSea
                 ? 'Le moyen de livraison peut etre change si le poids est trop consequent. Pour profiter de la livraison gratuite, les commandes ne doivent pas depasser '.$settings['airWeightThresholdKg'].' kg.'
                 : ($airIsFree
                     ? 'Livraison gratuite debloquee des '.$this->formatFcfa($effectiveFreeAirThresholdFcfa).' pour une commande ne depassant pas '.$settings['airWeightThresholdKg'].' kg.'
-                    : 'Livraison gratuite disponible a partir de '.$this->formatFcfa($effectiveFreeAirThresholdFcfa).' si la commande ne depasse pas '.$settings['airWeightThresholdKg'].' kg.'),
+                    : 'Livraison gratuite disponible a partir de '.$this->formatFcfa($effectiveFreeAirThresholdFcfa).' si la commande ne depasse pas '.$settings['airWeightThresholdKg'].' kg.')),
             'containerProjection' => [
                 'targetCbm' => $settings['containerTargetCbm'],
                 'projectedCbm' => $totalCbm,
@@ -224,6 +218,18 @@ class SourcingQuoteService
         $xofRateFromUsd = 602;
 
         return (int) round((10 / $eurRateFromUsd) * $xofRateFromUsd);
+    }
+
+    protected function isEuropeanUnionCountry(mixed $countryCode): bool
+    {
+        if (! is_string($countryCode)) {
+            return false;
+        }
+
+        return in_array(strtoupper(trim($countryCode)), [
+            'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT',
+            'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE',
+        ], true);
     }
 
     protected function loadProductsBySlug(array $slugs): array
