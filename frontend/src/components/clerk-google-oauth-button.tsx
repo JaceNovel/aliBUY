@@ -45,6 +45,29 @@ function extractErrorMessage(error: unknown) {
   return "La connexion Google a echoue. Reessayez.";
 }
 
+function extractExternalVerificationRedirectUrl(result: unknown) {
+  if (!result || typeof result !== "object") {
+    return null;
+  }
+
+  const candidates = [
+    (result as { firstFactorVerification?: { externalVerificationRedirectURL?: URL | string | null } }).firstFactorVerification?.externalVerificationRedirectURL,
+    (result as { externalVerificationRedirectURL?: URL | string | null }).externalVerificationRedirectURL,
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate instanceof URL) {
+      return candidate.toString();
+    }
+
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return null;
+}
+
 export function ClerkGoogleOauthButton({ mode, nextPath }: ClerkGoogleOauthButtonProps) {
   const { signIn, fetchStatus: signInFetchStatus } = useSignIn();
   const { signUp, fetchStatus: signUpFetchStatus } = useSignUp();
@@ -65,24 +88,39 @@ export function ClerkGoogleOauthButton({ mode, nextPath }: ClerkGoogleOauthButto
           throw new Error("Le service de connexion Google n est pas encore pret.");
         }
 
-        await signIn.sso({
+        const result = await signIn.sso({
           strategy: "oauth_google",
           redirectUrl,
           redirectCallbackUrl,
         });
 
-        return;
+        const externalRedirectUrl = extractExternalVerificationRedirectUrl(result);
+        if (externalRedirectUrl) {
+          window.location.assign(externalRedirectUrl);
+          return;
+        }
+
+        throw new Error("Aucune URL de redirection Google n a ete fournie.");
+
       }
 
       if (signUpFetchStatus !== "idle" || !signUp) {
         throw new Error("Le service d inscription Google n est pas encore pret.");
       }
 
-      await signUp.sso({
+      const result = await signUp.sso({
         strategy: "oauth_google",
         redirectUrl,
         redirectCallbackUrl,
       });
+
+      const externalRedirectUrl = extractExternalVerificationRedirectUrl(result);
+      if (externalRedirectUrl) {
+        window.location.assign(externalRedirectUrl);
+        return;
+      }
+
+      throw new Error("Aucune URL de redirection Google n a ete fournie.");
     } catch (error) {
       console.error("Google OAuth error", error);
       setErrorMessage(extractErrorMessage(error));
