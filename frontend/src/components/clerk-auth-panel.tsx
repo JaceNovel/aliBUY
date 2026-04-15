@@ -34,8 +34,7 @@ export function ClerkAuthPanel({ mode, nextPath, reason }: ClerkAuthPanelProps) 
           {mode === "sign-in" ? (
             <div className="space-y-3">
               <SignIn
-                routing="path"
-                path="/login"
+                routing="hash"
                 appearance={authPageClerkAppearance}
                 signUpUrl={buildAuthSwitchUrl("/register", nextPath, reason)}
                 forceRedirectUrl={nextPath}
@@ -53,8 +52,7 @@ export function ClerkAuthPanel({ mode, nextPath, reason }: ClerkAuthPanelProps) 
             </div>
           ) : (
             <SignUp
-              routing="path"
-              path="/register"
+              routing="hash"
               appearance={authPageClerkAppearance}
               signInUrl={buildAuthSwitchUrl("/login", nextPath, reason)}
               forceRedirectUrl={nextPath}
