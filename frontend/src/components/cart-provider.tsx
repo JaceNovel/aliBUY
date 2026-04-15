@@ -310,10 +310,15 @@ export function useCartQuote(options?: { disableFreeAir?: boolean; deliveryMode?
   const [quote, setQuote] = useState<AlibabaSourcingQuote>(() => createEmptyQuote());
   const [settings, setSettings] = useState<SourcingSettings | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const lastSuccessfulQuoteRef = useRef<AlibabaSourcingQuote>(createEmptyQuote());
+  const lastSuccessfulSettingsRef = useRef<SourcingSettings | null>(null);
 
   useEffect(() => {
     if (items.length === 0) {
       setQuote(createEmptyQuote());
+      setSettings(null);
+      lastSuccessfulQuoteRef.current = createEmptyQuote();
+      lastSuccessfulSettingsRef.current = null;
       return;
     }
 
@@ -335,12 +340,20 @@ export function useCartQuote(options?: { disableFreeAir?: boolean; deliveryMode?
           }),
           signal: controller.signal,
         });
-        const payload = await response.json();
-        setQuote(payload as AlibabaSourcingQuote);
-        setSettings(payload.settings as SourcingSettings);
+        const payload = await response.json().catch(() => null) as (AlibabaSourcingQuote & { settings?: SourcingSettings }) | null;
+
+        if (!response.ok || !payload || !Array.isArray(payload.items) || !Array.isArray(payload.shippingOptions)) {
+          throw new Error("Invalid sourcing quote response");
+        }
+
+        setQuote(payload);
+        setSettings(payload.settings ?? null);
+        lastSuccessfulQuoteRef.current = payload;
+        lastSuccessfulSettingsRef.current = payload.settings ?? null;
       } catch {
         if (!controller.signal.aborted) {
-          setQuote(createEmptyQuote());
+          setQuote(lastSuccessfulQuoteRef.current);
+          setSettings(lastSuccessfulSettingsRef.current);
         }
       } finally {
         if (!controller.signal.aborted) {
