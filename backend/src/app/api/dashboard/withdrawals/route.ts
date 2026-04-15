@@ -1,17 +1,15 @@
 import { NextResponse } from "next/server";
 
-import { API_URL, buildApiUrl } from "@/lib/api";
-import { getBackendAccessTokenFromCookies } from "@/lib/backend-access-token";
-import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
-import { getCurrentUser } from "@/lib/user-auth";
+import { API_URL } from "@/lib/api";
+import { fetchPartnerPortalResponse, getCurrentPartnerPortalIdentity } from "@/lib/partner-portal";
 
 async function requireUser() {
-  return getCurrentUser().catch(() => null);
+  return getCurrentPartnerPortalIdentity().catch(() => null);
 }
 
 async function proxyWithdrawals(request: Request) {
-  const user = await requireUser();
-  if (!user) {
+  const email = await requireUser();
+  if (!email) {
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });
   }
 
@@ -19,19 +17,19 @@ async function proxyWithdrawals(request: Request) {
     return NextResponse.json({ message: "Retraits partenaire indisponibles sans backend Laravel." }, { status: 503 });
   }
 
-  if (!(await getBackendAccessTokenFromCookies())) {
-    return NextResponse.json({ message: "Session backend expiree. Reconnectez-vous puis reessayez." }, { status: 401 });
-  }
-
-  const response = await fetch(buildApiUrl("/api/partner/portal/withdrawals"), {
-    method: request.method,
-    headers: await buildServerForwardHeaders({
-      accept: request.headers.get("accept")?.trim() || "application/json",
-      ...(request.headers.get("content-type") ? { "content-type": request.headers.get("content-type") as string } : {}),
-    }),
-    body: request.method === "GET" ? undefined : await request.arrayBuffer(),
-    cache: "no-store",
-  });
+  const response = await fetchPartnerPortalResponse(
+    "/api/partner/portal/withdrawals",
+    email,
+    undefined,
+    {
+      method: request.method,
+      headers: {
+        accept: request.headers.get("accept")?.trim() || "application/json",
+        ...(request.headers.get("content-type") ? { "content-type": request.headers.get("content-type") as string } : {}),
+      },
+      body: request.method === "GET" ? undefined : await request.arrayBuffer(),
+    },
+  );
 
   const body = await response.json().catch(() => null);
   return NextResponse.json(body ?? { message: "Impossible de gerer les retraits partenaire." }, { status: response.status || 502 });

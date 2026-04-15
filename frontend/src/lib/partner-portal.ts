@@ -73,16 +73,30 @@ export async function fetchPartnerPortal<T>(path: string, email: string, query?:
   return payload as T;
 }
 
-export async function fetchPartnerPortalResponse(path: string, email: string, query?: Record<string, string | number | boolean | null | undefined>) {
+export async function fetchPartnerPortalResponse(
+  path: string,
+  email: string,
+  query?: Record<string, string | number | boolean | null | undefined>,
+  init?: RequestInit,
+) {
   const forwardedHeaders = await buildServerForwardHeaders({
     accept: "application/json",
   });
 
+  const requestHeaders = new Headers(init?.headers);
+  for (const [headerName, headerValue] of forwardedHeaders.entries()) {
+    if (!requestHeaders.has(headerName)) {
+      requestHeaders.set(headerName, headerValue);
+    }
+  }
+
+  for (const [headerName, headerValue] of Object.entries(buildPartnerPortalHeaders(email))) {
+    requestHeaders.set(headerName, headerValue);
+  }
+
   return fetch(buildApiUrl(path, query), {
-    headers: {
-      ...Object.fromEntries(forwardedHeaders.entries()),
-      ...buildPartnerPortalHeaders(email),
-    },
+    ...init,
+    headers: requestHeaders,
     cache: "no-store",
   });
 }
