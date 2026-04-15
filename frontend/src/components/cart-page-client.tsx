@@ -7,7 +7,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useCart, useCartQuote } from "@/components/cart-provider";
-import { buildCartItemKey, formatSourcingAmount, isEuropeanUnionCountry, resolveSourcingDeliveryPlan } from "@/lib/alibaba-sourcing";
+import {
+  buildCartItemKey,
+  formatSourcingAmount,
+  getShippingPreferenceContext,
+  isEuropeanUnionCountry,
+  readStoredShippingPreference,
+  resolveSourcingDeliveryPlan,
+  writeStoredShippingPreference,
+} from "@/lib/alibaba-sourcing";
 import { PaymentMethodIcon } from "@/components/payment-method-icon";
 
 type SharedCartSummary = {
@@ -77,6 +85,10 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
     countryCode: initialCountryCode,
     deliveryMode: "direct",
   });
+  const shippingPreferenceContext = useMemo(
+    () => getShippingPreferenceContext({ countryCode: initialCountryCode, deliveryMode: "direct" }),
+    [initialCountryCode],
+  );
   const isEuropeanUnionDestination = useMemo(() => isEuropeanUnionCountry(initialCountryCode), [initialCountryCode]);
   const [shareMessage, setShareMessage] = useState("");
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
@@ -168,11 +180,14 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
       return;
     }
 
-    const stored = window.sessionStorage.getItem(SHIPPING_PREFERENCE_STORAGE_KEY);
-    if (stored === "air" || stored === "sea" || stored === "freight") {
+    const stored = readStoredShippingPreference(window.sessionStorage, shippingPreferenceContext);
+    if (stored) {
       setSelectedShippingKey(stored);
+      return;
     }
-  }, []);
+
+    setSelectedShippingKey(null);
+  }, [shippingPreferenceContext]);
 
   useEffect(() => {
     if (quote.shippingOptions.length === 0) {
@@ -189,8 +204,8 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
       return;
     }
 
-    window.sessionStorage.setItem(SHIPPING_PREFERENCE_STORAGE_KEY, selectedShippingKey);
-  }, [selectedShippingKey]);
+    writeStoredShippingPreference(window.sessionStorage, shippingPreferenceContext, selectedShippingKey as "air" | "sea" | "freight");
+  }, [selectedShippingKey, shippingPreferenceContext]);
 
   useEffect(() => {
     setSelectedCartKeys((current) => {

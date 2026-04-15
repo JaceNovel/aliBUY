@@ -17,6 +17,11 @@ export type SourcingDeliveryMode = "direct" | "forwarder";
 export type SourcingForwarderHub = "china" | "lome";
 export type SourcingDeliveryProofRole = "supplier_to_agent" | "agent_to_forwarder" | "arrival_scan" | "relay_release";
 
+type StoredShippingPreference = {
+  key: ShippingMethodKey;
+  context: string;
+};
+
 export type SourcingSettings = {
   currencyCode: string;
   airRatePerKgFcfa: number;
@@ -1189,4 +1194,42 @@ export function createEmptyQuote(settings?: Pick<SourcingSettings, "freeAirThres
       projectedFillPercent: 0,
     },
   };
+}
+
+export function getShippingPreferenceContext(input: { countryCode?: string | null; deliveryMode?: SourcingDeliveryMode }): string {
+  if (input.deliveryMode === "forwarder") {
+    return "forwarder";
+  }
+
+  return isEuropeanUnionCountry(input.countryCode) ? "direct-eu" : "direct-standard";
+}
+
+export function readStoredShippingPreference(storage: Storage, context: string): ShippingMethodKey | null {
+  const stored = storage.getItem("afripay_sourcing_shipping_preference");
+  if (!stored) {
+    return null;
+  }
+
+  if (stored === "air" || stored === "sea" || stored === "freight") {
+    return context === "direct-eu" ? null : stored;
+  }
+
+  try {
+    const parsed = JSON.parse(stored) as Partial<StoredShippingPreference>;
+    if (
+      parsed.context === context
+      && (parsed.key === "air" || parsed.key === "sea" || parsed.key === "freight")
+    ) {
+      return parsed.key;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+export function writeStoredShippingPreference(storage: Storage, context: string, key: ShippingMethodKey): void {
+  const payload: StoredShippingPreference = { key, context };
+  storage.setItem("afripay_sourcing_shipping_preference", JSON.stringify(payload));
 }

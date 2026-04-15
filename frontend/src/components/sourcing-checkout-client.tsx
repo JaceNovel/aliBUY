@@ -11,11 +11,14 @@ import { buildLocalUrl, createOrder, initializeOrderPayment, previewPromoCode } 
 import {
   formatShippingTradeLabel,
   formatSourcingAmount,
+  getShippingPreferenceContext,
   isEuropeanUnionCountry,
+  readStoredShippingPreference,
   isSupportedDirectDeliveryCountry,
   resolveSourcingDeliveryPlan,
   type SourcingDeliveryMode,
   type ShippingMethodKey,
+  writeStoredShippingPreference,
 } from "@/lib/alibaba-sourcing";
 import { buildAddressQuickInput } from "@/lib/address-autofill";
 import { canonicalizeCountryCode, getCountryDisplayLabel, resolveGeocodedCountryCode } from "@/lib/country-utils";
@@ -207,6 +210,10 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
         : undefined,
     },
   }), [deliveryMode, form.city, form.countryCode, form.googleMapsUrl, forwarderAddressBlock, forwarderParcelMarking]);
+  const shippingPreferenceContext = useMemo(
+    () => getShippingPreferenceContext({ countryCode: form.countryCode, deliveryMode }),
+    [deliveryMode, form.countryCode],
+  );
 
   const { quote, isLoading } = useCartQuote({ disableFreeAir: !deliveryPlan.workflow.freeDeliveryEligible, deliveryMode, countryCode: form.countryCode });
   const shippingOptions = quote.shippingOptions;
@@ -219,12 +226,15 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
       return;
     }
 
-    const stored = window.sessionStorage.getItem(SHIPPING_PREFERENCE_STORAGE_KEY);
-    if (stored === "air" || stored === "sea" || stored === "freight") {
+    const stored = readStoredShippingPreference(window.sessionStorage, shippingPreferenceContext);
+    if (stored) {
       setHasUserSelectedShipping(true);
-      setSelectedShipping(stored as ShippingMethodKey);
+      setSelectedShipping(stored);
+      return;
     }
-  }, []);
+
+    setHasUserSelectedShipping(false);
+  }, [shippingPreferenceContext]);
 
   useEffect(() => {
     if (shippingOptions.length === 0) {
@@ -247,8 +257,8 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
       return;
     }
 
-    window.sessionStorage.setItem(SHIPPING_PREFERENCE_STORAGE_KEY, selectedShipping);
-  }, [selectedShipping]);
+    writeStoredShippingPreference(window.sessionStorage, shippingPreferenceContext, selectedShipping);
+  }, [selectedShipping, shippingPreferenceContext]);
 
   const selectedOption = useMemo(() => shippingOptions.find((option) => option.key === selectedShipping) ?? shippingOptions[0] ?? null, [selectedShipping, shippingOptions]);
   const baseTotalPrice = quote.cartProductsTotalFcfa + (selectedOption?.priceFcfa ?? 0);
