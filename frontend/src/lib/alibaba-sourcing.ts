@@ -1201,7 +1201,7 @@ export function getShippingPreferenceContext(input: { countryCode?: string | nul
     return "forwarder";
   }
 
-  return isEuropeanUnionCountry(input.countryCode) ? "direct-eu" : "direct-standard";
+  return isEuropeanUnionCountry(input.countryCode ?? undefined) ? "direct-eu" : "direct-standard";
 }
 
 export function readStoredShippingPreference(storage: Storage, context: string): ShippingMethodKey | null {
