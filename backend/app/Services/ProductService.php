@@ -214,6 +214,7 @@ class ProductService
             'slug' => $product->slug,
             'title' => $product->title,
             'shortTitle' => $metadata['shortTitle'] ?? $product->title,
+            'description' => $this->resolvePublicDescription($product, $metadata),
             'image' => (string) ($product->image ?? '/globe.svg'),
             'gallery' => $gallery,
             'videoUrl' => $metadata['videoUrl'] ?? null,
@@ -391,6 +392,54 @@ class ProductService
         }
 
         return str_replace('-', ' ', (string) $product->category);
+    }
+
+    protected function resolvePublicDescription(Product $product, array $metadata = []): string
+    {
+        $candidates = [
+            $product->description,
+            $metadata['description'] ?? null,
+        ];
+
+        $rawPayload = is_array($metadata['rawPayload'] ?? null) ? $metadata['rawPayload'] : null;
+        if (is_array($rawPayload)) {
+            $detailPayload = is_array($rawPayload['detail'] ?? null) ? $rawPayload['detail'] : [];
+            $searchPayload = is_array($rawPayload['search'] ?? null) ? $rawPayload['search'] : [];
+            $baseInfo = is_array($detailPayload['ae_item_base_info_dto'] ?? null) ? $detailPayload['ae_item_base_info_dto'] : [];
+
+            $candidates = array_merge($candidates, [
+                $baseInfo['detail'] ?? null,
+                $baseInfo['mobile_detail'] ?? null,
+                $detailPayload['detail'] ?? null,
+                $detailPayload['mobile_detail'] ?? null,
+                $detailPayload['description'] ?? null,
+                $searchPayload['description'] ?? null,
+            ]);
+        }
+
+        foreach ($candidates as $candidate) {
+            if (! is_string($candidate)) {
+                continue;
+            }
+
+            $normalized = trim(html_entity_decode(strip_tags($candidate), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            $normalized = preg_replace('/\s+/', ' ', $normalized) ?? '';
+
+            if ($this->isUsefulPublicDescription($normalized)) {
+                return $normalized;
+            }
+        }
+
+        return trim((string) ($product->description ?? $product->title ?? ''));
+    }
+
+    protected function isUsefulPublicDescription(string $value): bool
+    {
+        if ($value === '' || mb_strlen($value) < 12) {
+            return false;
+        }
+
+        return preg_match('/(reconstruit depuis|selection afripay|catalogue afripay|fiche verifiee afripay|produit aliexpress|produit importe sans sku)/iu', $value) !== 1;
     }
 
     protected function transformPublishedReviews(Product $product): array

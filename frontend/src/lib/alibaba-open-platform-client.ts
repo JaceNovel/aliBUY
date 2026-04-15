@@ -4621,6 +4621,13 @@ function mapAliExpressProductDetailToProduct(
     ?? getStringValue(baseInfo.detail_url)
     ?? getStringValue(baseInfo.product_detail_url)
     ?? `https://www.aliexpress.com/item/${sourceProductId}.html`;
+  const description = uniqueStrings([
+    getStringValue(baseInfo.detail) ?? "",
+    getStringValue(baseInfo.mobile_detail) ?? "",
+    getStringValue(detailResult.detail) ?? "",
+    getStringValue(detailResult.mobile_detail) ?? "",
+    getStringValue(detailResult.description) ?? "",
+  ]).join("\n\n");
   const warnings = hasSkuVariants ? [] : ["Produit trouve, mais aucun SKU DS exploitable n'a ete renvoye par l'API AliExpress."];
 
   return {
@@ -4628,6 +4635,7 @@ function mapAliExpressProductDetailToProduct(
     slug: sourceProductId,
     title,
     shortTitle: title.slice(0, 96),
+    description: description || title,
     keywords,
     image: primaryImage,
     gallery,
@@ -5652,7 +5660,7 @@ export async function previewAliExpressDsTextSearch(input: {
   const local = String(input.local ?? process.env.ALIEXPRESS_TARGET_LANGUAGE ?? process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "fr_FR").trim() || "fr_FR";
   const countryCode = String(input.countryCode ?? "FR").trim().toUpperCase() || "FR";
   const currency = String(input.currency ?? process.env.ALIEXPRESS_TARGET_CURRENCY ?? process.env.ALIEXPRESS_DS_PAYMENT_CURRENCY ?? "USD").trim().toUpperCase() || "USD";
-  const pageSize = Math.min(Math.max(Number(input.pageSize ?? 12) || 12, 1), 20);
+  const pageSize = Math.min(Math.max(Number(input.pageSize ?? 12) || 12, 1), 100);
   const pageIndex = Math.max(Number(input.pageIndex ?? 1) || 1, 1);
   const requestBody: Record<string, unknown> = {
     keyWord: query,

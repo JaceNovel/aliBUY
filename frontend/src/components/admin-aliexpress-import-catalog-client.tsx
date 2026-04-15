@@ -260,6 +260,7 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard }: { initi
   });
   const [searchExtendRows, setSearchExtendRows] = useState<SearchExtendRow[]>([]);
   const [searchState, setSearchState] = useState<SearchResponse | null>(null);
+  const [recentlyImportedSourceProductIds, setRecentlyImportedSourceProductIds] = useState<string[]>([]);
   const [selectedPreviewIds, setSelectedPreviewIds] = useState<string[]>([]);
   const [selectedImportedProductIds, setSelectedImportedProductIds] = useState<string[]>([]);
   const [quantityByProduct, setQuantityByProduct] = useState<Record<string, number>>({});
@@ -280,9 +281,17 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard }: { initi
     () => initialDashboard.supplierAccounts.find((account) => account.id === selectedSupplierAccountId) ?? null,
     [initialDashboard.supplierAccounts, selectedSupplierAccountId],
   );
+  const hiddenImportedSourceProductIds = useMemo(() => new Set([
+    ...initialDashboard.importedProducts.map((product) => product.sourceProductId),
+    ...recentlyImportedSourceProductIds,
+  ]), [initialDashboard.importedProducts, recentlyImportedSourceProductIds]);
+  const visibleSearchProducts = useMemo(
+    () => (searchState?.products ?? []).filter((item) => !hiddenImportedSourceProductIds.has(item.productId)),
+    [hiddenImportedSourceProductIds, searchState?.products],
+  );
   const selectedPreviewItems = useMemo(
-    () => (searchState?.products ?? []).filter((item) => selectedPreviewIds.includes(item.productId)),
-    [searchState?.products, selectedPreviewIds],
+    () => visibleSearchProducts.filter((item) => selectedPreviewIds.includes(item.productId)),
+    [visibleSearchProducts, selectedPreviewIds],
   );
   const importablePreviewCount = useMemo(
     () => selectedPreviewItems.filter((item) => item.importable && item.product).length,
@@ -328,9 +337,10 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard }: { initi
     }
 
     setSearchForm((current) => ({ ...current, pageIndex: payload.pageIndex }));
+    const visibleCount = payload.products.filter((item) => !hiddenImportedSourceProductIds.has(item.productId)).length;
     setSearchState(payload);
     setSelectedPreviewIds([]);
-    setFeedback(`${payload.products.length} resultat(s) charges sur ${payload.totalCount} au total.`);
+    setFeedback(`${visibleCount} resultat(s) disponibles sur ${payload.totalCount} au total.`);
     setIsSearching(false);
   };
 
@@ -351,6 +361,7 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard }: { initi
     setErrorMessage(null);
 
     let importedCount = 0;
+    const importedSourceProductIds: string[] = [];
     const failures: string[] = [];
 
     for (const [index, item] of importableItems.entries()) {
@@ -378,10 +389,17 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard }: { initi
       }
 
       importedCount += Array.isArray(payload?.products) ? payload.products.length : 0;
+      importedSourceProductIds.push(item.productId);
     }
 
     setIsImporting(false);
     setSelectedPreviewIds([]);
+    if (importedSourceProductIds.length > 0) {
+      setRecentlyImportedSourceProductIds((current) => Array.from(new Set([...current, ...importedSourceProductIds])));
+      setSearchState((current) => current
+        ? { ...current, products: current.products.filter((item) => !importedSourceProductIds.includes(item.productId)) }
+        : current);
+    }
     refresh();
 
     if (failures.length > 0) {
@@ -438,6 +456,9 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard }: { initi
 
     setFeedback("Article importe supprime.");
     setSelectedImportedProductIds((current) => current.filter((item) => item !== importedProductId));
+    if (sourceProductId) {
+      setRecentlyImportedSourceProductIds((current) => current.filter((item) => item !== sourceProductId));
+    }
     refresh();
   };
 
@@ -597,7 +618,7 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard }: { initi
             <label className="text-[13px] font-semibold text-[#344054]">
               Page size
               <select value={searchForm.pageSize} onChange={(event) => setSearchForm((current) => ({ ...current, pageSize: Number(event.target.value) || 12 }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d6dbe6] px-4 text-[14px] text-[#111827] outline-none focus:border-[#d85c14]">
-                {[8, 12, 16, 20].map((size) => <option key={size} value={size}>{size}</option>)}
+                {[8, 12, 16, 20, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
               </select>
             </label>
             <label className="text-[13px] font-semibold text-[#344054] md:col-span-2">
@@ -694,7 +715,7 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard }: { initi
           <>
             <div className="mt-5 flex flex-col gap-3 rounded-[18px] bg-[#f8fafc] px-4 py-4 md:flex-row md:items-center md:justify-between">
               <div className="text-[13px] text-[#475467]">
-                <span className="font-semibold text-[#101828]">{formatCount(searchState.products.length)}</span> resultat(s) affiches sur <span className="font-semibold text-[#101828]">{formatCount(searchState.totalCount)}</span>.
+                <span className="font-semibold text-[#101828]">{formatCount(visibleSearchProducts.length)}</span> resultat(s) affiches sur <span className="font-semibold text-[#101828]">{formatCount(searchState.totalCount)}</span>.
               </div>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => runSearch(Math.max(searchState.pageIndex - 1, 1))} disabled={isSearching || searchState.pageIndex <= 1} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#d6dbe6] bg-white px-4 text-[13px] font-semibold text-[#344054] transition hover:border-[#d85c14] hover:text-[#d85c14] disabled:opacity-60">
@@ -710,7 +731,7 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard }: { initi
             </div>
 
             <div className="mt-5 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-              {searchState.products.length === 0 ? <div className="rounded-[18px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Aucun resultat pour ces parametres.</div> : searchState.products.map((item) => {
+              {visibleSearchProducts.length === 0 ? <div className="rounded-[18px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Aucun resultat disponible pour ces parametres.</div> : visibleSearchProducts.map((item) => {
                 const isSelected = selectedPreviewIds.includes(item.productId);
                 return (
                   <article key={item.productId} className={`overflow-hidden rounded-[22px] border ${isSelected ? "border-[#1d4f91] shadow-[0_16px_36px_rgba(29,79,145,0.18)]" : "border-[#e8ecf3] shadow-[0_10px_24px_rgba(15,23,42,0.05)]"} bg-white transition`}>

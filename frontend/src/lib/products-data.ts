@@ -38,6 +38,7 @@ export type ProductCatalogItem = {
   slug: string;
   title: string;
   shortTitle: string;
+  description?: string;
   query?: string;
   keywords?: string[];
   categorySlug?: string;

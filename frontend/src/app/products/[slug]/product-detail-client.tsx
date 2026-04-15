@@ -66,6 +66,7 @@ type ProductDetailClientProps = {
     currencyCode: string;
     countryCode: string;
     categoryTitle: string;
+    description?: string;
     moq: number;
     moqVerified?: boolean;
     packaging: string;
@@ -124,6 +125,45 @@ type ProductDetailClientProps = {
 
 const RECENTLY_VIEWED_STORAGE_KEY = "afripay_recently_viewed_products_v1";
 
+function decodeHtmlEntities(value: string) {
+  return value
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">");
+}
+
+function buildDescriptionParagraphs(description?: string, fallbackOverview: string[] = []) {
+  const normalizedDescription = typeof description === "string" ? description.trim() : "";
+
+  if (normalizedDescription) {
+    const plainText = decodeHtmlEntities(normalizedDescription)
+      .replace(/<\s*br\s*\/?>/gi, "\n")
+      .replace(/<\/(p|div|li|h[1-6])>/gi, "\n")
+      .replace(/<li>/gi, "- ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\r/g, "")
+      .replace(/\t/g, " ")
+      .replace(/\u00a0/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
+      .replace(/[ ]{2,}/g, " ")
+      .trim();
+
+    const paragraphs = plainText
+      .split(/\n{2,}|\n(?=-\s)/)
+      .map((entry) => entry.replace(/\s+/g, " ").trim())
+      .filter((entry) => entry.length > 0);
+
+    if (paragraphs.length > 0) {
+      return paragraphs;
+    }
+  }
+
+  return fallbackOverview.filter((entry) => entry.trim().length > 0);
+}
+
 export function ProductDetailClient({ product, relatedProducts, initialIsFavorite }: ProductDetailClientProps) {
   const selectedCurrency = CURRENCY_CONFIG[(product.currencyCode as CurrencyCode)] ?? CURRENCY_CONFIG.USD;
   const router = useRouter();
@@ -143,6 +183,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const touchStartXRef = useRef<number | null>(null);
   const cartAnimationTimeoutRef = useRef<number | null>(null);
   const cartToastTimeoutRef = useRef<number | null>(null);
+  const descriptionParagraphs = buildDescriptionParagraphs(product.description, product.overview);
 
   useEffect(() => {
     router.prefetch("/cart");
@@ -1093,7 +1134,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#907e70]">Description</div>
               <h2 className="mt-3 text-[24px] font-bold text-[#221813] sm:text-[28px]">Présentation détaillée</h2>
               <div className="mt-6 grid gap-4">
-                {product.overview.map((point) => (
+                {descriptionParagraphs.map((point) => (
                   <div key={point} className="border-b border-[#f1f1f1] px-1 py-4 last:border-b-0">
                     <p className="text-[15px] leading-7 text-[#4d4035]">{point}</p>
                   </div>

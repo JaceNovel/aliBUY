@@ -267,11 +267,17 @@ class SourcingQuoteService
     protected function resolveWeightKg(array $metadata, ?Product $product = null): float
     {
         if (isset($metadata['weightKg']) && is_numeric($metadata['weightKg'])) {
-            return round((float) $metadata['weightKg'], 3);
+            $weightKg = (float) $metadata['weightKg'];
+            if ($weightKg > 0) {
+                return round($weightKg, 3);
+            }
         }
 
         if (isset($metadata['itemWeightGrams']) && is_numeric($metadata['itemWeightGrams'])) {
-            return round(((float) $metadata['itemWeightGrams']) / 1000, 3);
+            $itemWeightGrams = (float) $metadata['itemWeightGrams'];
+            if ($itemWeightGrams > 0) {
+                return round($itemWeightGrams / 1000, 3);
+            }
         }
 
         $volumeCbm = $this->resolveLotCbmValue($metadata, $product);
@@ -285,7 +291,10 @@ class SourcingQuoteService
     protected function resolveVolumeCbm(array $metadata, ?Product $product = null): float
     {
         if (isset($metadata['volumeCbm']) && is_numeric($metadata['volumeCbm'])) {
-            return round((float) $metadata['volumeCbm'], 4);
+            $volumeCbm = (float) $metadata['volumeCbm'];
+            if ($volumeCbm > 0) {
+                return round($volumeCbm, 4);
+            }
         }
 
         $lotCbm = $this->resolveLotCbmValue($metadata, $product);
@@ -304,7 +313,10 @@ class SourcingQuoteService
     protected function resolveLotCbmValue(array $metadata, ?Product $product = null): float
     {
         if (isset($metadata['lotCbm']) && is_numeric($metadata['lotCbm'])) {
-            return (float) $metadata['lotCbm'];
+            $lotCbm = (float) $metadata['lotCbm'];
+            if ($lotCbm > 0) {
+                return $lotCbm;
+            }
         }
 
         $dimensions = $this->resolvePackageDimensionsCm($metadata, $product);

@@ -14,6 +14,15 @@ import { ProductDetailClient } from "./product-detail-client";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+function resolveProductMetaDescription(product: NonNullable<Awaited<ReturnType<typeof getCatalogProductBySlug>>>) {
+  const description = typeof product.description === "string" ? product.description.trim() : "";
+  if (description) {
+    return description.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  return product.overview.join(" ");
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -32,16 +41,17 @@ export async function generateMetadata({
   }
 
   const shareImage = resolveSiteAssetUrl(product.image || product.gallery[0], PRODUCT_SHARE_IMAGE_PATH);
+  const metaDescription = resolveProductMetaDescription(product);
 
   return {
     title: `${product.shortTitle} | ${SITE_NAME}`,
-    description: product.overview.join(" "),
+    description: metaDescription,
     alternates: {
       canonical: `${SITE_URL}/products/${slug}`,
     },
     openGraph: {
       title: product.shortTitle,
-      description: product.overview.join(" "),
+      description: metaDescription,
       url: `${SITE_URL}/products/${slug}`,
       images: [
         {
@@ -53,7 +63,7 @@ export async function generateMetadata({
     twitter: {
       card: "summary_large_image",
       title: product.shortTitle,
-      description: product.overview.join(" "),
+      description: metaDescription,
       images: [shareImage],
     },
   };
@@ -94,6 +104,7 @@ export default async function ProductPage({
           currencyCode: pricing.currency.code,
           countryCode: pricing.countryCode,
           categoryTitle: productCategory?.title ?? "Catalogue AfriPay+",
+          description: product.description ? normalizeStorefrontText(product.description) : undefined,
           moq: product.moq,
           moqVerified: product.moqVerified,
           packaging: product.packaging,

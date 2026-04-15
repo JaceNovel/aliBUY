@@ -149,7 +149,7 @@ class AliExpressOpenPlatformService
         $local = trim((string) ($input['local'] ?? env('ALIEXPRESS_DS_LOCALE', 'fr_FR')));
         $countryCode = strtoupper(trim((string) ($input['countryCode'] ?? env('ALIEXPRESS_DS_SHIP_TO_COUNTRY', 'FR'))));
         $currency = strtoupper(trim((string) ($input['currency'] ?? 'USD')));
-        $pageSize = max(1, min(20, (int) ($input['pageSize'] ?? 12)));
+        $pageSize = max(1, min(100, (int) ($input['pageSize'] ?? 12)));
         $pageIndex = max(1, (int) ($input['pageIndex'] ?? 1));
         $requestBody = [
             'keyWord' => $query,
