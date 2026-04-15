@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { BadgeHelp, CheckCircle2, Circle, Heart, LockKeyhole, MapPin, Minus, Package, Plus, Share2, ShieldCheck, ShoppingCart, Sparkles, Star, TicketPercent, Trash2, Truck } from "lucide-react";
+import { BadgeHelp, CheckCircle2, Circle, Heart, LockKeyhole, MapPin, Minus, Package, Plane, Plus, Share2, ShieldCheck, ShipWheel, ShoppingCart, Sparkles, Star, TicketPercent, Trash2, Truck } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -83,6 +83,7 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
   const [selectedCartKeys, setSelectedCartKeys] = useState<string[]>([]);
   const [selectionPulse, setSelectionPulse] = useState(false);
   const shipping = useMemo(() => quote.shippingOptions.find((option) => option.key === quote.recommendedMethod) ?? quote.shippingOptions[0], [quote.recommendedMethod, quote.shippingOptions]);
+  const hasMultipleShippingOptions = quote.shippingOptions.length > 1;
   const totalFcfa = quote.cartProductsTotalFcfa + (shipping?.priceFcfa ?? 0);
   const totalWeightLabel = quote.totalWeightKg > 0 ? `${quote.totalWeightKg.toFixed(2)} kg` : "Selon catalogue";
   const totalVolumeLabel = quote.totalCbm > 0 ? `${quote.totalCbm.toFixed(4)} CBM` : "Selon catalogue";
@@ -137,6 +138,13 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
   const registerBeforeCheckoutHref = `/register?next=${encodeURIComponent(checkoutPath)}&reason=checkout_auth_required`;
   const importedPreviewItems = sharedCartContext?.previewItems ?? [];
   const showImportedPreviewFallback = !isLoading && quote.items.length === 0 && importedPreviewItems.length > 0;
+
+  const shippingOptionCards = useMemo(() => quote.shippingOptions.map((option) => ({
+    ...option,
+    priceLabel: option.isFree ? "Livraison gratuite" : formatSourcingAmount(option.priceFcfa, { currencyCode, locale }),
+    isRecommended: option.key === quote.recommendedMethod,
+    Icon: option.key === "sea" ? ShipWheel : option.key === "air" ? Plane : Truck,
+  })), [currencyCode, locale, quote.recommendedMethod, quote.shippingOptions]);
 
   useEffect(() => {
     setSelectedCartKeys((current) => {
@@ -699,6 +707,14 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
                         Éligible coupons
                       </div>
                       <div className="mt-1 text-[11px] text-[#98a2b3]">AfriPay Store ›</div>
+                      <div className="mt-1.5 space-y-1 text-[11px] leading-5 text-[#667085]">
+                        <div>Livraison : {shipping?.deliveryWindow ?? "5-10 jours"}</div>
+                        <div>
+                          Expédition : {shipping?.label ?? "Avion"}
+                          {hasMultipleShippingOptions ? ` · ${quote.shippingOptions.map((option) => option.label).join(" / ")}` : ""}
+                        </div>
+                        <div>Poids : {weightLabel} · Volume : {volumeLabel}</div>
+                      </div>
                       <div className="mt-2 flex items-center justify-end">
                         <div className="inline-flex h-9 items-center rounded-full border border-[#e4e7ec] bg-white px-1 text-[#101828] shadow-[0_4px_14px_rgba(15,23,42,0.05)]">
                           <button type="button" onClick={() => updateItem(item.cartKey ?? item.slug, quantity - 1)} className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[#344054] transition hover:bg-[#f8fafc] hover:text-[#f80632]">
@@ -710,6 +726,20 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
                           </button>
                         </div>
                       </div>
+                    </div>
+                    <div className="mt-2 grid grid-cols-3 gap-2">
+                      <button type="button" onClick={() => void shareProduct(item.slug, item.title)} className="inline-flex h-9 items-center justify-center gap-1 rounded-[10px] border border-[#eceff3] bg-[#fafbfc] text-[11px] font-medium text-[#1f2937] transition hover:border-[#d0d5dd]">
+                        <Share2 className="h-3.5 w-3.5" />
+                        Partager
+                      </button>
+                      <button type="button" onClick={() => void toggleFavorite(item.slug)} disabled={favoriteBusySlug === item.slug} className="inline-flex h-9 items-center justify-center gap-1 rounded-[10px] border border-[#eceff3] bg-[#fafbfc] text-[11px] font-medium text-[#1f2937] transition hover:border-[#d0d5dd] disabled:opacity-60">
+                        <Heart className={["h-3.5 w-3.5", isFavorite ? "fill-current text-[#f06f12]" : ""].join(" ")} />
+                        Favori
+                      </button>
+                      <button type="button" onClick={() => removeItem(item.cartKey ?? item.slug)} className="inline-flex h-9 items-center justify-center gap-1 rounded-[10px] border border-[#ffd7db] bg-[#fff7f8] text-[11px] font-semibold text-[#d92d20] transition hover:border-[#fbb6bf]">
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Retirer
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -782,6 +812,41 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
               </article>
             );
           })}
+        </div>
+      </section>
+
+      <section className="rounded-[20px] border border-[#ededed] bg-white p-4 shadow-[0_10px_28px_rgba(17,24,39,0.04)] sm:p-6">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-[15px] font-black tracking-[-0.03em] text-[#1f2937] sm:text-[20px]">Options d'expédition</div>
+            <div className="mt-1 text-[12px] leading-5 text-[#667085] sm:text-[13px]">Les mêmes choix de transport restent visibles sur mobile, avec recommandation automatique selon le poids et le volume.</div>
+          </div>
+          <div className="rounded-full bg-[#f8fafc] px-3 py-1 text-[11px] font-semibold text-[#475467] sm:text-[12px]">
+            {totalWeightLabel} · {totalVolumeLabel}
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {shippingOptionCards.length === 0 ? (
+            <div className="rounded-[16px] border border-dashed border-[#d0d5dd] px-4 py-4 text-[13px] text-[#667085]">
+              Le devis d'expédition est en cours de calcul.
+            </div>
+          ) : shippingOptionCards.map(({ Icon, isRecommended, priceLabel, ...option }) => (
+            <article key={option.key} className={[
+              "rounded-[18px] border px-4 py-4 transition",
+              isRecommended ? "border-[#f80632] bg-[#fff7f8] shadow-[0_12px_26px_rgba(248,6,50,0.08)]" : "border-[#e4e7ec] bg-[#fbfcfd]",
+            ].join(" ")}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="inline-flex h-10 w-10 items-center justify-center rounded-[12px] bg-white text-[#1f2937] ring-1 ring-[#e4e7ec]">
+                  <Icon className="h-5 w-5" />
+                </div>
+                {isRecommended ? <div className="rounded-full bg-[#f80632] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white">Recommandé</div> : null}
+              </div>
+              <div className="mt-3 text-[18px] font-black tracking-[-0.03em] text-[#1f2937]">{option.label}</div>
+              <div className="mt-1 text-[13px] font-semibold text-[#344054]">{priceLabel}</div>
+              <div className="mt-2 text-[12px] leading-5 text-[#667085]">Délai : {option.deliveryWindow}</div>
+              <div className="mt-1 text-[12px] leading-5 text-[#667085]">Tarification : {option.tradeLabel}</div>
+            </article>
+          ))}
         </div>
       </section>
       </div>
@@ -887,6 +952,28 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
       </aside>
 
       <div className="space-y-4 xl:hidden">
+        <section ref={deliveryInfoRef} className="rounded-[20px] border border-[#ededed] bg-white p-5 shadow-[0_10px_28px_rgba(17,24,39,0.04)]">
+          <div className="text-[15px] font-black tracking-[-0.03em] text-[#1f2937]">Résumé</div>
+          <div className="mt-4 space-y-3 text-[14px] text-[#344054]">
+            <div className="flex items-center justify-between">
+              <span>Sous-total</span>
+              <span className="font-semibold text-[#1f2937]">{formatSourcingAmount(quote.cartProductsTotalFcfa, { currencyCode, locale })}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Livraison</span>
+              <span className="font-semibold text-[#1f2937]">{shipping ? (shipping.isFree ? "gratuite" : formatSourcingAmount(shipping.priceFcfa, { currencyCode, locale })) : formatSourcingAmount(0, { currencyCode, locale })}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Poids total</span>
+              <span className="font-semibold text-[#1f2937]">{totalWeightLabel}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Volume total</span>
+              <span className="font-semibold text-[#1f2937]">{totalVolumeLabel}</span>
+            </div>
+          </div>
+        </section>
+
         <section className="rounded-[20px] border border-[#ededed] bg-white p-5 shadow-[0_10px_28px_rgba(17,24,39,0.04)]">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-[15px] font-bold text-[#111827]">

@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AfriPay.space - Dossier de presentation pour demande API SHEIN</title>
+  <style>
+    :root {
+      --ink: #132033;
+      --muted: #5d6b7c;
+      --line: #d9e2ec;
+      --soft: #f6f9fc;
+      --accent: #119b6a;
+      --accent-soft: #e9f8f2;
+      --warn: #c05621;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: DejaVu Sans, Arial, sans-serif;
+      color: var(--ink);
+      background: #ffffff;
+      line-height: 1.55;
+      font-size: 12px;
+    }
+
+    .page {
+      padding: 34px 38px 40px;
+    }
+
+    .hero {
+      border: 1px solid #d7e7df;
+      background: linear-gradient(135deg, #f4fff8 0%, #ffffff 62%, #eef7ff 100%);
+      border-radius: 20px;
+      padding: 26px 28px;
+    }
+
+    .hero-top {
+      display: table;
+      width: 100%;
+    }
+
+    .hero-brand,
+    .hero-meta {
+      display: table-cell;
+      vertical-align: top;
+    }
+
+    .hero-meta {
+      width: 210px;
+      text-align: right;
+    }
+
+    .wordmark {
+      display: inline-block;
+      margin-bottom: 14px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: #ffffff;
+      border: 1px solid #d7e7df;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      color: var(--ink);
+    }
+
+    .eyebrow {
+      color: var(--accent);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.12;
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle {
+      margin-top: 14px;
+      max-width: 620px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .meta-card {
+      border: 1px solid #dbe6ef;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.94);
+      padding: 12px 14px;
+      margin-bottom: 10px;
+    }
+
+    .meta-label {
+      display: block;
+      color: #708090;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .meta-value {
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .section {
+      margin-top: 22px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px 20px;
+      background: #fff;
+    }
+
+    .section.soft {
+      background: var(--soft);
+    }
+
+    .section.green {
+      background: var(--accent-soft);
+      border-color: #cfe9dc;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 17px;
+      letter-spacing: -0.03em;
+    }
+
+    p {
+      margin: 0 0 10px;
+    }
+
+    .grid {
+      display: table;
+      width: 100%;
+      table-layout: fixed;
+      border-collapse: separate;
+      border-spacing: 10px 0;
+      margin: 10px -10px 0;
+    }
+
+    .col {
+      display: table-cell;
+      vertical-align: top;
+    }
+
+    .fact-box {
+      border: 1px solid #dce4ec;
+      border-radius: 14px;
+      background: #fff;
+      padding: 12px 13px;
+      min-height: 86px;
+    }
+
+    .fact-box .label {
+      display: block;
+      color: #66778b;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .fact-box .value {
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    table.facts,
+    table.api,
+    table.routes {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    table.facts td,
+    table.api th,
+    table.api td,
+    table.routes th,
+    table.routes td {
+      border: 1px solid var(--line);
+      padding: 9px 10px;
+      vertical-align: top;
+    }
+
+    table.api th,
+    table.routes th {
+      background: #f3f7fb;
+      text-align: left;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    ul,
+    ol {
+      margin: 8px 0 0 18px;
+      padding: 0;
+    }
+
+    li { margin-bottom: 6px; }
+
+    .pill-row {
+      margin-top: 10px;
+    }
+
+    .pill {
+      display: inline-block;
+      border: 1px solid #d8e3ec;
+      background: #fff;
+      border-radius: 999px;
+      padding: 6px 10px;
+      margin: 0 8px 8px 0;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .mono {
+      font-family: DejaVu Sans Mono, monospace;
+      font-size: 11px;
+    }
+
+    .note {
+      color: var(--warn);
+      font-size: 11px;
+      margin-top: 8px;
+    }
+
+    .footer {
+      margin-top: 18px;
+      color: #718198;
+      font-size: 10px;
+      text-align: center;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <div class="hero-top">
+        <div class="hero-brand">
+          <div class="wordmark">AfriPay</div>
+          <div class="eyebrow">Dossier de presentation plateforme</div>
+          <h1>AfriPay.space<br>Demande d'acces API SHEIN</h1>
+          <div class="subtitle">
+            Ce document rassemble les informations verifiables sur AfriPay.space afin de soutenir une demande d'acces API SHEIN. Il synthétise le positionnement de la plateforme, ses domaines publics, ses capacités e-commerce, son API partenaire et ses informations de contact opérationnel.
+          </div>
+        </div>
+        <div class="hero-meta">
+          <div class="meta-card">
+            <span class="meta-label">Plateforme</span>
+            <span class="meta-value">https://www.afripay.space</span>
+          </div>
+          <div class="meta-card">
+            <span class="meta-label">API</span>
+            <span class="meta-value">https://api.afripay.space</span>
+          </div>
+          <div class="meta-card">
+            <span class="meta-label">Edition</span>
+            <span class="meta-value">15 avril 2026</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section green">
+      <h2>1. Resume executif</h2>
+      <p>
+        AfriPay est presente publiquement comme une marketplace et une plateforme B2B unifiant le catalogue produit, les devis, la logistique et les paiements dans une experience integree. Le site public mentionne explicitement un environnement conçu pour "reprendre un panier, cadrer un devis, payer proprement et suivre la logistique sans zones floues".
+      </p>
+      <p>
+        La plateforme opere avec un site storefront public sur <span class="mono">afripay.space</span> et une API dediee sur <span class="mono">api.afripay.space</span>. Elle expose egalement un programme partenaire avec validation manuelle, dashboard privé, clés API, webhooks et documentation technique publique.
+      </p>
+    </section>
+
+    <section class="section soft">
+      <h2>2. Identite et coordonnees verifiees</h2>
+      <div class="grid">
+        <div class="col">
+          <div class="fact-box">
+            <span class="label">Nom plateforme</span>
+            <div class="value">AfriPay</div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="fact-box">
+            <span class="label">Nom operationnel</span>
+            <div class="value">AfriPay Sourcing</div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="fact-box">
+            <span class="label">Role declare</span>
+            <div class="value">Entreprise emettrice et coordination logistique</div>
+          </div>
+        </div>
+      </div>
+
+      <table class="facts">
+        <tr>
+          <td><strong>Domaine public</strong><br>https://www.afripay.space</td>
+          <td><strong>Domaine API</strong><br>https://api.afripay.space</td>
+        </tr>
+        <tr>
+          <td><strong>Email contact</strong><br>contact@afripay.space</td>
+          <td><strong>Email support</strong><br>support@afripay.space</td>
+        </tr>
+        <tr>
+          <td><strong>Email systeme</strong><br>no-reply@afripay.space</td>
+          <td><strong>Telephone</strong><br>+33 6 88 63 92 94</td>
+        </tr>
+        <tr>
+          <td colspan="2"><strong>Adresse operationnelle</strong><br>5 avenue de l'Europe, 69500 Bron, Lyon, France</td>
+        </tr>
+        <tr>
+          <td colspan="2"><strong>WhatsApp aide client</strong><br>https://wa.me/3584573963223</td>
+        </tr>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>3. Positionnement produit et services visibles</h2>
+      <div class="pill-row">
+        <span class="pill">Catalogue public</span>
+        <span class="pill">Recherche produit</span>
+        <span class="pill">Recherche par image</span>
+        <span class="pill">Devis sourcing</span>
+        <span class="pill">Commandes</span>
+        <span class="pill">Paiement tracable</span>
+        <span class="pill">Logistique</span>
+        <span class="pill">Partnership program</span>
+        <span class="pill">API partenaire</span>
+        <span class="pill">Webhooks</span>
+      </div>
+      <ul>
+        <li>Catalogue public avec categories, tendances, mode, deals flash et produits detailles.</li>
+        <li>Parcours de devis et de panier avec calcul de poids, volume CBM et options d'expedition.</li>
+        <li>Support des flux logistiques avion / bateau et des routes directes ou AfriPay final-mile selon le pays.</li>
+        <li>Pages publiques dediees aux services: devis, protection de commande, messages support, support vendeur et documentation API.</li>
+        <li>Programme partenaire pour integrer le catalogue, les commandes et les webhooks AfriPay depuis un backend tiers.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>4. Capacites techniques et architecture observable</h2>
+      <table class="routes">
+        <thead>
+          <tr>
+            <th>Element</th>
+            <th>Information verifiee</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Frontend</td>
+            <td>Application Next.js sur <span class="mono">www.afripay.space</span></td>
+          </tr>
+          <tr>
+            <td>Backend</td>
+            <td>API Laravel sur <span class="mono">api.afripay.space</span></td>
+          </tr>
+          <tr>
+            <td>Paiement</td>
+            <td>Moneroo comme provider principal de paiement</td>
+          </tr>
+          <tr>
+            <td>Authentification API partenaire</td>
+            <td>Headers <span class="mono">X-APP-KEY</span>, <span class="mono">X-APP-SECRET</span>, et signature HMAC facultative/renforcee</td>
+          </tr>
+          <tr>
+            <td>Programmation webhook</td>
+            <td>Evenements publics documentes: <span class="mono">order.created</span>, <span class="mono">order.paid</span>, <span class="mono">order.shipped</span>, <span class="mono">order.delivered</span></td>
+          </tr>
+          <tr>
+            <td>Programme partenaire</td>
+            <td>Validation manuelle, dashboard prive, wallet, stats, cles API dediees et URL webhook dediee</td>
+          </tr>
+          <tr>
+            <td>Logistique</td>
+            <td>Calculs poids/CBM, transport air/sea, messagerie support, suivi et coordination finale</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <div class="page-break"></div>
+
+    <section class="section green">
+      <h2>5. API partenaire AfriPay</h2>
+      <p>
+        La documentation publique d'AfriPay indique qu'un partenaire peut recuperer des produits, vendre sur son propre site, encaisser via AfriPay et automatiser les commandes et la livraison. La page <span class="mono">/docs</span> annonce explicitement un objectif d'integration rapide pour les developpeurs.
+      </p>
+
+      <table class="api">
+        <thead>
+          <tr>
+            <th>Fonction</th>
+            <th>Endpoint / Mecanisme public documente</th>
+            <th>Usage</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Catalogue partenaire</td>
+            <td><span class="mono">GET /api/partner/products</span></td>
+            <td>Recuperer la liste des produits exploitables par un partenaire</td>
+          </tr>
+          <tr>
+            <td>Commande partenaire</td>
+            <td><span class="mono">POST /api/partner/orders</span></td>
+            <td>Creer une commande a partir d'un backend tiers</td>
+          </tr>
+          <tr>
+            <td>Documentation</td>
+            <td><span class="mono">GET https://www.afripay.space/docs</span></td>
+            <td>Consulter les guides, exemples curl, auth et webhooks</td>
+          </tr>
+          <tr>
+            <td>Source documentaire</td>
+            <td><span class="mono">GET /api/docs</span></td>
+            <td>Synchronisation de la page de documentation publique</td>
+          </tr>
+          <tr>
+            <td>Webhooks</td>
+            <td><span class="mono">order.created</span>, <span class="mono">order.paid</span>, <span class="mono">order.shipped</span>, <span class="mono">order.delivered</span></td>
+            <td>Synchronisation de statut et automatisation cote partenaire</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p class="note">
+        Les cles partenaires restent dans l'espace dashboard et ne sont pas exposees publiquement. Cela demontre une separation claire entre la documentation publique et les secrets d'integration.
+      </p>
+    </section>
+
+    <section class="section soft">
+      <h2>6. Securite et gouvernance d'acces</h2>
+      <ul>
+        <li>Aucun acces partenaire au dashboard n'est autorise sans validation manuelle prealable.</li>
+        <li>Le dashboard prive et ses routes sont masques avant approbation.</li>
+        <li>Les flux partenaires sont cloisonnes par compte approuve.</li>
+        <li>Le portail partenaire signe entre frontend et backend utilise une signature HMAC SHA-256.</li>
+        <li>La documentation publique impose un usage backend-only pour les secrets et l'authentification.</li>
+        <li>Les pratiques recommandees excluent l'exposition de <span class="mono">APP_SECRET</span> dans le frontend ou dans une application client publique.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>7. Logistique et operations</h2>
+      <ul>
+        <li>AfriPay exploite un modele de sourcing avec devis, poids total, volume total et recommandation de mode de transport.</li>
+        <li>Le site storefront annonce des commandes compatibles expediees directement vers l'adresse client lorsque la destination est desservie.</li>
+        <li>Le systeme gere egalement des cas de reception interne et de dernier kilometre AfriPay selon le pays.</li>
+        <li>L'adresse logistique de reference visible dans le code fonctionnel est situee a Bron, Lyon, France.</li>
+        <li>Le footer met en avant "Timeline commande" et "Paiement tracable", indiquant une orientation operationnelle sur le suivi et la visibilite client.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>8. Interet d'un acces API SHEIN pour AfriPay</h2>
+      <ol>
+        <li>Etendre l'offre catalogue disponible sur une plateforme deja structuree pour le sourcing, le devis, la logistique et le paiement.</li>
+        <li>Ajouter un nouveau fournisseur majeur dans un socle technique qui sait deja gerer catalogue, commandes, webhooks et operations.</li>
+        <li>Permettre a AfriPay de proposer une experience multi-source plus large a ses partenaires e-commerce et a ses utilisateurs B2B.</li>
+        <li>Beneficier d'un cadre de securite et de gouvernance deja en place pour les integrations partenaires et les acces API.</li>
+      </ol>
+    </section>
+
+    <section class="section soft">
+      <h2>9. Informations encore a completer avant soumission si SHEIN les exige</h2>
+      <p>
+        Les elements suivants n'ont pas ete trouves dans les sources publiques ou techniques analysees et doivent etre ajoutes manuellement si SHEIN les demande dans son dossier de conformite:
+      </p>
+      <ul>
+        <li>Raison sociale legale exacte de l'entite contractante</li>
+        <li>Numero d'immatriculation / registre du commerce</li>
+        <li>Numero TVA / identifiant fiscal</li>
+        <li>Nom du representant legal</li>
+        <li>Volume d'affaires mensuel / GMV / nombre mensuel de commandes</li>
+        <li>Preuves juridiques de propriete de domaine ou documents d'entreprise</li>
+      </ul>
+    </section>
+
+    <div class="footer">
+      Dossier compile a partir des informations publiques d'AfriPay.space, des documents techniques du projet et des constantes operationnelles verifiees dans le repository aliBUY. PDF prepare pour soutenir une demande d'acces API SHEIN.
+    </div>
+  </div>
+</body>
+</html>

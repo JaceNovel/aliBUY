@@ -10,6 +10,7 @@ class SourcingQuoteService
     public function buildQuote(array $items, array $options = []): array
     {
         $settings = $this->getSettings();
+        $effectiveFreeAirThresholdFcfa = $this->resolveFreeAirThresholdFcfa($settings, $options);
         $normalizedItems = $this->normalizeItems($items);
         if ($normalizedItems === []) {
             return [
@@ -71,7 +72,7 @@ class SourcingQuoteService
         $airIsFree = ! ($options['disableFreeAir'] ?? false)
             && ! $shouldPreferSea
             && $settings['freeAirEnabled']
-            && $cartProductsTotalFcfa >= $settings['freeAirThresholdFcfa'];
+            && $cartProductsTotalFcfa >= $effectiveFreeAirThresholdFcfa;
 
         if (($options['deliveryMode'] ?? 'direct') === 'forwarder') {
             return [
@@ -144,12 +145,12 @@ class SourcingQuoteService
             'totalCbm' => $totalCbm,
             'shippingOptions' => $shippingOptions,
             'recommendedMethod' => $shouldPreferSea ? 'sea' : 'air',
-            'freeAirRemainingFcfa' => max($settings['freeAirThresholdFcfa'] - $cartProductsTotalFcfa, 0),
+            'freeAirRemainingFcfa' => max($effectiveFreeAirThresholdFcfa - $cartProductsTotalFcfa, 0),
             'freeShippingMessage' => $shouldPreferSea
                 ? 'Le moyen de livraison peut etre change si le poids est trop consequent. Pour profiter de la livraison gratuite, les commandes ne doivent pas depasser '.$settings['airWeightThresholdKg'].' kg.'
                 : ($airIsFree
-                    ? 'Livraison gratuite debloquee des '.$this->formatFcfa($settings['freeAirThresholdFcfa']).' pour une commande ne depassant pas '.$settings['airWeightThresholdKg'].' kg.'
-                    : 'Livraison gratuite disponible a partir de '.$this->formatFcfa($settings['freeAirThresholdFcfa']).' si la commande ne depasse pas '.$settings['airWeightThresholdKg'].' kg.'),
+                    ? 'Livraison gratuite debloquee des '.$this->formatFcfa($effectiveFreeAirThresholdFcfa).' pour une commande ne depassant pas '.$settings['airWeightThresholdKg'].' kg.'
+                    : 'Livraison gratuite disponible a partir de '.$this->formatFcfa($effectiveFreeAirThresholdFcfa).' si la commande ne depasse pas '.$settings['airWeightThresholdKg'].' kg.'),
             'containerProjection' => [
                 'targetCbm' => $settings['containerTargetCbm'],
                 'projectedCbm' => $totalCbm,
@@ -211,6 +212,18 @@ class SourcingQuoteService
         }
 
         return $fallback;
+    }
+
+    protected function resolveFreeAirThresholdFcfa(array $settings, array $options): int
+    {
+        if (($options['disableFreeAir'] ?? false) === true) {
+            return (int) $settings['freeAirThresholdFcfa'];
+        }
+
+        $eurRateFromUsd = 0.92;
+        $xofRateFromUsd = 602;
+
+        return (int) round((10 / $eurRateFromUsd) * $xofRateFromUsd);
     }
 
     protected function loadProductsBySlug(array $slugs): array
