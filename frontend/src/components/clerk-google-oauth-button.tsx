@@ -46,8 +46,8 @@ function extractErrorMessage(error: unknown) {
 }
 
 export function ClerkGoogleOauthButton({ mode, nextPath }: ClerkGoogleOauthButtonProps) {
-  const { signIn, fetchStatus: signInFetchStatus } = useSignIn();
-  const { signUp, fetchStatus: signUpFetchStatus } = useSignUp();
+  const { isLoaded: isSignInLoaded, signIn } = useSignIn();
+  const { isLoaded: isSignUpLoaded, signUp } = useSignUp();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -61,7 +61,7 @@ export function ClerkGoogleOauthButton({ mode, nextPath }: ClerkGoogleOauthButto
       const redirectUrlComplete = new URL(nextPath, origin).toString();
 
       if (mode === "sign-in") {
-        if (signInFetchStatus !== "idle" || !signIn) {
+        if (!isSignInLoaded || !signIn) {
           throw new Error("Le service de connexion Google n est pas encore pret.");
         }
 
@@ -73,7 +73,7 @@ export function ClerkGoogleOauthButton({ mode, nextPath }: ClerkGoogleOauthButto
         return;
       }
 
-      if (signUpFetchStatus !== "idle" || !signUp) {
+      if (!isSignUpLoaded || !signUp) {
         throw new Error("Le service d inscription Google n est pas encore pret.");
       }
 
