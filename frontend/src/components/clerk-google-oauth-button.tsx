@@ -1,6 +1,6 @@
 "use client";
 
-import { useSignIn, useSignUp } from "@clerk/nextjs";
+import { useSignIn, useSignUp } from "@clerk/nextjs/legacy";
 import { useState } from "react";
 
 type ClerkGoogleOauthButtonProps = {

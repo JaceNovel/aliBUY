@@ -43,8 +43,8 @@ export async function POST(request: Request) {
 
     const [firstName, ...lastNameParts] = order.customerName.trim().split(/\s+/);
     const returnUrl = `${SITE_URL.replace(/\/$/, "")}/orders?orderId=${encodeURIComponent(order.id)}&provider=${provider}`;
-    const payment = provider === "paypal"
-      ? await initializePayPalPayment({
+    if (provider === "paypal") {
+      const payment = await initializePayPalPayment({
           amount: order.totalPriceFcfa,
           currency: order.paymentCurrency || "XOF",
           description: `Paiement commande sourcing ${order.orderNumber}`,
@@ -55,8 +55,29 @@ export async function POST(request: Request) {
             orderNumber: order.orderNumber,
             customerEmail: order.customerEmail,
           },
-        })
-      : await initializeLocalMonerooPayment({
+        });
+      const nextOrder = await persistHostedCheckoutPaymentToOrder({
+        order,
+        payment: {
+          provider,
+          id: payment.id,
+          status: payment.status,
+          normalizedStatus: normalizePayPalPaymentStatus(payment.status),
+          checkoutUrl: extractPayPalCheckoutUrl(payment),
+          currency: getPayPalCurrencyCode(payment),
+          payload: payment,
+        },
+      });
+
+      return NextResponse.json({
+        order: nextOrder,
+        paymentId: payment.id,
+        checkoutUrl: extractPayPalCheckoutUrl(payment),
+        paymentStatus: nextOrder.paymentStatus,
+      });
+    }
+
+    const payment = await initializeLocalMonerooPayment({
           amount: order.totalPriceFcfa,
           currency: order.paymentCurrency || "XOF",
           description: `Paiement commande sourcing ${order.orderNumber}`,
@@ -80,35 +101,23 @@ export async function POST(request: Request) {
         });
     const nextOrder = await persistHostedCheckoutPaymentToOrder({
       order,
-      payment: provider === "paypal"
-        ? {
-            provider,
-            id: payment.id,
-            status: payment.status,
-            normalizedStatus: normalizePayPalPaymentStatus(payment.status),
-            checkoutUrl: extractPayPalCheckoutUrl(payment),
-            currency: getPayPalCurrencyCode(payment),
-            payload: payment,
-          }
-        : {
-            provider,
-            id: payment.id,
-            status: payment.status,
-            normalizedStatus: payment.status && ["initiated", "initialized"].includes(payment.status.toLowerCase()) ? "initialized" : payment.status && ["pending", "processing", "in_progress", "in progress"].includes(payment.status.toLowerCase()) ? "pending" : payment.status && ["success", "successful", "succeeded", "completed", "complete", "paid", "processed"].includes(payment.status.toLowerCase()) ? "paid" : payment.status && ["failed", "error", "expired", "declined"].includes(payment.status.toLowerCase()) ? "failed" : payment.status && ["cancelled", "canceled"].includes(payment.status.toLowerCase()) ? "cancelled" : "unpaid",
-            checkoutUrl: payment.checkout_url,
-            currency: payment.currency && typeof payment.currency === "string" ? payment.currency : typeof payment.currency === "object" && payment.currency ? payment.currency.code : undefined,
-            payload: payment,
-            initiatedAt: payment.initiated_at,
-            processedAt: payment.processed_at,
-          },
+      payment: {
+        provider,
+        id: payment.id,
+        status: payment.status,
+        normalizedStatus: payment.status && ["initiated", "initialized"].includes(payment.status.toLowerCase()) ? "initialized" : payment.status && ["pending", "processing", "in_progress", "in progress"].includes(payment.status.toLowerCase()) ? "pending" : payment.status && ["success", "successful", "succeeded", "completed", "complete", "paid", "processed"].includes(payment.status.toLowerCase()) ? "paid" : payment.status && ["failed", "error", "expired", "declined"].includes(payment.status.toLowerCase()) ? "failed" : payment.status && ["cancelled", "canceled"].includes(payment.status.toLowerCase()) ? "cancelled" : "unpaid",
+        checkoutUrl: payment.checkout_url,
+        currency: payment.currency && typeof payment.currency === "string" ? payment.currency : typeof payment.currency === "object" && payment.currency ? payment.currency.code : undefined,
+        payload: payment,
+        initiatedAt: payment.initiated_at,
+        processedAt: payment.processed_at,
+      },
     });
-
-    const checkoutUrl = provider === "paypal" ? extractPayPalCheckoutUrl(payment) : payment.checkout_url || nextOrder.monerooCheckoutUrl;
 
     return NextResponse.json({
       order: nextOrder,
       paymentId: payment.id,
-      checkoutUrl,
+      checkoutUrl: payment.checkout_url || nextOrder.monerooCheckoutUrl,
       paymentStatus: nextOrder.paymentStatus,
     });
   }
