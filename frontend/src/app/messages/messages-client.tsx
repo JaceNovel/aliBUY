@@ -235,7 +235,7 @@ export function MessagesClient({ conversations, initialConversationId, isAuthent
 
       <div className="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)] xl:gap-6">
       <aside className={[
-        "rounded-[22px] bg-white px-4 py-4 shadow-[0_8px_30px_rgba(24,39,75,0.05)] ring-1 ring-black/5 sm:rounded-[28px] sm:px-6 sm:py-6",
+        "rounded-[22px] bg-white px-4 py-4 shadow-[0_8px_30px_rgba(24,39,75,0.05)] ring-1 ring-black/5 sm:rounded-[28px] sm:px-6 sm:py-6 xl:flex xl:h-[calc(100vh-180px)] xl:min-h-[760px] xl:flex-col xl:overflow-hidden",
         mobileView === "list" ? "block" : "hidden xl:block",
       ].join(" ")}>
         <div className="flex items-center justify-between">
@@ -258,7 +258,7 @@ export function MessagesClient({ conversations, initialConversationId, isAuthent
           />
         </label>
 
-        <div className="mt-4 space-y-2.5 sm:mt-5 sm:space-y-3">
+        <div className="mt-4 space-y-2.5 sm:mt-5 sm:space-y-3 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-2 [scrollbar-gutter:stable]">
           {filteredEntries.map((conversation) => (
             <button
               key={conversation.id}

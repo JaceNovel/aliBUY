@@ -110,7 +110,7 @@ async function fetchAdminOrderByIdFromApi(orderId: string) {
   }
 
   const payload = await fallbackResponse.json().catch(() => null) as { order?: unknown } | null;
-  return payload?.order && typeof payload.order === "object" ? payload.order as SourcingOrder : null;
+  return normalizeSourcingOrderFromApi(payload?.order);
 }
 
 async function fetchAdminUsersOverviewFromApi() {
@@ -247,6 +247,123 @@ function normalizeAdminOrderFromApi(order: unknown): AdminOrderRecord | null {
     createdAt: typeof order.createdAt === "string" ? order.createdAt : new Date(0).toISOString(),
     href: `/admin/orders/${encodeURIComponent(id)}`,
     parcelHref: `/admin/orders/${encodeURIComponent(id)}/parcel`,
+  };
+}
+
+function normalizeSourcingOrderFromApi(order: unknown): SourcingOrder | null {
+  if (!isObjectRecord(order)) {
+    return null;
+  }
+
+  const id = typeof order.id === "string" || typeof order.id === "number" ? String(order.id) : "";
+  if (!id) {
+    return null;
+  }
+
+  const items = Array.isArray(order.items) ? order.items : [];
+  const normalizedItems = items.map((item) => {
+    const candidate = isObjectRecord(item) ? item : {};
+    const quantity = typeof candidate.quantity === "number"
+      ? candidate.quantity
+      : typeof candidate.quantity === "string"
+        ? Number(candidate.quantity)
+        : 1;
+    const finalLinePriceFcfa = typeof candidate.finalLinePriceFcfa === "number"
+      ? candidate.finalLinePriceFcfa
+      : typeof candidate.finalLinePriceFcfa === "string"
+        ? Number(candidate.finalLinePriceFcfa)
+        : 0;
+
+    return {
+      slug: typeof candidate.slug === "string" ? candidate.slug : "",
+      title: typeof candidate.title === "string" ? candidate.title : typeof candidate.productName === "string" ? candidate.productName : "Produit",
+      productName: typeof candidate.productName === "string" ? candidate.productName : typeof candidate.title === "string" ? candidate.title : "Produit",
+      image: typeof candidate.image === "string" && candidate.image.trim().length > 0 ? candidate.image : "/globe.svg",
+      quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+      selectedVariants: isObjectRecord(candidate.selectedVariants) ? candidate.selectedVariants as Record<string, string> : undefined,
+      selectionLabel: typeof candidate.selectionLabel === "string" ? candidate.selectionLabel : "",
+      requiredVariantLabels: [],
+      missingVariantLabels: [],
+      variantSelectionComplete: true,
+      supplierSkuId: undefined,
+      supplierSkuCode: undefined,
+      weightKg: 0,
+      volumeCbm: 0,
+      supplierPriceFcfa: Number.isFinite(finalLinePriceFcfa) ? finalLinePriceFcfa : 0,
+      marginMode: "fixed" as const,
+      marginValue: 0,
+      marginAmountFcfa: 0,
+      finalUnitPriceFcfa: Number.isFinite(finalLinePriceFcfa) && Number.isFinite(quantity) && quantity > 0 ? finalLinePriceFcfa / quantity : 0,
+      finalLinePriceFcfa: Number.isFinite(finalLinePriceFcfa) ? finalLinePriceFcfa : 0,
+    };
+  });
+
+  const totalPriceFcfa = typeof order.totalPriceFcfa === "number"
+    ? order.totalPriceFcfa
+    : typeof order.totalPriceFcfa === "string"
+      ? Number(order.totalPriceFcfa)
+      : 0;
+  const meta = isObjectRecord(order.meta) ? order.meta : {};
+  const pricing = isObjectRecord(meta.pricing) ? meta.pricing : {};
+  const shippingCostFcfa = typeof pricing.shippingPriceFcfa === "number"
+    ? pricing.shippingPriceFcfa
+    : typeof pricing.shippingPriceFcfa === "string"
+      ? Number(pricing.shippingPriceFcfa)
+      : 0;
+  const cartProductsTotalFcfa = typeof pricing.itemsSubtotalFcfa === "number"
+    ? pricing.itemsSubtotalFcfa
+    : typeof pricing.itemsSubtotalFcfa === "string"
+      ? Number(pricing.itemsSubtotalFcfa)
+      : normalizedItems.reduce((sum, item) => sum + item.finalLinePriceFcfa, 0);
+
+  return {
+    id,
+    orderNumber: typeof order.orderNumber === "string" ? order.orderNumber : id,
+    userId: typeof order.userId === "string" ? order.userId : typeof order.userId === "number" ? String(order.userId) : undefined,
+    customerName: typeof order.customerName === "string" ? order.customerName : "Client",
+    customerEmail: typeof order.customerEmail === "string" ? order.customerEmail : "",
+    customerPhone: typeof order.customerPhone === "string" ? order.customerPhone : "",
+    addressLine1: typeof order.addressLine1 === "string" ? order.addressLine1 : "",
+    addressLine2: typeof order.addressLine2 === "string" ? order.addressLine2 : "",
+    city: typeof order.city === "string" ? order.city : "",
+    state: typeof order.state === "string" ? order.state : "",
+    postalCode: typeof order.postalCode === "string" ? order.postalCode : "",
+    countryCode: typeof order.countryCode === "string" ? order.countryCode : "",
+    shippingMethod: typeof order.shippingMethod === "string" ? order.shippingMethod as SourcingOrder["shippingMethod"] : "air",
+    shippingCostFcfa: Number.isFinite(shippingCostFcfa) ? shippingCostFcfa : 0,
+    cartProductsTotalFcfa: Number.isFinite(cartProductsTotalFcfa) ? cartProductsTotalFcfa : 0,
+    totalPriceFcfa: Number.isFinite(totalPriceFcfa) ? totalPriceFcfa : 0,
+    totalWeightKg: typeof pricing.totalWeightKg === "number"
+      ? pricing.totalWeightKg
+      : typeof order.totalWeightKg === "number"
+        ? order.totalWeightKg
+        : 0,
+    totalVolumeCbm: typeof pricing.totalVolumeCbm === "number"
+      ? pricing.totalVolumeCbm
+      : typeof order.totalVolumeCbm === "number"
+        ? order.totalVolumeCbm
+        : 0,
+    status: typeof order.status === "string" ? order.status as SourcingOrder["status"] : "checkout_created",
+    freightStatus: typeof order.freightStatus === "string" ? order.freightStatus as SourcingOrder["freightStatus"] : "not_requested",
+    supplierOrderStatus: typeof order.supplierOrderStatus === "string" ? order.supplierOrderStatus as SourcingOrder["supplierOrderStatus"] : "not_created",
+    paymentStatus: typeof order.paymentStatus === "string" ? order.paymentStatus as SourcingOrder["paymentStatus"] : "pending",
+    paymentProvider: order.paymentProvider === "moneroo" ? "moneroo" : undefined,
+    paymentCurrency: typeof order.paymentCurrency === "string" ? order.paymentCurrency : "XOF",
+    alibabaTradeIds: Array.isArray(order.alibabaTradeIds) ? order.alibabaTradeIds.filter((value): value is string => typeof value === "string") : [],
+    freightPayload: order.freightPayload,
+    supplierOrderPayload: order.meta,
+    monerooPaymentId: typeof order.monerooPaymentId === "string" ? order.monerooPaymentId : undefined,
+    monerooCheckoutUrl: typeof order.monerooCheckoutUrl === "string" ? order.monerooCheckoutUrl : undefined,
+    monerooPaymentStatus: typeof order.monerooPaymentStatus === "string" ? order.monerooPaymentStatus : undefined,
+    monerooPaymentPayload: undefined,
+    monerooInitializedAt: typeof order.monerooInitializedAt === "string" ? order.monerooInitializedAt : undefined,
+    monerooVerifiedAt: typeof order.monerooVerifiedAt === "string" ? order.monerooVerifiedAt : undefined,
+    paidAt: typeof order.paidAt === "string" ? order.paidAt : undefined,
+    containerId: typeof order.containerId === "string" ? order.containerId : undefined,
+    notes: typeof meta.notes === "string" ? meta.notes : undefined,
+    createdAt: typeof order.createdAt === "string" ? order.createdAt : new Date(0).toISOString(),
+    updatedAt: typeof order.updatedAt === "string" ? order.updatedAt : typeof order.createdAt === "string" ? order.createdAt : new Date(0).toISOString(),
+    items: normalizedItems,
   };
 }
 
