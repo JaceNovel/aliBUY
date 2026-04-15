@@ -58,5 +58,8 @@ export const authPageClerkAppearance = {
     identityPreview: "rounded-[18px] border border-[#e8edf4] bg-[#f8fafc]",
     formHeaderTitle: "hidden",
     formHeaderSubtitle: "hidden",
+    alert: "hidden",
+    alertText: "hidden",
+    alertClerkError: "hidden",
   },
 };

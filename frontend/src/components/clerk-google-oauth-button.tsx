@@ -84,6 +84,7 @@ export function ClerkGoogleOauthButton({ mode, nextPath }: ClerkGoogleOauthButto
         redirectCallbackUrl,
       });
     } catch (error) {
+      console.error("Google OAuth error", error);
       setErrorMessage(extractErrorMessage(error));
       setIsSubmitting(false);
     }
@@ -101,11 +102,7 @@ export function ClerkGoogleOauthButton({ mode, nextPath }: ClerkGoogleOauthButto
         <span>{isSubmitting ? "Connexion Google..." : "Continuer avec Google"}</span>
       </button>
 
-      {errorMessage ? (
-        <div className="rounded-[16px] bg-[#fff1f2] px-4 py-3 text-[14px] font-medium text-[#b42318] ring-1 ring-[#f5c2c7]">
-          {errorMessage}
-        </div>
-      ) : isSubmitting ? (
+      {isSubmitting ? (
         <div className="rounded-[16px] bg-[#fff8f1] px-4 py-3 text-[14px] font-medium text-[#c2410c] ring-1 ring-[#fed7aa]">
           Redirection Google en cours. Si rien ne s ouvre, verifiez la configuration Clerk du domaine et des URLs de redirection.
         </div>
