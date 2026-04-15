@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { API_URL, buildApiUrl } from "@/lib/api";
-import { getAccountSettings, updateAccountSettings } from "@/lib/account-settings-store";
-import { getBackendAccessTokenFromCookies } from "@/lib/backend-access-token";
-import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
+import { getSyncedAccountSettings, persistSyncedAccountSettings } from "@/lib/account-settings";
 import { getCurrentUser } from "@/lib/user-auth";
 
 async function requireCurrentUser() {
@@ -21,31 +18,18 @@ export async function GET() {
     return NextResponse.json({ message: "Connexion requise." }, { status: 401 });
   }
 
-  const backendAccessToken = API_URL ? await getBackendAccessTokenFromCookies() : "";
-  if (!API_URL || !backendAccessToken) {
-    const settings = await getAccountSettings(user.id);
-    return NextResponse.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        displayName: user.displayName,
-        firstName: user.firstName,
-        createdAt: user.createdAt,
-      },
-      settings,
-    });
-  }
+  const settings = await getSyncedAccountSettings(user);
 
-  const response = await fetch(buildApiUrl("/api/account/settings"), {
-    method: "GET",
-    headers: await buildServerForwardHeaders({
-      accept: "application/json",
-    }),
-    cache: "no-store",
+  return NextResponse.json({
+    user: {
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      firstName: user.firstName,
+      createdAt: user.createdAt,
+    },
+    settings,
   });
-
-  const payload = await response.json().catch(() => null);
-  return NextResponse.json(payload ?? { message: "Impossible de recuperer les reglages du compte." }, { status: response.status || 502 });
 }
 
 export async function PATCH(request: Request) {
@@ -59,22 +43,10 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ message: "Payload invalide." }, { status: 400 });
   }
 
-  const backendAccessToken = API_URL ? await getBackendAccessTokenFromCookies() : "";
-  if (!API_URL || !backendAccessToken) {
-    const settings = await updateAccountSettings(user.id, input);
-    return NextResponse.json({ ok: true, settings });
-  }
+  const result = await persistSyncedAccountSettings(user, input);
 
-  const response = await fetch(buildApiUrl("/api/account/settings"), {
-    method: "PATCH",
-    headers: await buildServerForwardHeaders({
-      accept: "application/json",
-      "content-type": "application/json",
-    }),
-    body: JSON.stringify(input),
-    cache: "no-store",
-  });
-
-  const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
-  return NextResponse.json(payload ?? { message: "Impossible d'enregistrer ces informations." }, { status: response.status || 502 });
+  return NextResponse.json(
+    result.payload ?? { message: "Impossible d'enregistrer ces informations." },
+    { status: result.status },
+  );
 }

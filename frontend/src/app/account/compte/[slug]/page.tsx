@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { accountPageMeta, type AccountPageSlug } from "@/app/account/compte/account-links";
 import { AccountSettingDetailClient } from "@/components/account-setting-detail-client";
 import { InternalPageShell } from "@/components/internal-page-shell";
-import { getAccountSettings } from "@/lib/account-settings-store";
+import { getSyncedAccountSettings } from "@/lib/account-settings";
 import { getCurrentUser } from "@/lib/user-auth";
 import { getPricingContext } from "@/lib/pricing";
 
@@ -29,7 +29,7 @@ export default async function AccountSettingDetailPage({
     notFound();
   }
 
-  const initialSettings = await getAccountSettings(user.id);
+  const initialSettings = await getSyncedAccountSettings(user);
 
   return (
     <InternalPageShell pricing={pricing}>

@@ -17,16 +17,25 @@ type AccountSettingsResponse = {
 const PHONE_MODAL_DISMISSED_KEY = "afripay-phone-required-modal-dismissed";
 
 function normalizePhone(value: string) {
-  return value.trim();
+  return value
+    .replace(/[\u00A0\u2000-\u200B\u202F\u205F\u3000]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function isValidPhone(value: string) {
   const normalized = normalizePhone(value);
-  if (normalized.length < 8) {
+  const digitsOnly = normalized.replace(/\D/g, "");
+
+  if (digitsOnly.length < 8) {
     return false;
   }
 
-  return /^[+\d\s().-]+$/.test(normalized);
+  if (digitsOnly.length > 16) {
+    return false;
+  }
+
+  return /^\+?[\d\s().-]+$/.test(normalized);
 }
 
 export function AccountPhoneRequiredModal() {

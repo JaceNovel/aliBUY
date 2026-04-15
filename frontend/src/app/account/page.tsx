@@ -7,7 +7,7 @@ import { accountCards } from "@/app/account/compte/account-links";
 import { CopyUserIdButton } from "@/components/copy-user-id-button";
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { UserLogoutButton } from "@/components/user-logout-button";
-import { getAccountSettings } from "@/lib/account-settings-store";
+import { getSyncedAccountSettings } from "@/lib/account-settings";
 import { getCurrentUser } from "@/lib/user-auth";
 import { getPricingContext } from "@/lib/pricing";
 import { getDisplayInitial, getMaskedEmail } from "@/lib/user-session";
@@ -32,7 +32,7 @@ export default async function AccountPage() {
 
   const displayInitial = getDisplayInitial(user.displayName).toLowerCase();
   const maskedEmail = getMaskedEmail(user.email);
-  const settings = await getAccountSettings(user.id);
+  const settings = await getSyncedAccountSettings(user);
 
   return (
     <InternalPageShell pricing={pricing}>
