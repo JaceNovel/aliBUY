@@ -250,6 +250,7 @@ class ProductService
             'variantSkus' => $metadata['variantSkus'] ?? [],
             'specs' => $metadata['specs'] ?? [],
             'keywords' => $metadata['keywords'] ?? [],
+            'rawPayload' => is_array($metadata['rawPayload'] ?? null) ? $metadata['rawPayload'] : null,
         ];
     }
 

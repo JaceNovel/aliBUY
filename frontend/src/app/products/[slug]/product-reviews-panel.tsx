@@ -96,6 +96,7 @@ export function ProductReviewsPanel({ productSlug, productTitle, locale, initial
   const [feedback, setFeedback] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const customerReviewCount = summary?.customerCount ?? reviews.filter((entry) => entry.source === "customer").length;
 
   const photoPreviews = useMemo(
     () => photoFiles.map((file) => ({
@@ -236,9 +237,6 @@ export function ProductReviewsPanel({ productSlug, productTitle, locale, initial
         <div>
           <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#907e70]">Avis clients</div>
           <h2 className="mt-3 text-[24px] font-bold text-[#221813] sm:text-[28px]">Tous les avis sur {productTitle}</h2>
-          <p className="mt-3 max-w-[760px] text-[14px] leading-6 text-[#5f5145]">
-            Les avis AfriPay vérifiés et les retours AliExpress récupérables depuis la fiche publique sont réunis ici.
-          </p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
@@ -263,8 +261,7 @@ export function ProductReviewsPanel({ productSlug, productTitle, locale, initial
       <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
         <div className="space-y-4">
           <div className="flex flex-wrap gap-3 text-[13px] font-medium text-[#5f5145]">
-            <span className="rounded-full bg-[#fff5e8] px-3 py-2">AfriPay vérifiés: {summary?.customerCount ?? reviews.filter((entry) => entry.source === "customer").length}</span>
-            <span className="rounded-full bg-[#f4f7fb] px-3 py-2">AliExpress: {summary?.externalCount ?? reviews.filter((entry) => entry.source === "aliexpress").length}</span>
+            <span className="rounded-full bg-[#fff5e8] px-3 py-2">Avis clients: {customerReviewCount}</span>
           </div>
 
           {reviews.length === 0 ? (
@@ -283,7 +280,7 @@ export function ProductReviewsPanel({ productSlug, productTitle, locale, initial
                           "rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em]",
                           review.source === "customer" ? "bg-[#e8f7ee] text-[#117a37]" : "bg-[#eef4ff] text-[#305b8a]",
                         ].join(" ")}>
-                          {review.source === "customer" ? "AfriPay vérifié" : "AliExpress"}
+                          {review.source === "customer" ? "Avis client vérifié" : "Avis catalogue"}
                         </span>
                         {review.verifiedPurchase ? <span className="rounded-full bg-[#fff4da] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a6700]">Achat vérifié</span> : null}
                       </div>

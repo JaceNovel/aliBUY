@@ -268,6 +268,42 @@ async function fetchRemoteCatalogProductDetail(slug: string) {
       return null;
     }
 
+    const title = typeof candidate.title === "string" && candidate.title.trim() ? candidate.title.trim() : slug;
+    const shortTitle = typeof candidate.shortTitle === "string" && candidate.shortTitle.trim() ? candidate.shortTitle.trim() : title;
+    const query = typeof candidate.query === "string" && candidate.query.trim() ? candidate.query.trim() : undefined;
+    const keywords = Array.isArray(candidate.keywords)
+      ? candidate.keywords.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+      : [];
+    const categorySlug = typeof candidate.categorySlug === "string" && candidate.categorySlug.trim() ? candidate.categorySlug.trim() : undefined;
+    const categoryTitle = typeof candidate.categoryTitle === "string" && candidate.categoryTitle.trim() ? candidate.categoryTitle.trim() : undefined;
+    const categoryPath = Array.isArray(candidate.categoryPath)
+      ? candidate.categoryPath.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+      : undefined;
+    const specs = Array.isArray(candidate.specs) ? candidate.specs as ProductCatalogItem["specs"] : [];
+    const packaging = typeof candidate.packaging === "string" && candidate.packaging.trim() ? candidate.packaging.trim() : "Selon catalogue";
+    const unit = typeof candidate.unit === "string" && candidate.unit.trim() ? candidate.unit.trim() : "piece";
+    const moq = typeof candidate.moq === "number" && Number.isFinite(candidate.moq) && candidate.moq > 0 ? candidate.moq : 1;
+    const rawLotCbm = typeof candidate.lotCbm === "string" && candidate.lotCbm.trim() ? candidate.lotCbm.trim() : undefined;
+    const rawPackageDimensionsCm = normalizePackageDimensions(candidate.packageDimensionsCm);
+    const weightContext = {
+      title,
+      shortTitle,
+      query,
+      keywords,
+      categorySlug,
+      categoryTitle,
+      categoryPath,
+      packaging,
+      unit,
+      specs: specs.map((spec) => `${spec.label} ${spec.value}`),
+      lotCbm: rawLotCbm,
+      moq,
+    };
+    const packageDimensionsCm = resolveCoherentPackageDimensionsCm(rawPackageDimensionsCm, weightContext);
+    const rawWeightGrams = typeof candidate.itemWeightGrams === "number" && Number.isFinite(candidate.itemWeightGrams) ? candidate.itemWeightGrams : undefined;
+    const itemWeightGrams = resolveCoherentItemWeightGrams(rawWeightGrams, weightContext);
+    const lotCbm = rawLotCbm && isPositiveLotCbm(rawLotCbm) ? rawLotCbm : calculateLotCbm(packageDimensionsCm);
+
     const gallery = buildRichGallery({
       image,
       gallery: Array.isArray(candidate.gallery)
@@ -278,8 +314,8 @@ async function fetchRemoteCatalogProductDetail(slug: string) {
 
     return {
       slug,
-      title: typeof candidate.title === "string" && candidate.title.trim() ? candidate.title.trim() : slug,
-      shortTitle: typeof candidate.shortTitle === "string" && candidate.shortTitle.trim() ? candidate.shortTitle.trim() : (typeof candidate.title === "string" && candidate.title.trim() ? candidate.title.trim() : slug),
+      title,
+      shortTitle,
       image,
       gallery: gallery.length > 0 ? gallery : [image],
       videoUrl: typeof candidate.videoUrl === "string" && candidate.videoUrl.trim() ? candidate.videoUrl.trim() : undefined,
@@ -287,15 +323,15 @@ async function fetchRemoteCatalogProductDetail(slug: string) {
       badge: typeof candidate.badge === "string" && candidate.badge.trim() ? candidate.badge.trim() : undefined,
       minUsd: typeof candidate.minUsd === "number" && Number.isFinite(candidate.minUsd) ? candidate.minUsd : 0,
       maxUsd: typeof candidate.maxUsd === "number" && Number.isFinite(candidate.maxUsd) ? candidate.maxUsd : undefined,
-      moq: typeof candidate.moq === "number" && Number.isFinite(candidate.moq) && candidate.moq > 0 ? candidate.moq : 1,
+      moq,
       moqVerified: typeof candidate.moqVerified === "boolean" ? candidate.moqVerified : true,
       weightVerified: typeof candidate.weightVerified === "boolean" ? candidate.weightVerified : undefined,
       priceVerified: typeof candidate.priceVerified === "boolean" ? candidate.priceVerified : undefined,
-      unit: typeof candidate.unit === "string" && candidate.unit.trim() ? candidate.unit.trim() : "piece",
-      packaging: typeof candidate.packaging === "string" && candidate.packaging.trim() ? candidate.packaging.trim() : "Selon catalogue",
-      packageDimensionsCm: normalizePackageDimensions(candidate.packageDimensionsCm),
-      itemWeightGrams: typeof candidate.itemWeightGrams === "number" && Number.isFinite(candidate.itemWeightGrams) ? candidate.itemWeightGrams : 0,
-      lotCbm: typeof candidate.lotCbm === "string" && candidate.lotCbm.trim() ? candidate.lotCbm.trim() : "0",
+      unit,
+      packaging,
+      packageDimensionsCm,
+      itemWeightGrams,
+      lotCbm,
       supplierName: typeof candidate.supplierName === "string" && candidate.supplierName.trim() ? candidate.supplierName.trim() : "Selection AfriPay+",
       supplierLocation: typeof candidate.supplierLocation === "string" && candidate.supplierLocation.trim() ? candidate.supplierLocation.trim() : "CN",
       responseTime: typeof candidate.responseTime === "string" && candidate.responseTime.trim() ? candidate.responseTime.trim() : "Sous 24 h",
@@ -311,8 +347,8 @@ async function fetchRemoteCatalogProductDetail(slug: string) {
       variantPricing: Array.isArray(candidate.variantPricing) ? candidate.variantPricing as ProductCatalogItem["variantPricing"] : [],
       variantSkus: Array.isArray(candidate.variantSkus) ? candidate.variantSkus as ProductCatalogItem["variantSkus"] : [],
       tiers: Array.isArray(candidate.tiers) ? candidate.tiers as ProductCatalogItem["tiers"] : [{ quantityLabel: "1+", priceUsd: typeof candidate.minUsd === "number" ? candidate.minUsd : 0 }],
-      specs: Array.isArray(candidate.specs) ? candidate.specs as ProductCatalogItem["specs"] : [],
-      keywords: Array.isArray(candidate.keywords) ? candidate.keywords.filter((entry): entry is string => typeof entry === "string") : [],
+      specs,
+      keywords,
       sourceUrl: typeof candidate.sourceUrl === "string" && candidate.sourceUrl.trim() ? candidate.sourceUrl.trim() : undefined,
       reviewSummary: candidate.reviewSummary && typeof candidate.reviewSummary === "object" ? candidate.reviewSummary as ProductCatalogItem["reviewSummary"] : undefined,
       reviews: Array.isArray(candidate.reviews) ? candidate.reviews as ProductCatalogItem["reviews"] : undefined,

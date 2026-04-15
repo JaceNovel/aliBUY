@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getCatalogProducts } from "@/lib/catalog-service";
+import { getCatalogProductBySlug, getCatalogProducts } from "@/lib/catalog-service";
 import type { ProductCatalogItem } from "@/lib/products-data";
 import {
   buildCartItemKey,
@@ -17,6 +17,20 @@ import {
   type VariantSelection,
 } from "@/lib/alibaba-sourcing";
 import { resolveVariantSku } from "@/lib/product-variant-pricing";
+
+function hasLogisticsMetrics(product: ProductCatalogItem) {
+  const hasWeight = typeof product.itemWeightGrams === "number" && product.itemWeightGrams > 0;
+  const hasDimensions = Boolean(
+    product.packageDimensionsCm
+    && product.packageDimensionsCm.lengthCm > 0
+    && product.packageDimensionsCm.widthCm > 0
+    && product.packageDimensionsCm.heightCm > 0,
+  );
+  const parsedLotCbm = typeof product.lotCbm === "string" ? Number(product.lotCbm.replace(",", ".")) : 0;
+  const hasLotCbm = Number.isFinite(parsedLotCbm) && parsedLotCbm > 0;
+
+  return hasWeight && (hasDimensions || hasLotCbm);
+}
 
 function resolveProductVariantSelection(product: ProductCatalogItem, selection?: VariantSelection) {
   const normalizedSelection = normalizeVariantSelection(selection);
@@ -85,14 +99,35 @@ export async function createAlibabaSourcingQuote(
   options?: { disableFreeAir?: boolean; deliveryMode?: SourcingDeliveryMode },
 ) {
   const products = await getCatalogProducts();
+  const productsBySlug = new Map(products.map((product) => [product.slug, product]));
+  const productDetailCache = new Map<string, Promise<ProductCatalogItem | null>>();
   const totalQuantityBySlug = new Map<string, number>();
   inputItems.forEach((item) => {
     totalQuantityBySlug.set(item.slug, (totalQuantityBySlug.get(item.slug) ?? 0) + item.quantity);
   });
   const validItems = inputItems
-    .map((item) => {
-      const product = products.find((entry) => entry.slug === item.slug);
-      if (!product || item.quantity <= 0) {
+    .map(async (item) => {
+      const fallbackProduct = productsBySlug.get(item.slug);
+      if (!fallbackProduct || item.quantity <= 0) {
+        return null;
+      }
+
+      const product = hasLogisticsMetrics(fallbackProduct)
+        ? fallbackProduct
+        : await (() => {
+            const cached = productDetailCache.get(item.slug);
+            if (cached) {
+              return cached;
+            }
+
+            const request = getCatalogProductBySlug(item.slug)
+              .then((resolvedProduct) => resolvedProduct ?? fallbackProduct)
+              .catch(() => fallbackProduct);
+            productDetailCache.set(item.slug, request);
+            return request;
+          })();
+
+      if (!product) {
         return null;
       }
 
@@ -124,13 +159,16 @@ export async function createAlibabaSourcingQuote(
         finalUnitPriceFcfa,
       };
     })
+    ;
+
+  const resolvedValidItems = (await Promise.all(validItems))
     .filter((item): item is NonNullable<typeof item> => Boolean(item));
 
-  if (validItems.length === 0) {
+  if (resolvedValidItems.length === 0) {
     return createEmptyQuote(settings);
   }
 
-  const items: CartComputedItem[] = validItems.map((item) => ({
+  const items: CartComputedItem[] = resolvedValidItems.map((item) => ({
     cartKey: item.cartKey,
     slug: item.product.slug,
     title: item.selectionLabel ? `${item.product.shortTitle} · ${item.selectionLabel}` : item.product.shortTitle,
@@ -154,8 +192,8 @@ export async function createAlibabaSourcingQuote(
   }));
 
   const cartProductsTotalFcfa = items.reduce((sum, item) => sum + item.finalLinePriceFcfa, 0);
-  const totalWeightKg = Number(validItems.reduce((sum, item) => sum + item.weightKg * item.quantity, 0).toFixed(3));
-  const totalCbm = Number(validItems.reduce((sum, item) => sum + item.volumeCbm * item.quantity, 0).toFixed(4));
+  const totalWeightKg = Number(resolvedValidItems.reduce((sum, item) => sum + item.weightKg * item.quantity, 0).toFixed(3));
+  const totalCbm = Number(resolvedValidItems.reduce((sum, item) => sum + item.volumeCbm * item.quantity, 0).toFixed(4));
   const airCostFcfa = Math.ceil(totalWeightKg * settings.airRatePerKgFcfa);
   const seaCostFcfa = Math.ceil(totalCbm * settings.seaSellRatePerCbmFcfa);
   const shouldPreferSea = totalWeightKg > settings.airWeightThresholdKg;
