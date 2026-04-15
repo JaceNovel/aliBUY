@@ -56,6 +56,41 @@ class OrderController extends Controller
         ]);
     }
 
+    public function adminUpdateSourcing(Order $order, Request $request): JsonResponse
+    {
+        $user = $request->user('sanctum');
+
+        if (! $user || ! $user->hasAdminAccess()) {
+            abort(403, 'Acces admin requis.');
+        }
+
+        $payload = $request->json()->all();
+        $result = $this->orders->updateAdminSourcingOrder($order->loadMissing('payments', 'user'), is_array($payload) ? $payload : []);
+
+        return response()->json($result);
+    }
+
+    public function adminRegisterDeliveryNoteExport(Order $order, Request $request): JsonResponse
+    {
+        $user = $request->user('sanctum');
+
+        if (! $user || ! $user->hasAdminAccess()) {
+            abort(403, 'Acces admin requis.');
+        }
+
+        $validated = $request->validate([
+            'disposition' => ['nullable', 'in:inline,attachment'],
+        ]);
+
+        return response()->json(
+            $this->orders->registerAdminDeliveryNoteExport(
+                $order,
+                (string) ($validated['disposition'] ?? 'inline'),
+                $user->email
+            )
+        );
+    }
+
     public function show(Order $order): JsonResponse
     {
         $user = request()->user('sanctum');

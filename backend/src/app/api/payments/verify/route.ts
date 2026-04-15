@@ -1,15 +1,27 @@
 import { NextResponse } from "next/server";
 
 import { API_URL, buildApiUrl } from "@/lib/api";
+import { getManyChatAccountProfile } from "@/lib/account-manychat";
 import { getBackendAccessTokenFromCookies } from "@/lib/backend-access-token";
 import { verifyMonerooPayment as verifyLocalMonerooPayment } from "@/lib/moneroo";
 import { persistMonerooPaymentToOrder } from "@/lib/moneroo-sourcing";
 import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
 import { getSourcingOrderById } from "@/lib/sourcing-store";
+import { getSourcingOrderMeta, withSourcingOrderMeta } from "@/lib/alibaba-sourcing";
 import { getCurrentUser } from "@/lib/user-auth";
 
 async function requireUser() {
   return getCurrentUser().catch(() => null);
+}
+
+function emptyManyChatAccountProfile() {
+  return {
+    phone: undefined,
+    connectedWhatsapp: undefined,
+    manychatSubscriberId: undefined,
+    manychatFlowId: undefined,
+    manychatPaidTagId: undefined,
+  };
 }
 
 export async function POST(request: Request) {
@@ -49,8 +61,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Aucun paiement Moneroo n'est associe a cette commande." }, { status: 422 });
     }
 
+    const accountManyChat = await getManyChatAccountProfile(user).catch(() => emptyManyChatAccountProfile());
+    const currentManyChat = getSourcingOrderMeta(order).manychat;
+    const orderWithManyChat = !currentManyChat?.subscriberId && accountManyChat.manychatSubscriberId
+      ? withSourcingOrderMeta(order, {
+          manychat: {
+            subscriberId: accountManyChat.manychatSubscriberId,
+            flowId: accountManyChat.manychatFlowId,
+            paidTagId: accountManyChat.manychatPaidTagId,
+          },
+        })
+      : order;
+
     const payment = await verifyLocalMonerooPayment(paymentId);
-    const nextOrder = await persistMonerooPaymentToOrder({ order, payment, verified: true });
+    const nextOrder = await persistMonerooPaymentToOrder({ order: orderWithManyChat, payment, verified: true });
 
     return NextResponse.json({
       order: nextOrder,

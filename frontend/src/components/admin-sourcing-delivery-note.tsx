@@ -1,5 +1,4 @@
 import Image from "next/image";
-import QRCode from "qrcode";
 
 import type { SourcingOrder } from "@/lib/alibaba-sourcing";
 import {
@@ -13,10 +12,9 @@ import type { AdminOrderParcelSnapshot } from "@/lib/admin-order-parcel";
 import {
   getDeliveryNoteCourierContact,
   getDeliveryNoteCustomerAddressLines,
-  getDeliveryNoteCustomsDetails,
   getDeliveryNoteDocumentNumber,
-  getDeliveryNoteFingerprint,
-  getDeliveryNoteVerificationPayload,
+  getDeliveryNoteTradeAreaDescription,
+  getDeliveryNoteTradeAreaLabel,
 } from "@/lib/admin-sourcing-delivery-note-data";
 import { SITE_LOGO_PATH } from "@/lib/site-config";
 
@@ -75,51 +73,12 @@ function getPaymentStatusLabel(order: SourcingOrder) {
       return "Non regle";
   }
 }
-
-async function buildVerificationAssets(order: SourcingOrder) {
-  const verificationPayload = getDeliveryNoteVerificationPayload(order);
-
-  const qrCodeDataUrl = await QRCode.toDataURL(verificationPayload, {
-    errorCorrectionLevel: "M",
-    margin: 1,
-    width: 176,
-    color: {
-      dark: "#14213D",
-      light: "#FFFFFF",
-    },
-  });
-
-  return {
-    qrCodeDataUrl,
-    digitalFingerprint: getDeliveryNoteFingerprint(order),
-  };
-}
-
-function OfficialStamp() {
-  return (
-    <svg viewBox="0 0 220 220" className="h-32 w-32 text-[#b54708]" aria-label="Cachet officiel AfriPay">
-      <defs>
-        <path id="afripay-stamp-circle" d="M 110, 110 m -80, 0 a 80,80 0 1,1 160,0 a 80,80 0 1,1 -160,0" />
-      </defs>
-      <circle cx="110" cy="110" r="96" fill="none" stroke="currentColor" strokeWidth="8" opacity="0.9" />
-      <circle cx="110" cy="110" r="72" fill="none" stroke="currentColor" strokeWidth="3" opacity="0.75" strokeDasharray="5 6" />
-      <text fill="currentColor" fontSize="14" fontWeight="700" letterSpacing="2.4">
-        <textPath href="#afripay-stamp-circle" startOffset="10%">AFRIPAY SOURCING OFFICIEL</textPath>
-      </text>
-      <text x="110" y="98" textAnchor="middle" fill="currentColor" fontSize="18" fontWeight="800">VALIDE</text>
-      <text x="110" y="122" textAnchor="middle" fill="currentColor" fontSize="11" fontWeight="700">REMIS POUR DOUANE</text>
-      <text x="110" y="142" textAnchor="middle" fill="currentColor" fontSize="11" fontWeight="700">ET LIVRAISON</text>
-      <path d="M56 162h108" stroke="currentColor" strokeWidth="3" strokeLinecap="round" opacity="0.7" />
-    </svg>
-  );
-}
-
-export async function AdminSourcingDeliveryNote({ order, parcelSnapshot }: { order: SourcingOrder; parcelSnapshot: AdminOrderParcelSnapshot }) {
+export function AdminSourcingDeliveryNote({ order, parcelSnapshot }: { order: SourcingOrder; parcelSnapshot: AdminOrderParcelSnapshot }) {
   const customerAddressLines = getDeliveryNoteCustomerAddressLines(order, parcelSnapshot);
-  const supplierSummary = parcelSnapshot.supplierNames.length > 0 ? parcelSnapshot.supplierNames.join(", ") : "Approvisionnement multi-sources";
   const courierContact = getDeliveryNoteCourierContact(order);
-  const verification = await buildVerificationAssets(order);
   const documentNumber = getDeliveryNoteDocumentNumber(order);
+  const tradeAreaLabel = getDeliveryNoteTradeAreaLabel(order);
+  const tradeAreaDescription = getDeliveryNoteTradeAreaDescription(order);
 
   return (
     <article className="mx-auto overflow-hidden rounded-[24px] border border-[#d9e2ec] bg-white text-[#14213d] shadow-[0_18px_45px_rgba(20,33,61,0.08)] print:min-h-[273mm] print:w-[186mm] print:rounded-none print:border-0 print:shadow-none">
@@ -138,7 +97,7 @@ export async function AdminSourcingDeliveryNote({ order, parcelSnapshot }: { ord
             </div>
             <h1 className="mt-3 text-[30px] font-black tracking-[-0.05em] text-[#14213d]">{order.orderNumber}</h1>
             <p className="mt-3 max-w-2xl text-[13px] leading-6 text-[#475467]">
-              Document de remise client pour expedition hors Union europeenne. Il reprend la commande, les informations de livraison et les espaces de validation a signer par l'entreprise, le livreur et le client.
+              Bon de remise client. Il reprend l'essentiel de la commande, de la livraison et du suivi logistique pour impression rapide.
             </p>
           </div>
 
@@ -152,6 +111,7 @@ export async function AdminSourcingDeliveryNote({ order, parcelSnapshot }: { ord
             <div className="mt-2 text-[12px] leading-5 text-[#475467]">Numero documentaire: {documentNumber}</div>
             <div className="mt-2 text-[12px] leading-5 text-[#475467]">Reference interne: {order.id}</div>
             <div className="mt-1 text-[12px] leading-5 text-[#475467]">Emission: {formatDateTime(order.updatedAt || order.createdAt)}</div>
+            <div className="mt-1 text-[12px] leading-5 text-[#475467]">Zone de livraison: {tradeAreaLabel}</div>
           </div>
         </div>
       </div>
@@ -170,6 +130,7 @@ export async function AdminSourcingDeliveryNote({ order, parcelSnapshot }: { ord
             <div className="mt-2 text-[16px] font-bold text-[#14213d]">{parcelSnapshot.routing.destinationLabel}</div>
             <div className="mt-1 text-[13px] text-[#475467]">{getShippingMethodLabel(order)}</div>
             <div className="mt-1 text-[13px] text-[#475467]">Remise: {parcelSnapshot.routing.pickupLabel}</div>
+            <div className="mt-1 text-[13px] text-[#475467]">{tradeAreaDescription}</div>
           </div>
 
           <div className="rounded-[18px] border border-[#e5ebf2] bg-[#fbfcfe] px-4 py-4">
@@ -194,7 +155,7 @@ export async function AdminSourcingDeliveryNote({ order, parcelSnapshot }: { ord
                 <div className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[#98a2b3]">Commande client</div>
                 <div className="mt-1 text-[18px] font-bold text-[#14213d]">Detail des articles</div>
               </div>
-              <div className="rounded-full bg-[#fff3e8] px-3 py-1 text-[12px] font-semibold text-[#b54708]">Hors UE</div>
+              <div className="rounded-full bg-[#fff3e8] px-3 py-1 text-[12px] font-semibold text-[#b54708]">{tradeAreaLabel}</div>
             </div>
 
             <div className="mt-4 overflow-x-auto">
@@ -202,9 +163,9 @@ export async function AdminSourcingDeliveryNote({ order, parcelSnapshot }: { ord
                 <thead>
                   <tr className="text-[11px] uppercase tracking-[0.08em] text-[#98a2b3]">
                     <th className="border-b border-[#e5ebf2] py-3 pr-4 font-semibold">Article</th>
-                    <th className="border-b border-[#e5ebf2] py-3 pr-4 font-semibold">Description</th>
+                    <th className="border-b border-[#e5ebf2] py-3 pr-4 font-semibold">Details</th>
                     <th className="border-b border-[#e5ebf2] py-3 pr-4 font-semibold">Qté</th>
-                    <th className="border-b border-[#e5ebf2] py-3 pr-0 font-semibold">Observation</th>
+                    <th className="border-b border-[#e5ebf2] py-3 pr-0 font-semibold">Source</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -212,31 +173,17 @@ export async function AdminSourcingDeliveryNote({ order, parcelSnapshot }: { ord
                     <tr key={`${item.slug}-${index}`} className="align-top text-[13px] text-[#14213d]">
                       <td className="border-b border-[#eef2f6] py-4 pr-4">
                         <div className="font-semibold">{item.title}</div>
-                        {item.supplierName ? <div className="mt-1 text-[12px] text-[#667085]">Source: {item.supplierName}</div> : null}
-                        <div className="mt-3 rounded-[14px] border border-[#f7d9b5] bg-[#fff7ec] px-3 py-3 text-[12px] leading-5 text-[#8a4b16]">
-                          <div className="font-semibold uppercase tracking-[0.06em]">Nature de marchandise</div>
-                          <div className="mt-1 normal-case text-[#6b4a2f]">{getDeliveryNoteCustomsDetails(item).natureLabel}</div>
-                        </div>
+                        {item.image ? <div className="mt-1 text-[12px] text-[#667085]">Ref: {item.slug}</div> : null}
                       </td>
                       <td className="border-b border-[#eef2f6] py-4 pr-4 text-[#475467]">
                         <div>{item.selectionLabel || "Specification standard"}</div>
                         {item.packaging ? <div className="mt-1 text-[12px]">Conditionnement: {item.packaging}</div> : null}
-                        <div className="mt-3 rounded-[14px] border border-[#e5ebf2] bg-[#f8fbff] px-3 py-3 text-[12px] leading-5 text-[#475467]">
-                          <div className="font-semibold uppercase tracking-[0.06em] text-[#667085]">Documents douaniers</div>
-                          <div className="mt-1 space-y-1">
-                            {getDeliveryNoteCustomsDetails(item).documents.map((entry) => (
-                              <div key={entry}>{entry}</div>
-                            ))}
-                          </div>
-                        </div>
+                        {item.overview[0] ? <div className="mt-2 text-[12px] leading-5">{item.overview[0]}</div> : null}
                       </td>
                       <td className="border-b border-[#eef2f6] py-4 pr-4 font-semibold">{item.quantity}</td>
                       <td className="border-b border-[#eef2f6] py-4 pr-0 text-[#475467]">
-                        <div>{item.overview[0] || "Commande preparee conforme a la demande client."}</div>
-                        <div className="mt-3 rounded-[14px] border border-[#e5ebf2] bg-[#fbfcfe] px-3 py-3 text-[12px] leading-5 text-[#475467]">
-                          <div className="font-semibold uppercase tracking-[0.06em] text-[#667085]">Declaration douaniere</div>
-                          <div className="mt-1">{getDeliveryNoteCustomsDetails(item).declarationLabel}</div>
-                        </div>
+                        <div>{item.supplierName || "Approvisionnement multi-sources"}</div>
+                        {item.supplierLocation ? <div className="mt-1 text-[12px]">{item.supplierLocation}</div> : null}
                       </td>
                     </tr>
                   ))}
@@ -262,7 +209,7 @@ export async function AdminSourcingDeliveryNote({ order, parcelSnapshot }: { ord
             </section>
 
             <section className="rounded-[22px] border border-[#d9e2ec] bg-[#fbfcfe] px-5 py-5 print:break-inside-avoid">
-              <div className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[#98a2b3]">Coordonnees entreprise et livreur</div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[#98a2b3]">Contact logistique</div>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div className="rounded-[18px] border border-[#e5ebf2] bg-white px-4 py-4">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Entreprise</div>
@@ -283,7 +230,7 @@ export async function AdminSourcingDeliveryNote({ order, parcelSnapshot }: { ord
             </section>
 
             <section className="rounded-[22px] border border-[#d9e2ec] bg-[#fbfcfe] px-5 py-5">
-              <div className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[#98a2b3]">Montants declares</div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[#98a2b3]">Montants</div>
               <div className="mt-4 space-y-3 text-[14px] text-[#14213d]">
                 <div className="flex items-center justify-between gap-3">
                   <span>Valeur produits</span>
@@ -301,78 +248,12 @@ export async function AdminSourcingDeliveryNote({ order, parcelSnapshot }: { ord
             </section>
 
             <section className="rounded-[22px] border border-[#d9e2ec] bg-[#14213d] px-5 py-5 text-white">
-              <div className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[#d0d5dd]">Declaration</div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[#d0d5dd]">Observation logistique</div>
               <p className="mt-3 text-[13px] leading-6 text-white/88">
-                Le client reconnait avoir recu ou etre en attente de remise de la commande referencee ci-dessus, en bon etat apparent, pour un usage et une livraison hors Union europeenne. Toute observation complementaire peut etre ajoutee dans les zones de signature ci-dessous.
+                {parcelSnapshot.manualNote || "Commande prete pour remise client ou poursuite du suivi logistique AfriPay."}
               </p>
-              <div className="mt-4 text-[12px] leading-6 text-white/72">Approvisionnement: {supplierSummary}</div>
-              {parcelSnapshot.manualNote ? <div className="mt-2 text-[12px] leading-6 text-white/72">Observation logistique: {parcelSnapshot.manualNote}</div> : null}
+              <div className="mt-4 text-[12px] leading-6 text-white/72">Contact remise: {courierContact.courierName} · {courierContact.courierPhone}</div>
             </section>
-
-            <section className="relative overflow-hidden rounded-[22px] border border-[#d9e2ec] bg-[linear-gradient(180deg,#fffdf8_0%,#fff7ec_100%)] px-5 py-5 print:break-inside-avoid">
-              <div className="absolute right-3 top-1 hidden opacity-95 sm:block">
-                <OfficialStamp />
-              </div>
-              <div className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[#98a2b3]">Verification numerique</div>
-              <div className="mt-4 flex flex-wrap items-center gap-4">
-                <img src={verification.qrCodeDataUrl} alt={`QR code de verification ${order.orderNumber}`} className="h-28 w-28 rounded-[18px] border border-[#d9e2ec] bg-white p-2" />
-                <div className="min-w-[220px] flex-1">
-                  <div className="text-[14px] font-bold text-[#14213d]">QR code de verification du bon</div>
-                  <div className="mt-2 text-[12px] leading-5 text-[#475467]">Le QR code encode la reference commande, le client, le montant et l'horodatage du bon pour verification interne ou archivage PDF.</div>
-                  <div className="mt-3 rounded-[14px] border border-[#e5ebf2] bg-white px-3 py-3 text-[12px] font-semibold tracking-[0.06em] text-[#14213d]">Signature numerique: {verification.digitalFingerprint}</div>
-                  <div className="mt-2 text-[11px] leading-5 text-[#667085]">Usage recommande: impression A4 portrait pour remise client, archivage interne et presentation douaniere.</div>
-                </div>
-              </div>
-            </section>
-          </div>
-        </section>
-
-        <section className="rounded-[22px] border border-[#d9e2ec] bg-[linear-gradient(180deg,#ffffff_0%,#fbfcfe_100%)] px-5 py-5 print:break-inside-avoid">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <div className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[#98a2b3]">Validation de remise</div>
-              <div className="mt-1 text-[18px] font-bold text-[#14213d]">Signatures obligatoires</div>
-            </div>
-            <div className="text-[12px] text-[#667085]">Nom, date, cachet ou signature manuscrite</div>
-          </div>
-
-          <div className="mt-5 grid gap-4 lg:grid-cols-3">
-            {[
-              {
-                title: "Entreprise",
-                subtitle: AFRIPAY_COMPANY_NAME,
-                note: `Signature et cachet de l'entreprise confirmant la preparation et la remise du colis. Coordonnees: ${AFRIPAY_COMPANY_ADDRESS} · ${AFRIPAY_COMPANY_PHONE}.`,
-              },
-              {
-                title: "Livreur",
-                subtitle: courierContact.courierName,
-                note: `Signature du livreur confirmant la prise en charge ou la remise effective au client. Contact: ${courierContact.courierPhone}.`,
-              },
-              {
-                title: "Client",
-                subtitle: "Destinataire final",
-                note: "Signature du client confirmant la reception ou l'acceptation de la commande, avec possibilite d'indiquer une reserve si necessaire.",
-              },
-            ].map((block) => (
-              <div key={block.title} className="rounded-[20px] border border-[#d9e2ec] bg-white px-4 py-4">
-                <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">{block.title}</div>
-                <div className="mt-1 text-[16px] font-bold text-[#14213d]">{block.subtitle}</div>
-                <div className="mt-2 text-[12px] leading-5 text-[#667085]">{block.note}</div>
-                <div className="mt-6 h-24 rounded-[16px] border border-dashed border-[#cbd5e1] bg-[#fcfdff]" />
-                <div className="mt-4 flex items-center justify-between gap-3 text-[12px] text-[#667085]">
-                  <span>Nom:</span>
-                  <span>________________</span>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-3 text-[12px] text-[#667085]">
-                  <span>Date:</span>
-                  <span>________________</span>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-3 text-[12px] text-[#667085]">
-                  <span>Cachet / reserve:</span>
-                  <span>________________</span>
-                </div>
-              </div>
-            ))}
           </div>
         </section>
       </div>

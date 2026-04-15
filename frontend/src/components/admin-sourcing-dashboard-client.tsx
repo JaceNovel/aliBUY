@@ -469,7 +469,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
                           <button type="button" onClick={() => overrideDeliveryRoute(order.id, "forwarder", "china")} disabled={isPending || isRouteSelected(order, "forwarder", "china")} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">Mon transitaire AfriPay</button>
                           <button type="button" onClick={() => overrideDeliveryRoute(order.id, "forwarder", "lome")} disabled={isPending || isRouteSelected(order, "forwarder", "lome")} className="inline-flex h-9 items-center justify-center rounded-[12px] border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">Mon transitaire Lome</button>
                           <Link href={`/admin/orders/${encodeURIComponent(order.id)}/parcel`} className="font-semibold text-[#d85300] transition hover:opacity-80">Voir colis</Link>
-                          <Link href={`/admin/orders/${encodeURIComponent(order.id)}`} className="font-semibold text-[#ff6a00] transition hover:opacity-80">Ouvrir</Link>
+                          <Link href={`/admin/orders/${encodeURIComponent(order.id)}`} className="font-semibold text-[#ff6a00] transition hover:opacity-80">Ouvrir commande</Link>
                         </div>
                       </td>
                     </tr>
@@ -696,7 +696,8 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
                       <td className="py-3.5 pr-4">
                         <div className="flex flex-wrap gap-2">
                           <Link href={`/admin/orders/${encodeURIComponent(order.id)}/parcel`} className="font-semibold text-[#d85300] transition hover:opacity-80">Voir colis</Link>
-                          {canLaunch ? <button type="button" onClick={() => launchOrder(order.id)} disabled={isPending} className="inline-flex h-9 items-center justify-center rounded-[12px] bg-[#111827] px-3 text-[12px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">Lancer</button> : payUrls.length > 0 ? <Link href={payUrls[0]} target="_blank" className="font-semibold text-[#ff6a00] transition hover:opacity-80">Pay URL</Link> : "-"}
+                          <Link href={`/admin/orders/${encodeURIComponent(order.id)}`} className="font-semibold text-[#ff6a00] transition hover:opacity-80">Ouvrir commande</Link>
+                          {canLaunch ? <button type="button" onClick={() => launchOrder(order.id)} disabled={isPending} className="inline-flex h-9 items-center justify-center rounded-[12px] bg-[#111827] px-3 text-[12px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">Lancer DS</button> : payUrls.length > 0 ? <Link href={payUrls[0]} target="_blank" className="font-semibold text-[#ff6a00] transition hover:opacity-80">Pay URL</Link> : "-"}
                         </div>
                       </td>
                     </tr>

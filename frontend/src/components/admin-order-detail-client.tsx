@@ -71,6 +71,9 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
   const [proofForm, setProofForm] = useState({ role: "supplier_to_agent", title: "", note: "", actorLabel: "" });
   const [parcelNote, setParcelNote] = useState(parcelSnapshot.manualNote ?? "");
   const [parcelPhotoLabel, setParcelPhotoLabel] = useState("");
+  const [manychatSubscriberId, setManychatSubscriberId] = useState(initialMeta.manychat?.subscriberId ?? "");
+  const [manychatFlowId, setManychatFlowId] = useState(initialMeta.manychat?.flowId ?? "");
+  const [manychatPaidTagId, setManychatPaidTagId] = useState(initialMeta.manychat?.paidTagId ?? "");
   const [manualFulfillmentEnabled, setManualFulfillmentEnabled] = useState(initialMeta.manualFulfillment?.enabled === true || initialMeta.deliveryProfile?.unsupportedCountry === true);
   const [manualFulfillmentStatusLabel, setManualFulfillmentStatusLabel] = useState(initialMeta.manualFulfillment?.statusLabel ?? "");
   const [manualFulfillmentCheckpointLabel, setManualFulfillmentCheckpointLabel] = useState(initialMeta.manualFulfillment?.checkpointLabel ?? "");
@@ -95,6 +98,9 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
   }, [parcelSnapshot]);
 
   useEffect(() => {
+    setManychatSubscriberId(meta.manychat?.subscriberId ?? "");
+    setManychatFlowId(meta.manychat?.flowId ?? "");
+    setManychatPaidTagId(meta.manychat?.paidTagId ?? "");
     setManualFulfillmentEnabled(meta.manualFulfillment?.enabled === true || meta.deliveryProfile?.unsupportedCountry === true);
     setManualFulfillmentStatusLabel(meta.manualFulfillment?.statusLabel ?? "");
     setManualFulfillmentCheckpointLabel(meta.manualFulfillment?.checkpointLabel ?? "");
@@ -384,7 +390,7 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
         <article className="rounded-[20px] border border-[#e6eaf0] bg-white px-5 py-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
           <div className="flex items-center gap-3 text-[18px] font-bold text-[#1f2937]">
             <MessageCircle className="h-5 w-5 text-[#16a34a]" />
-            Liaison WhatsApp
+            Liaison ManyChat / WhatsApp
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <span
@@ -421,11 +427,34 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
               </button>
             )}
           </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">
+              Subscriber ManyChat
+              <input value={manychatSubscriberId} onChange={(event) => setManychatSubscriberId(event.target.value)} placeholder="Ex: 123456789" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#16a34a]" />
+            </label>
+            <label className="text-[13px] font-semibold text-[#344054]">
+              Flow suivi
+              <input value={manychatFlowId} onChange={(event) => setManychatFlowId(event.target.value)} placeholder="Optionnel" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#16a34a]" />
+            </label>
+            <label className="text-[13px] font-semibold text-[#344054]">
+              Tag paiement
+              <input value={manychatPaidTagId} onChange={(event) => setManychatPaidTagId(event.target.value)} placeholder="Optionnel" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#16a34a]" />
+            </label>
+          </div>
+          <button
+            type="button"
+            onClick={() => void submitPatch({ action: "update-manychat-link", subscriberId: manychatSubscriberId, flowId: manychatFlowId, paidTagId: manychatPaidTagId })}
+            disabled={isPending}
+            className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            <Save className="h-4 w-4" />
+            Enregistrer la liaison ManyChat
+          </button>
           <div className="mt-4 rounded-[16px] bg-[#fafbfd] px-4 py-4 text-[13px] leading-6 text-[#667085] ring-1 ring-[#edf1f6]">
             {whatsappLinked
-              ? `Les mises à jour logistiques peuvent partir automatiquement et manuellement sur WhatsApp.${whatsappSyncDate ? ` Dernier envoi: ${new Date(whatsappSyncDate).toLocaleString("fr-FR")}.` : ""}`
+              ? `Les mises à jour logistiques peuvent partir automatiquement et manuellement via ManyChat et WhatsApp.${whatsappSyncDate ? ` Dernier envoi: ${new Date(whatsappSyncDate).toLocaleString("fr-FR")}.` : ""}`
               : whatsappFallbackHref
-                ? "Aucun subscriber ManyChat n'est relié. Un fallback d'ouverture directe WhatsApp vers le numéro client est disponible avec message prérempli."
+                ? "Aucun subscriber ManyChat n'est relié. Renseignez-le ci-dessus pour les suivis automatiques, ou utilisez le fallback WhatsApp avec message prérempli."
                 : "Cette commande n'est pas encore reliée à un subscriber WhatsApp et aucun numéro client exploitable n'est disponible pour ouvrir WhatsApp."}
           </div>
         </article>
@@ -483,7 +512,7 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
               disabled={isPending}
               className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-70"
             >
-              Lancer le paiement achat
+              Lancer DS maintenant
             </button>
           ) : null}
           {!canLaunchSupplierPayment && payUrls.length > 0 ? (
@@ -566,6 +595,16 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
             <div className="mt-1 text-[13px] text-[#667085]">Vue rapide du produit source, des photos disponibles et des informations de conditionnement pour cette commande.</div>
           </div>
           <div className="flex flex-wrap gap-2">
+            {canLaunchSupplierPayment ? (
+              <button
+                type="button"
+                onClick={() => void submitPatch({ action: "launch-supplier-payment" })}
+                disabled={isPending}
+                className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                Lancer DS ici
+              </button>
+            ) : null}
             {parcelState.parcelHref ? (
               <Link href={parcelState.parcelHref} className="inline-flex h-11 items-center justify-center rounded-[14px] border border-[#d7dce5] bg-white px-5 text-[14px] font-semibold text-[#1f2937] transition hover:border-[#ff6a5b] hover:text-[#ff6a5b]">
                 Voir colis

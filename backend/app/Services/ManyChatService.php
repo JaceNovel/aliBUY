@@ -85,6 +85,69 @@ class ManyChatService
         }
     }
 
+    public function sendLogisticsUpdate(Order $order, string $title, ?string $detail = null): bool
+    {
+        $meta = is_array($order->meta) ? $order->meta : [];
+        $manychat = $this->resolveManyChatContext($order);
+        $apiKey = trim((string) config('services.manychat.api_key'));
+        $subscriberId = (string) ($manychat['subscriberId'] ?? '');
+        $normalizedTitle = trim($title);
+
+        if ($apiKey === '') {
+            $this->logSkipped($order, 'missing_api_key');
+
+            return false;
+        }
+
+        if ($subscriberId === '' || $normalizedTitle === '') {
+            $this->logSkipped($order, 'missing_logistics_context');
+
+            return false;
+        }
+
+        try {
+            $trackingCode = $this->buildTrackingCode($order);
+            $this->setConfiguredCustomFields($subscriberId, $order);
+            $this->setConfiguredLogisticsCustomFields($subscriberId, $trackingCode, $normalizedTitle);
+
+            $response = $this->post('/fb/sending/sendContent', [
+                'subscriber_id' => $subscriberId,
+                'data' => [
+                    'text' => $this->buildLogisticsMessage($order, $normalizedTitle, $detail),
+                ],
+                'message_tag' => trim((string) config('services.manychat.default_message_tag', 'ACCOUNT_UPDATE')) ?: 'ACCOUNT_UPDATE',
+            ]);
+
+            $meta['manychat'] = [
+                ...$manychat,
+                'subscriberId' => $subscriberId,
+                'logisticsLastSentAt' => now()->toIso8601String(),
+                'logisticsLastStatusSent' => $normalizedTitle,
+                'lastLogisticsResponse' => $response,
+            ];
+
+            $order->forceFill(['meta' => $meta])->save();
+
+            Log::info('manychat.logistics.sent', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'subscriber_id' => $subscriberId,
+                'title' => $normalizedTitle,
+            ]);
+
+            return true;
+        } catch (Throwable $exception) {
+            Log::warning('manychat.logistics.failed', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'subscriber_id' => $subscriberId,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
+
     protected function resolveManyChatContext(Order $order): array
     {
         $meta = is_array($order->meta) ? $order->meta : [];
@@ -123,12 +186,55 @@ class ManyChatService
         }
     }
 
+    protected function setConfiguredLogisticsCustomFields(string $subscriberId, ?string $trackingCode, string $statusLabel): void
+    {
+        $fields = [
+            'tracking_code_field' => $trackingCode,
+            'logistics_status_field' => $statusLabel,
+        ];
+
+        foreach ($fields as $configKey => $value) {
+            $fieldId = trim((string) config('services.manychat.'.$configKey));
+            if ($fieldId === '' || $value === null || $value === '') {
+                continue;
+            }
+
+            $this->post('/fb/subscriber/setCustomField', [
+                'subscriber_id' => $subscriberId,
+                'field_id' => ctype_digit($fieldId) ? (int) $fieldId : $fieldId,
+                'field_value' => $value,
+            ]);
+        }
+    }
+
     protected function buildProductsLabel(Order $order): string
     {
         return collect($order->items ?? [])
             ->map(fn (array $item) => trim((string) ($item['title'] ?? $item['productName'] ?? 'Produit')).' x'.(int) ($item['quantity'] ?? 1))
             ->filter()
             ->join(', ');
+    }
+
+    protected function buildTrackingCode(Order $order): ?string
+    {
+        $base = preg_replace('/[^A-Z0-9]+/i', '', (string) $order->order_number);
+        $base = strtoupper(substr((string) $base, -10));
+
+        return $base !== '' ? 'AFP-'.$base : null;
+    }
+
+    protected function buildLogisticsMessage(Order $order, string $title, ?string $detail = null): string
+    {
+        $trackingCode = $this->buildTrackingCode($order);
+        $lines = array_values(array_filter([
+            'AfriPay - Mise a jour logistique',
+            'Commande: '.(string) $order->order_number,
+            'Statut: '.$title,
+            $trackingCode ? 'Tracking: '.$trackingCode : null,
+            $detail ? trim($detail) : null,
+        ], fn ($entry) => is_string($entry) && trim($entry) !== ''));
+
+        return implode("\n", $lines);
     }
 
     protected function post(string $path, array $payload): array

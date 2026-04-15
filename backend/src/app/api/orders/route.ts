@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { API_URL, buildApiUrl, type ApiOrder } from "@/lib/api";
-import type { SourcingOrder } from "@/lib/alibaba-sourcing";
+import { getSourcingOrderMeta, type SourcingOrder } from "@/lib/alibaba-sourcing";
+import { getManyChatAccountProfile } from "@/lib/account-manychat";
 import { getBackendAccessTokenFromCookies } from "@/lib/backend-access-token";
 import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
 import { createCheckoutOrder } from "@/lib/sourcing-service";
@@ -9,6 +10,16 @@ import { getCurrentUser } from "@/lib/user-auth";
 
 async function requireUser() {
   return getCurrentUser().catch(() => null);
+}
+
+function emptyManyChatAccountProfile() {
+  return {
+    phone: undefined,
+    connectedWhatsapp: undefined,
+    manychatSubscriberId: undefined,
+    manychatFlowId: undefined,
+    manychatPaidTagId: undefined,
+  };
 }
 
 function mapSourcingOrderToApiOrder(order: SourcingOrder): ApiOrder {
@@ -46,11 +57,22 @@ export async function POST(request: Request) {
   const payload = await request.json().catch(() => null);
   const backendAccessToken = await getBackendAccessTokenFromCookies();
   if (user.authProvider === "clerk" || !API_URL || !backendAccessToken) {
+    const accountManyChat = await getManyChatAccountProfile(user).catch(() => emptyManyChatAccountProfile());
+    const input = payload && typeof payload === "object" ? payload : {};
     const order = await createCheckoutOrder({
-      ...(payload && typeof payload === "object" ? payload : {}),
+      ...input,
       userId: user.id,
       payerDisplayName: user.displayName,
       payerEmail: user.email,
+      manychatSubscriberId: typeof input.manychatSubscriberId === "string" && input.manychatSubscriberId.trim()
+        ? input.manychatSubscriberId
+        : accountManyChat.manychatSubscriberId,
+      manychatFlowId: typeof input.manychatFlowId === "string" && input.manychatFlowId.trim()
+        ? input.manychatFlowId
+        : accountManyChat.manychatFlowId,
+      manychatPaidTagId: typeof input.manychatPaidTagId === "string" && input.manychatPaidTagId.trim()
+        ? input.manychatPaidTagId
+        : accountManyChat.manychatPaidTagId,
     });
 
     return NextResponse.json({ order: mapSourcingOrderToApiOrder(order) }, { status: 201 });

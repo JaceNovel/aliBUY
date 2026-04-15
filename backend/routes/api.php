@@ -125,6 +125,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/admin/partner-orders/{order}/status', [PartnerOrderAdminController::class, 'updateStatus']);
     Route::get('/admin/orders', [OrderController::class, 'adminIndex']);
     Route::get('/admin/orders/{order}', [OrderController::class, 'adminShow']);
+    Route::patch('/admin/sourcing/orders/{order}', [OrderController::class, 'adminUpdateSourcing']);
+    Route::post('/admin/sourcing/orders/{order}/delivery-note', [OrderController::class, 'adminRegisterDeliveryNoteExport']);
     Route::get('/admin/users', [UserController::class, 'adminIndex']);
     Route::get('/admin/users/{user}', [UserController::class, 'adminShow']);
     Route::apiResource('orders', OrderController::class)->only(['index', 'store', 'show']);

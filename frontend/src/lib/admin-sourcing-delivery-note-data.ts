@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { getSourcingOrderMeta, type SourcingDeliveryNoteExportRecord, type SourcingOrder } from "@/lib/alibaba-sourcing";
+import { canonicalizeCountryCode } from "@/lib/country-utils";
 import {
   AFRIPAY_COMPANY_NAME,
   AFRIPAY_COMPANY_PHONE,
@@ -16,6 +17,11 @@ export type DeliveryNoteCustomsDetails = {
   declarationLabel: string;
 };
 
+const EUROPEAN_UNION_COUNTRY_CODES = new Set([
+  "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT",
+  "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+]);
+
 export function getDeliveryNoteCustomerAddressLines(order: SourcingOrder, parcelSnapshot: AdminOrderParcelSnapshot) {
   const fallbackLines = [
     order.addressLine1,
@@ -26,6 +32,20 @@ export function getDeliveryNoteCustomerAddressLines(order: SourcingOrder, parcel
   ].filter(Boolean);
 
   return parcelSnapshot.routing.clientAddressLines.length > 0 ? parcelSnapshot.routing.clientAddressLines : fallbackLines;
+}
+
+export function isDeliveryNoteEuropeanUnion(order: Pick<SourcingOrder, "countryCode">) {
+  return EUROPEAN_UNION_COUNTRY_CODES.has(canonicalizeCountryCode(order.countryCode, ""));
+}
+
+export function getDeliveryNoteTradeAreaLabel(order: Pick<SourcingOrder, "countryCode">) {
+  return isDeliveryNoteEuropeanUnion(order) ? "Union europeenne" : "Hors Union europeenne";
+}
+
+export function getDeliveryNoteTradeAreaDescription(order: Pick<SourcingOrder, "countryCode">) {
+  return isDeliveryNoteEuropeanUnion(order)
+    ? "Livraison client en Union europeenne."
+    : "Livraison client hors Union europeenne.";
 }
 
 export function getDeliveryNoteCourierContact(order: SourcingOrder) {
@@ -93,7 +113,7 @@ export function getDeliveryNoteCustomsDetails(item: AdminOrderParcelItem): Deliv
 
   const declarationLabel = item.overview[0]
     || item.specs[0]?.value
-    || "Marchandise commerciale non dangereuse preparee pour remise client hors UE.";
+    || "Marchandise commerciale non dangereuse preparee pour remise client.";
 
   return {
     natureLabel,

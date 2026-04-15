@@ -24,7 +24,7 @@ export default async function AdminOrderParcelPage({ params }: { params: Promise
           <div>
             <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Bon client</div>
             <h1 className="mt-2 text-[30px] font-black tracking-[-0.05em] text-[#1f2937]">{order.orderNumber}</h1>
-            <div className="mt-2 text-[13px] leading-6 text-[#667085]">Apercu du bon de sourcing client remis hors Union europeenne.</div>
+            <div className="mt-2 text-[13px] leading-6 text-[#667085]">Apercu du bon de sourcing client simplifie pour impression et remise.</div>
             <div className="mt-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Document {documentNumber}</div>
           </div>
           <AdminParcelPrintActions orderHref={`/admin/orders/${encodeURIComponent(order.id)}`} pdfHref={`/api/admin/sourcing/orders/${encodeURIComponent(order.id)}/delivery-note`} documentNumber={documentNumber} />

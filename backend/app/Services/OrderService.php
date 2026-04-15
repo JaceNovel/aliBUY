@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 
 class OrderService
 {
@@ -18,6 +19,7 @@ class OrderService
     public function __construct(
         protected SourcingQuoteService $quotes,
         protected EmailAutomationService $emails,
+        protected ManyChatService $manychat,
     ) {
     }
 
@@ -233,6 +235,8 @@ class OrderService
         $payment = $order->relationLoaded('payments')
             ? $order->payments->sortByDesc('id')->first()
             : $order->payments()->latest()->first();
+        $meta = is_array($order->meta) ? $order->meta : [];
+        $pricing = is_array($meta['pricing'] ?? null) ? $meta['pricing'] : [];
         $items = collect($order->items ?? [])->map(fn (array $item) => [
             'slug' => $item['slug'] ?? null,
             'title' => $item['title'] ?? $item['productName'] ?? 'Produit',
@@ -257,6 +261,13 @@ class OrderService
             'countryCode' => $order->country_code,
             'shippingMethod' => (string) $order->shipping_method,
             'status' => (string) $order->status,
+            'shippingCostFcfa' => (int) round((float) ($pricing['shippingPriceFcfa'] ?? 0)),
+            'cartProductsTotalFcfa' => (int) round((float) ($pricing['itemsSubtotalFcfa'] ?? $order->base_price ?? 0)),
+            'totalWeightKg' => (float) ($pricing['totalWeightKg'] ?? 0),
+            'totalVolumeCbm' => (float) ($pricing['totalVolumeCbm'] ?? 0),
+            'freightStatus' => (string) ($meta['freightStatus'] ?? 'not_requested'),
+            'supplierOrderStatus' => (string) ($meta['supplierOrderStatus'] ?? 'not_created'),
+            'alibabaTradeIds' => collect($meta['alibabaTradeIds'] ?? [])->filter(fn ($entry) => is_string($entry) && trim($entry) !== '')->values()->all(),
             'totalPriceFcfa' => (int) round((float) $order->total_price),
             'paymentStatus' => (string) $order->payment_status,
             'paymentCurrency' => (string) ($order->payment_currency ?? 'XOF'),
@@ -267,7 +278,386 @@ class OrderService
             'createdAt' => optional($order->created_at)->toIso8601String(),
             'updatedAt' => optional($order->updated_at)->toIso8601String(),
             'items' => $items,
-            'meta' => $order->meta,
+            'meta' => $meta,
         ];
+    }
+
+    public function updateAdminSourcingOrder(Order $order, array $payload): array
+    {
+        $action = trim((string) ($payload['action'] ?? ''));
+        if ($action === '') {
+            throw ValidationException::withMessages([
+                'action' => ['Action admin sourcing manquante.'],
+            ]);
+        }
+
+        return match ($action) {
+            'update-status' => $this->updateAdminStatus($order, $payload),
+            'set-relay-point' => $this->setAdminRelayPoint($order, $payload),
+            'update-manual-fulfillment' => $this->updateAdminManualFulfillment($order, $payload),
+            'update-manychat-link' => $this->updateAdminManyChatLink($order, $payload),
+            'send-whatsapp-update-now' => $this->sendAdminManyChatUpdate($order),
+            'update-parcel-manual' => $this->updateAdminParcel($order, $payload),
+            'remove-parcel-photo' => $this->removeAdminParcelPhoto($order, $payload),
+            'add-proof' => $this->addAdminProof($order, $payload),
+            'launch-supplier-payment' => $this->launchAdminSupplierPayment($order, 'admin-order-manual'),
+            'repair-supplier-order' => $this->launchAdminSupplierPayment($order, 'admin-repair'),
+            'override-delivery-route' => $this->overrideAdminDeliveryRoute($order, $payload),
+            default => throw ValidationException::withMessages([
+                'action' => ['Action admin sourcing non prise en charge.'],
+            ]),
+        };
+    }
+
+    public function registerAdminDeliveryNoteExport(Order $order, string $disposition, ?string $exportedByEmail = null): array
+    {
+        $meta = $this->getOrderMeta($order);
+        $exports = collect($meta['deliveryNoteExports'] ?? [])->filter(fn ($entry) => is_array($entry))->values()->all();
+        array_unshift($exports, [
+            'id' => (string) Str::uuid(),
+            'documentNumber' => $this->buildDeliveryNoteDocumentNumber($order),
+            'disposition' => $disposition === 'attachment' ? 'attachment' : 'inline',
+            'exportedAt' => now()->toIso8601String(),
+            'exportedByEmail' => $this->normalizeOptionalString($exportedByEmail),
+        ]);
+
+        $meta['deliveryNoteExports'] = array_slice($exports, 0, 25);
+        $order->forceFill(['meta' => $meta])->save();
+
+        return [
+            'order' => $this->transformOrder($order->fresh('payments')),
+            'documentNumber' => $this->buildDeliveryNoteDocumentNumber($order),
+        ];
+    }
+
+    protected function updateAdminStatus(Order $order, array $payload): array
+    {
+        $allowed = ['air_batch_pending', 'sea_batch_pending', 'supplier_payment_requested', 'supplier_payment_failed', 'supplier_paid_partial', 'supplier_paid', 'shipment_triggered', 'in_transit_to_agent', 'delivered_to_agent', 'relay_ready', 'completed'];
+        $status = trim((string) ($payload['status'] ?? ''));
+        if (! in_array($status, $allowed, true)) {
+            throw ValidationException::withMessages([
+                'status' => ['Statut sourcing invalide.'],
+            ]);
+        }
+
+        $meta = $this->getOrderMeta($order);
+        $workflow = $this->getWorkflow($meta);
+        $timestamp = now()->toIso8601String();
+
+        if ($status === 'delivered_to_agent' && ($workflow['deliveredToAgentAt'] ?? '') === '') {
+            $workflow['deliveredToAgentAt'] = $timestamp;
+        }
+        if ($status === 'relay_ready' && ($workflow['availableForPickupAt'] ?? '') === '') {
+            $workflow['availableForPickupAt'] = $timestamp;
+        }
+        if ($status === 'completed' && ($workflow['completedAt'] ?? '') === '') {
+            $workflow['completedAt'] = $timestamp;
+        }
+
+        $meta['workflow'] = $workflow;
+        $order->forceFill([
+            'status' => $status,
+            'meta' => $meta,
+        ])->save();
+
+        return ['order' => $this->transformOrder($order->fresh('payments'))];
+    }
+
+    protected function setAdminRelayPoint(Order $order, array $payload): array
+    {
+        $meta = $this->getOrderMeta($order);
+        $workflow = $this->getWorkflow($meta);
+        $workflow['relayPointAddress'] = $this->normalizeOptionalString($payload['relayPointAddress'] ?? null);
+        $workflow['relayPointLabel'] = $this->normalizeOptionalString($payload['relayPointLabel'] ?? null);
+        $meta['workflow'] = $workflow;
+        $order->forceFill(['meta' => $meta])->save();
+
+        return ['order' => $this->transformOrder($order->fresh('payments'))];
+    }
+
+    protected function updateAdminManualFulfillment(Order $order, array $payload): array
+    {
+        $meta = $this->getOrderMeta($order);
+        $meta['manualFulfillment'] = [
+            'enabled' => ($payload['enabled'] ?? false) === true,
+            'statusLabel' => $this->normalizeOptionalString($payload['statusLabel'] ?? null),
+            'checkpointLabel' => $this->normalizeOptionalString($payload['checkpointLabel'] ?? null),
+            'checkpointNote' => $this->normalizeOptionalString($payload['checkpointNote'] ?? null),
+            'agentName' => $this->normalizeOptionalString($payload['agentName'] ?? null),
+            'agentPhone' => $this->normalizeOptionalString($payload['agentPhone'] ?? null),
+            'etaLabel' => $this->normalizeOptionalString($payload['etaLabel'] ?? null),
+            'lastUpdatedAt' => now()->toIso8601String(),
+        ];
+        $order->forceFill(['meta' => $meta])->save();
+
+        return ['order' => $this->transformOrder($order->fresh('payments'))];
+    }
+
+    protected function updateAdminManyChatLink(Order $order, array $payload): array
+    {
+        $meta = $this->getOrderMeta($order);
+        $current = is_array($meta['manychat'] ?? null) ? $meta['manychat'] : [];
+        $subscriberId = $this->normalizeOptionalString($payload['subscriberId'] ?? null);
+        $flowId = $this->normalizeOptionalString($payload['flowId'] ?? null);
+        $paidTagId = $this->normalizeOptionalString($payload['paidTagId'] ?? null);
+
+        if ($subscriberId === '' && ($flowId !== '' || $paidTagId !== '')) {
+            throw ValidationException::withMessages([
+                'subscriberId' => ['Le subscriber ManyChat est obligatoire pour enregistrer cette liaison.'],
+            ]);
+        }
+
+        if ($subscriberId !== '') {
+            $meta['manychat'] = array_filter([
+                ...$current,
+                'subscriberId' => $subscriberId,
+                'flowId' => $flowId,
+                'paidTagId' => $paidTagId,
+            ], fn ($value) => $value !== null && $value !== '');
+            $order->forceFill(['meta' => $meta])->save();
+        }
+
+        return ['order' => $this->transformOrder($order->fresh('payments'))];
+    }
+
+    protected function sendAdminManyChatUpdate(Order $order): array
+    {
+        $meta = $this->getOrderMeta($order);
+        $manychat = is_array($meta['manychat'] ?? null) ? $meta['manychat'] : [];
+        if ($this->normalizeOptionalString($manychat['subscriberId'] ?? null) === '') {
+            throw ValidationException::withMessages([
+                'subscriberId' => ['Aucun subscriber ManyChat n\'est lie a cette commande.'],
+            ]);
+        }
+
+        $manual = is_array($meta['manualFulfillment'] ?? null) ? $meta['manualFulfillment'] : [];
+        $detailParts = array_values(array_filter([
+            $this->normalizeOptionalString($manual['checkpointLabel'] ?? null),
+            $this->normalizeOptionalString($manual['checkpointNote'] ?? null),
+        ]));
+        $title = $this->normalizeOptionalString($manual['statusLabel'] ?? null) ?: $this->humanizeSourcingStatus((string) $order->status);
+        $sent = $this->manychat->sendLogisticsUpdate($order->loadMissing('user'), $title, $detailParts !== [] ? implode('. ', $detailParts) : null);
+        if (! $sent) {
+            throw new RuntimeException('Impossible d\'envoyer la mise a jour ManyChat pour cette commande.');
+        }
+
+        return ['order' => $this->transformOrder($order->fresh('payments'))];
+    }
+
+    protected function updateAdminParcel(Order $order, array $payload): array
+    {
+        $meta = $this->getOrderMeta($order);
+        $parcel = is_array($meta['parcel'] ?? null) ? $meta['parcel'] : ['photos' => []];
+        $photos = collect($parcel['photos'] ?? [])->filter(fn ($entry) => is_array($entry))->values()->all();
+        $photoUrl = $this->normalizeOptionalString($payload['photoUrl'] ?? null);
+
+        if ($photoUrl !== '') {
+            $photos[] = array_filter([
+                'id' => (string) Str::uuid(),
+                'url' => $photoUrl,
+                'label' => $this->normalizeOptionalString($payload['photoLabel'] ?? null),
+                'createdAt' => now()->toIso8601String(),
+            ], fn ($value) => $value !== null && $value !== '');
+        }
+
+        $meta['parcel'] = [
+            'note' => $this->normalizeOptionalString($payload['note'] ?? null),
+            'photos' => $photos,
+            'updatedAt' => now()->toIso8601String(),
+        ];
+        $order->forceFill(['meta' => $meta])->save();
+
+        return ['order' => $this->transformOrder($order->fresh('payments'))];
+    }
+
+    protected function removeAdminParcelPhoto(Order $order, array $payload): array
+    {
+        $photoId = trim((string) ($payload['photoId'] ?? ''));
+        $meta = $this->getOrderMeta($order);
+        $parcel = is_array($meta['parcel'] ?? null) ? $meta['parcel'] : ['photos' => []];
+        $parcel['photos'] = collect($parcel['photos'] ?? [])
+            ->filter(fn ($entry) => is_array($entry) && (string) ($entry['id'] ?? '') !== $photoId)
+            ->values()
+            ->all();
+        $parcel['updatedAt'] = now()->toIso8601String();
+        $meta['parcel'] = $parcel;
+        $order->forceFill(['meta' => $meta])->save();
+
+        return ['order' => $this->transformOrder($order->fresh('payments'))];
+    }
+
+    protected function addAdminProof(Order $order, array $payload): array
+    {
+        $title = trim((string) ($payload['title'] ?? ''));
+        if ($title === '') {
+            throw ValidationException::withMessages([
+                'title' => ['Le titre de la preuve est obligatoire.'],
+            ]);
+        }
+
+        $meta = $this->getOrderMeta($order);
+        $workflow = $this->getWorkflow($meta);
+        $proofs = collect($workflow['proofs'] ?? [])->filter(fn ($entry) => is_array($entry))->values()->all();
+        $proofs[] = array_filter([
+            'id' => (string) Str::uuid(),
+            'role' => trim((string) ($payload['role'] ?? 'supplier_to_agent')),
+            'title' => $title,
+            'note' => $this->normalizeOptionalString($payload['note'] ?? null),
+            'mediaUrl' => $this->normalizeOptionalString($payload['mediaUrl'] ?? null),
+            'actorLabel' => $this->normalizeOptionalString($payload['actorLabel'] ?? null),
+            'createdAt' => now()->toIso8601String(),
+        ], fn ($value) => $value !== null && $value !== '');
+        $workflow['proofs'] = $proofs;
+        $meta['workflow'] = $workflow;
+        $order->forceFill(['meta' => $meta])->save();
+
+        return ['order' => $this->transformOrder($order->fresh('payments'))];
+    }
+
+    protected function launchAdminSupplierPayment(Order $order, string $trigger): array
+    {
+        if ((string) $order->payment_status !== 'paid') {
+            throw ValidationException::withMessages([
+                'paymentStatus' => ['Cette commande client n\'est pas encore marquee comme payee.'],
+            ]);
+        }
+
+        $meta = $this->getOrderMeta($order);
+        $tradeIds = collect($meta['alibabaTradeIds'] ?? [])->filter(fn ($entry) => is_string($entry) && trim($entry) !== '')->values()->all();
+        if ($tradeIds === []) {
+            $tradeIds = ['manual-'.$order->getKey()];
+        }
+
+        $automation = is_array($meta['automation'] ?? null) ? $meta['automation'] : [];
+        $automation['alibabaPostPayment'] = [
+            'lastProcessedAt' => now()->toIso8601String(),
+            'lastTrigger' => $trigger,
+            'trades' => collect($tradeIds)->map(fn ($tradeId) => [
+                'tradeId' => $tradeId,
+                'paymentRequestedAt' => now()->toIso8601String(),
+                'paymentRequestStatus' => 'requested',
+                'paymentRequestMessage' => 'Lancement DS confirme cote administration Laravel.',
+                'paymentResultStatus' => 'pending',
+                'tracking' => [],
+            ])->all(),
+        ];
+
+        $meta['automation'] = $automation;
+        $meta['alibabaTradeIds'] = $tradeIds;
+        $meta['supplierOrderStatus'] = 'created';
+        $meta['freightStatus'] = 'verified';
+        $order->forceFill([
+            'status' => 'supplier_payment_requested',
+            'meta' => $meta,
+        ])->save();
+
+        return ['order' => $this->transformOrder($order->fresh('payments'))];
+    }
+
+    protected function overrideAdminDeliveryRoute(Order $order, array $payload): array
+    {
+        $mode = ($payload['mode'] ?? null) === 'forwarder' ? 'forwarder' : 'direct';
+        $hub = ($payload['hub'] ?? null) === 'lome' ? 'lome' : 'china';
+        $meta = $this->getOrderMeta($order);
+        $deliveryProfile = is_array($meta['deliveryProfile'] ?? null) ? $meta['deliveryProfile'] : [];
+        $workflow = $this->getWorkflow($meta);
+
+        if ($mode === 'forwarder') {
+            $deliveryProfile = [
+                ...$deliveryProfile,
+                'mode' => 'forwarder',
+                'usesInternalReceptionAddress' => false,
+                'unsupportedCountry' => false,
+                'unsupportedMessage' => null,
+                'forwarder' => [
+                    'hub' => $hub,
+                    'addressBlock' => trim((string) (($deliveryProfile['forwarder']['addressBlock'] ?? null) ?: implode("\n", array_filter([
+                        $order->address_line1,
+                        $order->address_line2,
+                        trim((string) $order->city.' '.(string) $order->postal_code),
+                        $order->country_code,
+                    ])))),
+                    'parcelMarking' => trim((string) (($deliveryProfile['forwarder']['parcelMarking'] ?? null) ?: ('Client '.$order->customer_name.' '.$order->customer_phone))),
+                ],
+            ];
+            $workflow['routeType'] = 'customer-forwarder';
+            $workflow['freeDeliveryEligible'] = false;
+            $workflow['supplierDeliveryAddressRole'] = 'forwarder';
+        } else {
+            $deliveryProfile = [
+                ...$deliveryProfile,
+                'mode' => 'direct',
+                'usesInternalReceptionAddress' => true,
+                'unsupportedCountry' => false,
+                'unsupportedMessage' => null,
+                'forwarder' => null,
+            ];
+            $workflow['routeType'] = 'afripay-final-mile';
+            $workflow['freeDeliveryEligible'] = false;
+            $workflow['supplierDeliveryAddressRole'] = 'afripay-agent';
+        }
+
+        $meta['deliveryProfile'] = $deliveryProfile;
+        $meta['workflow'] = $workflow;
+        $order->forceFill(['meta' => $meta])->save();
+
+        $response = ['order' => $this->transformOrder($order->fresh('payments'))];
+        if (($payload['relaunch'] ?? false) === true) {
+            $response['relaunchMessage'] = 'Route d\'achat mise a jour cote API Laravel.';
+        }
+
+        return $response;
+    }
+
+    protected function getOrderMeta(Order $order): array
+    {
+        return is_array($order->meta) ? $order->meta : [];
+    }
+
+    protected function getWorkflow(array $meta): array
+    {
+        $workflow = is_array($meta['workflow'] ?? null) ? $meta['workflow'] : [];
+
+        return [
+            'routeType' => ($workflow['routeType'] ?? null) === 'customer-forwarder' ? 'customer-forwarder' : 'afripay-final-mile',
+            'freeDeliveryEligible' => ($workflow['freeDeliveryEligible'] ?? true) !== false,
+            'supplierDeliveryAddressRole' => ($workflow['supplierDeliveryAddressRole'] ?? null) === 'forwarder' ? 'forwarder' : 'afripay-agent',
+            'relayPointAddress' => $this->normalizeOptionalString($workflow['relayPointAddress'] ?? null),
+            'relayPointLabel' => $this->normalizeOptionalString($workflow['relayPointLabel'] ?? null),
+            'availableForPickupAt' => $this->normalizeOptionalString($workflow['availableForPickupAt'] ?? null),
+            'deliveredToAgentAt' => $this->normalizeOptionalString($workflow['deliveredToAgentAt'] ?? null),
+            'completedAt' => $this->normalizeOptionalString($workflow['completedAt'] ?? null),
+            'proofs' => collect($workflow['proofs'] ?? [])->filter(fn ($entry) => is_array($entry))->values()->all(),
+        ];
+    }
+
+    protected function humanizeSourcingStatus(string $status): string
+    {
+        return match ($status) {
+            'air_batch_pending' => 'En attente lot avion',
+            'sea_batch_pending' => 'En attente lot maritime',
+            'supplier_payment_requested' => 'Paiement fournisseur en cours',
+            'supplier_payment_failed' => 'Paiement fournisseur a reprendre',
+            'supplier_paid_partial' => 'Paiement fournisseur partiel',
+            'supplier_paid' => 'Commande fournisseur reglee',
+            'shipment_triggered' => 'Expedition declenchee',
+            'in_transit_to_agent' => 'En transit vers agent',
+            'delivered_to_agent' => 'Livre a l\'agent',
+            'relay_ready' => 'Disponible au point relais',
+            'completed' => 'Commande remise au client',
+            default => 'Commande en traitement',
+        };
+    }
+
+    protected function buildDeliveryNoteDocumentNumber(Order $order): string
+    {
+        $seed = sha1((string) $order->getKey().':'.(string) $order->order_number.':'.optional($order->created_at)->toIso8601String());
+
+        return 'BSD-'.optional($order->created_at)->format('Y').'-'.strtoupper(substr($seed, 0, 8));
+    }
+
+    protected function normalizeOptionalString(mixed $value): string
+    {
+        return is_scalar($value) ? trim((string) $value) : '';
     }
 }

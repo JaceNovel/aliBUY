@@ -75,6 +75,8 @@ return [
         'amount_field' => env('MANYCHAT_CF_AMOUNT_ID'),
         'order_number_field' => env('MANYCHAT_CF_ORDER_NUMBER_ID'),
         'shipping_method_field' => env('MANYCHAT_CF_SHIPPING_METHOD_ID'),
+        'tracking_code_field' => env('MANYCHAT_CF_TRACKING_CODE_ID'),
+        'logistics_status_field' => env('MANYCHAT_CF_LOGISTICS_STATUS_ID'),
     ],
 
 ];
