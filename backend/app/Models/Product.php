@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Product extends Model
 {
@@ -53,5 +54,10 @@ class Product extends Model
         return $this->belongsToMany(Order::class, 'order_items')
             ->withPivot(['quantity', 'unit_price', 'line_total', 'title_snapshot', 'image_snapshot'])
             ->withTimestamps();
+    }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(ProductReview::class)->latest('submitted_at');
     }
 }

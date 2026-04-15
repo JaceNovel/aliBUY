@@ -6,6 +6,8 @@ use App\Models\Product;
 use App\Services\ProductService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 
 class ProductController extends Controller
 {
@@ -21,7 +23,66 @@ class ProductController extends Controller
 
     public function show(Product $product): JsonResponse
     {
-        return response()->json(['product' => $this->products->transformProduct($product)]);
+        return response()->json(['product' => $this->products->transformProductDetail($product->loadMissing('reviews'))]);
+    }
+
+    public function reviews(Product $product): JsonResponse
+    {
+        return response()->json($this->products->listPublishedReviews($product->loadMissing('reviews')));
+    }
+
+    public function storeReview(Product $product, Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'reviewerName' => ['required', 'string', 'max:255'],
+            'reviewerEmail' => ['required', 'email', 'max:255'],
+            'reviewerUserId' => ['nullable', 'string', 'max:255'],
+            'rating' => ['required', 'integer', 'min:1', 'max:5'],
+            'title' => ['nullable', 'string', 'max:255'],
+            'comment' => ['required', 'string', 'min:8', 'max:4000'],
+            'mediaUrls' => ['nullable', 'array', 'max:6'],
+            'mediaUrls.*' => ['string', 'max:2048'],
+        ]);
+
+        return response()->json($this->products->submitReview($product, $validated), 201);
+    }
+
+    public function uploadReviewMedia(Product $product, Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'files' => ['required', 'array', 'min:1', 'max:6'],
+            'files.*' => ['required', 'file', 'mimetypes:image/jpeg,image/png,image/webp', 'max:5120'],
+        ], [
+            'files.required' => 'Aucune image transmise.',
+            'files.array' => 'Format d\'upload invalide.',
+            'files.max' => 'Vous pouvez envoyer au maximum 6 photos.',
+            'files.*.mimetypes' => 'Format non pris en charge. Utilisez JPG, PNG ou WEBP.',
+            'files.*.max' => 'Chaque photo doit faire au maximum 5 Mo.',
+        ]);
+
+        $directory = public_path('uploads/product-reviews');
+        File::ensureDirectoryExists($directory);
+        $urls = [];
+
+        foreach ($validated['files'] as $file) {
+            $extension = match ($file->getMimeType()) {
+                'image/jpeg' => 'jpg',
+                'image/png' => 'png',
+                'image/webp' => 'webp',
+                default => null,
+            };
+
+            if ($extension === null) {
+                continue;
+            }
+
+            $filename = sprintf('%s-%s-%s.%s', $product->slug, now()->format('YmdHis'), Str::uuid()->toString(), $extension);
+            $file->move($directory, $filename);
+            $relativeUrl = '/uploads/product-reviews/'.$filename;
+            $urls[] = rtrim((string) config('app.url'), '/').$relativeUrl;
+        }
+
+        return response()->json($this->products->transformUploadedReviewMedia($urls));
     }
 
     public function search(Request $request): JsonResponse

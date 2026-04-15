@@ -12,6 +12,8 @@ import { isSupportedDirectDeliveryCountry } from "@/lib/alibaba-sourcing";
 import { CURRENCY_CONFIG, type CurrencyCode } from "@/lib/pricing-options";
 import { resolveProductPriceSummaryUsd, resolveProductUnitPriceUsd, resolveVariantSku } from "@/lib/product-variant-pricing";
 
+import { ProductReviewsPanel } from "./product-reviews-panel";
+
 type DetailVariantGroup = {
   label: string;
   values: string[];
@@ -86,6 +88,28 @@ type ProductDetailClientProps = {
     videoUrl?: string;
     videoPoster?: string;
     overview: string[];
+    sourceUrl?: string;
+    reviewSummary?: {
+      averageRating?: number | null;
+      totalCount: number;
+      customerCount?: number;
+      externalCount?: number;
+      customerAverageRating?: number | null;
+      externalAverageRating?: number | null;
+      withMediaCount?: number;
+    };
+    reviews?: Array<{
+      id: string;
+      source: string;
+      reviewerName: string;
+      rating: number;
+      title?: string | null;
+      comment: string;
+      mediaUrls: string[];
+      verifiedPurchase: boolean;
+      createdAt?: string | null;
+      status?: string;
+    }>;
     tiers: DetailTier[];
     variantGroups: DetailVariantGroup[];
     variantPricing: DetailVariantPrice[];
@@ -1054,7 +1078,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     </button>
                     <div className="inline-flex h-12 items-center justify-center gap-1 rounded-[8px] border border-[#efefef] bg-[#fafafa] text-[13px] font-medium text-[#555]">
                       <Star className="h-4 w-4 fill-current text-[#f5b301]" />
-                      Avis 4.8
+                      {typeof product.reviewSummary?.averageRating === "number" ? `Avis ${product.reviewSummary.averageRating.toFixed(1)}` : "Avis clients"}
                     </div>
                   </div>
                 </div>
@@ -1170,6 +1194,14 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
             </div>
           </section>
         ) : null}
+
+        <ProductReviewsPanel
+          productSlug={product.slug}
+          productTitle={product.shortTitle}
+          locale={product.locale}
+          initialSummary={product.reviewSummary}
+          initialReviews={product.reviews}
+        />
       </div>
 
       {isImageLightboxOpen ? (

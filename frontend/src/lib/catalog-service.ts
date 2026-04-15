@@ -243,6 +243,86 @@ async function fetchRemoteCatalogProducts() {
   }
 }
 
+async function fetchRemoteCatalogProductDetail(slug: string) {
+  if (!API_URL) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(buildApiUrl(`/api/products/${encodeURIComponent(slug)}`), {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = await response.json().catch(() => null) as { product?: Record<string, unknown> | null } | null;
+    const candidate = payload?.product;
+    if (!candidate || typeof candidate !== "object") {
+      return null;
+    }
+
+    const image = typeof candidate.image === "string" && candidate.image.trim() ? candidate.image.trim() : "";
+    if (!image) {
+      return null;
+    }
+
+    const gallery = buildRichGallery({
+      image,
+      gallery: Array.isArray(candidate.gallery)
+        ? candidate.gallery.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+        : [],
+      rawPayload: candidate.rawPayload ?? candidate,
+    });
+
+    return {
+      slug,
+      title: typeof candidate.title === "string" && candidate.title.trim() ? candidate.title.trim() : slug,
+      shortTitle: typeof candidate.shortTitle === "string" && candidate.shortTitle.trim() ? candidate.shortTitle.trim() : (typeof candidate.title === "string" && candidate.title.trim() ? candidate.title.trim() : slug),
+      image,
+      gallery: gallery.length > 0 ? gallery : [image],
+      videoUrl: typeof candidate.videoUrl === "string" && candidate.videoUrl.trim() ? candidate.videoUrl.trim() : undefined,
+      videoPoster: typeof candidate.videoPoster === "string" && candidate.videoPoster.trim() ? candidate.videoPoster.trim() : undefined,
+      badge: typeof candidate.badge === "string" && candidate.badge.trim() ? candidate.badge.trim() : undefined,
+      minUsd: typeof candidate.minUsd === "number" && Number.isFinite(candidate.minUsd) ? candidate.minUsd : 0,
+      maxUsd: typeof candidate.maxUsd === "number" && Number.isFinite(candidate.maxUsd) ? candidate.maxUsd : undefined,
+      moq: typeof candidate.moq === "number" && Number.isFinite(candidate.moq) && candidate.moq > 0 ? candidate.moq : 1,
+      moqVerified: typeof candidate.moqVerified === "boolean" ? candidate.moqVerified : true,
+      weightVerified: typeof candidate.weightVerified === "boolean" ? candidate.weightVerified : undefined,
+      priceVerified: typeof candidate.priceVerified === "boolean" ? candidate.priceVerified : undefined,
+      unit: typeof candidate.unit === "string" && candidate.unit.trim() ? candidate.unit.trim() : "piece",
+      packaging: typeof candidate.packaging === "string" && candidate.packaging.trim() ? candidate.packaging.trim() : "Selon catalogue",
+      packageDimensionsCm: normalizePackageDimensions(candidate.packageDimensionsCm),
+      itemWeightGrams: typeof candidate.itemWeightGrams === "number" && Number.isFinite(candidate.itemWeightGrams) ? candidate.itemWeightGrams : 0,
+      lotCbm: typeof candidate.lotCbm === "string" && candidate.lotCbm.trim() ? candidate.lotCbm.trim() : "0",
+      supplierName: typeof candidate.supplierName === "string" && candidate.supplierName.trim() ? candidate.supplierName.trim() : "Selection AfriPay+",
+      supplierLocation: typeof candidate.supplierLocation === "string" && candidate.supplierLocation.trim() ? candidate.supplierLocation.trim() : "CN",
+      responseTime: typeof candidate.responseTime === "string" && candidate.responseTime.trim() ? candidate.responseTime.trim() : "Sous 24 h",
+      yearsInBusiness: typeof candidate.yearsInBusiness === "number" && Number.isFinite(candidate.yearsInBusiness) ? candidate.yearsInBusiness : 1,
+      transactionsLabel: typeof candidate.transactionsLabel === "string" && candidate.transactionsLabel.trim() ? candidate.transactionsLabel.trim() : "Catalogue live",
+      soldLabel: typeof candidate.soldLabel === "string" && candidate.soldLabel.trim() ? candidate.soldLabel.trim() : "0",
+      customizationLabel: typeof candidate.customizationLabel === "string" && candidate.customizationLabel.trim() ? candidate.customizationLabel.trim() : "Selon catalogue",
+      shippingLabel: typeof candidate.shippingLabel === "string" && candidate.shippingLabel.trim() ? candidate.shippingLabel.trim() : "Livraison internationale",
+      overview: Array.isArray(candidate.overview)
+        ? candidate.overview.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+        : [],
+      variantGroups: Array.isArray(candidate.variantGroups) ? candidate.variantGroups as ProductCatalogItem["variantGroups"] : [],
+      variantPricing: Array.isArray(candidate.variantPricing) ? candidate.variantPricing as ProductCatalogItem["variantPricing"] : [],
+      variantSkus: Array.isArray(candidate.variantSkus) ? candidate.variantSkus as ProductCatalogItem["variantSkus"] : [],
+      tiers: Array.isArray(candidate.tiers) ? candidate.tiers as ProductCatalogItem["tiers"] : [{ quantityLabel: "1+", priceUsd: typeof candidate.minUsd === "number" ? candidate.minUsd : 0 }],
+      specs: Array.isArray(candidate.specs) ? candidate.specs as ProductCatalogItem["specs"] : [],
+      keywords: Array.isArray(candidate.keywords) ? candidate.keywords.filter((entry): entry is string => typeof entry === "string") : [],
+      sourceUrl: typeof candidate.sourceUrl === "string" && candidate.sourceUrl.trim() ? candidate.sourceUrl.trim() : undefined,
+      reviewSummary: candidate.reviewSummary && typeof candidate.reviewSummary === "object" ? candidate.reviewSummary as ProductCatalogItem["reviewSummary"] : undefined,
+      reviews: Array.isArray(candidate.reviews) ? candidate.reviews as ProductCatalogItem["reviews"] : undefined,
+      rawPayload: candidate.rawPayload ?? candidate,
+    } satisfies ProductCatalogItem;
+  } catch {
+    return null;
+  }
+}
+
 function toCatalogProduct(product: Awaited<ReturnType<typeof getAlibabaImportedProducts>>[number]): ProductCatalogItem {
   const variantPricing = product.variantPricing && product.variantPricing.length > 0
     ? product.variantPricing
@@ -401,6 +481,11 @@ export async function getCatalogProducts(options?: { fresh?: boolean }): Promise
 }
 
 export async function getCatalogProductBySlug(slug: string) {
+  const remoteDetail = await fetchRemoteCatalogProductDetail(slug);
+  if (remoteDetail) {
+    return remoteDetail;
+  }
+
   const products = await getCatalogProducts();
   const product = products.find((entry) => entry.slug === slug) ?? null;
   if (!product) {

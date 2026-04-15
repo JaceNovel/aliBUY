@@ -20,6 +20,7 @@ class OrderService
         protected SourcingQuoteService $quotes,
         protected EmailAutomationService $emails,
         protected ManyChatService $manychat,
+        protected AlibabaAdminService $alibabaAdmin,
     ) {
     }
 
@@ -522,32 +523,46 @@ class OrderService
             ]);
         }
 
+        $order->loadMissing('orderItems.product', 'payments');
+        $launchResult = $this->alibabaAdmin->createLiveDropshippingOrdersForClientOrder($order);
         $meta = $this->getOrderMeta($order);
-        $tradeIds = collect($meta['alibabaTradeIds'] ?? [])->filter(fn ($entry) => is_string($entry) && trim($entry) !== '')->values()->all();
-        if ($tradeIds === []) {
-            $tradeIds = ['manual-'.$order->getKey()];
-        }
+        $tradeIds = collect($launchResult['alibabaTradeIds'] ?? [])->filter(fn ($entry) => is_string($entry) && trim($entry) !== '')->values()->all();
+        $supplierOrders = collect($launchResult['supplierOrderPayload']['orders'] ?? [])->filter(fn ($entry) => is_array($entry))->values();
+        $paidCount = $supplierOrders->filter(fn ($entry) => ($entry['paymentStatus'] ?? null) === 'paid')->count();
+        $pendingCount = $supplierOrders->filter(fn ($entry) => in_array(($entry['paymentStatus'] ?? null), ['pending', 'pay_url_generated'], true))->count();
+        $failedCount = $supplierOrders->filter(fn ($entry) => ($entry['paymentStatus'] ?? null) === 'failed' || ($entry['requestOk'] ?? true) === false)->count();
 
         $automation = is_array($meta['automation'] ?? null) ? $meta['automation'] : [];
         $automation['alibabaPostPayment'] = [
             'lastProcessedAt' => now()->toIso8601String(),
             'lastTrigger' => $trigger,
-            'trades' => collect($tradeIds)->map(fn ($tradeId) => [
-                'tradeId' => $tradeId,
-                'paymentRequestedAt' => now()->toIso8601String(),
-                'paymentRequestStatus' => 'requested',
-                'paymentRequestMessage' => 'Lancement DS confirme cote administration Laravel.',
-                'paymentResultStatus' => 'pending',
-                'tracking' => [],
-            ])->all(),
+            'trades' => $supplierOrders->map(function (array $entry) {
+                return array_filter([
+                    'tradeId' => $entry['tradeId'] ?? null,
+                    'orderItemId' => $entry['orderItemId'] ?? null,
+                    'productSlug' => $entry['productSlug'] ?? null,
+                    'paymentRequestedAt' => now()->toIso8601String(),
+                    'paymentRequestStatus' => ($entry['requestOk'] ?? false) ? 'requested' : 'failed',
+                    'paymentRequestMessage' => $entry['message'] ?? 'Lancement DS execute cote Laravel.',
+                    'paymentResultStatus' => $entry['paymentStatus'] ?? 'pending',
+                    'payUrl' => $entry['payUrl'] ?? null,
+                    'tracking' => [],
+                ], fn ($value) => $value !== null && $value !== '');
+            })->all(),
+            'summary' => [
+                'paidCount' => $paidCount,
+                'pendingCount' => $pendingCount,
+                'failedCount' => $failedCount,
+            ],
         ];
 
         $meta['automation'] = $automation;
         $meta['alibabaTradeIds'] = $tradeIds;
-        $meta['supplierOrderStatus'] = 'created';
-        $meta['freightStatus'] = 'verified';
+        $meta['supplierOrderStatus'] = (string) ($launchResult['supplierOrderStatus'] ?? 'failed');
+        $meta['freightStatus'] = (string) ($launchResult['freightStatus'] ?? 'failed');
+        $meta['supplierOrderPayload'] = $launchResult['supplierOrderPayload'] ?? null;
         $order->forceFill([
-            'status' => 'supplier_payment_requested',
+            'status' => (string) ($launchResult['status'] ?? 'supplier_payment_requested'),
             'meta' => $meta,
         ])->save();
 

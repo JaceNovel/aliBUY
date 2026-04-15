@@ -76,5 +76,27 @@ export type ProductCatalogItem = {
   variantSkus?: ProductVariantSku[];
   tiers: ProductTier[];
   specs: Array<{ label: string; value: string }>;
+  sourceUrl?: string;
+  reviewSummary?: {
+    averageRating?: number | null;
+    totalCount: number;
+    customerCount?: number;
+    externalCount?: number;
+    customerAverageRating?: number | null;
+    externalAverageRating?: number | null;
+    withMediaCount?: number;
+  };
+  reviews?: Array<{
+    id: string;
+    source: "customer" | "aliexpress" | string;
+    reviewerName: string;
+    rating: number;
+    title?: string | null;
+    comment: string;
+    mediaUrls: string[];
+    verifiedPurchase: boolean;
+    createdAt?: string | null;
+    status?: string;
+  }>;
   rawPayload?: unknown;
 };

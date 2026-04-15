@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Order;
 use App\Models\Product;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
@@ -808,6 +809,114 @@ class AlibabaAdminService
         return ['order' => $order];
     }
 
+    public function createLiveDropshippingOrdersForClientOrder(Order $order): array
+    {
+        $account = $this->resolveLiveAccount(null, true);
+        if ($account === null) {
+            throw new RuntimeException('Aucun compte AliExpress connecte n\'est disponible pour creer une commande DS live.');
+        }
+
+        $address = $this->buildDropshippingAddressFromOrder($order);
+        $entries = [];
+        $tradeIds = [];
+        $paidCount = 0;
+        $pendingCount = 0;
+        $failedCount = 0;
+
+        foreach ($order->orderItems()->with('product')->get() as $orderItem) {
+            $product = $orderItem->product;
+            if (! $product instanceof Product || (string) $product->source_provider !== 'aliexpress' || ! $product->source_product_id) {
+                $entries[] = [
+                    'orderItemId' => (string) $orderItem->getKey(),
+                    'productSlug' => $orderItem->slug_snapshot,
+                    'productTitle' => $orderItem->title_snapshot,
+                    'requestOk' => false,
+                    'status' => 'skipped',
+                    'message' => 'Article non relie a un produit AliExpress source cote catalogue.',
+                ];
+                $failedCount++;
+                continue;
+            }
+
+            $previewProduct = $this->toPreviewProductFromCatalogProduct($product);
+            $prepared = $this->openPlatform->prepareDraftOrder($account, $previewProduct, $address, max(1, (int) $orderItem->quantity));
+            $this->persistResolvedLiveAccount($prepared['account']);
+
+            $result = $this->openPlatform->createDsOrder($prepared['account'], is_array($prepared['buyNowPayload'] ?? null) ? $prepared['buyNowPayload'] : []);
+            $this->persistResolvedLiveAccount($result['account']);
+            $orderResult = $result['result'];
+            $tradeId = $this->openPlatform->extractTradeIdFromResponse($orderResult['responseBody']);
+            $errorCode = $this->openPlatform->extractOperationCodeFromResponse($orderResult['responseBody']);
+            $errorMessage = $this->openPlatform->extractOperationMessageFromResponse($orderResult['responseBody']);
+            $dsOrderCreated = $orderResult['ok'] && ($this->openPlatform->isOperationSuccessful($orderResult['responseBody']) || $tradeId !== null);
+            $payUrl = null;
+            $paymentStatus = 'failed';
+            $paymentMessage = $dsOrderCreated ? null : $this->formatAliExpressDsOrderCreateFailure($errorCode, $errorMessage);
+            $paymentResponseBody = null;
+
+            if ($dsOrderCreated && $tradeId !== null) {
+                $tradeIds[] = $tradeId;
+                $payment = $this->openPlatform->queryPaymentResult($result['account'], $tradeId);
+                $this->persistResolvedLiveAccount($payment['account']);
+                $paymentResult = $payment['result'];
+                $paymentResponseBody = $paymentResult['responseBody'];
+                $remoteStatus = strtoupper(trim((string) ($this->openPlatform->extractTradeOrderStatus($paymentResponseBody) ?? '')));
+                $payUrl = $this->openPlatform->extractTradePayUrl($paymentResponseBody);
+                $isPaid = in_array($remoteStatus, ['FINISH', 'PAID'], true);
+                $isFailed = str_contains($remoteStatus, 'CANCEL') || str_contains($remoteStatus, 'CLOSE') || str_contains($remoteStatus, 'FAIL');
+                $paymentStatus = $isPaid ? 'paid' : ($isFailed ? 'failed' : ($payUrl ? 'pay_url_generated' : 'pending'));
+                $paymentMessage = $isFailed
+                    ? ($this->openPlatform->extractOperationMessageFromResponse($paymentResponseBody) ?? 'Paiement fournisseur non complete.')
+                    : null;
+            }
+
+            if ($paymentStatus === 'paid') {
+                $paidCount++;
+            } elseif (in_array($paymentStatus, ['pending', 'pay_url_generated'], true)) {
+                $pendingCount++;
+            } else {
+                $failedCount++;
+            }
+
+            $entries[] = [
+                'orderItemId' => (string) $orderItem->getKey(),
+                'productId' => (string) $product->getKey(),
+                'productSlug' => $product->slug,
+                'sourceProductId' => (string) $product->source_product_id,
+                'productTitle' => $product->title,
+                'quantity' => (int) $orderItem->quantity,
+                'tradeId' => $tradeId,
+                'payUrl' => $payUrl,
+                'requestOk' => $dsOrderCreated,
+                'paymentStatus' => $paymentStatus,
+                'message' => $paymentMessage,
+                'freightCarrierCode' => $prepared['carrierCode'] ?? null,
+                'freightSkuId' => $prepared['skuId'] ?? null,
+                'rawFreightResponse' => $prepared['freightResult']['responseBody'] ?? null,
+                'rawOrderResponse' => $orderResult['responseBody'] ?? null,
+                'rawPaymentResponse' => $paymentResponseBody,
+            ];
+        }
+
+        $status = $pendingCount > 0
+            ? 'supplier_payment_requested'
+            : ($paidCount > 0 && $failedCount > 0
+                ? 'supplier_paid_partial'
+                : ($paidCount > 0 ? 'supplier_paid' : 'supplier_payment_failed'));
+
+        return [
+            'status' => $status,
+            'freightStatus' => $entries === [] ? 'failed' : 'verified',
+            'supplierOrderStatus' => $tradeIds !== [] ? 'created' : 'failed',
+            'alibabaTradeIds' => array_values(array_unique($tradeIds)),
+            'supplierOrderPayload' => [
+                'provider' => 'aliexpress-ds',
+                'createdAt' => $this->nowIso(),
+                'orders' => $entries,
+            ],
+        ];
+    }
+
     public function payPurchaseOrder(string $orderId, string $action): array
     {
         $orders = $this->readJsonArray('alibaba-purchase-orders.json');
@@ -899,6 +1008,46 @@ class AlibabaAdminService
         $candidate = is_string($panel) ? trim($panel) : '';
 
         return in_array($candidate, self::PANEL_SLUGS, true) ? $candidate : 'dashboard';
+    }
+
+    private function buildDropshippingAddressFromOrder(Order $order): array
+    {
+        $meta = is_array($order->meta) ? $order->meta : [];
+        $deliveryProfile = is_array($meta['deliveryProfile'] ?? null) ? $meta['deliveryProfile'] : [];
+        $forwarder = is_array($deliveryProfile['forwarder'] ?? null) ? $deliveryProfile['forwarder'] : [];
+        $hub = (string) ($forwarder['hub'] ?? '');
+        $forwarderBlock = trim((string) ($forwarder['addressBlock'] ?? ''));
+
+        if ($hub === 'china' && $forwarderBlock !== '') {
+            $lines = array_values(array_filter(array_map('trim', preg_split('/\r?\n|,|;/', $forwarderBlock) ?: [])));
+            preg_match('/\b(\d{6})\b/', $forwarderBlock, $postalMatch);
+
+            return [
+                'label' => 'Client Forwarder China',
+                'contactName' => (string) $order->customer_name,
+                'phone' => (string) ($order->customer_phone ?? ''),
+                'email' => (string) $order->customer_email,
+                'addressLine1' => $lines[0] ?? ((string) ($order->address_line1 ?? '')),
+                'addressLine2' => count($lines) > 1 ? implode(', ', array_slice($lines, 1)) : (string) ($order->address_line2 ?? ''),
+                'city' => (string) ($order->city ?: 'Shenzhen'),
+                'state' => (string) ($order->state ?: 'Guangdong'),
+                'postalCode' => $postalMatch[1] ?? ((string) ($order->postal_code ?? '518000')),
+                'countryCode' => 'CN',
+            ];
+        }
+
+        return [
+            'label' => 'Customer Delivery Address',
+            'contactName' => (string) $order->customer_name,
+            'phone' => (string) ($order->customer_phone ?? ''),
+            'email' => (string) $order->customer_email,
+            'addressLine1' => (string) ($order->address_line1 ?? ''),
+            'addressLine2' => (string) ($order->address_line2 ?? ''),
+            'city' => (string) ($order->city ?? ''),
+            'state' => (string) ($order->state ?? ''),
+            'postalCode' => (string) ($order->postal_code ?? ''),
+            'countryCode' => (string) ($order->country_code ?? 'FR'),
+        ];
     }
 
     private function buildStorageState(): array

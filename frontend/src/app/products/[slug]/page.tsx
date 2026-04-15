@@ -112,6 +112,9 @@ export default async function ProductPage({
           videoUrl: product.videoUrl,
           videoPoster: product.videoPoster,
           overview: product.overview.map((entry) => normalizeStorefrontText(entry)),
+          sourceUrl: product.sourceUrl,
+          reviewSummary: product.reviewSummary,
+          reviews: product.reviews,
           tiers: product.tiers.map((tier) => ({
             ...tier,
             formattedPrice: pricing.formatPrice(tier.priceUsd),

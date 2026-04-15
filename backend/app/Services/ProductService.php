@@ -3,13 +3,20 @@
 namespace App\Services;
 
 use App\Models\Product;
+use App\Models\ProductReview;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Str;
 use Throwable;
+use Illuminate\Validation\ValidationException;
 
 class ProductService
 {
+    public function __construct(
+        protected AliExpressPublicProductService $aliExpressPublicProducts,
+    ) {
+    }
+
     public function index(Request $request): array
     {
         $perPage = min(max((int) $request->integer('limit', 20), 1), 40);
@@ -246,6 +253,133 @@ class ProductService
         ];
     }
 
+    public function transformProductDetail(Product $product): array
+    {
+        $base = $this->transformProduct($product);
+        $customerReviews = $this->transformPublishedReviews($product);
+        $external = $this->aliExpressPublicProducts->fetchProductSupplement($product);
+        $gallery = $this->mergeGallery($base['gallery'] ?? [], $external['gallery'] ?? []);
+        $reviewSummary = $this->buildReviewSummary($customerReviews, is_array($external['externalReviewSummary'] ?? null) ? $external['externalReviewSummary'] : null);
+
+        return [
+            ...$base,
+            'image' => $gallery[0] ?? $base['image'],
+            'gallery' => $gallery,
+            'sourceUrl' => $external['sourceUrl'] ?? null,
+            'reviewSummary' => $reviewSummary,
+            'reviews' => $this->mergeReviews($customerReviews, is_array($external['externalReviews'] ?? null) ? $external['externalReviews'] : []),
+        ];
+    }
+
+    public function listPublishedReviews(Product $product): array
+    {
+        $product->loadMissing(['reviews' => fn ($query) => $query->where('status', 'published')->latest('submitted_at')]);
+
+        return [
+            'reviewSummary' => $this->buildReviewSummary($this->transformPublishedReviews($product), null),
+            'reviews' => $this->transformPublishedReviews($product),
+        ];
+    }
+
+    public function submitReview(Product $product, array $payload): array
+    {
+        $rating = max(1, min(5, (int) ($payload['rating'] ?? 0)));
+        $comment = trim((string) ($payload['comment'] ?? ''));
+        $reviewerEmail = Str::lower(trim((string) ($payload['reviewerEmail'] ?? '')));
+        $reviewerName = trim((string) ($payload['reviewerName'] ?? ''));
+        $reviewerUserId = trim((string) ($payload['reviewerUserId'] ?? ''));
+        $mediaUrls = collect($payload['mediaUrls'] ?? [])
+            ->filter(fn ($entry) => is_string($entry) && trim($entry) !== '')
+            ->map(fn ($entry) => trim((string) $entry))
+            ->unique()
+            ->take(6)
+            ->values()
+            ->all();
+
+        if ($rating < 1 || $rating > 5) {
+            throw ValidationException::withMessages([
+                'rating' => ['La note doit etre comprise entre 1 et 5.'],
+            ]);
+        }
+
+        if (Str::length($comment) < 8) {
+            throw ValidationException::withMessages([
+                'comment' => ['Votre avis doit contenir au moins 8 caracteres.'],
+            ]);
+        }
+
+        if ($reviewerEmail === '' || $reviewerName === '') {
+            throw ValidationException::withMessages([
+                'reviewer' => ['Connexion requise pour publier un avis.'],
+            ]);
+        }
+
+        $eligibleOrderItem = $product->orders()
+            ->withPivot(['quantity'])
+            ->with('orderItems')
+            ->where('payment_status', 'paid')
+            ->where(function ($query) use ($reviewerEmail, $reviewerUserId) {
+                $query->whereRaw('LOWER(customer_email) = ?', [$reviewerEmail]);
+                if ($reviewerUserId !== '') {
+                    $query->orWhere('user_id', is_numeric($reviewerUserId) ? (int) $reviewerUserId : 0)
+                        ->orWhere('user_info->userId', $reviewerUserId);
+                }
+            })
+            ->latest('orders.created_at')
+            ->first();
+
+        if (! $eligibleOrderItem) {
+            throw ValidationException::withMessages([
+                'order' => ['Aucun achat verifie de ce produit n\'a ete trouve pour ce compte.'],
+            ]);
+        }
+
+        $existing = ProductReview::query()
+            ->where('product_id', $product->id)
+            ->where('order_id', $eligibleOrderItem->getKey())
+            ->where('source', 'customer')
+            ->first();
+
+        if ($existing) {
+            throw ValidationException::withMessages([
+                'order' => ['Un avis existe deja pour cet achat.'],
+            ]);
+        }
+
+        $review = ProductReview::query()->create([
+            'product_id' => $product->id,
+            'order_id' => $eligibleOrderItem->getKey(),
+            'user_id' => is_numeric($reviewerUserId) ? (int) $reviewerUserId : null,
+            'source' => 'customer',
+            'reviewer_name' => $reviewerName,
+            'reviewer_email' => $reviewerEmail,
+            'rating' => $rating,
+            'title' => trim((string) ($payload['title'] ?? '')) ?: null,
+            'comment' => $comment,
+            'media_urls' => $mediaUrls,
+            'verified_purchase' => true,
+            'status' => 'published',
+            'submitted_at' => now(),
+            'published_at' => now(),
+        ]);
+
+        return [
+            'review' => $this->transformReview($review),
+            ...$this->listPublishedReviews($product->fresh('reviews')),
+        ];
+    }
+
+    public function transformUploadedReviewMedia(array $urls): array
+    {
+        return [
+            'urls' => collect($urls)
+                ->filter(fn ($entry) => is_string($entry) && trim($entry) !== '')
+                ->map(fn ($entry) => trim((string) $entry))
+                ->values()
+                ->all(),
+        ];
+    }
+
     protected function resolveCategoryTitle(Product $product): string
     {
         $metadata = is_array($product->metadata) ? $product->metadata : [];
@@ -256,6 +390,81 @@ class ProductService
         }
 
         return str_replace('-', ' ', (string) $product->category);
+    }
+
+    protected function transformPublishedReviews(Product $product): array
+    {
+        $reviews = $product->relationLoaded('reviews')
+            ? $product->reviews
+            : $product->reviews()->where('status', 'published')->latest('submitted_at')->get();
+
+        return $reviews
+            ->filter(fn (ProductReview $review) => $review->status === 'published')
+            ->map(fn (ProductReview $review) => $this->transformReview($review))
+            ->values()
+            ->all();
+    }
+
+    protected function transformReview(ProductReview $review): array
+    {
+        return [
+            'id' => (string) $review->getKey(),
+            'source' => (string) $review->source,
+            'reviewerName' => (string) $review->reviewer_name,
+            'rating' => (int) $review->rating,
+            'title' => $review->title,
+            'comment' => (string) $review->comment,
+            'mediaUrls' => is_array($review->media_urls) ? array_values($review->media_urls) : [],
+            'verifiedPurchase' => (bool) $review->verified_purchase,
+            'createdAt' => optional($review->submitted_at ?? $review->created_at)->toIso8601String(),
+            'status' => (string) $review->status,
+        ];
+    }
+
+    protected function mergeGallery(array $baseGallery, array $externalGallery): array
+    {
+        return collect([...$baseGallery, ...$externalGallery])
+            ->filter(fn ($entry) => is_string($entry) && trim($entry) !== '')
+            ->map(fn (string $entry) => trim($entry))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function mergeReviews(array $customerReviews, array $externalReviews): array
+    {
+        return collect([...$customerReviews, ...$externalReviews])
+            ->filter(fn ($entry) => is_array($entry))
+            ->sortByDesc(fn (array $entry) => (string) ($entry['createdAt'] ?? ''))
+            ->values()
+            ->all();
+    }
+
+    protected function buildReviewSummary(array $customerReviews, ?array $externalSummary): array
+    {
+        $customerCount = count($customerReviews);
+        $customerAverage = $customerCount > 0
+            ? round(collect($customerReviews)->avg(fn (array $review) => (int) ($review['rating'] ?? 0)), 1)
+            : null;
+        $externalCount = max(0, (int) ($externalSummary['totalCount'] ?? 0));
+        $externalAverage = isset($externalSummary['averageRating']) && is_numeric($externalSummary['averageRating'])
+            ? round((float) $externalSummary['averageRating'], 1)
+            : null;
+        $weightedTotal = ($customerAverage ?? 0) * $customerCount + ($externalAverage ?? 0) * $externalCount;
+        $totalCount = $customerCount + $externalCount;
+        $averageRating = $totalCount > 0 ? round($weightedTotal / $totalCount, 1) : null;
+        $withMediaCount = collect($customerReviews)->filter(fn (array $review) => ! empty($review['mediaUrls']))->count()
+            + max(0, (int) ($externalSummary['displayCount'] ?? 0));
+
+        return [
+            'averageRating' => $averageRating,
+            'totalCount' => $totalCount,
+            'customerCount' => $customerCount,
+            'externalCount' => $externalCount,
+            'customerAverageRating' => $customerAverage,
+            'externalAverageRating' => $externalAverage,
+            'withMediaCount' => $withMediaCount,
+        ];
     }
 
     protected function resolvePublicCategory(Product $product): array
