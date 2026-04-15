@@ -45,29 +45,6 @@ function extractErrorMessage(error: unknown) {
   return "La connexion Google a echoue. Reessayez.";
 }
 
-function extractExternalVerificationRedirectUrl(result: unknown) {
-  if (!result || typeof result !== "object") {
-    return null;
-  }
-
-  const candidates = [
-    (result as { firstFactorVerification?: { externalVerificationRedirectURL?: URL | string | null } }).firstFactorVerification?.externalVerificationRedirectURL,
-    (result as { externalVerificationRedirectURL?: URL | string | null }).externalVerificationRedirectURL,
-  ];
-
-  for (const candidate of candidates) {
-    if (candidate instanceof URL) {
-      return candidate.toString();
-    }
-
-    if (typeof candidate === "string" && candidate.trim()) {
-      return candidate.trim();
-    }
-  }
-
-  return null;
-}
-
 export function ClerkGoogleOauthButton({ mode, nextPath }: ClerkGoogleOauthButtonProps) {
   const { signIn, fetchStatus: signInFetchStatus } = useSignIn();
   const { signUp, fetchStatus: signUpFetchStatus } = useSignUp();
@@ -80,47 +57,31 @@ export function ClerkGoogleOauthButton({ mode, nextPath }: ClerkGoogleOauthButto
 
     try {
       const origin = window.location.origin;
-      const redirectUrl = new URL(nextPath, origin).toString();
-      const redirectCallbackUrl = new URL(mode === "sign-in" ? "/login/sso-callback" : "/register/sso-callback", origin).toString();
+      const redirectUrl = new URL(mode === "sign-in" ? "/login/sso-callback" : "/register/sso-callback", origin).toString();
+      const redirectUrlComplete = new URL(nextPath, origin).toString();
 
       if (mode === "sign-in") {
         if (signInFetchStatus !== "idle" || !signIn) {
           throw new Error("Le service de connexion Google n est pas encore pret.");
         }
 
-        const result = await signIn.sso({
+        await signIn.authenticateWithRedirect({
           strategy: "oauth_google",
           redirectUrl,
-          redirectCallbackUrl,
+          redirectUrlComplete,
         });
-
-        const externalRedirectUrl = extractExternalVerificationRedirectUrl(result);
-        if (externalRedirectUrl) {
-          window.location.assign(externalRedirectUrl);
-          return;
-        }
-
-        throw new Error("Aucune URL de redirection Google n a ete fournie.");
-
+        return;
       }
 
       if (signUpFetchStatus !== "idle" || !signUp) {
         throw new Error("Le service d inscription Google n est pas encore pret.");
       }
 
-      const result = await signUp.sso({
+      await signUp.authenticateWithRedirect({
         strategy: "oauth_google",
         redirectUrl,
-        redirectCallbackUrl,
+        redirectUrlComplete,
       });
-
-      const externalRedirectUrl = extractExternalVerificationRedirectUrl(result);
-      if (externalRedirectUrl) {
-        window.location.assign(externalRedirectUrl);
-        return;
-      }
-
-      throw new Error("Aucune URL de redirection Google n a ete fournie.");
     } catch (error) {
       console.error("Google OAuth error", error);
       setErrorMessage(extractErrorMessage(error));
@@ -142,7 +103,13 @@ export function ClerkGoogleOauthButton({ mode, nextPath }: ClerkGoogleOauthButto
 
       {isSubmitting ? (
         <div className="rounded-[16px] bg-[#fff8f1] px-4 py-3 text-[14px] font-medium text-[#c2410c] ring-1 ring-[#fed7aa]">
-          Redirection Google en cours. Si rien ne s ouvre, verifiez la configuration Clerk du domaine et des URLs de redirection.
+          Redirection Google en cours. Si la page Clerk refuse la requete, verifiez les domaines autorises et les URL de callback configurees dans Clerk.
+        </div>
+      ) : null}
+
+      {errorMessage ? (
+        <div className="rounded-[16px] bg-[#fff1f2] px-4 py-3 text-[14px] font-medium text-[#b42318] ring-1 ring-[#f5c2c7]">
+          {errorMessage}
         </div>
       ) : null}
     </div>

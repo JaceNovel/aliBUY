@@ -53,9 +53,9 @@ export default async function LoginPage({
   }
 
   return (
-    <div className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#fff3e8_0%,#f7f9fc_34%,#e8eef6_100%)] px-3 py-4 text-[#1d2738] sm:px-6 sm:py-8 lg:py-10">
+    <div className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#fff3e8_0%,#f7f9fc_34%,#e8eef6_100%)] px-3 py-3 text-[#1d2738] sm:px-6 sm:py-8 lg:py-10">
       <div className="mx-auto grid max-w-[1240px] items-start gap-4 lg:min-h-[calc(100vh-3rem)] lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:gap-10">
-        <section className="relative overflow-hidden rounded-[24px] border border-white/60 bg-[linear-gradient(140deg,rgba(255,255,255,0.88)_0%,rgba(248,250,252,0.9)_52%,rgba(255,243,232,0.94)_100%)] p-5 shadow-[0_24px_70px_rgba(31,41,55,0.08)] sm:rounded-[32px] sm:p-8 lg:min-h-[640px] lg:p-11">
+        <section className="order-2 relative overflow-hidden rounded-[24px] border border-white/60 bg-[linear-gradient(140deg,rgba(255,255,255,0.88)_0%,rgba(248,250,252,0.9)_52%,rgba(255,243,232,0.94)_100%)] p-5 shadow-[0_24px_70px_rgba(31,41,55,0.08)] sm:rounded-[32px] sm:p-8 lg:order-1 lg:min-h-[640px] lg:p-11">
           <div className="absolute -right-14 top-8 h-40 w-40 rounded-full bg-[#ffd6b8]/55 blur-3xl" />
           <div className="absolute -left-10 bottom-4 h-44 w-44 rounded-full bg-[#d7e7ff]/60 blur-3xl" />
 
@@ -94,7 +94,7 @@ export default async function LoginPage({
           </div>
         </section>
 
-        <section className="w-full">
+        <section className="order-1 w-full lg:order-2">
           <div className="mx-auto max-w-[560px] rounded-[24px] border border-white/70 bg-white/90 p-4 shadow-[0_24px_70px_rgba(15,23,42,0.10)] backdrop-blur sm:rounded-[34px] sm:p-8">
             <div className="flex items-center gap-3 sm:gap-4">
               <Image src={SITE_LOGO_PATH} alt={`${SITE_NAME} logo`} width={54} height={54} className="h-10 w-10 object-contain sm:h-12 sm:w-12" priority />
@@ -123,7 +123,7 @@ export default async function LoginPage({
           ) : null}
 
           {clerkConfigured ? (
-            <div className="mt-4 rounded-[20px] border border-[#edf1f5] bg-[linear-gradient(180deg,#ffffff_0%,#fbfcfe_100%)] p-3 sm:mt-6 sm:rounded-[26px] sm:p-5">
+            <div className="mt-4 rounded-[20px] border border-[#edf1f5] bg-[linear-gradient(180deg,#ffffff_0%,#fbfcfe_100%)] p-2.5 sm:mt-6 sm:rounded-[26px] sm:p-5">
               <ClerkAuthPanel mode="sign-in" nextPath={nextPath} reason={resolvedSearchParams.reason} />
             </div>
           ) : (
