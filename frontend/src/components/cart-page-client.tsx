@@ -143,7 +143,9 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
   const paymentSecurityBadges: PaymentSecurityBadgeKey[] = ["visa", "mastercard", "mobile-money", "moneroo"];
   const localizedRemainingFreeShippingLabel = formatSourcingAmount(quote.freeAirRemainingFcfa, { currencyCode, locale });
   const shippingThresholdMessage = isEuropeanUnionDestination
-    ? quote.freeShippingMessage
+    ? shipping?.key === "air"
+      ? "Livraison express domicile sélectionnée. Le supplément express est appliqué à ce devis."
+      : "Livraison standard gratuite sélectionnée pour cette destination de l'Union européenne."
     : deliveryPlan.workflow.freeDeliveryEligible
     ? quote.recommendedMethod === "sea"
       ? "Le moyen de livraison peut etre changé si le poids est trop conséquent. Pour profiter de la livraison gratuite, les commandes ne doivent pas dépasser 2.5 kg."
@@ -174,6 +176,13 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
     Icon: option.key === "sea" ? ShipWheel : option.key === "air" ? Plane : Truck,
   })), [currencyCode, locale, quote.recommendedMethod, quote.shippingOptions, shipping?.key]);
   const compactMobileShippingOptions = useMemo(() => shippingOptionCards.filter((option) => option.key === "air" || option.key === "sea"), [shippingOptionCards]);
+
+  const handleShippingSelection = (key: "air" | "sea" | "freight") => {
+    setSelectedShippingKey(key);
+    if (typeof window !== "undefined") {
+      writeStoredShippingPreference(window.sessionStorage, shippingPreferenceContext, key);
+    }
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -873,7 +882,7 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
             <button
               key={option.key}
               type="button"
-              onClick={() => setSelectedShippingKey(option.key)}
+              onClick={() => handleShippingSelection(option.key)}
               className={[
                 "rounded-[18px] border px-4 py-4 text-left transition",
                 isSelected ? "border-[#111827] bg-[#fafafa] shadow-[0_14px_28px_rgba(17,24,39,0.08)]" : isRecommended ? "border-[#f80632] bg-[#fff7f8] shadow-[0_12px_26px_rgba(248,6,50,0.08)]" : "border-[#e4e7ec] bg-[#fbfcfd] hover:border-[#cbd5e1]",
@@ -912,7 +921,7 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
             </div>
             <div className="flex items-center justify-between">
               <span>Livraison</span>
-              <span className="font-semibold text-[#1f2937]">{shipping ? (shipping.isFree ? "gratuit" : formatSourcingAmount(shipping.priceFcfa, { currencyCode, locale })) : formatSourcingAmount(0, { currencyCode, locale })}</span>
+              <span className="font-semibold text-[#1f2937]">{shipping ? `${shipping.label} · ${shipping.isFree ? "gratuit" : formatSourcingAmount(shipping.priceFcfa, { currencyCode, locale })}` : formatSourcingAmount(0, { currencyCode, locale })}</span>
             </div>
             <div className="flex items-center justify-between">
               <span>Poids total</span>
@@ -1018,7 +1027,7 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
               <button
                 key={option.key}
                 type="button"
-                onClick={() => setSelectedShippingKey(option.key)}
+                onClick={() => handleShippingSelection(option.key)}
                 className={[
                   "rounded-[16px] border px-3 py-3 text-left",
                   isSelected ? "border-[#111827] bg-[#fafafa]" : isRecommended ? "border-[#f4b8c2] bg-[#fff7f8]" : "border-[#e4e7ec] bg-[#fbfcfd]",
@@ -1050,7 +1059,7 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
             </div>
             <div className="flex items-center justify-between">
               <span>Livraison</span>
-              <span className="font-semibold text-[#1f2937]">{shipping ? (shipping.isFree ? "gratuite" : formatSourcingAmount(shipping.priceFcfa, { currencyCode, locale })) : formatSourcingAmount(0, { currencyCode, locale })}</span>
+              <span className="font-semibold text-[#1f2937]">{shipping ? `${shipping.label} · ${shipping.isFree ? "gratuite" : formatSourcingAmount(shipping.priceFcfa, { currencyCode, locale })}` : formatSourcingAmount(0, { currencyCode, locale })}</span>
             </div>
             <div className="flex items-center justify-between">
               <span>Poids total</span>
