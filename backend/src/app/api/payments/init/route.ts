@@ -85,7 +85,26 @@ export async function POST(request: Request) {
     ? "paypal"
     : "moneroo";
   const backendAccessToken = await getBackendAccessTokenFromCookies();
-  if (user.authProvider === "clerk" || !API_URL || !backendAccessToken) {
+  const shouldUseLocalFallback = user.authProvider === "clerk" || !API_URL || !backendAccessToken;
+
+  if (!shouldUseLocalFallback) {
+    const response = await fetch(buildApiUrl("/api/payments/init"), {
+      method: "POST",
+      headers: await buildServerForwardHeaders({
+        accept: "application/json",
+        "content-type": "application/json",
+      }),
+      body: JSON.stringify(payload ?? {}),
+      cache: "no-store",
+    });
+
+    const body = await response.json().catch(() => null);
+    if (response.status !== 401 && response.status !== 403) {
+      return NextResponse.json(body ?? { message: "Impossible d'initialiser le paiement." }, { status: response.status || 502 });
+    }
+  }
+
+  {
     try {
       const orderId = payload && typeof payload === "object" && "orderId" in payload ? String(payload.orderId) : "";
       const order = orderId ? await getSourcingOrderById(orderId) : null;
@@ -190,17 +209,4 @@ export async function POST(request: Request) {
       return toErrorResponse(error, provider === "paypal" ? "Impossible d'initialiser le paiement PayPal." : "Impossible d'initialiser le paiement.");
     }
   }
-
-  const response = await fetch(buildApiUrl("/api/payments/init"), {
-    method: "POST",
-    headers: await buildServerForwardHeaders({
-      accept: "application/json",
-      "content-type": "application/json",
-    }),
-    body: JSON.stringify(payload ?? {}),
-    cache: "no-store",
-  });
-
-  const body = await response.json().catch(() => null);
-  return NextResponse.json(body ?? { message: "Impossible d'initialiser le paiement." }, { status: response.status || 502 });
 }

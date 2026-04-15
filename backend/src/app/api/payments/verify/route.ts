@@ -104,7 +104,26 @@ export async function POST(request: Request) {
   }
 
   const backendAccessToken = await getBackendAccessTokenFromCookies();
-  if (user.authProvider === "clerk" || !API_URL || !backendAccessToken) {
+  const shouldUseLocalFallback = user.authProvider === "clerk" || !API_URL || !backendAccessToken;
+
+  if (!shouldUseLocalFallback) {
+    const response = await fetch(buildApiUrl("/api/payments/verify"), {
+      method: "POST",
+      headers: await buildServerForwardHeaders({
+        accept: "application/json",
+        "content-type": "application/json",
+      }),
+      body: JSON.stringify(payload ?? {}),
+      cache: "no-store",
+    });
+
+    const body = await response.json().catch(() => null);
+    if (response.status !== 401 && response.status !== 403) {
+      return NextResponse.json(body ?? { message: "Impossible de verifier le paiement." }, { status: response.status || 502 });
+    }
+  }
+
+  {
     try {
       const orderId = payload && typeof payload === "object" && "orderId" in payload ? String(payload.orderId) : "";
       const order = orderId ? await getSourcingOrderById(orderId) : null;
@@ -187,17 +206,4 @@ export async function POST(request: Request) {
       return toErrorResponse(error, provider === "paypal" ? "Impossible de verifier le paiement PayPal." : "Impossible de verifier le paiement.");
     }
   }
-
-  const response = await fetch(buildApiUrl("/api/payments/verify"), {
-    method: "POST",
-    headers: await buildServerForwardHeaders({
-      accept: "application/json",
-      "content-type": "application/json",
-    }),
-    body: JSON.stringify(payload ?? {}),
-    cache: "no-store",
-  });
-
-  const body = await response.json().catch(() => null);
-  return NextResponse.json(body ?? { message: "Impossible de verifier le paiement." }, { status: response.status || 502 });
 }
