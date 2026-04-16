@@ -116,7 +116,12 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: "Commande introuvable." }, { status: 404 });
       }
 
-      if ((order.paymentStatus === "initialized" || order.paymentStatus === "pending") && order.monerooCheckoutUrl && (order.paymentProvider || "moneroo") === provider) {
+      if (
+        provider === "moneroo"
+        && (order.paymentStatus === "initialized" || order.paymentStatus === "pending")
+        && order.monerooCheckoutUrl
+        && (order.paymentProvider || "moneroo") === provider
+      ) {
         return NextResponse.json({
           order,
           paymentId: order.monerooPaymentId,
