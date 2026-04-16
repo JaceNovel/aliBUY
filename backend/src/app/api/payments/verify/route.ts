@@ -50,6 +50,10 @@ async function verifyBackendProxyPayPalPayment(paymentId: string) {
     payment?: unknown;
   } | null;
 
+  if (response.status === 401 || response.status === 403) {
+    return null;
+  }
+
   if (!response.ok || !body?.paymentId) {
     throw new PaymentRouteError(body?.message || "Impossible de verifier le paiement PayPal.", response.status || 502);
   }

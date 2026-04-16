@@ -56,6 +56,10 @@ async function initializeBackendProxyPayPalPayment(input: {
     payment?: unknown;
   } | null;
 
+  if (response.status === 401 || response.status === 403) {
+    return null;
+  }
+
   if (!response.ok || !body?.paymentId) {
     throw new PaymentRouteError(body?.message || "Impossible d'initialiser le paiement PayPal.", response.status || 502);
   }
