@@ -461,11 +461,13 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
 
         void initializeOrderPayment(payOrderId, provider)
           .then((payload) => {
-            if (!payload?.checkoutUrl) {
+            const checkoutUrl = payload?.checkoutUrl || payload?.order?.paymentCheckoutUrl || payload?.order?.monerooCheckoutUrl;
+
+            if (!checkoutUrl) {
               throw new Error(isEnglish ? `Unable to open ${providerLabel} checkout.` : `Impossible d'ouvrir le checkout ${providerLabel}.`);
             }
 
-            window.location.href = payload.checkoutUrl;
+            window.location.href = checkoutUrl;
           })
           .catch((error) => {
             setPaymentFeedback(error instanceof Error ? error.message : isEnglish ? `Unable to open ${providerLabel} checkout.` : `Impossible d'ouvrir le checkout ${providerLabel}.`);
