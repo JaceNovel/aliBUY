@@ -440,6 +440,7 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
     const payment = paymentAction?.payment?.trim();
     const provider = normalizePaymentProvider(paymentAction?.provider?.trim());
     const providerLabel = getPaymentProviderLabel(provider);
+    const currentRetryOrder = orders.find((order) => order.id === (payOrderId || orderId));
     const actionKey = [payOrderId ?? "", orderId ?? "", paymentId ?? "", paymentStatus ?? "", payment ?? "", provider].join("|");
 
     if (!actionKey.replace(/\|/g, "")) {
@@ -461,7 +462,7 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
 
         void initializeOrderPayment(payOrderId, provider)
           .then((payload) => {
-            const checkoutUrl = payload?.checkoutUrl || payload?.order?.paymentCheckoutUrl || payload?.order?.monerooCheckoutUrl;
+            const checkoutUrl = payload?.checkoutUrl || payload?.order?.paymentCheckoutUrl || payload?.order?.monerooCheckoutUrl || currentRetryOrder?.paymentCheckoutUrl;
 
             if (!checkoutUrl) {
               throw new Error(isEnglish ? `Unable to open ${providerLabel} checkout.` : `Impossible d'ouvrir le checkout ${providerLabel}.`);
@@ -470,6 +471,11 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
             window.location.href = checkoutUrl;
           })
           .catch((error) => {
+            if (currentRetryOrder?.paymentCheckoutUrl) {
+              window.location.href = currentRetryOrder.paymentCheckoutUrl;
+              return;
+            }
+
             setPaymentFeedback(error instanceof Error ? error.message : isEnglish ? `Unable to open ${providerLabel} checkout.` : `Impossible d'ouvrir le checkout ${providerLabel}.`);
           })
           .finally(() => {
@@ -517,7 +523,7 @@ export function OrdersClient({ orders, languageCode, paymentAction }: OrdersClie
         window.clearTimeout(timeoutId);
       };
     }
-  }, [isEnglish, paymentAction, router]);
+  }, [isEnglish, orders, paymentAction, router]);
 
   const filteredOrders = useMemo(() => {
     const normalizedQuery = searchTerm.trim().toLowerCase();

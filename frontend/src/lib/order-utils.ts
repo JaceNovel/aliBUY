@@ -20,6 +20,7 @@ export type OrderRecord = {
   title: string;
   variant: string;
   image: string;
+  paymentCheckoutUrl?: string;
   status: OrderStatus;
   tab: OrderTabKey;
   supportConversationId?: string;
