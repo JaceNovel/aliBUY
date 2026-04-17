@@ -1,4 +1,5 @@
 import { AdminAliExpressOperationsClient } from "@/components/admin-alibaba-operations-client";
+import { AdminSourcingProviderNotice } from "@/components/admin-sourcing-provider-notice";
 import { API_URL, buildApiUrl } from "@/lib/api";
 import { getAlibabaOperationsDashboardData } from "@/lib/alibaba-operations-service";
 import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
@@ -109,5 +110,10 @@ async function getAliExpressDashboardData(panel: string) {
 export default async function AdminAliExpressSourcingPage() {
   const dashboard = await getAliExpressDashboardData("dashboard");
 
-  return <AdminAliExpressOperationsClient initialDashboard={dashboard} />;
+  return (
+    <>
+      <AdminSourcingProviderNotice provider="aliexpress" />
+      <AdminAliExpressOperationsClient initialDashboard={dashboard} />
+    </>
+  );
 }

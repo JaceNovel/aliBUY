@@ -26,10 +26,10 @@ export type AlibabaAccountStatus = "connected" | "needs_auth" | "disabled";
 export type AlibabaFulfillmentChannel = "standard_us" | "crossborder" | "fast_us" | "mexico" | "best_seller_us" | "best_seller_mexico";
 export type AlibabaImportCampaignMode = "standard" | "trends-promo" | "trends-hot" | "mode-fashion" | "free-deal";
 
-export const ALIBABA_DEFAULT_AUTHORIZE_URL = "https://api-sg.aliexpress.com/oauth/authorize";
-export const ALIBABA_DEFAULT_TOKEN_URL = "https://api-sg.aliexpress.com/rest/auth/token/security/create";
-export const ALIBABA_DEFAULT_REFRESH_URL = "https://api-sg.aliexpress.com/rest/auth/token/security/refresh";
-export const ALIBABA_DEFAULT_API_BASE_URL = "https://api-sg.aliexpress.com";
+export const ALIBABA_DEFAULT_AUTHORIZE_URL = "https://openapi-auth.alibaba.com/oauth/authorize";
+export const ALIBABA_DEFAULT_TOKEN_URL = "https://openapi-api.alibaba.com/rest/auth/token/create";
+export const ALIBABA_DEFAULT_REFRESH_URL = "https://openapi-api.alibaba.com/rest/auth/token/refresh";
+export const ALIBABA_DEFAULT_API_BASE_URL = "https://openapi-api.alibaba.com";
 
 export type AlibabaImportJob = {
   id: string;

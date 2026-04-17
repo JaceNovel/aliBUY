@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 
-import { AdminSourcingDashboardClient } from "@/components/admin-sourcing-dashboard-client";
 import { AdminAliExpressImportCatalogClient } from "@/components/admin-aliexpress-import-catalog-client";
 import { AdminAliExpressOperationsClient } from "@/components/admin-alibaba-operations-client";
+import { AdminSourcingDashboardClient } from "@/components/admin-sourcing-dashboard-client";
 import { AdminSourcingProviderNotice } from "@/components/admin-sourcing-provider-notice";
 import { API_URL, buildApiUrl } from "@/lib/api";
 import { ALIBABA_PANEL_SLUGS, normalizePanelSlug } from "@/lib/alibaba-operations";
@@ -10,19 +10,39 @@ import { getAlibabaOperationsDashboardData } from "@/lib/alibaba-operations-serv
 import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
 import { getSourcingDashboardData } from "@/lib/sourcing-service";
 
-function normalizeAliExpressDashboardPayload(panel: string, payload: unknown) {
-  const fallback = buildRemoteDashboardUnavailableState(panel, "la reponse dashboard recue est incomplete ou invalide");
+function buildFallbackDashboard(panel: string, detail?: string) {
+  return {
+    panel: normalizePanelSlug(panel),
+    mappings: [],
+    importJobs: [],
+    importedProducts: [],
+    purchaseOrders: [],
+    supplierAccounts: [],
+    countries: [],
+    addresses: [],
+    receptions: [],
+    storage: {
+      persistentAvailable: false,
+      persistentRequired: true,
+      issue: detail ?? "Le backend admin sourcing est indisponible pour le moment.",
+    },
+    stats: {
+      importedCount: 0,
+      publishedCount: 0,
+      pendingPayments: 0,
+      paidOrders: 0,
+    },
+  };
+}
+
+function normalizeDashboardPayload(panel: string, payload: unknown) {
   if (!payload || typeof payload !== "object") {
-    return fallback;
+    return buildFallbackDashboard(panel, "La reponse dashboard sourcing recue est incomplete ou invalide.");
   }
 
   const candidate = payload as Record<string, unknown>;
-  const storage = candidate.storage && typeof candidate.storage === "object"
-    ? candidate.storage as Record<string, unknown>
-    : {};
-  const stats = candidate.stats && typeof candidate.stats === "object"
-    ? candidate.stats as Record<string, unknown>
-    : {};
+  const storage = candidate.storage && typeof candidate.storage === "object" ? candidate.storage as Record<string, unknown> : {};
+  const stats = candidate.stats && typeof candidate.stats === "object" ? candidate.stats as Record<string, unknown> : {};
 
   return {
     panel: normalizePanelSlug(typeof candidate.panel === "string" ? candidate.panel : panel),
@@ -48,67 +68,28 @@ function normalizeAliExpressDashboardPayload(panel: string, payload: unknown) {
   };
 }
 
-function buildRemoteDashboardUnavailableState(panel: string, detail?: string) {
-  const target = API_URL || "backend externe configure";
-  const issue = detail
-    ? `Le frontend est configure pour utiliser ${target}, mais ${detail}. Les donnees AliExpress doivent venir du backend Laravel connecte a MySQL Hostinger; le fallback local du frontend est desactive pour eviter un faux stockage temporaire.`
-    : `Le frontend est configure pour utiliser ${target}, mais la route admin AliExpress n'est pas disponible. Les donnees AliExpress doivent venir du backend Laravel connecte a MySQL Hostinger; le fallback local du frontend est desactive pour eviter un faux stockage temporaire.`;
-
-  return {
-    panel: normalizePanelSlug(panel),
-    mappings: [],
-    importJobs: [],
-    importedProducts: [],
-    purchaseOrders: [],
-    supplierAccounts: [],
-    countries: [],
-    addresses: [],
-    receptions: [],
-    storage: {
-      persistentAvailable: false,
-      persistentRequired: true,
-      issue,
-    },
-    stats: {
-      importedCount: 0,
-      publishedCount: 0,
-      pendingPayments: 0,
-      paidOrders: 0,
-    },
-  };
-}
-
-async function getAliExpressDashboardData(panel: string) {
+async function getAlibabaDashboardData(panel: string) {
   if (!API_URL) {
     return getAlibabaOperationsDashboardData(panel);
   }
 
   try {
-    const response = await fetch(buildApiUrl("/api/admin/aliexpress/dashboard", { panel }), {
-      headers: await buildServerForwardHeaders({
-        accept: "application/json",
-      }, {
-        includeAdminApiToken: true,
-      }),
+    const response = await fetch(buildApiUrl("/api/admin/alibaba/dashboard", { panel }), {
+      headers: await buildServerForwardHeaders({ accept: "application/json" }, { includeAdminApiToken: true }),
       cache: "no-store",
     });
 
     if (response.ok) {
-      return normalizeAliExpressDashboardPayload(panel, await response.json().catch(() => null));
+      return normalizeDashboardPayload(panel, await response.json().catch(() => null));
     }
 
-    const payload = await response.json().catch(() => null) as { message?: unknown } | null;
-    const remoteMessage = typeof payload?.message === "string" && payload.message.trim().length > 0
-      ? ` (${payload.message.trim()})`
-      : "";
-
-    return buildRemoteDashboardUnavailableState(panel, `la route /api/admin/aliexpress/dashboard a renvoye HTTP ${response.status}${remoteMessage}`);
+    return buildFallbackDashboard(panel, `La route dashboard sourcing a renvoye HTTP ${response.status}.`);
   } catch {
-    return buildRemoteDashboardUnavailableState(panel, "le backend externe est injoignable");
+    return buildFallbackDashboard(panel, "Le backend externe est injoignable.");
   }
 }
 
-export default async function AdminAliExpressSourcingPanelPage({
+export default async function AdminAlibabaSourcingPanelPage({
   params,
 }: {
   params: Promise<{ panel: string }>;
@@ -124,26 +105,26 @@ export default async function AdminAliExpressSourcingPanelPage({
     const dashboard = await getSourcingDashboardData();
     return (
       <>
-        <AdminSourcingProviderNotice provider="aliexpress" />
+        <AdminSourcingProviderNotice provider="alibaba" />
         <AdminSourcingDashboardClient initialDashboard={dashboard} />
       </>
     );
   }
 
-  const dashboard = await getAliExpressDashboardData(normalizedPanel);
+  const dashboard = await getAlibabaDashboardData(normalizedPanel);
   if (normalizedPanel === "import-catalog") {
     return (
       <>
-        <AdminSourcingProviderNotice provider="aliexpress" />
-        <AdminAliExpressImportCatalogClient initialDashboard={dashboard} />
+        <AdminSourcingProviderNotice provider="alibaba" />
+        <AdminAliExpressImportCatalogClient initialDashboard={dashboard} adminApiBasePath="/api/admin/alibaba" />
       </>
     );
   }
 
   return (
     <>
-      <AdminSourcingProviderNotice provider="aliexpress" />
-      <AdminAliExpressOperationsClient initialDashboard={dashboard} />
+      <AdminSourcingProviderNotice provider="alibaba" />
+      <AdminAliExpressOperationsClient initialDashboard={dashboard} adminBasePath="/admin/alibaba-sourcing" adminApiBasePath="/api/admin/alibaba" />
     </>
   );
 }

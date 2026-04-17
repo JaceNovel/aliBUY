@@ -62,6 +62,7 @@ Route::prefix('partner/portal')->group(function () {
     Route::get('/charter', [PartnerPortalController::class, 'charter']);
 });
 Route::get('/admin/aliexpress/supplier-accounts/oauth/callback', [AlibabaAdminController::class, 'oauthCallback']);
+Route::get('/admin/alibaba/supplier-accounts/oauth/callback', [AlibabaAdminController::class, 'oauthCallback']);
 
 Route::prefix('partner')
     ->middleware(['partner.api.log', 'partner.auth', 'throttle:partner-api'])
@@ -114,6 +115,23 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/admin/aliexpress/publish', [AlibabaAdminController::class, 'publish']);
     Route::post('/admin/aliexpress/purchase-orders', [AlibabaAdminController::class, 'purchaseOrders']);
     Route::post('/admin/aliexpress/purchase-orders/{orderId}/pay', [AlibabaAdminController::class, 'payPurchaseOrder']);
+    Route::get('/admin/alibaba/dashboard', [AlibabaAdminController::class, 'dashboard']);
+    Route::post('/admin/alibaba/search', [AlibabaAdminController::class, 'search']);
+    Route::post('/admin/alibaba/fetch-remote', [AlibabaAdminController::class, 'fetchRemote']);
+    Route::post('/admin/alibaba/probe', [AlibabaAdminController::class, 'probe']);
+    Route::post('/admin/alibaba/import', [AlibabaAdminController::class, 'import']);
+    Route::delete('/admin/alibaba/import', [AlibabaAdminController::class, 'purgeImports']);
+    Route::post('/admin/alibaba/import/reenrich', [AlibabaAdminController::class, 'reenrichAllImports']);
+    Route::delete('/admin/alibaba/import/{importedProductId}', [AlibabaAdminController::class, 'deleteImport']);
+    Route::post('/admin/alibaba/import/{importedProductId}/reenrich', [AlibabaAdminController::class, 'reenrichImport']);
+    Route::post('/admin/alibaba/supplier-accounts', [AlibabaAdminController::class, 'supplierAccounts']);
+    Route::match(['GET', 'POST'], '/admin/alibaba/supplier-accounts/oauth/start', [AlibabaAdminController::class, 'oauthStart']);
+    Route::post('/admin/alibaba/supplier-accounts/{accountId}/refresh', [AlibabaAdminController::class, 'refreshSupplierAccount']);
+    Route::post('/admin/alibaba/reception-addresses', [AlibabaAdminController::class, 'receptionAddresses']);
+    Route::put('/admin/alibaba/country-profiles', [AlibabaAdminController::class, 'countryProfiles']);
+    Route::post('/admin/alibaba/publish', [AlibabaAdminController::class, 'publish']);
+    Route::post('/admin/alibaba/purchase-orders', [AlibabaAdminController::class, 'purchaseOrders']);
+    Route::post('/admin/alibaba/purchase-orders/{orderId}/pay', [AlibabaAdminController::class, 'payPurchaseOrder']);
     Route::get('/admin/diagnostics/manychat', [AdminDiagnosticsController::class, 'manychat']);
     Route::get('/admin/free-deals', [FreeDealController::class, 'adminShow']);
     Route::put('/admin/free-deals', [FreeDealController::class, 'adminSave']);

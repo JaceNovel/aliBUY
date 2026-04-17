@@ -8,11 +8,16 @@ use RuntimeException;
 
 class AliExpressOpenPlatformService
 {
+    private const ALIBABA_AUTHORIZE_URL = 'https://openapi-auth.alibaba.com/oauth/authorize';
+    private const ALIBABA_TOKEN_URL = 'https://openapi-api.alibaba.com/rest/auth/token/create';
+    private const ALIBABA_REFRESH_URL = 'https://openapi-api.alibaba.com/rest/auth/token/refresh';
+    private const ALIBABA_API_BASE_URL = 'https://openapi-api.alibaba.com';
+
     public function makeEnvironmentAccount(): ?array
     {
-        $appKey = trim((string) env('ALIEXPRESS_APP_KEY', ''));
-        $appSecret = trim((string) env('ALIEXPRESS_APP_SECRET', ''));
-        $accessToken = trim((string) env('ALIEXPRESS_ACCESS_TOKEN', ''));
+        $appKey = trim((string) env('ALIBABA_APP_KEY', env('ALIEXPRESS_APP_KEY', '')));
+        $appSecret = trim((string) env('ALIBABA_APP_SECRET', env('ALIEXPRESS_APP_SECRET', '')));
+        $accessToken = trim((string) env('ALIBABA_ACCESS_TOKEN', env('ALIEXPRESS_ACCESS_TOKEN', '')));
 
         if ($appKey === '' || $appSecret === '' || $accessToken === '') {
             return null;
@@ -21,19 +26,19 @@ class AliExpressOpenPlatformService
         $timestamp = now()->toIso8601String();
 
         return [
-            'id' => 'env-aliexpress',
-            'name' => 'AliExpress Environment',
-            'email' => 'env@aliexpress.local',
+            'id' => 'env-alibaba',
+            'name' => 'Alibaba Environment',
+            'email' => 'env@alibaba.local',
             'accountPlatform' => 'seller',
             'countryCode' => strtoupper(trim((string) env('ALIEXPRESS_DS_SHIP_TO_COUNTRY', 'FR')) ?: 'FR'),
             'defaultDispatchLocation' => 'CN',
             'status' => 'connected',
             'appKey' => $appKey,
             'appSecret' => $appSecret,
-            'authorizeUrl' => 'https://api-sg.aliexpress.com/oauth/authorize',
-            'tokenUrl' => 'https://api-sg.aliexpress.com/rest/auth/token/security/create',
-            'refreshUrl' => 'https://api-sg.aliexpress.com/rest/auth/token/security/refresh',
-            'apiBaseUrl' => trim((string) env('ALIEXPRESS_BASE_URL', 'https://api-sg.aliexpress.com')) ?: 'https://api-sg.aliexpress.com',
+            'authorizeUrl' => trim((string) env('ALIBABA_AUTHORIZE_URL', self::ALIBABA_AUTHORIZE_URL)) ?: self::ALIBABA_AUTHORIZE_URL,
+            'tokenUrl' => trim((string) env('ALIBABA_TOKEN_URL', self::ALIBABA_TOKEN_URL)) ?: self::ALIBABA_TOKEN_URL,
+            'refreshUrl' => trim((string) env('ALIBABA_REFRESH_URL', self::ALIBABA_REFRESH_URL)) ?: self::ALIBABA_REFRESH_URL,
+            'apiBaseUrl' => trim((string) env('ALIBABA_BASE_URL', env('ALIEXPRESS_BASE_URL', self::ALIBABA_API_BASE_URL))) ?: self::ALIBABA_API_BASE_URL,
             'accessToken' => $accessToken,
             'refreshToken' => null,
             'isActive' => true,
@@ -49,7 +54,7 @@ class AliExpressOpenPlatformService
             throw new RuntimeException("Ajoute l'App Key avant de lancer l'autorisation OAuth.");
         }
 
-        $authorizeUrl = trim((string) ($account['authorizeUrl'] ?? 'https://api-sg.aliexpress.com/oauth/authorize'));
+        $authorizeUrl = trim((string) ($account['authorizeUrl'] ?? self::ALIBABA_AUTHORIZE_URL));
         $query = [
             'response_type' => 'code',
             'client_id' => $appKey,
@@ -60,7 +65,7 @@ class AliExpressOpenPlatformService
 
         $parts = parse_url($authorizeUrl);
         $scheme = $parts['scheme'] ?? 'https';
-        $host = $parts['host'] ?? 'api-sg.aliexpress.com';
+        $host = $parts['host'] ?? 'openapi-auth.alibaba.com';
         $port = isset($parts['port']) ? ':'.$parts['port'] : '';
         $path = $parts['path'] ?? '/oauth/authorize';
 
@@ -71,10 +76,10 @@ class AliExpressOpenPlatformService
     {
         $normalizedCode = trim($code);
         if ($normalizedCode === '') {
-            throw new RuntimeException('Code OAuth AliExpress manquant.');
+            throw new RuntimeException('Code OAuth Open Platform manquant.');
         }
 
-        $tokenUrl = trim((string) ($account['tokenUrl'] ?? 'https://api-sg.aliexpress.com/rest/auth/token/security/create'));
+        $tokenUrl = trim((string) ($account['tokenUrl'] ?? self::ALIBABA_TOKEN_URL));
         $result = null;
 
         foreach ($this->getOAuthEndpointCandidates($tokenUrl, 'token') as $candidateUrl) {
@@ -94,7 +99,7 @@ class AliExpressOpenPlatformService
         }
 
         if (! is_array($result) || ! $result['ok'] || ! $this->isOAuthTokenResponseSuccessful($result['responseBody'])) {
-            throw new RuntimeException($this->getOAuthResponseMessage($result['responseBody'] ?? null) ?? "Generation du token d'acces AliExpress impossible.");
+            throw new RuntimeException($this->getOAuthResponseMessage($result['responseBody'] ?? null) ?? "Generation du token d'acces Open Platform impossible.");
         }
 
         return [
@@ -110,7 +115,7 @@ class AliExpressOpenPlatformService
             throw new RuntimeException('Aucun refresh token Alibaba disponible.');
         }
 
-        $refreshUrl = trim((string) ($account['refreshUrl'] ?? 'https://api-sg.aliexpress.com/rest/auth/token/security/refresh'));
+        $refreshUrl = trim((string) ($account['refreshUrl'] ?? self::ALIBABA_REFRESH_URL));
         $result = null;
 
         foreach ($this->getOAuthEndpointCandidates($refreshUrl, 'refresh') as $candidateUrl) {
@@ -139,6 +144,10 @@ class AliExpressOpenPlatformService
 
     public function search(array $account, array $input): array
     {
+        if (($input['provider'] ?? null) === 'alibaba') {
+            return $this->searchAlibabaBuyerProducts($account, $input);
+        }
+
         $prepared = $this->prepareAccount($account, true);
         $account = $prepared['account'];
         $query = trim((string) ($input['query'] ?? ''));
@@ -244,6 +253,10 @@ class AliExpressOpenPlatformService
 
     public function fetchRemote(array $account, array $input): array
     {
+        if (($input['provider'] ?? null) === 'alibaba') {
+            return $this->fetchAlibabaBuyerProduct($account, $input);
+        }
+
         $prepared = $this->prepareAccount($account, true);
         $account = $prepared['account'];
         $identifier = trim((string) ($input['query'] ?? ''));
@@ -306,6 +319,285 @@ class AliExpressOpenPlatformService
                 'debug' => $debug,
             ],
         ];
+    }
+
+    private function searchAlibabaBuyerProducts(array $account, array $input): array
+    {
+        $prepared = $this->prepareAccount($account, true);
+        $account = $prepared['account'];
+        $query = trim((string) ($input['query'] ?? ''));
+        if ($query === '') {
+            throw new RuntimeException('Requete de recherche Alibaba manquante.');
+        }
+
+        $pageSize = max(1, min(20, (int) ($input['pageSize'] ?? 12)));
+        $pageIndex = max(1, (int) ($input['pageIndex'] ?? 1));
+        $request = [
+            'keyword' => $query,
+            'query' => $query,
+            'page_index' => $pageIndex,
+            'page_size' => $pageSize,
+            'destination_country' => strtoupper(trim((string) ($input['countryCode'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'FR')))),
+        ];
+
+        $searchResult = $this->callRestEndpoint($account, '/eco/buyer/product/search', [
+            'param0' => $request,
+        ]);
+        $items = $this->extractAlibabaBuyerProductItems($searchResult['responseBody']);
+        $products = array_values(array_filter(array_map(
+            fn ($item) => $this->mapAlibabaBuyerSearchItem($item, $query),
+            $items
+        )));
+
+        return [
+            'account' => $account,
+            'payload' => [
+                'products' => $products,
+                'totalCount' => $this->extractAlibabaPaginationTotal($searchResult['responseBody']) ?? count($products),
+                'pageIndex' => $pageIndex,
+                'pageSize' => $pageSize,
+                'requestId' => $this->getString($searchResult['responseBody']['request_id'] ?? null),
+            ],
+        ];
+    }
+
+    private function fetchAlibabaBuyerProduct(array $account, array $input): array
+    {
+        $prepared = $this->prepareAccount($account, true);
+        $account = $prepared['account'];
+        $identifier = trim((string) ($input['query'] ?? ''));
+        $sourceProductId = $this->extractSourceProductId($identifier);
+        if ($sourceProductId === '') {
+            throw new RuntimeException('Import manuel impossible: saisis un product_id Alibaba ou un lien produit Alibaba.');
+        }
+
+        $result = $this->callRestEndpoint($account, '/eco/buyer/product/description', [
+            'query_req' => [
+                'product_id' => $sourceProductId,
+                'destination_country' => strtoupper(trim((string) ($input['destinationCountry'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'FR')))),
+            ],
+        ]);
+        $product = $this->mapAlibabaBuyerDescriptionToProduct($result['responseBody'], $identifier);
+
+        if ($product === null) {
+            throw new RuntimeException($this->extractOperationMessage($result['responseBody']) ?? 'Produit Alibaba introuvable via eco/buyer/product/description.');
+        }
+
+        return [
+            'account' => $account,
+            'payload' => [
+                'ok' => true,
+                'endpoint' => '/eco/buyer/product/description',
+                'sourceProductId' => $product['sourceProductId'],
+                'product' => $product,
+                'debug' => [
+                    'externalProductId' => $product['sourceProductId'],
+                    'resolvedRemoteMode' => 'alibaba_buyer_product_description',
+                    'fallbackUsed' => false,
+                    'providerRequestId' => $this->getString($result['responseBody']['request_id'] ?? null),
+                    'responseShape' => 'buyer_product_description',
+                    'attempts' => [[
+                        'endpoint' => '/eco/buyer/product/description',
+                        'ok' => $result['ok'],
+                        'status' => $result['status'],
+                        'responseShape' => 'buyer_product_description',
+                        'mappingStatus' => 'mapped',
+                    ]],
+                ],
+            ],
+        ];
+    }
+
+    private function extractAlibabaBuyerProductItems($responseBody): array
+    {
+        $body = $this->toArray($responseBody);
+        $candidates = [
+            $body['result']['data']['products'] ?? null,
+            $body['result']['result_data']['products'] ?? null,
+            $body['result']['result_data']['items'] ?? null,
+            $body['result_data']['products'] ?? null,
+            $body['result_data']['items'] ?? null,
+            $body['products'] ?? null,
+            $body['items'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_array($candidate)) {
+                return array_values(array_filter($candidate, fn ($item) => is_array($item)));
+            }
+        }
+
+        return [];
+    }
+
+    private function extractAlibabaPaginationTotal($responseBody): ?int
+    {
+        $body = $this->toArray($responseBody);
+        $candidates = [
+            $body['result']['data']['pagination']['total_product_count'] ?? null,
+            $body['result']['result_data']['pagination']['total_product_count'] ?? null,
+            $body['result']['result_total'] ?? null,
+            $body['result_total'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if ($candidate !== null && is_numeric($candidate)) {
+                return (int) $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function mapAlibabaBuyerSearchItem(array $item, string $query): ?array
+    {
+        $sourceProductId = $this->getString($item['product_id'] ?? $item['productId'] ?? $item['item_id'] ?? $item['itemId'] ?? null);
+        if ($sourceProductId === null) {
+            return null;
+        }
+
+        $image = $this->extractAlibabaBuyerImage($item);
+        $title = $this->getString($item['title'] ?? null) ?? 'Produit Alibaba '.$sourceProductId;
+        $price = $this->toFloat($item['price'] ?? $item['original_price'] ?? 0);
+        $product = [
+            'sourceProductId' => $sourceProductId,
+            'slug' => $this->slugify($title.'-'.$sourceProductId),
+            'title' => $title,
+            'shortTitle' => Str::limit($title, 88, ''),
+            'description' => $title,
+            'query' => $query,
+            'keywords' => array_values(array_filter([$query])),
+            'image' => $image,
+            'gallery' => array_values(array_unique(array_filter([$image]))),
+            'packaging' => 'Selon fournisseur Alibaba',
+            'itemWeightGrams' => 0,
+            'lotCbm' => '0',
+            'minUsd' => $price,
+            'maxUsd' => null,
+            'moq' => 1,
+            'unit' => 'Piece',
+            'supplierName' => 'Alibaba Supplier',
+            'supplierLocation' => 'Alibaba.com',
+            'responseTime' => '24h',
+            'yearsInBusiness' => 1,
+            'transactionsLabel' => 'Alibaba.com',
+            'soldLabel' => $this->getString($item['sold_quantity'] ?? null) ? ((string) $item['sold_quantity']).' vendu(s)' : 'Catalogue Alibaba',
+            'customizationLabel' => 'Selon fournisseur',
+            'shippingLabel' => 'Fret Alibaba a calculer',
+            'overview' => ['Produit trouve via Alibaba Buyer Sourcing API.'],
+            'variantGroups' => [],
+            'variantPricing' => [],
+            'variantSkus' => [],
+            'tiers' => [],
+            'specs' => [],
+            'inventory' => $this->toInt($item['available_quantity'] ?? 0),
+            'rawPayload' => [
+                'provider' => 'alibaba',
+                'searchItem' => $item,
+            ],
+        ];
+
+        return [
+            'productId' => $sourceProductId,
+            'title' => $title,
+            'itemUrl' => $this->getString($item['permalink'] ?? $item['detail_url'] ?? null),
+            'imageUrl' => $image,
+            'salePrice' => $price > 0 ? (string) $price : null,
+            'salePriceCurrency' => $this->getString($item['currency'] ?? null) ?? 'USD',
+            'categoryId' => $this->getString($item['category_id'] ?? $item['isv_category_id'] ?? null),
+            'importable' => true,
+            'importSource' => 'search_fallback',
+            'product' => $product,
+        ];
+    }
+
+    private function mapAlibabaBuyerDescriptionToProduct($responseBody, string $query): ?array
+    {
+        $body = $this->toArray($responseBody);
+        $record = $body['result']['result_data'] ?? $body['result_data'] ?? $body['data'] ?? null;
+        if (! is_array($record)) {
+            return null;
+        }
+
+        $sourceProductId = $this->getString($record['product_id'] ?? null);
+        if ($sourceProductId === null) {
+            return null;
+        }
+
+        $title = $this->getString($record['title'] ?? null) ?? 'Produit Alibaba '.$sourceProductId;
+        $skus = is_array($record['skus'] ?? null) ? $record['skus'] : [];
+        $firstSku = is_array($skus[0] ?? null) ? $skus[0] : [];
+        $price = $this->extractAlibabaBuyerDescriptionPrice($record, $firstSku);
+        $image = $this->getString($record['main_image'] ?? null) ?? $this->extractAlibabaBuyerImage($firstSku);
+        $gallery = array_values(array_unique(array_filter([
+            $image,
+            ...(is_array($record['images'] ?? null) ? array_filter(array_map(fn ($item) => $this->getString($item), $record['images'])) : []),
+        ])));
+
+        return [
+            'sourceProductId' => $sourceProductId,
+            'categorySlug' => $this->getString($record['category_id'] ?? null),
+            'categoryTitle' => $this->getString($record['category'] ?? null),
+            'slug' => $this->slugify($title.'-'.$sourceProductId),
+            'title' => $title,
+            'shortTitle' => Str::limit($title, 88, ''),
+            'description' => $this->getString($record['description'] ?? null) ?? $title,
+            'query' => $query,
+            'keywords' => array_values(array_filter([$this->getString($record['category'] ?? null), $query])),
+            'image' => $image ?? '/globe.svg',
+            'gallery' => $gallery,
+            'videoUrl' => $this->getString($record['video_url'] ?? null),
+            'packaging' => $this->getString($record['wholesale_trade']['package_size'] ?? null) ?? 'Selon fournisseur Alibaba',
+            'itemWeightGrams' => (int) round($this->toFloat($record['wholesale_trade']['weight'] ?? 0) * 1000),
+            'lotCbm' => '0',
+            'minUsd' => $price,
+            'maxUsd' => null,
+            'moq' => max(1, $this->toInt($record['min_order_quantity'] ?? $record['wholesale_trade']['min_order_quantity'] ?? 1)),
+            'unit' => $this->getString($firstSku['unit'] ?? $record['wholesale_trade']['unit_type'] ?? null) ?? 'Piece',
+            'supplierName' => $this->getString($record['supplier'] ?? null) ?? 'Alibaba Supplier',
+            'supplierLocation' => 'Alibaba.com',
+            'supplierCompanyId' => $this->getString($record['eCompanyId'] ?? null),
+            'responseTime' => '24h',
+            'yearsInBusiness' => 1,
+            'transactionsLabel' => 'Alibaba.com',
+            'soldLabel' => 'Catalogue Alibaba',
+            'customizationLabel' => 'Selon fournisseur',
+            'shippingLabel' => 'Fret Alibaba a calculer',
+            'overview' => ['Produit charge via Get Product Description Alibaba.'],
+            'variantGroups' => [],
+            'variantPricing' => [],
+            'variantSkus' => array_values(array_filter(array_map(fn ($sku) => is_array($sku) ? [
+                'skuId' => $this->getString($sku['sku_id'] ?? null),
+                'label' => collect($sku['sku_attr_list'] ?? [])->map(fn ($attr) => is_array($attr) ? trim(($attr['attr_name_desc'] ?? '').': '.($attr['attr_value_desc'] ?? '')) : '')->filter()->implode(' / '),
+            ] : null, $skus))),
+            'tiers' => [],
+            'specs' => [],
+            'inventory' => $this->toInt($firstSku['inventory_count'] ?? 0),
+            'rawPayload' => [
+                'provider' => 'alibaba',
+                'description' => $record,
+                'response' => $body,
+            ],
+        ];
+    }
+
+    private function extractAlibabaBuyerImage(array $item): ?string
+    {
+        if (is_array($item['image'] ?? null)) {
+            return $this->getString($item['image']['main_image'] ?? null)
+                ?? (is_array($item['image']['multi_image'] ?? null) ? $this->getString($item['image']['multi_image'][0] ?? null) : null);
+        }
+
+        return $this->getString($item['main_image_url'] ?? $item['image'] ?? null)
+            ?? (is_array($item['image_urls'] ?? null) ? $this->getString($item['image_urls'][0] ?? null) : null);
+    }
+
+    private function extractAlibabaBuyerDescriptionPrice(array $record, array $firstSku): float
+    {
+        $ladder = is_array($firstSku['ladder_price'] ?? null) ? $firstSku['ladder_price'] : [];
+        $firstLadder = is_array($ladder[0] ?? null) ? $ladder[0] : [];
+
+        return $this->toFloat($firstLadder['price'] ?? $record['price'] ?? $record['wholesale_trade']['price'] ?? 0);
     }
 
     public function probeDsApi(array $account, array $input): array
@@ -393,6 +685,10 @@ class AliExpressOpenPlatformService
 
     public function prepareDraftOrder(array $account, array $product, array $address, int $quantity): array
     {
+        if (($account['provider'] ?? null) === 'alibaba' || ($product['rawPayload']['provider'] ?? null) === 'alibaba') {
+            return $this->prepareAlibabaDraftOrder($account, $product, $address, $quantity);
+        }
+
         $prepared = $this->prepareAccount($account, true);
         $account = $prepared['account'];
         $countryCode = strtoupper(trim((string) ($address['countryCode'] ?? env('ALIEXPRESS_DS_SHIP_TO_COUNTRY', 'FR'))));
@@ -508,8 +804,124 @@ class AliExpressOpenPlatformService
         ];
     }
 
+    private function prepareAlibabaDraftOrder(array $account, array $product, array $address, int $quantity): array
+    {
+        $prepared = $this->prepareAccount($account, true);
+        $account = $prepared['account'];
+        $countryCode = strtoupper(trim((string) ($address['countryCode'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'FR'))));
+        $dispatchLocation = strtoupper(trim((string) ($product['dispatchLocation'] ?? $account['defaultDispatchLocation'] ?? env('ALIBABA_DISPATCH_LOCATION', 'CN'))));
+        $sourceProductId = (string) ($product['sourceProductId'] ?? '');
+        if ($sourceProductId === '') {
+            throw new RuntimeException('product_id Alibaba manquant pour creer la commande BuyNow.');
+        }
+
+        $skuId = $this->extractSkuIdFromVariantSkus($product['variantSkus'] ?? null)
+            ?? $this->extractSkuId($product['rawPayload'] ?? null)
+            ?? $this->getString($product['skuId'] ?? null);
+        if ($skuId === null) {
+            throw new RuntimeException('sku_id Alibaba introuvable pour cet article. Reimporte le produit puis relance le lot.');
+        }
+
+        $shipmentAddress = [
+            'zip' => (string) ($address['postalCode'] ?? ''),
+            'country' => (string) ($address['countryName'] ?? $countryCode),
+            'address' => trim((string) ($address['addressLine1'] ?? '').' '.(string) ($address['addressLine2'] ?? '')),
+            'city' => (string) ($address['city'] ?? ''),
+            'contact_person' => (string) ($address['contactName'] ?? ''),
+            'telephone' => [
+                'area' => '',
+                'country' => '',
+                'number' => (string) ($address['phone'] ?? ''),
+            ],
+            'province_code' => (string) ($address['stateCode'] ?? ''),
+            'country_code' => $countryCode,
+            'province' => (string) ($address['state'] ?? ''),
+            'port' => (string) ($address['port'] ?? ''),
+            'alternate_address' => (string) ($address['addressLine2'] ?? ''),
+            'port_code' => (string) ($address['portCode'] ?? ''),
+        ];
+
+        $freightPayload = [
+            'destination_country' => $countryCode,
+            'product_id' => $sourceProductId,
+            'quantity' => (string) $quantity,
+            'zip_code' => (string) ($address['postalCode'] ?? ''),
+            'dispatch_location' => $dispatchLocation,
+            'enable_distribution_waybill' => 'false',
+        ];
+        $freightResult = $this->callRestEndpoint($account, '/shipping/freight/calculate', $freightPayload);
+        $carrierCode = $this->resolveAlibabaCarrierCode($freightResult['responseBody'])
+            ?? $this->getString($account['defaultCarrierCode'] ?? null)
+            ?? env('ALIBABA_DEFAULT_CARRIER_CODE', null);
+
+        if ($carrierCode === null || trim((string) $carrierCode) === '') {
+            $message = $this->extractOperationMessage($freightResult['responseBody']);
+            throw new RuntimeException($message !== null ? "Verification livraison Alibaba impossible: {$message}" : "Aucune option de livraison Alibaba n'a ete retournee pour ce lot.");
+        }
+
+        $buyNowPayload = [
+            'channel_refer_id' => 'AFRIPAY-'.Str::upper(Str::random(12)),
+            'logistics_detail' => [
+                'shipment_address' => $shipmentAddress,
+                'dispatch_location' => $dispatchLocation,
+                'carrier_code' => $carrierCode,
+            ],
+            'product_list' => [[
+                'quantity' => (string) $quantity,
+                'product_id' => $sourceProductId,
+                'sku_id' => $skuId,
+            ]],
+            'properties' => json_encode([
+                'platform' => 'AfriPay',
+                'orderId' => 'AFRIPAY-'.Str::upper(Str::random(8)),
+            ], JSON_UNESCAPED_SLASHES),
+            'remark' => 'AfriPay Alibaba dropshipping order',
+            'enable_distribution_waybill' => 'false',
+        ];
+
+        return [
+            'account' => $account,
+            'liveProduct' => $product,
+            'freightResult' => $freightResult,
+            'buyNowPayload' => $buyNowPayload,
+            'carrierCode' => (string) $carrierCode,
+            'skuId' => $skuId,
+            'skuAttr' => '',
+        ];
+    }
+
+    private function createAlibabaBuyNowOrder(array $account, array $buyNowPayload): array
+    {
+        $prepared = $this->prepareAccount($account, true);
+        $account = $prepared['account'];
+        $result = $this->callRestEndpoint($account, '/buynow/order/create', $buyNowPayload);
+
+        return [
+            'account' => $account,
+            'result' => $result,
+        ];
+    }
+
+    private function queryAlibabaPaymentResult(array $account, string $tradeId): array
+    {
+        $prepared = $this->prepareAccount($account, true);
+        $account = $prepared['account'];
+        $result = $this->callRestEndpoint($account, '/alibaba/order/pay/result/query', [
+            'trade_id' => trim($tradeId),
+        ]);
+
+        return [
+            'account' => $account,
+            'result' => $result,
+        ];
+    }
+
     public function createDsOrder(array $account, array $buyNowPayload): array
     {
+        if (($account['provider'] ?? null) === 'alibaba') {
+            return $this->createAlibabaBuyNowOrder($account, $buyNowPayload);
+        }
+
         $prepared = $this->prepareAccount($account, true);
         $account = $prepared['account'];
         $dsExtendRequest = json_encode([
@@ -532,10 +944,59 @@ class AliExpressOpenPlatformService
 
     public function queryPaymentResult(array $account, string $tradeId): array
     {
+        if (($account['provider'] ?? null) === 'alibaba') {
+            return $this->queryAlibabaPaymentResult($account, $tradeId);
+        }
+
         $prepared = $this->prepareAccount($account, true);
         $account = $prepared['account'];
         $result = $this->callTopEndpoint($account, 'aliexpress.trade.ds.order.get', [
             'single_order_query' => json_encode(['order_id' => trim($tradeId)], JSON_UNESCAPED_SLASHES),
+        ]);
+
+        return [
+            'account' => $account,
+            'result' => $result,
+        ];
+    }
+
+    public function payDropshippingOrder(array $account, string $tradeId, array $options = []): array
+    {
+        if (($account['provider'] ?? null) !== 'alibaba') {
+            return [
+                'account' => $account,
+                'result' => [
+                    'ok' => true,
+                    'endpoint' => 'aliexpress.ds.order.create',
+                    'requestBody' => ['tradeId' => $tradeId],
+                    'responseBody' => [
+                        'code' => '0',
+                        'result' => [
+                            'success' => 'true',
+                            'provider' => 'aliexpress-ds',
+                            'message' => "AliExpress DS utilise l'auto-paiement integre a la creation de commande.",
+                        ],
+                    ],
+                    'status' => 200,
+                ],
+            ];
+        }
+
+        $prepared = $this->prepareAccount($account, true);
+        $account = $prepared['account'];
+        $request = array_filter([
+            'user_ip' => $this->getString($options['userIp'] ?? null) ?? env('ALIBABA_DROPSHIPPING_USER_IP', '127.0.0.1'),
+            'isv_drop_shipper_registration_time' => $this->getString($options['registrationTime'] ?? null) ?? (string) (time() * 1000),
+            'order_id_list' => [$tradeId],
+            'is_pc' => 'true',
+            'accept_language' => $this->getString($options['acceptLanguage'] ?? null) ?? 'en-US,en;q=0.9',
+            'screen_resolution' => $this->getString($options['screenResolution'] ?? null) ?? '1440*900',
+            'user_agent' => $this->getString($options['userAgent'] ?? null) ?? 'Mozilla/5.0 AfriPay Alibaba Dropshipping',
+            'payment_method' => $this->getString($options['paymentMethod'] ?? null) ?? env('ALIBABA_DROPSHIPPING_PAYMENT_METHOD', 'CREDIT_CARD'),
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $result = $this->callRestEndpoint($account, '/alibaba/dropshipping/order/pay', [
+            'param_order_pay_request' => $request,
         ]);
 
         return [
@@ -640,7 +1101,7 @@ class AliExpressOpenPlatformService
         $appSecret = trim((string) ($account['appSecret'] ?? ''));
         $accessToken = trim((string) ($account['accessToken'] ?? ''));
         if ($appKey === '' || $appSecret === '' || ($requireToken && $accessToken === '')) {
-            throw new RuntimeException('Compte AliExpress introuvable ou incomplet. Reconnecte le compte fournisseur.');
+            throw new RuntimeException('Compte Open Platform introuvable ou incomplet. Reconnecte le compte fournisseur.');
         }
 
         return ['account' => $account];
@@ -680,7 +1141,7 @@ class AliExpressOpenPlatformService
 
     private function callRestEndpoint(array $account, string $pathOrUrl, array $payload, bool $includeAccessToken = true): array
     {
-        $endpoint = $this->resolveEndpoint($pathOrUrl, (string) ($account['apiBaseUrl'] ?? 'https://api-sg.aliexpress.com'));
+        $endpoint = $this->resolveEndpoint($pathOrUrl, (string) ($account['apiBaseUrl'] ?? self::ALIBABA_API_BASE_URL));
         $system = [
             'app_key' => (string) ($account['appKey'] ?? ''),
             'timestamp' => (string) round(microtime(true) * 1000),
@@ -764,7 +1225,7 @@ class AliExpressOpenPlatformService
 
     private function normalizeBaseUrl(string $value): string
     {
-        return rtrim(trim($value) !== '' ? trim($value) : 'https://api-sg.aliexpress.com', '/');
+        return rtrim(trim($value) !== '' ? trim($value) : self::ALIBABA_API_BASE_URL, '/');
     }
 
     private function serializeValue($value): string
@@ -1818,6 +2279,29 @@ class AliExpressOpenPlatformService
         return null;
     }
 
+    private function resolveAlibabaCarrierCode($freightResponseBody): ?string
+    {
+        $payload = $this->toArray($freightResponseBody);
+        foreach ($this->collectDeliveryOptions($payload) as $option) {
+            if (! is_array($option)) {
+                continue;
+            }
+
+            $vendorCode = $this->getString($option['vendor_code']
+                ?? $option['carrier_code']
+                ?? $option['carrierCode']
+                ?? $option['service_provider']
+                ?? $option['serviceProvider']
+                ?? $option['code']
+                ?? null);
+            if ($vendorCode !== null) {
+                return $vendorCode;
+            }
+        }
+
+        return null;
+    }
+
     private function collectDeliveryOptions($value, int $depth = 0): array
     {
         if ($depth > 6 || ! is_array($value)) {
@@ -1851,6 +2335,7 @@ class AliExpressOpenPlatformService
             'shippingOptions',
             'freight_options',
             'freightOptions',
+            'value',
         ] as $key) {
             if (array_key_exists($key, $value)) {
                 $options = array_merge($options, $this->collectDeliveryOptions($value[$key], $depth + 1));
@@ -1880,6 +2365,8 @@ class AliExpressOpenPlatformService
             'shippingService',
             'carrier_code',
             'carrierCode',
+            'vendor_code',
+            'vendorCode',
             'company',
             'company_name',
         ] as $key) {
@@ -2170,6 +2657,12 @@ class AliExpressOpenPlatformService
     private function toArray($value): array
     {
         return is_array($value) ? $value : [];
+    }
+
+    private function slugify(string $value): string
+    {
+        $slug = Str::slug($value);
+        return $slug !== '' ? $slug : 'alibaba-product';
     }
 
     private function isAssoc($value): bool

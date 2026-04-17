@@ -4,6 +4,7 @@ export type AdminSectionSlug =
   | "products"
   | "partner-requests"
   | "partner-withdrawals"
+  | "alibaba-sourcing"
   | "aliexpress-sourcing"
   | "categories"
   | "promotions"
@@ -36,7 +37,8 @@ export const adminNavItems: AdminNavItem[] = [
   { slug: "products", label: "Produits", icon: "package", description: "Catalogue produit et fiches detail.", href: "/admin/products", publicHref: "/products" },
   { slug: "partner-requests", label: "Demandes partenaire", icon: "file-text", description: "Lecture des dossiers partenaire avec validation ou refus depuis l'admin.", href: "/admin/partner-requests", publicHref: "/partnership" },
   { slug: "partner-withdrawals", label: "Retraits partenaire", icon: "landmark", description: "Suivi du solde actif, demandes de retrait et decisions d'approbation ou de refus.", href: "/admin/partner-withdrawals", publicHref: "/dashboard/wallet" },
-  { slug: "aliexpress-sourcing", label: "AliExpress Sourcing", icon: "ship-wheel", description: "Import catalogue, comptes fournisseurs, lots d'achat et suivi DS AliExpress.", href: "/admin/aliexpress-sourcing", publicHref: "/products" },
+  { slug: "alibaba-sourcing", label: "Alibaba Sourcing", icon: "boxes", description: "Nouvelle option sourcing Alibaba pour preparer les imports, fournisseurs et lots d'achat.", href: "/admin/alibaba-sourcing", publicHref: "/products" },
+  { slug: "aliexpress-sourcing", label: "AliExpress Sourcing (obsolète)", icon: "ship-wheel", description: "Ancien sourcing AliExpress conservé en lecture/transition avant remplacement complet par Alibaba.", href: "/admin/aliexpress-sourcing", publicHref: "/products" },
   { slug: "categories", label: "Categories", icon: "list", description: "Taxonomie de navigation et familles produit.", href: "/admin/categories", publicHref: "/products" },
   { slug: "promotions", label: "Promotions", icon: "badge-percent", description: "Promos hero, badges et campagnes mode.", href: "/admin/promotions", publicHref: "/mode" },
   { slug: "promo-codes", label: "Codes Promo", icon: "ticket-percent", description: "Codes de reduction et activations marketing.", href: "/admin/promo-codes", publicHref: "/mode" },
@@ -57,6 +59,12 @@ export const adminQuickLinks = [
 ];
 
 export const adminNavSubItems: Partial<Record<AdminSectionSlug, AdminNavSubItem[]>> = {
+  "alibaba-sourcing": [
+    { label: "Tableau de bord", href: "/admin/alibaba-sourcing" },
+    { label: "Import catalogue", href: "/admin/alibaba-sourcing/import-catalog" },
+    { label: "Comptes", href: "/admin/alibaba-sourcing/accounts" },
+    { label: "Lots", href: "/admin/alibaba-sourcing/lots" },
+  ],
   "aliexpress-sourcing": [
     { label: "Tableau de bord", href: "/admin/aliexpress-sourcing" },
     { label: "Import catalogue", href: "/admin/aliexpress-sourcing/import-catalog" },

@@ -6,7 +6,7 @@ const featuredSections = [
   "orders",
   "products",
   "partner-requests",
-  "aliexpress-sourcing",
+  "alibaba-sourcing",
   "users",
   "settings",
 ] as const;

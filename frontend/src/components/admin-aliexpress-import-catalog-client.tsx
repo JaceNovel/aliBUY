@@ -147,7 +147,7 @@ const SEARCH_EXTEND_OPTIONS = [
   { value: "hot_area", label: "Zone chaude" },
 ];
 
-function fetchAdminAliExpress(path: string, init?: RequestInit) {
+function fetchAdminSourcing(path: string, init?: RequestInit) {
   return fetch(buildApiUrl(path), {
     credentials: "include",
     ...init,
@@ -233,7 +233,7 @@ function getImportedCampaignLabel(product: AlibabaImportedProduct) {
   }
 }
 
-export function AdminAliExpressImportCatalogClient({ initialDashboard }: { initialDashboard: DashboardData }) {
+export function AdminAliExpressImportCatalogClient({ initialDashboard, adminApiBasePath = "/api/admin/aliexpress" }: { initialDashboard: DashboardData; adminApiBasePath?: string }) {
   const router = useRouter();
   const [isRefreshing, startRefreshTransition] = useTransition();
   const connectedAccounts = useMemo(
@@ -309,7 +309,7 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard }: { initi
     setFeedback(null);
     setErrorMessage(null);
 
-    const response = await fetchAdminAliExpress("/api/admin/aliexpress/search", {
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/search`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -365,7 +365,7 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard }: { initi
     const failures: string[] = [];
 
     for (const [index, item] of importableItems.entries()) {
-      const response = await fetchAdminAliExpress("/api/admin/aliexpress/import", {
+      const response = await fetchAdminSourcing(`${adminApiBasePath}/import`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -419,7 +419,7 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard }: { initi
     setFeedback(null);
     setErrorMessage(null);
 
-    const response = await fetchAdminAliExpress("/api/admin/aliexpress/publish", {
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/publish`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ productIds: selectedImportedProductIds }),
@@ -445,9 +445,9 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard }: { initi
     setErrorMessage(null);
 
     const deleteUrl = sourceProductId
-      ? `/api/admin/aliexpress/import/${importedProductId}?sourceProductId=${encodeURIComponent(sourceProductId)}`
-      : `/api/admin/aliexpress/import/${importedProductId}`;
-    const response = await fetchAdminAliExpress(deleteUrl, { method: "DELETE" });
+      ? `${adminApiBasePath}/import/${importedProductId}?sourceProductId=${encodeURIComponent(sourceProductId)}`
+      : `${adminApiBasePath}/import/${importedProductId}`;
+    const response = await fetchAdminSourcing(deleteUrl, { method: "DELETE" });
     const payload = await response.json().catch(() => null) as { message?: string } | null;
     if (!response.ok) {
       setErrorMessage(payload?.message ?? "Suppression impossible.");
@@ -466,7 +466,7 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard }: { initi
     setFeedback(null);
     setErrorMessage(null);
 
-    const response = await fetchAdminAliExpress(`/api/admin/aliexpress/import/${importedProductId}/reenrich`, {
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/import/${importedProductId}/reenrich`, {
       method: "POST",
     });
     const payload = await response.json().catch(() => null) as { message?: string } | null;
@@ -488,7 +488,7 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard }: { initi
     setFeedback(null);
     setErrorMessage(null);
 
-    const response = await fetchAdminAliExpress("/api/admin/aliexpress/purchase-orders", {
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/purchase-orders`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({

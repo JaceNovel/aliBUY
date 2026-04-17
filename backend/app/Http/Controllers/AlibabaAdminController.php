@@ -29,14 +29,14 @@ class AlibabaAdminController extends Controller
     {
         $this->alibabaAdmin->assertAdmin($request->user('sanctum'));
 
-        return response()->json($this->alibabaAdmin->search($request->json()->all()));
+        return response()->json($this->alibabaAdmin->search($this->withSourcingProvider($request, $request->json()->all())));
     }
 
     public function fetchRemote(Request $request): JsonResponse
     {
         $this->alibabaAdmin->assertAdmin($request->user('sanctum'));
 
-        return response()->json($this->alibabaAdmin->fetchRemote($request->json()->all()));
+        return response()->json($this->alibabaAdmin->fetchRemote($this->withSourcingProvider($request, $request->json()->all())));
     }
 
     public function probe(Request $request): JsonResponse
@@ -44,7 +44,7 @@ class AlibabaAdminController extends Controller
         $this->alibabaAdmin->assertAdmin($request->user('sanctum'));
 
         try {
-            return response()->json($this->alibabaAdmin->probe($request->json()->all()));
+            return response()->json($this->alibabaAdmin->probe($this->withSourcingProvider($request, $request->json()->all())));
         } catch (RuntimeException $exception) {
             return response()->json([
                 'message' => $exception->getMessage(),
@@ -56,7 +56,7 @@ class AlibabaAdminController extends Controller
     {
         $this->alibabaAdmin->assertAdmin($request->user('sanctum'));
 
-        return response()->json($this->alibabaAdmin->import($request->json()->all()));
+        return response()->json($this->alibabaAdmin->import($this->withSourcingProvider($request, $request->json()->all())));
     }
 
     public function deleteImport(Request $request, string $importedProductId): JsonResponse
@@ -99,7 +99,7 @@ class AlibabaAdminController extends Controller
         $this->alibabaAdmin->assertAdmin($request->user('sanctum'));
 
         try {
-            return response()->json($this->alibabaAdmin->saveSupplierAccount($request->json()->all()));
+            return response()->json($this->alibabaAdmin->saveSupplierAccount($this->withSourcingProvider($request, $request->json()->all())));
         } catch (RuntimeException $exception) {
             return response()->json([
                 'message' => $exception->getMessage(),
@@ -111,7 +111,7 @@ class AlibabaAdminController extends Controller
     {
         $this->alibabaAdmin->assertAdmin($request->user('sanctum'));
 
-        $payload = $request->all();
+        $payload = $this->withSourcingProvider($request, $request->all());
         $shouldRedirect = $request->isMethod('GET') || ($payload['responseMode'] ?? null) === 'redirect';
 
         try {
@@ -150,7 +150,7 @@ class AlibabaAdminController extends Controller
             $origin = rtrim((string) config('app.frontend_url', config('app.url', 'https://afripay.space')), '/');
         }
 
-        $target = rtrim($origin, '/').'/admin/aliexpress-sourcing/accounts';
+        $target = rtrim($origin, '/').(($payload['provider'] ?? null) === 'alibaba' ? '/admin/alibaba-sourcing/accounts' : '/admin/aliexpress-sourcing/accounts');
         $separator = str_contains($target, '?') ? '&' : '?';
 
         return $target.$separator.'oauth=failed&message='.rawurlencode($message !== '' ? $message : 'Demarrage OAuth AliExpress impossible.');
@@ -169,6 +169,16 @@ class AlibabaAdminController extends Controller
         $this->alibabaAdmin->assertAdmin($request->user('sanctum'));
 
         return response()->json($this->alibabaAdmin->refreshSupplierAccount($accountId));
+    }
+
+    protected function withSourcingProvider(Request $request, array $payload): array
+    {
+        $provider = str_contains($request->path(), 'admin/alibaba/') ? 'alibaba' : 'aliexpress';
+
+        return [
+            ...$payload,
+            'provider' => $payload['provider'] ?? $provider,
+        ];
     }
 
     public function receptionAddresses(Request $request): JsonResponse

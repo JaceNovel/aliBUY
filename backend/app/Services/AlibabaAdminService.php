@@ -526,6 +526,12 @@ class AlibabaAdminService
         $existing = collect($accounts)->first(fn ($item) => is_array($item) && (string) ($item['id'] ?? '') === $id);
         $now = $this->nowIso();
 
+        $provider = (string) ($input['provider'] ?? 'aliexpress');
+        $defaultAuthorizeUrl = $provider === 'alibaba' ? 'https://openapi-auth.alibaba.com/oauth/authorize' : 'https://api-sg.aliexpress.com/oauth/authorize';
+        $defaultTokenUrl = $provider === 'alibaba' ? 'https://openapi-api.alibaba.com/rest/auth/token/create' : 'https://api-sg.aliexpress.com/rest/auth/token/security/create';
+        $defaultRefreshUrl = $provider === 'alibaba' ? 'https://openapi-api.alibaba.com/rest/auth/token/refresh' : 'https://api-sg.aliexpress.com/rest/auth/token/security/refresh';
+        $defaultApiBaseUrl = $provider === 'alibaba' ? 'https://openapi-api.alibaba.com' : 'https://api-sg.aliexpress.com';
+
         $account = [
             'id' => $id,
             'name' => $this->stringOrFallback($input['name'] ?? null, is_array($existing) ? ($existing['name'] ?? '') : ''),
@@ -534,10 +540,11 @@ class AlibabaAdminService
             'resourceOwner' => $this->stringOrNull($input['resourceOwner'] ?? (is_array($existing) ? ($existing['resourceOwner'] ?? null) : null)),
             'appKey' => $this->stringOrNull($input['appKey'] ?? (is_array($existing) ? ($existing['appKey'] ?? null) : null)),
             'appSecret' => $this->stringOrFallback($input['appSecret'] ?? null, is_array($existing) ? ($existing['appSecret'] ?? '') : ''),
-            'authorizeUrl' => $this->stringOrFallback($input['authorizeUrl'] ?? null, is_array($existing) ? ($existing['authorizeUrl'] ?? 'https://api-sg.aliexpress.com/oauth/authorize') : 'https://api-sg.aliexpress.com/oauth/authorize'),
-            'tokenUrl' => $this->stringOrFallback($input['tokenUrl'] ?? null, is_array($existing) ? ($existing['tokenUrl'] ?? 'https://api-sg.aliexpress.com/rest/auth/token/security/create') : 'https://api-sg.aliexpress.com/rest/auth/token/security/create'),
-            'refreshUrl' => $this->stringOrFallback($input['refreshUrl'] ?? null, is_array($existing) ? ($existing['refreshUrl'] ?? 'https://api-sg.aliexpress.com/rest/auth/token/security/refresh') : 'https://api-sg.aliexpress.com/rest/auth/token/security/refresh'),
-            'apiBaseUrl' => $this->stringOrFallback($input['apiBaseUrl'] ?? null, is_array($existing) ? ($existing['apiBaseUrl'] ?? 'https://api-sg.aliexpress.com') : 'https://api-sg.aliexpress.com'),
+            'authorizeUrl' => $this->stringOrFallback($input['authorizeUrl'] ?? null, is_array($existing) ? ($existing['authorizeUrl'] ?? $defaultAuthorizeUrl) : $defaultAuthorizeUrl),
+            'tokenUrl' => $this->stringOrFallback($input['tokenUrl'] ?? null, is_array($existing) ? ($existing['tokenUrl'] ?? $defaultTokenUrl) : $defaultTokenUrl),
+            'refreshUrl' => $this->stringOrFallback($input['refreshUrl'] ?? null, is_array($existing) ? ($existing['refreshUrl'] ?? $defaultRefreshUrl) : $defaultRefreshUrl),
+            'apiBaseUrl' => $this->stringOrFallback($input['apiBaseUrl'] ?? null, is_array($existing) ? ($existing['apiBaseUrl'] ?? $defaultApiBaseUrl) : $defaultApiBaseUrl),
+            'provider' => $provider,
             'accountPlatform' => $this->stringOrFallback($input['accountPlatform'] ?? null, is_array($existing) ? ($existing['accountPlatform'] ?? 'seller') : 'seller'),
             'countryCode' => strtoupper($this->stringOrFallback($input['countryCode'] ?? null, is_array($existing) ? ($existing['countryCode'] ?? 'FR') : 'FR')),
             'defaultDispatchLocation' => strtoupper($this->stringOrFallback($input['defaultDispatchLocation'] ?? null, is_array($existing) ? ($existing['defaultDispatchLocation'] ?? 'CN') : 'CN')),
@@ -598,7 +605,9 @@ class AlibabaAdminService
     public function oauthStartRedirectUrl(array $input): string
     {
         $origin = rtrim((string) ($input['origin'] ?? config('app.url', '')), '/');
-        $target = $origin !== '' ? $origin.'/admin/aliexpress-sourcing/accounts' : '/admin/aliexpress-sourcing/accounts';
+        $provider = (string) ($input['provider'] ?? 'aliexpress');
+        $adminPath = $provider === 'alibaba' ? '/admin/alibaba-sourcing/accounts' : '/admin/aliexpress-sourcing/accounts';
+        $target = $origin !== '' ? $origin.$adminPath : $adminPath;
         $requestedId = trim((string) ($input['id'] ?? ''));
 
         if (($input['id'] ?? null) !== null || ($input['name'] ?? null) !== null || ($input['appKey'] ?? null) !== null) {
@@ -615,7 +624,7 @@ class AlibabaAdminService
             throw new RuntimeException('Compte fournisseur introuvable pour OAuth.');
         }
 
-        $callbackUrl = rtrim((string) config('app.url', 'https://api.afripay.space'), '/').'/api/admin/aliexpress/supplier-accounts/oauth/callback';
+        $callbackUrl = rtrim((string) config('app.url', 'https://api.afripay.space'), '/').($provider === 'alibaba' ? '/api/admin/alibaba/supplier-accounts/oauth/callback' : '/api/admin/aliexpress/supplier-accounts/oauth/callback');
 
         return $this->openPlatform->buildAuthorizationUrl($account, $callbackUrl, $target);
     }
@@ -628,18 +637,18 @@ class AlibabaAdminService
             : rtrim((string) config('app.frontend_url', config('app.url', 'https://afripay.space')), '/').'/admin/aliexpress-sourcing/accounts';
 
         if (! is_array($decodedState) || trim((string) ($decodedState['accountId'] ?? '')) === '') {
-            return $redirectTarget.'?oauth=failed&message='.rawurlencode('Etat OAuth AliExpress invalide ou manquant.');
+            return $redirectTarget.'?oauth=failed&message='.rawurlencode('Etat OAuth Open Platform invalide ou manquant.');
         }
 
         if ($code === null || trim($code) === '') {
-            return $redirectTarget.'?oauth=failed&message='.rawurlencode('Code OAuth AliExpress manquant dans le callback.');
+            return $redirectTarget.'?oauth=failed&message='.rawurlencode('Code OAuth Open Platform manquant dans le callback.');
         }
 
         $accounts = $this->readJsonArray('alibaba-supplier-accounts.json');
         $accountId = trim((string) $decodedState['accountId']);
         $account = collect($accounts)->first(fn ($item) => is_array($item) && (string) ($item['id'] ?? '') === $accountId);
         if (! is_array($account)) {
-            return $redirectTarget.'?oauth=failed&message='.rawurlencode('Compte fournisseur AliExpress introuvable au retour OAuth.');
+            return $redirectTarget.'?oauth=failed&message='.rawurlencode('Compte fournisseur Open Platform introuvable au retour OAuth.');
         }
 
         try {
@@ -647,7 +656,7 @@ class AlibabaAdminService
             $updatedAccount = $result['account'];
             $this->persistOAuthAccount($updatedAccount);
 
-            return $redirectTarget.'?oauth=success&message='.rawurlencode('Compte AliExpress connecte avec succes.');
+            return $redirectTarget.'?oauth=success&message='.rawurlencode('Compte fournisseur connecte avec succes.');
         } catch (Throwable $exception) {
             $this->markSupplierAccountOAuthError($accountId, $exception->getMessage());
             return $redirectTarget.'?oauth=failed&message='.rawurlencode($exception->getMessage());
@@ -792,8 +801,9 @@ class AlibabaAdminService
 
         $account = $this->resolveLiveAccount(null, true);
         if ($account === null) {
-            throw new RuntimeException('Aucun compte AliExpress connecte n\'est disponible pour creer une commande DS live.');
+            throw new RuntimeException('Aucun compte Open Platform connecte n\'est disponible pour creer une commande dropshipping live.');
         }
+        $provider = ($account['provider'] ?? null) === 'alibaba' ? 'alibaba' : 'aliexpress-ds';
 
         $prepared = $this->openPlatform->prepareDraftOrder($account, $product, $address, $quantity);
         $this->persistResolvedLiveAccount($prepared['account']);
@@ -804,8 +814,8 @@ class AlibabaAdminService
             'id' => (string) Str::uuid(),
             'sourceImportedProductId' => $importedProductId,
             'sourceProductId' => (string) ($product['sourceProductId'] ?? $importedProductId),
-            'productTitle' => (string) ($product['title'] ?? 'Produit AliExpress'),
-            'supplierName' => (string) ($product['supplierName'] ?? 'AliExpress Supplier'),
+            'productTitle' => (string) ($product['title'] ?? 'Produit Alibaba'),
+            'supplierName' => (string) ($product['supplierName'] ?? 'Alibaba Supplier'),
             'supplierCompanyId' => $this->stringOrNull($product['supplierCompanyId'] ?? null),
             'quantity' => $quantity,
             'shippingAddressId' => $shippingAddressId,
@@ -828,7 +838,7 @@ class AlibabaAdminService
             'updatedAt' => $now,
             'rawFreightResponse' => $prepared['freightResult']['responseBody'] ?? null,
             'rawOrderResponse' => [
-                'provider' => 'aliexpress-ds',
+                'provider' => $provider,
                 'status' => 'draft_verified',
                 'supplierAccountId' => $prepared['account']['id'] ?? null,
             ],
@@ -958,6 +968,7 @@ class AlibabaAdminService
         if ($account === null) {
             throw new RuntimeException('Aucun compte AliExpress connecte n\'est disponible pour le paiement DS live.');
         }
+        $isAlibabaAccount = ($account['provider'] ?? null) === 'alibaba';
 
         foreach ($orders as &$order) {
             if (! is_array($order) || (string) ($order['id'] ?? '') !== $orderId) {
@@ -980,11 +991,32 @@ class AlibabaAdminService
                 $isFailed = str_contains($remoteStatus, 'CANCEL') || str_contains($remoteStatus, 'CLOSE') || str_contains($remoteStatus, 'FAIL');
 
                 $order['payUrl'] = $payUrl;
-                $order['paymentStatus'] = $isPaid ? 'paid' : ($isFailed ? 'failed' : ($payUrl ? 'pay_url_generated' : 'pending'));
-                $order['orderStatus'] = $isPaid ? 'paid' : ($isFailed ? 'failed' : 'payment_pending');
-                $order['payFailureReason'] = $isFailed ? ($payFailureReason ?? 'Paiement non complete') : null;
+                $order['paymentStatus'] = $isPaid ? 'paid' : ($isAlibabaAccount && $payUrl ? 'pay_url_generated' : ($isFailed ? 'failed' : ($payUrl ? 'pay_url_generated' : 'pending')));
+                $order['orderStatus'] = $isPaid ? 'paid' : ($isFailed && ! ($isAlibabaAccount && $payUrl) ? 'failed' : 'payment_pending');
+                $order['payFailureReason'] = $isFailed && ! ($isAlibabaAccount && $payUrl) ? ($payFailureReason ?? 'Paiement non complete') : null;
                 $order['rawPaymentResponse'] = $paymentResult['responseBody'];
             } else {
+                $existingTradeId = trim((string) ($order['tradeId'] ?? ''));
+                if ($isAlibabaAccount && $action === 'repay' && $existingTradeId !== '') {
+                    $payment = $this->openPlatform->payDropshippingOrder($account, $existingTradeId);
+                    $this->persistResolvedLiveAccount($payment['account']);
+                    $paymentResult = $payment['result'];
+                    $remoteStatus = strtoupper(trim((string) ($this->openPlatform->extractTradeOrderStatus($paymentResult['responseBody']) ?? '')));
+                    $payUrl = $this->openPlatform->extractTradePayUrl($paymentResult['responseBody']) ?? ($order['payUrl'] ?? null);
+                    $isPaid = in_array($remoteStatus, ['FINISH', 'PAID', 'PAY_SUCCESS', 'SUCCESS'], true);
+                    $isFailed = str_contains($remoteStatus, 'CANCEL') || str_contains($remoteStatus, 'CLOSE') || str_contains($remoteStatus, 'FAIL');
+                    $order['payUrl'] = $payUrl;
+                    $order['paymentStatus'] = $isPaid ? 'paid' : ($payUrl ? 'pay_url_generated' : ($isFailed ? 'failed' : 'pending'));
+                    $order['orderStatus'] = $isPaid ? 'paid' : ($isFailed && ! $payUrl ? 'failed' : 'payment_pending');
+                    $order['payFailureReason'] = $isFailed
+                        ? ($payUrl ? null : ($this->openPlatform->extractOperationMessageFromResponse($paymentResult['responseBody']) ?? 'Paiement dropshipping Alibaba non complete.'))
+                        : null;
+                    $order['rawPaymentResponse'] = $paymentResult['responseBody'];
+                    $order['updatedAt'] = $now;
+                    $updatedOrder = $order;
+                    break;
+                }
+
                 $result = $this->openPlatform->createDsOrder($account, is_array($order['buyNowPayload'] ?? null) ? $order['buyNowPayload'] : []);
                 $this->persistResolvedLiveAccount($result['account']);
                 $orderResult = $result['result'];
@@ -1003,18 +1035,20 @@ class AlibabaAdminService
                 $order['rawOrderResponse'] = $orderResult['responseBody'];
 
                 if ($dsOrderCreated && $tradeId !== null) {
-                    $payment = $this->openPlatform->queryPaymentResult($result['account'], $tradeId);
+                    $payment = $isAlibabaAccount
+                        ? $this->openPlatform->payDropshippingOrder($result['account'], $tradeId)
+                        : $this->openPlatform->queryPaymentResult($result['account'], $tradeId);
                     $this->persistResolvedLiveAccount($payment['account']);
                     $paymentResult = $payment['result'];
                     $remoteStatus = strtoupper(trim((string) ($this->openPlatform->extractTradeOrderStatus($paymentResult['responseBody']) ?? '')));
                     $payUrl = $this->openPlatform->extractTradePayUrl($paymentResult['responseBody']);
-                    $isPaid = in_array($remoteStatus, ['FINISH', 'PAID'], true);
+                    $isPaid = in_array($remoteStatus, ['FINISH', 'PAID', 'PAY_SUCCESS', 'SUCCESS'], true);
                     $isFailed = str_contains($remoteStatus, 'CANCEL') || str_contains($remoteStatus, 'CLOSE') || str_contains($remoteStatus, 'FAIL');
                     $order['payUrl'] = $payUrl;
-                    $order['paymentStatus'] = $isPaid ? 'paid' : ($isFailed ? 'failed' : ($payUrl ? 'pay_url_generated' : 'pending'));
-                    $order['orderStatus'] = $isPaid ? 'paid' : ($isFailed ? 'failed' : 'payment_pending');
+                    $order['paymentStatus'] = $isPaid ? 'paid' : ($isAlibabaAccount && $payUrl ? 'pay_url_generated' : ($isFailed ? 'failed' : ($payUrl ? 'pay_url_generated' : 'pending')));
+                    $order['orderStatus'] = $isPaid ? 'paid' : ($isFailed && ! ($isAlibabaAccount && $payUrl) ? 'failed' : 'payment_pending');
                     $order['rawPaymentResponse'] = $paymentResult['responseBody'];
-                    if ($isFailed && $order['payFailureReason'] === null) {
+                    if ($isFailed && ! ($isAlibabaAccount && $payUrl) && $order['payFailureReason'] === null) {
                         $order['payFailureReason'] = $this->openPlatform->extractOperationMessageFromResponse($paymentResult['responseBody']) ?? 'Paiement non complete';
                     }
                 }

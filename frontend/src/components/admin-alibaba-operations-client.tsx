@@ -17,6 +17,12 @@ import type {
   AlibabaReceptionRecord,
   AlibabaSupplierAccount,
 } from "@/lib/alibaba-operations";
+import {
+  ALIBABA_DEFAULT_API_BASE_URL,
+  ALIBABA_DEFAULT_AUTHORIZE_URL,
+  ALIBABA_DEFAULT_REFRESH_URL,
+  ALIBABA_DEFAULT_TOKEN_URL,
+} from "@/lib/alibaba-operations";
 import { buildApiUrl } from "@/lib/api";
 import type { AlibabaCatalogMapping } from "@/lib/alibaba-sourcing";
 import { formatTierAwarePrice, formatTierAwarePriceMeta } from "@/lib/product-price-display";
@@ -46,6 +52,8 @@ type DashboardData = {
 
 type Props = {
   initialDashboard: DashboardData;
+  adminBasePath?: string;
+  adminApiBasePath?: string;
 };
 
 type AliExpressImportAttemptDiagnostic = {
@@ -90,10 +98,10 @@ const panelLinks: Array<{ key: AlibabaPanelSlug; label: string; href: string }> 
   { key: "receptions", label: "Receptions", href: "/admin/aliexpress-sourcing/receptions" },
 ];
 
-const ALIEXPRESS_DEFAULT_AUTHORIZE_URL = "https://api-sg.aliexpress.com/oauth/authorize";
-const ALIEXPRESS_DEFAULT_TOKEN_URL = "https://api-sg.aliexpress.com/rest/auth/token/security/create";
-const ALIEXPRESS_DEFAULT_REFRESH_URL = "https://api-sg.aliexpress.com/rest/auth/token/security/refresh";
-const ALIEXPRESS_DEFAULT_API_BASE_URL = "https://api-sg.aliexpress.com";
+const ALIEXPRESS_DEFAULT_AUTHORIZE_URL = ALIBABA_DEFAULT_AUTHORIZE_URL;
+const ALIEXPRESS_DEFAULT_TOKEN_URL = ALIBABA_DEFAULT_TOKEN_URL;
+const ALIEXPRESS_DEFAULT_REFRESH_URL = ALIBABA_DEFAULT_REFRESH_URL;
+const ALIEXPRESS_DEFAULT_API_BASE_URL = ALIBABA_DEFAULT_API_BASE_URL;
 
 const IMPORT_CAMPAIGN_OPTIONS: Array<{ value: AlibabaImportCampaignMode; label: string; description: string }> = [
   { value: "standard", label: "Catalogue standard", description: "Import classique sans routage storefront prioritaire." },
@@ -301,7 +309,7 @@ function formatAliExpressImportDebugDetails(debug: unknown) {
   }
 }
 
-function fetchAdminAliExpress(path: string, init?: RequestInit) {
+function fetchAdminSourcing(path: string, init?: RequestInit) {
   return fetch(buildApiUrl(path), {
     credentials: "include",
     ...init,
@@ -324,8 +332,8 @@ function getPurchaseOrderPrimaryAction(order: AlibabaPurchaseOrder): "pay" | "re
   return order.tradeId && order.paymentStatus === "failed" ? "repay" : "pay";
 }
 
-function confirmAliExpressPaymentRedirect() {
-  return window.confirm("Cette action va lancer l'auto-paiement DS avec ton compte acheteur AliExpress. Continuer ?");
+function confirmSupplierPaymentRedirect() {
+  return window.confirm("Cette action va lancer le paiement dropshipping avec ton compte fournisseur connecte. Continuer ?");
 }
 
 function hasRecoveredVideo(product: AlibabaImportedProduct) {
@@ -356,10 +364,10 @@ function getImportedCampaignLabel(product: AlibabaImportedProduct) {
   }
 }
 
-function submitOAuthAuthorizationForm(payload: Record<string, string>) {
+function submitOAuthAuthorizationForm(payload: Record<string, string>, adminApiBasePath: string) {
   const form = document.createElement("form");
   form.method = "POST";
-  form.action = buildApiUrl("/api/admin/aliexpress/supplier-accounts/oauth/start");
+  form.action = buildApiUrl(`${adminApiBasePath}/supplier-accounts/oauth/start`);
   form.style.display = "none";
 
   for (const [key, value] of Object.entries(payload)) {
@@ -380,7 +388,7 @@ function confirmDeleteSupplierAccount(account: AlibabaSupplierAccount) {
   return window.confirm(`Supprimer le compte fournisseur ${accountLabel} ? Cette action retire le compte enregistre et ses tokens locaux.`);
 }
 
-export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
+export function AdminAliExpressOperationsClient({ initialDashboard, adminBasePath = "/admin/aliexpress-sourcing", adminApiBasePath = "/api/admin/aliexpress" }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -533,7 +541,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     let prefetchedProduct: unknown;
     let prefetchedDebug: unknown;
     if (activeImportForm.manualProductMode) {
-      const previewResponse = await fetchAdminAliExpress("/api/admin/aliexpress/fetch-remote", {
+      const previewResponse = await fetchAdminSourcing(`${adminApiBasePath}/fetch-remote`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -558,7 +566,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       }
     }
 
-    const response = await fetchAdminAliExpress("/api/admin/aliexpress/import", {
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/import`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -593,7 +601,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       return;
     }
 
-    const response = await fetchAdminAliExpress("/api/admin/aliexpress/supplier-accounts", {
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/supplier-accounts`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -628,7 +636,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       return;
     }
 
-    const response = await fetchAdminAliExpress("/api/admin/aliexpress/publish", {
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/publish`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ productIds: selectedProductIds }),
@@ -650,7 +658,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       return;
     }
 
-    const response = await fetchAdminAliExpress("/api/admin/aliexpress/purchase-orders", {
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/purchase-orders`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -685,10 +693,10 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     }
 
     const deleteUrl = sourceProductId
-      ? `/api/admin/aliexpress/import/${importedProductId}?sourceProductId=${encodeURIComponent(sourceProductId)}`
-      : `/api/admin/aliexpress/import/${importedProductId}`;
+      ? `${adminApiBasePath}/import/${importedProductId}?sourceProductId=${encodeURIComponent(sourceProductId)}`
+      : `${adminApiBasePath}/import/${importedProductId}`;
 
-    const response = await fetchAdminAliExpress(deleteUrl, {
+    const response = await fetchAdminSourcing(deleteUrl, {
       method: "DELETE",
     });
     const payload = await response.json().catch(() => null);
@@ -706,7 +714,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   const reenrichImportedItem = async (importedProductId: string) => {
     resetFeedbackState();
 
-    const response = await fetchAdminAliExpress(`/api/admin/aliexpress/import/${importedProductId}/reenrich`, {
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/import/${importedProductId}/reenrich`, {
       method: "POST",
     });
     const payload = await response.json().catch(() => null);
@@ -723,7 +731,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   const reenrichAllImportedItems = async () => {
     resetFeedbackState();
 
-    const response = await fetchAdminAliExpress("/api/admin/aliexpress/import/reenrich", {
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/import/reenrich`, {
       method: "POST",
     });
     const payload = await response.json().catch(() => null);
@@ -750,7 +758,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       return;
     }
 
-    const response = await fetchAdminAliExpress("/api/admin/aliexpress/import", {
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/import`, {
       method: "DELETE",
     });
     const payload = await response.json().catch(() => null);
@@ -767,11 +775,11 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
 
   const payOrder = async (order: AlibabaPurchaseOrder, action: "pay" | "refresh" | "repay") => {
     resetFeedbackState();
-    if (action !== "refresh" && !confirmAliExpressPaymentRedirect()) {
+    if (action !== "refresh" && !confirmSupplierPaymentRedirect()) {
       return;
     }
 
-    const response = await fetchAdminAliExpress(`/api/admin/aliexpress/purchase-orders/${order.id}/pay`, {
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/purchase-orders/${order.id}/pay`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action }),
@@ -780,14 +788,14 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
     const payload = await response.json().catch(() => null);
 
     if (!response.ok) {
-      setFeedback(payload?.message ?? (action === "refresh" ? "Actualisation paiement impossible." : "Action AliExpress impossible."));
+      setFeedback(payload?.message ?? (action === "refresh" ? "Actualisation paiement impossible." : "Action fournisseur impossible."));
       return;
     }
 
     if (action !== "refresh") {
       setFeedback(action === "repay"
-        ? "Repaiement DS relance. Le compte acheteur AliExpress tente un auto-paiement immediat; actualise le statut dans quelques secondes."
-        : "Commande DS lancee. Le compte acheteur AliExpress tente un auto-paiement immediat; actualise le statut dans quelques secondes.");
+        ? "Repaiement dropshipping relance. Si Alibaba renvoie un pay_url, ouvre-le pour finaliser le paiement."
+        : "Commande dropshipping lancee. Si Alibaba renvoie un pay_url, ouvre-le pour finaliser le paiement.");
     } else {
       setFeedback("Statut paiement actualise.");
     }
@@ -796,7 +804,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
 
   const saveAccount = async () => {
     resetFeedbackState();
-    const response = await fetchAdminAliExpress("/api/admin/aliexpress/supplier-accounts", {
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/supplier-accounts`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(accountForm),
@@ -865,21 +873,21 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       accessTokenHint: accountForm.accessTokenHint,
       origin: window.location.origin,
       responseMode: "redirect",
-    });
+    }, adminApiBasePath);
   };
 
   const refreshAccountToken = async (accountId: string) => {
     resetFeedbackState();
-    const response = await fetchAdminAliExpress(`/api/admin/aliexpress/supplier-accounts/${accountId}/refresh`, {
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/supplier-accounts/${accountId}/refresh`, {
       method: "POST",
     });
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
-      setFeedback(payload?.message ?? "Refresh du token AliExpress impossible.");
+      setFeedback(payload?.message ?? "Refresh du token fournisseur impossible.");
       return;
     }
 
-    setFeedback("Token AliExpress rafraichi.");
+    setFeedback("Token fournisseur rafraichi.");
     refresh();
   };
 
@@ -889,12 +897,12 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       id: accountId,
       origin: window.location.origin,
       responseMode: "redirect",
-    });
+    }, adminApiBasePath);
   };
 
   const saveAddress = async () => {
     resetFeedbackState();
-    const response = await fetchAdminAliExpress("/api/admin/aliexpress/reception-addresses", {
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/reception-addresses`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(addressForm),
@@ -911,7 +919,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
 
   const saveCountries = async () => {
     resetFeedbackState();
-    const response = await fetchAdminAliExpress("/api/admin/aliexpress/country-profiles", {
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/country-profiles`, {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ profiles: countries }),
@@ -927,6 +935,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
   };
 
   const panel = initialDashboard.panel;
+  const adminHref = (suffix = "") => `${adminBasePath}${suffix}`;
 
   return (
     <div className="space-y-5">
@@ -1023,10 +1032,10 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "Articles importes", value: formatCount(initialDashboard.stats.importedCount), icon: Package2, accent: "bg-[#fff1e8] text-[#ff6a00]", href: "/admin/aliexpress-sourcing/import-catalog", hint: "Voir les articles importes" },
-          { label: "Publies sur le site", value: formatCount(initialDashboard.stats.publishedCount), icon: CheckCircle2, accent: "bg-[#eafaf0] text-[#16a34a]", href: "/admin/aliexpress-sourcing/import-catalog", hint: "Voir les produits publies" },
-          { label: "Paiements en attente", value: formatCount(initialDashboard.stats.pendingPayments), icon: Wallet, accent: "bg-[#eef4ff] text-[#2f67f6]", href: "/admin/aliexpress-sourcing/lots", hint: (typeof initialDashboard.stats.pendingPayments === "number" ? initialDashboard.stats.pendingPayments : 0) > 0 ? "Ouvrir les liens de paiement AliExpress" : "Aucun lien de paiement en attente" },
-          { label: "Ordres payes", value: formatCount(initialDashboard.stats.paidOrders), icon: Building2, accent: "bg-[#f5efff] text-[#7c3aed]", href: "/admin/aliexpress-sourcing/lots", hint: "Voir les lots d'achat" },
+          { label: "Articles importes", value: formatCount(initialDashboard.stats.importedCount), icon: Package2, accent: "bg-[#fff1e8] text-[#ff6a00]", href: adminHref("/import-catalog"), hint: "Voir les articles importes" },
+          { label: "Publies sur le site", value: formatCount(initialDashboard.stats.publishedCount), icon: CheckCircle2, accent: "bg-[#eafaf0] text-[#16a34a]", href: adminHref("/import-catalog"), hint: "Voir les produits publies" },
+          { label: "Paiements en attente", value: formatCount(initialDashboard.stats.pendingPayments), icon: Wallet, accent: "bg-[#eef4ff] text-[#2f67f6]", href: adminHref("/lots"), hint: (typeof initialDashboard.stats.pendingPayments === "number" ? initialDashboard.stats.pendingPayments : 0) > 0 ? "Ouvrir les liens de paiement AliExpress" : "Aucun lien de paiement en attente" },
+          { label: "Ordres payes", value: formatCount(initialDashboard.stats.paidOrders), icon: Building2, accent: "bg-[#f5efff] text-[#7c3aed]", href: adminHref("/lots"), hint: "Voir les lots d'achat" },
         ].map((card) => {
           const Icon = card.icon;
           return (
@@ -1050,7 +1059,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
               <div className="mt-1 text-[18px] font-black tracking-[-0.04em] text-[#1f2937]">{pendingPaymentOrders.length} lien(s) de paiement AliExpress a ouvrir</div>
               <div className="mt-1 text-[13px] text-[#50637d]">Ouvre le panneau Groupes prets pour voir chaque lot, lancer le DS puis relire le statut.</div>
             </div>
-            <Link href="/admin/aliexpress-sourcing/lots" className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#2f67f6] px-5 text-[14px] font-semibold text-white transition hover:bg-[#2557d6]">
+            <Link href={adminHref("/lots")} className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#2f67f6] px-5 text-[14px] font-semibold text-white transition hover:bg-[#2557d6]">
               Ouvrir les groupes prets
             </Link>
           </div>
@@ -1060,7 +1069,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
       <section className="overflow-x-auto rounded-[20px] border border-[#e6eaf0] bg-white p-3 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
         <div className="flex min-w-max gap-2">
           {panelLinks.map((item) => (
-            <Link key={item.key} href={item.href} className={[
+            <Link key={item.key} href={item.href.replace("/admin/aliexpress-sourcing", adminBasePath)} className={[
               "rounded-[14px] px-4 py-2.5 text-[13px] font-semibold transition",
               panel === item.key ? "bg-[#fff0ea] text-[#ff6234]" : "text-[#475467] hover:bg-[#f7f8fb]",
             ].join(" ")}>
@@ -1100,7 +1109,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard }: Props) {
                     <div>
                       <div className="text-[15px] font-semibold text-[#1f2937]">{order.productTitle}</div>
                       <div className="mt-1 text-[13px] text-[#667085]">{formatCount(order.quantity)} unites · {order.supplierName}</div>
-                      {order.payUrl ? <a href={order.payUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-[12px] font-semibold text-[#2f67f6]">Ouvrir le lien de paiement AliExpress</a> : null}
+                      {order.payUrl ? <a href={order.payUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-[12px] font-semibold text-[#2f67f6]">Ouvrir le lien de paiement fournisseur</a> : null}
                     </div>
                     <div className="text-right">
                       <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">{order.paymentStatus}</div>
