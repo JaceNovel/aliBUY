@@ -489,7 +489,7 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
 
   const importPreviewItems = async (items: SearchPreviewItem[]) => {
     const importableItems = items.filter((item) => item.importable && item.product);
-      setErrorMessage(error instanceof Error && error.message ? error.message : "Recherche catalogue Alibaba impossible.");
+    if (importableItems.length === 0) {
       setErrorMessage("Selection vide: choisis au moins un resultat importable.");
       return;
     }
@@ -532,27 +532,27 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
       }
 
       importedCount += Array.isArray(payload?.products) ? payload.products.length : 0;
-          setSearchState(null);
-          setSelectedPreviewIds([]);
-          setErrorMessage(payload?.message ?? "Recherche catalogue Alibaba impossible.");
-          setIsSearching(false);
-          return;
-        }
+      importedSourceProductIds.push(item.productId);
+    }
 
-        setSearchForm((current) => ({ ...current, pageIndex: payload.pageIndex }));
+    setIsImporting(false);
+
+    if (importedSourceProductIds.length > 0) {
       setSearchState((current) => current
         ? { ...current, products: current.products.filter((item) => !importedSourceProductIds.includes(item.productId)) }
         : current);
     }
+
+    if (failures.length > 0) {
+      setErrorMessage(`Import termine avec ${failures.length} echec(s). ${failures.slice(0, 3).join(" | ")}`);
+    } else {
+      setFeedback(`${importedCount} produit(s) importe(s) depuis Alibaba.`);
+    }
+
+    setSelectedPreviewIds([]);
     refresh();
-        return;
-      } catch (error) {
-        setSearchState(null);
-        setSelectedPreviewIds([]);
-        setErrorMessage(error instanceof Error && error.message ? error.message : "Recherche catalogue Alibaba impossible.");
-        setIsSearching(false);
-        return;
-      }
+  };
+
   const publishSelection = async () => {
     if (selectedImportedProductIds.length === 0) {
       setErrorMessage("Selectionne au moins un produit importe a publier.");
