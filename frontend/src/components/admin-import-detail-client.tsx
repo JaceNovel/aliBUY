@@ -79,6 +79,20 @@ type AdminImportDetailClientProps = {
 
 const statusOptions: AdminImportRequestStatus[] = ["En attente", "En traitement", "Complété", "Rejeté"];
 
+function sanitizeVendorText(value: string | null | undefined) {
+  const input = (value ?? "").trim();
+  if (!input) {
+    return "";
+  }
+
+  return input
+    .replace(/openapi-auth\.alibaba\.com/gi, "openapi-auth.platform.local")
+    .replace(/openapi-api\.alibaba\.com/gi, "openapi-api.platform.local")
+    .replace(/alibaba\.com/gi, "plateforme-partenaire.local")
+    .replace(/\/alibaba\//g, "/platform/")
+    .replace(/Alibaba/gi, "plateforme fournisseur");
+}
+
 export function AdminImportDetailClient({ request }: AdminImportDetailClientProps) {
   const [noteDraft, setNoteDraft] = useState("");
   const [savedNote, setSavedNote] = useState("");
@@ -102,30 +116,16 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
             <div className="grid w-full gap-3 sm:grid-cols-2 lg:w-[340px] lg:grid-cols-1">
               <div className="rounded-[16px] border border-white/80 bg-white/85 p-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] backdrop-blur">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#98a2b3]">Environment</div>
-                <div className="mt-2 text-[15px] font-semibold text-[#111827]">{openPlatformOverview.environment}</div>
+                <div className="mt-2 text-[15px] font-semibold text-[#111827]">{sanitizeVendorText(openPlatformOverview.environment)}</div>
               </div>
               <div className="rounded-[16px] border border-white/80 bg-white/85 p-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] backdrop-blur">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#98a2b3]">Auth service</div>
-                <div className="mt-2 break-all text-[14px] font-semibold text-[#111827]">{openPlatformOverview.authServiceAddress}</div>
+                <div className="mt-2 break-all text-[14px] font-semibold text-[#111827]">{sanitizeVendorText(openPlatformOverview.authServiceAddress)}</div>
               </div>
             </div>
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-
-            function sanitizeVendorText(value: string | null | undefined) {
-              const input = (value ?? "").trim();
-              if (!input) {
-                return "";
-              }
-
-              return input
-                .replace(/openapi-auth\.alibaba\.com/gi, "openapi-auth.platform.local")
-                .replace(/openapi-api\.alibaba\.com/gi, "openapi-api.platform.local")
-                .replace(/alibaba\.com/gi, "plateforme-partenaire.local")
-                .replace(/\/alibaba\//g, "/platform/")
-                .replace(/Alibaba/gi, "plateforme fournisseur");
-            }
             {[
               { label: "Prerequis", value: String(openPlatformOverview.prerequisites.length), icon: CheckCircle2, accent: "bg-[#eefbf2] text-[#16a34a]" },
               { label: "APIs cles", value: String(essentialApis.length), icon: KeyRound, accent: "bg-[#eef4ff] text-[#2f67f6]" },
@@ -134,8 +134,6 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
             ].map((item) => {
               const Icon = item.icon;
 
-                              <div className="mt-2 text-[15px] font-semibold text-[#111827]">{sanitizeVendorText(openPlatformOverview.environment)}</div>
-                              <div className="mt-2 break-all text-[14px] font-semibold text-[#111827]">{sanitizeVendorText(openPlatformOverview.authServiceAddress)}</div>
               return (
                 <article key={item.label} className="rounded-[16px] border border-white/70 bg-white/80 px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.04)] backdrop-blur">
                   <div className={`inline-flex h-10 w-10 items-center justify-center rounded-[12px] ${item.accent}`}>
