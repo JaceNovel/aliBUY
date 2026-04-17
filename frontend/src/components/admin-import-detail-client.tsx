@@ -154,7 +154,6 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
               <div className="text-[14px] font-medium text-[#667085]">URL du produit</div>
               <a href={request.productUrl} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-[16px] text-[#386bf6] transition hover:text-[#214fce]">
                 {request.productUrl}
-                                {productUrlLabel}
                 <ExternalLink className="h-4 w-4" />
               </a>
             </div>
