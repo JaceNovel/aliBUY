@@ -557,7 +557,8 @@ class AliExpressOpenPlatformService
                     'pageIndex' => $pageIndex,
                     'pageSize' => $pageSize,
                     'requestId' => $this->getString($searchResult['responseBody']['request_id'] ?? null),
-                    'message' => $this->extractOperationMessage($searchResult['responseBody']) ?? 'Recherche catalogue Alibaba impossible.',
+                    'message' => $this->extractOperationMessage($searchResult['responseBody'])
+                        ?? $this->buildOperationFailureMessage('Recherche catalogue Alibaba impossible.', $searchResult),
                     'debug' => $searchResult['responseBody'],
                 ],
             ];
@@ -4023,6 +4024,31 @@ class AliExpressOpenPlatformService
             : ($this->isAssoc($respResult['result'] ?? null) ? $respResult['result'] : $response);
 
         return $this->getString($envelope['msg_code'] ?? $envelope['error_code'] ?? $envelope['code'] ?? $envelope['response_code'] ?? $envelope['result_code'] ?? $respResult['resp_code'] ?? $response['code'] ?? $response['result_code'] ?? null);
+    }
+
+    private function buildOperationFailureMessage(string $fallback, array $result): string
+    {
+        $parts = [$fallback];
+        $status = isset($result['status']) ? (int) $result['status'] : 0;
+        $code = $this->extractOperationCode($result['responseBody'] ?? null);
+        $responseBody = $result['responseBody'] ?? null;
+
+        if ($status > 0) {
+            $parts[] = "HTTP {$status}";
+        }
+
+        if ($code !== null && $code !== '') {
+            $parts[] = "code {$code}";
+        }
+
+        if (is_string($responseBody)) {
+            $excerpt = trim(preg_replace('/\s+/', ' ', $responseBody) ?? '');
+            if ($excerpt !== '') {
+                $parts[] = mb_substr($excerpt, 0, 240);
+            }
+        }
+
+        return implode(' - ', $parts);
     }
 
     private function extractTradeId($responseBody): ?string
