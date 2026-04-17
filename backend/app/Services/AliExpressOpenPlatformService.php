@@ -537,6 +537,9 @@ class AliExpressOpenPlatformService
         $request = [
             'keyword' => $query,
             'query' => $query,
+            'index' => $pageIndex,
+            'size' => $pageSize,
+            'current_page' => $pageIndex,
             'page_index' => $pageIndex,
             'page_size' => $pageSize,
             'destination_country' => strtoupper(trim((string) ($input['countryCode'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'CN')))),
