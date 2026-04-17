@@ -2619,7 +2619,7 @@ class AliExpressOpenPlatformService
         ksort($signParams);
         $sign = $this->signRestRequest($endpoint['apiPath'], $signParams, (string) ($account['appSecret'] ?? ''));
 
-        if (! $systemParamsInHeaders) {
+        if (! $systemParamsInHeaders || $method === 'GET') {
             $params = array_merge($params, $system, [
                 'sign' => $sign,
             ]);
