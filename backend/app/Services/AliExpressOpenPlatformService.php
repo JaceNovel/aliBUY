@@ -4122,6 +4122,24 @@ class AliExpressOpenPlatformService
         return is_numeric($normalized) ? (float) $normalized : 0.0;
     }
 
+    private function nullableFloat($value): ?float
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_string($value) && trim($value) === '') {
+            return null;
+        }
+
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+
+        $normalized = preg_replace('/[^0-9.\-]/', '', (string) $value);
+        return is_numeric($normalized) ? (float) $normalized : null;
+    }
+
     private function toInt($value): int
     {
         if (is_numeric($value)) {
