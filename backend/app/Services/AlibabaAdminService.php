@@ -808,6 +808,230 @@ class AlibabaAdminService
         return ['publishedCount' => $publishedCount];
     }
 
+    public function syncImportedProductBuyerItem(string $importedProductId): array
+    {
+        $products = $this->readJsonArray('alibaba-imported-products.json');
+        $index = $this->findImportedProductIndex($products, $importedProductId);
+        if ($index === null) {
+            throw new RuntimeException('Article importe introuvable pour la synchronisation Buyer Item.');
+        }
+
+        $product = is_array($products[$index]) ? $products[$index] : null;
+        if (! is_array($product)) {
+            throw new RuntimeException('Article importe invalide pour la synchronisation Buyer Item.');
+        }
+
+        $account = $this->resolveLiveAccount(null, true);
+        if ($account === null) {
+            throw new RuntimeException('Aucun compte Alibaba connecte n\'est disponible pour synchroniser un Buyer Item.');
+        }
+
+        $rawPayload = is_array($product['rawPayload'] ?? null) ? $product['rawPayload'] : [];
+        $buyerSharedItem = is_array($rawPayload['buyerSharedItem'] ?? null) ? $rawPayload['buyerSharedItem'] : [];
+        $hasExistingItemId = trim((string) ($buyerSharedItem['itemId'] ?? '')) !== '';
+
+        $result = $hasExistingItemId
+            ? $this->openPlatform->updateAlibabaBuyerItem($account, $product)
+            : $this->openPlatform->addAlibabaBuyerItem($account, $product);
+        $this->persistResolvedLiveAccount($result['account']);
+
+        $payload = is_array($result['payload'] ?? null) ? $result['payload'] : [];
+        if (($payload['ok'] ?? false) !== true) {
+            throw new RuntimeException((string) ($payload['resultMessage'] ?? 'Synchronisation Buyer Item impossible.'));
+        }
+
+        $query = $this->refreshBuyerSharedItemSnapshot($result['account'], $product, $buyerSharedItem);
+        $products[$index] = $this->applyBuyerSharedItemSnapshot($product, [
+            'itemId' => $query['itemId'] ?? ($buyerSharedItem['itemId'] ?? null),
+            'isvItemId' => $query['isvItemId'] ?? ($product['sourceProductId'] ?? null),
+            'title' => $query['title'] ?? ($product['title'] ?? null),
+            'price' => $query['price'] ?? null,
+            'originalPrice' => $query['originalPrice'] ?? null,
+            'availableQuantity' => $query['availableQuantity'] ?? null,
+            'currency' => $query['currency'] ?? null,
+            'permalink' => $query['permalink'] ?? null,
+            'state' => 'synced',
+            'operation' => $hasExistingItemId ? 'update' : 'add',
+            'lastResultCode' => $payload['resultCode'] ?? null,
+            'lastResultMessage' => $payload['resultMessage'] ?? null,
+            'requestId' => $payload['requestId'] ?? null,
+            'syncedAt' => $this->nowIso(),
+            'queryPagination' => $query['pagination'] ?? null,
+        ]);
+
+        $this->writeJsonArray('alibaba-imported-products.json', $products);
+
+        return [
+            'product' => $products[$index],
+            'buyerItem' => is_array($products[$index]['rawPayload']['buyerSharedItem'] ?? null) ? $products[$index]['rawPayload']['buyerSharedItem'] : null,
+        ];
+    }
+
+    public function refreshImportedProductBuyerItem(string $importedProductId): array
+    {
+        $products = $this->readJsonArray('alibaba-imported-products.json');
+        $index = $this->findImportedProductIndex($products, $importedProductId);
+        if ($index === null) {
+            throw new RuntimeException('Article importe introuvable pour la verification Buyer Item.');
+        }
+
+        $product = is_array($products[$index]) ? $products[$index] : null;
+        if (! is_array($product)) {
+            throw new RuntimeException('Article importe invalide pour la verification Buyer Item.');
+        }
+
+        $account = $this->resolveLiveAccount(null, true);
+        if ($account === null) {
+            throw new RuntimeException('Aucun compte Alibaba connecte n\'est disponible pour verifier un Buyer Item.');
+        }
+
+        $rawPayload = is_array($product['rawPayload'] ?? null) ? $product['rawPayload'] : [];
+        $buyerSharedItem = is_array($rawPayload['buyerSharedItem'] ?? null) ? $rawPayload['buyerSharedItem'] : [];
+        $query = $this->refreshBuyerSharedItemSnapshot($account, $product, $buyerSharedItem);
+        $products[$index] = $this->applyBuyerSharedItemSnapshot($product, [
+            ...$query,
+            'state' => ($query['itemId'] ?? null) !== null ? 'queried' : 'missing',
+            'refreshedAt' => $this->nowIso(),
+        ]);
+
+        $this->writeJsonArray('alibaba-imported-products.json', $products);
+
+        return [
+            'product' => $products[$index],
+            'buyerItem' => is_array($products[$index]['rawPayload']['buyerSharedItem'] ?? null) ? $products[$index]['rawPayload']['buyerSharedItem'] : null,
+        ];
+    }
+
+    public function deleteImportedProductBuyerItem(string $importedProductId): array
+    {
+        $products = $this->readJsonArray('alibaba-imported-products.json');
+        $index = $this->findImportedProductIndex($products, $importedProductId);
+        if ($index === null) {
+            throw new RuntimeException('Article importe introuvable pour le retrait Buyer Item.');
+        }
+
+        $product = is_array($products[$index]) ? $products[$index] : null;
+        if (! is_array($product)) {
+            throw new RuntimeException('Article importe invalide pour le retrait Buyer Item.');
+        }
+
+        $rawPayload = is_array($product['rawPayload'] ?? null) ? $product['rawPayload'] : [];
+        $buyerSharedItem = is_array($rawPayload['buyerSharedItem'] ?? null) ? $rawPayload['buyerSharedItem'] : [];
+        $itemId = trim((string) ($buyerSharedItem['itemId'] ?? ''));
+        if ($itemId === '') {
+            throw new RuntimeException('Aucun Buyer Item enregistre pour cet article importe.');
+        }
+
+        $account = $this->resolveLiveAccount(null, true);
+        if ($account === null) {
+            throw new RuntimeException('Aucun compte Alibaba connecte n\'est disponible pour retirer un Buyer Item.');
+        }
+
+        $result = $this->openPlatform->deleteAlibabaBuyerItem($account, [
+            'item_id' => $itemId,
+            'isv_item_id' => $this->stringOrNull($product['sourceProductId'] ?? null),
+        ]);
+        $this->persistResolvedLiveAccount($result['account']);
+
+        $payload = is_array($result['payload'] ?? null) ? $result['payload'] : [];
+        if (($payload['ok'] ?? false) !== true) {
+            throw new RuntimeException((string) ($payload['resultMessage'] ?? 'Retrait Buyer Item impossible.'));
+        }
+
+        $products[$index] = $this->applyBuyerSharedItemSnapshot($product, [
+            'itemId' => null,
+            'state' => 'deleted',
+            'operation' => 'delete',
+            'lastResultCode' => $payload['resultCode'] ?? null,
+            'lastResultMessage' => $payload['resultMessage'] ?? null,
+            'requestId' => $payload['requestId'] ?? null,
+            'deletedAt' => $this->nowIso(),
+        ]);
+
+        $this->writeJsonArray('alibaba-imported-products.json', $products);
+
+        return [
+            'product' => $products[$index],
+            'deleted' => true,
+        ];
+    }
+
+    private function findImportedProductIndex(array $products, string $importedProductId): ?int
+    {
+        foreach ($products as $index => $item) {
+            if (is_array($item) && (string) ($item['id'] ?? '') === $importedProductId) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    private function refreshBuyerSharedItemSnapshot(array $account, array $product, array $existingSnapshot = []): array
+    {
+        $queryReq = array_filter([
+            'item_id' => $this->stringOrNull($existingSnapshot['itemId'] ?? null),
+            'isv_item_id' => $this->stringOrNull($product['sourceProductId'] ?? null),
+            'current' => '1',
+            'page_size' => '20',
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $query = $this->openPlatform->queryAlibabaBuyerItem($account, $queryReq);
+        $this->persistResolvedLiveAccount($query['account']);
+
+        $payload = is_array($query['payload'] ?? null) ? $query['payload'] : [];
+        if (($payload['ok'] ?? false) !== true) {
+            return [
+                'state' => 'query_failed',
+                'queryResultCode' => $payload['resultCode'] ?? null,
+                'queryResultMessage' => $payload['resultMessage'] ?? null,
+                'queryRequestId' => $payload['requestId'] ?? null,
+            ];
+        }
+
+        $items = is_array($payload['items'] ?? null) ? $payload['items'] : [];
+        $itemId = $this->stringOrNull($existingSnapshot['itemId'] ?? null);
+        $sourceProductId = $this->stringOrNull($product['sourceProductId'] ?? null);
+
+        $match = collect($items)->first(function ($item) use ($itemId, $sourceProductId) {
+            if (! is_array($item)) {
+                return false;
+            }
+
+            return ($itemId !== null && (string) ($item['itemId'] ?? '') === $itemId)
+                || ($sourceProductId !== null && (string) ($item['isvItemId'] ?? '') === $sourceProductId);
+        });
+
+        return [
+            ...(is_array($match) ? $match : []),
+            'state' => is_array($match) ? 'queried' : 'missing',
+            'queryResultCode' => $payload['resultCode'] ?? null,
+            'queryResultMessage' => $payload['resultMessage'] ?? null,
+            'queryRequestId' => $payload['requestId'] ?? null,
+            'pagination' => is_array($payload['pagination'] ?? null) ? $payload['pagination'] : null,
+        ];
+    }
+
+    private function applyBuyerSharedItemSnapshot(array $product, array $snapshot): array
+    {
+        $rawPayload = is_array($product['rawPayload'] ?? null) ? $product['rawPayload'] : [];
+        $previous = is_array($rawPayload['buyerSharedItem'] ?? null) ? $rawPayload['buyerSharedItem'] : [];
+        $merged = [
+            ...$previous,
+            ...$snapshot,
+        ];
+
+        if (($merged['itemId'] ?? null) === null || trim((string) ($merged['itemId'] ?? '')) === '') {
+            unset($merged['itemId']);
+        }
+
+        $rawPayload['buyerSharedItem'] = $merged;
+        $product['rawPayload'] = $rawPayload;
+        $product['updatedAt'] = $this->nowIso();
+
+        return $product;
+    }
+
     public function createPurchaseOrder(array $input): array
     {
         $importedProductId = trim((string) ($input['importedProductId'] ?? ''));
@@ -834,6 +1058,9 @@ class AlibabaAdminService
 
         $prepared = $this->openPlatform->prepareDraftOrder($account, $product, $address, $quantity);
         $this->persistResolvedLiveAccount($prepared['account']);
+        $overseasAdmittance = $this->openPlatform->checkAlibabaOverseasAdmittance($prepared['account']);
+        $this->persistResolvedLiveAccount($overseasAdmittance['account']);
+        $overseasPayload = is_array($overseasAdmittance['payload'] ?? null) ? $overseasAdmittance['payload'] : [];
 
         $orders = $this->readJsonArray('alibaba-purchase-orders.json');
         $now = $this->nowIso();
@@ -861,6 +1088,18 @@ class AlibabaAdminService
             'payUrl' => null,
             'payFailureReason' => null,
             'amountUsd' => round($this->toFloat($product['minUsd'] ?? 0) * $quantity, 2),
+            'freightSummary' => $this->openPlatform->extractAlibabaFreightSummary($prepared['freightResult']['responseBody'] ?? null),
+            'overseasAdmittance' => [
+                'response' => $overseasPayload['response'] ?? false,
+                'errorCode' => $overseasPayload['errorCode'] ?? null,
+                'errorMessage' => $overseasPayload['errorMessage'] ?? null,
+                'checkedAt' => $now,
+            ],
+            'mergePay' => null,
+            'fund' => null,
+            'tracking' => null,
+            'orderDetail' => null,
+            'logisticsQuery' => null,
             'createdAt' => $now,
             'updatedAt' => $now,
             'rawFreightResponse' => $prepared['freightResult']['responseBody'] ?? null,
@@ -1022,6 +1261,25 @@ class AlibabaAdminService
                 $order['orderStatus'] = $isPaid ? 'paid' : ($isFailed && ! ($isAlibabaAccount && $payUrl) ? 'failed' : 'payment_pending');
                 $order['payFailureReason'] = $isFailed && ! ($isAlibabaAccount && $payUrl) ? ($payFailureReason ?? 'Paiement non complete') : null;
                 $order['rawPaymentResponse'] = $paymentResult['responseBody'];
+                $this->hydrateAlibabaPurchaseOrderDiagnostics($account, $order);
+            } elseif ($action === 'cancel') {
+                $tradeId = trim((string) ($order['tradeId'] ?? ''));
+                if ($tradeId === '') {
+                    throw new RuntimeException('Aucune commande Alibaba n\'est encore associee a ce lot.');
+                }
+
+                $cancel = $this->openPlatform->cancelAlibabaOrder($account, $tradeId);
+                $this->persistResolvedLiveAccount($cancel['account']);
+                $payload = is_array($cancel['payload'] ?? null) ? $cancel['payload'] : [];
+                if (($payload['ok'] ?? false) !== true) {
+                    throw new RuntimeException($this->openPlatform->extractOperationMessageFromResponse($payload['responseBody'] ?? null) ?? 'Annulation Alibaba impossible.');
+                }
+
+                $order['orderStatus'] = 'cancelled';
+                $order['paymentStatus'] = in_array((string) ($order['paymentStatus'] ?? ''), ['paid'], true) ? 'paid' : 'skipped';
+                $order['payFailureReason'] = null;
+                $order['rawOrderResponse'] = $payload['responseBody'] ?? ($order['rawOrderResponse'] ?? null);
+                $this->hydrateAlibabaPurchaseOrderDiagnostics($cancel['account'], $order);
             } else {
                 $existingTradeId = trim((string) ($order['tradeId'] ?? ''));
                 if ($isAlibabaAccount && $action === 'repay' && $existingTradeId !== '') {
@@ -1039,6 +1297,7 @@ class AlibabaAdminService
                         ? ($payUrl ? null : ($this->openPlatform->extractOperationMessageFromResponse($paymentResult['responseBody']) ?? 'Paiement dropshipping Alibaba non complete.'))
                         : null;
                     $order['rawPaymentResponse'] = $paymentResult['responseBody'];
+                    $this->hydrateAlibabaPurchaseOrderDiagnostics($account, $order);
                     $order['updatedAt'] = $now;
                     $updatedOrder = $order;
                     break;
@@ -1078,6 +1337,7 @@ class AlibabaAdminService
                     if ($isFailed && ! ($isAlibabaAccount && $payUrl) && $order['payFailureReason'] === null) {
                         $order['payFailureReason'] = $this->openPlatform->extractOperationMessageFromResponse($paymentResult['responseBody']) ?? 'Paiement non complete';
                     }
+                    $this->hydrateAlibabaPurchaseOrderDiagnostics($account, $order);
                 }
             }
 
@@ -1094,6 +1354,57 @@ class AlibabaAdminService
         $this->writeJsonArray('alibaba-purchase-orders.json', $orders);
 
         return ['order' => $updatedOrder];
+    }
+
+    private function hydrateAlibabaPurchaseOrderDiagnostics(array $account, array &$order): void
+    {
+        $tradeId = trim((string) ($order['tradeId'] ?? ''));
+        if ($tradeId === '') {
+            return;
+        }
+
+        $mergePay = $this->openPlatform->queryAlibabaMergePay($account, [$tradeId]);
+        $this->persistResolvedLiveAccount($mergePay['account']);
+        $mergePayload = is_array($mergePay['payload'] ?? null) ? $mergePay['payload'] : [];
+        $order['mergePay'] = [
+            ...(is_array($mergePayload['mergePay'] ?? null) ? $mergePayload['mergePay'] : []),
+            'checkedAt' => $this->nowIso(),
+        ];
+
+        $fund = $this->openPlatform->queryAlibabaOrderFund($mergePay['account'], $tradeId);
+        $this->persistResolvedLiveAccount($fund['account']);
+        $fundPayload = is_array($fund['payload'] ?? null) ? $fund['payload'] : [];
+        $order['fund'] = [
+            ...(is_array($fundPayload['fund'] ?? null) ? $fundPayload['fund'] : []),
+            'checkedAt' => $this->nowIso(),
+        ];
+
+        $orderDetail = $this->openPlatform->queryAlibabaOrderDetail($fund['account'], $tradeId);
+        $this->persistResolvedLiveAccount($orderDetail['account']);
+        $orderDetailPayload = is_array($orderDetail['payload'] ?? null) ? $orderDetail['payload'] : [];
+        $order['orderDetail'] = [
+            ...(is_array($orderDetailPayload['order'] ?? null) ? $orderDetailPayload['order'] : []),
+            'checkedAt' => $this->nowIso(),
+        ];
+        if (trim((string) ($order['payUrl'] ?? '')) === '' && trim((string) ($order['orderDetail']['payUrl'] ?? '')) !== '') {
+            $order['payUrl'] = $order['orderDetail']['payUrl'];
+        }
+
+        $logistics = $this->openPlatform->queryAlibabaOrderLogistics($orderDetail['account'], $tradeId);
+        $this->persistResolvedLiveAccount($logistics['account']);
+        $logisticsPayload = is_array($logistics['payload'] ?? null) ? $logistics['payload'] : [];
+        $order['logisticsQuery'] = [
+            ...(is_array($logisticsPayload['logistics'] ?? null) ? $logisticsPayload['logistics'] : []),
+            'checkedAt' => $this->nowIso(),
+        ];
+
+        $tracking = $this->openPlatform->queryAlibabaOrderTracking($logistics['account'], $tradeId);
+        $this->persistResolvedLiveAccount($tracking['account']);
+        $trackingPayload = is_array($tracking['payload'] ?? null) ? $tracking['payload'] : [];
+        $order['tracking'] = [
+            'trackingList' => is_array($trackingPayload['trackingList'] ?? null) ? $trackingPayload['trackingList'] : [],
+            'checkedAt' => $this->nowIso(),
+        ];
     }
 
     private function normalizePanel(?string $panel): string

@@ -20,7 +20,7 @@ export const ALIBABA_PANEL_SLUGS = [
 export type AlibabaPanelSlug = (typeof ALIBABA_PANEL_SLUGS)[number];
 export type AlibabaImportJobStatus = "draft" | "running" | "completed" | "failed";
 export type AlibabaImportedProductStatus = "imported" | "published" | "archived";
-export type AlibabaPurchaseOrderStatus = "draft" | "freight_verified" | "order_created" | "payment_pending" | "paid" | "failed";
+export type AlibabaPurchaseOrderStatus = "draft" | "freight_verified" | "order_created" | "payment_pending" | "paid" | "failed" | "cancelled";
 export type AlibabaPaymentStatus = "not_started" | "pay_url_generated" | "pending" | "paid" | "failed" | "skipped";
 export type AlibabaAccountStatus = "connected" | "needs_auth" | "disabled";
 export type AlibabaFulfillmentChannel = "standard_us" | "crossborder" | "fast_us" | "mexico" | "best_seller_us" | "best_seller_mexico";
@@ -182,6 +182,77 @@ export type AlibabaPurchaseOrder = {
   payUrl?: string;
   payFailureReason?: string;
   amountUsd: number;
+  freightSummary?: {
+    vendorCode?: string;
+    vendorName?: string;
+    shippingType?: string;
+    dispatchCountry?: string;
+    destinationCountry?: string;
+    deliveryTime?: string;
+    tradeTerm?: string;
+    solutionBizType?: string;
+    feeAmount?: number;
+    feeCurrency?: string;
+  } | null;
+  overseasAdmittance?: {
+    response?: boolean;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+    checkedAt?: string;
+  } | null;
+  mergePay?: {
+    groupCount?: number;
+    groups?: Array<{
+      groupCode?: string;
+      canMergePay?: boolean;
+      cannotMergeReason?: string | null;
+      cannotMergeReasonMessage?: string | null;
+      mergeableOrderIds?: string[];
+      blockedOrderIds?: string[];
+    }>;
+    checkedAt?: string;
+  } | null;
+  fund?: {
+    paymentTransactionFeeAmount?: number | null;
+    paymentTransactionFeeCurrency?: string | null;
+    checkedAt?: string;
+  } | null;
+  tracking?: {
+    trackingList?: Array<{
+      carrier?: string | null;
+      trackingNumber?: string | null;
+      trackingUrl?: string | null;
+      currentEventCode?: string | null;
+      lastEventName?: string | null;
+      lastEventTime?: string | null;
+      lastEventLocation?: string | null;
+    }>;
+    checkedAt?: string;
+  } | null;
+  orderDetail?: {
+    tradeStatus?: string | null;
+    fulfillmentChannel?: string | null;
+    carrierCode?: string | null;
+    carrierName?: string | null;
+    shipmentMethod?: string | null;
+    tradeTerm?: string | null;
+    payUrl?: string | null;
+    statusActionStatus?: string | null;
+    totalAmount?: number | null;
+    totalCurrency?: string | null;
+    shipmentFeeAmount?: number | null;
+    shipmentFeeCurrency?: string | null;
+    attachmentCount?: number;
+    checkedAt?: string;
+  } | null;
+  logisticsQuery?: {
+    logisticStatus?: string | null;
+    shipmentTimestamp?: string | null;
+    trackingNumber?: string | null;
+    serviceProvider?: string | null;
+    logisticsType?: string | null;
+    checkedAt?: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
   rawFreightResponse?: unknown;

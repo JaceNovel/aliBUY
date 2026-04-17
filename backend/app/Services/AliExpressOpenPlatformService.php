@@ -321,6 +321,208 @@ class AliExpressOpenPlatformService
         ];
     }
 
+    public function addAlibabaBuyerItem(array $account, array $product, array $overrides = []): array
+    {
+        return $this->mutateAlibabaBuyerItem($account, '/eco/buyer/item/add', 'insertReq', $product, $overrides, 'POST');
+    }
+
+    public function updateAlibabaBuyerItem(array $account, array $product, array $overrides = []): array
+    {
+        return $this->mutateAlibabaBuyerItem($account, '/eco/buyer/item/update', 'updateReq', $product, $overrides, 'POST');
+    }
+
+    public function deleteAlibabaBuyerItem(array $account, array $deleteReq): array
+    {
+        $prepared = $this->prepareAccount($account, true);
+        $account = $prepared['account'];
+        $result = $this->callRestEndpoint($account, '/eco/buyer/item/delete', [
+            'deleteReq' => $deleteReq,
+        ], true, 'PUT', true);
+
+        return [
+            'account' => $account,
+            'payload' => [
+                'ok' => $result['ok'] && $this->isSuccessfulBuyerItemResponse($result['responseBody']),
+                'endpoint' => '/eco/buyer/item/delete',
+                'requestBody' => $result['requestBody'],
+                'responseBody' => $result['responseBody'],
+                'requestId' => $this->getString($result['responseBody']['request_id'] ?? null),
+                'resultCode' => $this->extractAlibabaBuyerItemResultCode($result['responseBody']),
+                'resultMessage' => $this->extractAlibabaBuyerItemResultMessage($result['responseBody']),
+            ],
+        ];
+    }
+
+    public function queryAlibabaBuyerItem(array $account, array $queryReq): array
+    {
+        $prepared = $this->prepareAccount($account, true);
+        $account = $prepared['account'];
+        $result = $this->callRestEndpoint($account, '/eco/buyer/item/query', [
+            'queryReq' => $queryReq,
+        ], true, 'GET', true);
+
+        $items = [];
+        $pagination = [];
+        if ($result['ok']) {
+            $response = $this->toArray($result['responseBody']);
+            $data = $response['result']['result_data'] ?? $response['result_data'] ?? [];
+            $items = is_array($data['items'] ?? null) ? array_values(array_filter(array_map(fn ($item) => is_array($item) ? $this->normalizeAlibabaBuyerSharedItemRecord($item) : null, $data['items']))) : [];
+            $pagination = is_array($data['pagination'] ?? null) ? $data['pagination'] : [];
+        }
+
+        return [
+            'account' => $account,
+            'payload' => [
+                'ok' => $result['ok'] && $this->isSuccessfulBuyerItemResponse($result['responseBody']),
+                'endpoint' => '/eco/buyer/item/query',
+                'items' => $items,
+                'pagination' => $pagination,
+                'requestBody' => $result['requestBody'],
+                'responseBody' => $result['responseBody'],
+                'requestId' => $this->getString($result['responseBody']['request_id'] ?? null),
+                'resultCode' => $this->extractAlibabaBuyerItemResultCode($result['responseBody']),
+                'resultMessage' => $this->extractAlibabaBuyerItemResultMessage($result['responseBody']),
+            ],
+        ];
+    }
+
+    private function mutateAlibabaBuyerItem(array $account, string $endpoint, string $requestKey, array $product, array $overrides, string $method): array
+    {
+        $prepared = $this->prepareAccount($account, true);
+        $account = $prepared['account'];
+        $request = $this->buildAlibabaBuyerItemRequest($product, $overrides);
+        $result = $this->callRestEndpoint($account, $endpoint, [
+            $requestKey => $request,
+        ], true, $method, true);
+
+        return [
+            'account' => $account,
+            'payload' => [
+                'ok' => $result['ok'] && $this->isSuccessfulBuyerItemResponse($result['responseBody']),
+                'endpoint' => $endpoint,
+                'item' => $this->normalizeAlibabaBuyerSharedItemRecord($request),
+                'requestBody' => $result['requestBody'],
+                'responseBody' => $result['responseBody'],
+                'requestId' => $this->getString($result['responseBody']['request_id'] ?? null),
+                'resultCode' => $this->extractAlibabaBuyerItemResultCode($result['responseBody']),
+                'resultMessage' => $this->extractAlibabaBuyerItemResultMessage($result['responseBody']),
+            ],
+        ];
+    }
+
+    private function buildAlibabaBuyerItemRequest(array $product, array $overrides = []): array
+    {
+        $rawPayload = is_array($product['rawPayload'] ?? null) ? $product['rawPayload'] : [];
+        $existingBuyerItem = is_array($rawPayload['buyerSharedItem'] ?? null) ? $rawPayload['buyerSharedItem'] : [];
+        $itemUrl = $this->getString($rawPayload['itemUrl'] ?? $rawPayload['permalink'] ?? null);
+        $currency = $this->getString($rawPayload['currency'] ?? $rawPayload['salePriceCurrency'] ?? null) ?? 'USD';
+        $variations = is_array($product['variantSkus'] ?? null) ? $product['variantSkus'] : [];
+
+        $request = [
+            'item_id' => $this->getString($overrides['item_id'] ?? $existingBuyerItem['itemId'] ?? null),
+            'isv_item_id' => $this->getString($overrides['isv_item_id'] ?? $product['sourceProductId'] ?? $product['id'] ?? null),
+            'title' => $this->getString($overrides['title'] ?? $product['title'] ?? null),
+            'description' => $this->getString($overrides['description'] ?? $product['description'] ?? null),
+            'main_image_url' => $this->getString($overrides['main_image_url'] ?? $product['image'] ?? null),
+            'image_urls' => is_array($overrides['image_urls'] ?? null)
+                ? $overrides['image_urls']
+                : array_values(array_filter(array_map(fn ($value) => $this->getString($value), is_array($product['gallery'] ?? null) ? $product['gallery'] : []))),
+            'isv_category' => $this->getString($overrides['isv_category'] ?? $product['categoryTitle'] ?? null),
+            'isv_category_id' => $this->getString($overrides['isv_category_id'] ?? $product['categorySlug'] ?? null),
+            'price' => $this->formatAlibabaBuyerItemMoney($overrides['price'] ?? $product['minUsd'] ?? null),
+            'original_price' => $this->formatAlibabaBuyerItemMoney($overrides['original_price'] ?? $product['maxUsd'] ?? $product['minUsd'] ?? null),
+            'available_quantity' => (string) max(0, $this->toInt($overrides['available_quantity'] ?? $product['inventory'] ?? 0)),
+            'currency' => $this->getString($overrides['currency'] ?? $currency),
+            'permalink' => $this->getString($overrides['permalink'] ?? $itemUrl),
+            'variations' => is_array($overrides['variations'] ?? null)
+                ? $overrides['variations']
+                : array_values(array_filter(array_map(function ($sku) use ($product) {
+                    if (! is_array($sku)) {
+                        return null;
+                    }
+
+                    $skuId = $this->getString($sku['skuId'] ?? null);
+                    if ($skuId === null) {
+                        return null;
+                    }
+
+                    return [
+                        'variation_id' => $skuId,
+                        'isv_variation_id' => $skuId,
+                        'isv_item_id' => $this->getString($product['sourceProductId'] ?? null),
+                        'item_id' => $this->getString($existingBuyerItem['itemId'] ?? null),
+                        'price' => $this->formatAlibabaBuyerItemMoney($product['minUsd'] ?? null),
+                        'original_price' => $this->formatAlibabaBuyerItemMoney($product['maxUsd'] ?? $product['minUsd'] ?? null),
+                        'available_quantity' => (string) max(0, $this->toInt($sku['inventory'] ?? 0)),
+                        'image_urls' => is_array($product['gallery'] ?? null) ? array_values(array_slice(array_filter(array_map(fn ($value) => $this->getString($value), $product['gallery'])), 0, 1)) : [],
+                        'sold_quantity' => '0',
+                    ];
+                }, $variations))),
+        ];
+
+        return array_filter([
+            ...$request,
+            ...$overrides,
+        ], function ($value, $key) {
+            if (in_array($key, ['image_urls', 'variations'], true)) {
+                return is_array($value) && $value !== [];
+            }
+
+            return $value !== null && $value !== '';
+        }, ARRAY_FILTER_USE_BOTH);
+    }
+
+    private function normalizeAlibabaBuyerSharedItemRecord(array $item): array
+    {
+        return [
+            'itemId' => $this->getString($item['item_id'] ?? null),
+            'isvItemId' => $this->getString($item['isv_item_id'] ?? null),
+            'title' => $this->getString($item['title'] ?? null),
+            'description' => $this->getString($item['description'] ?? null),
+            'mainImageUrl' => $this->getString($item['main_image_url'] ?? null),
+            'imageUrls' => is_array($item['image_urls'] ?? null) ? array_values(array_filter(array_map(fn ($value) => $this->getString($value), $item['image_urls']))) : [],
+            'categoryTitle' => $this->getString($item['isv_category'] ?? null),
+            'categoryId' => $this->getString($item['isv_category_id'] ?? null),
+            'price' => $this->getString($item['price'] ?? null),
+            'originalPrice' => $this->getString($item['original_price'] ?? null),
+            'availableQuantity' => $this->toInt($item['available_quantity'] ?? 0),
+            'soldQuantity' => $this->toInt($item['sold_quantity'] ?? 0),
+            'currency' => $this->getString($item['currency'] ?? null),
+            'permalink' => $this->getString($item['permalink'] ?? null),
+        ];
+    }
+
+    private function extractAlibabaBuyerItemResultCode($responseBody): ?string
+    {
+        $response = $this->toArray($responseBody);
+        return $this->getString($response['result']['result_code'] ?? $response['result_code'] ?? null);
+    }
+
+    private function extractAlibabaBuyerItemResultMessage($responseBody): ?string
+    {
+        $response = $this->toArray($responseBody);
+        return $this->getString($response['result']['result_msg'] ?? $response['result_msg'] ?? null);
+    }
+
+    private function isSuccessfulBuyerItemResponse($responseBody): bool
+    {
+        $resultCode = strtolower(trim((string) ($this->extractAlibabaBuyerItemResultCode($responseBody) ?? '')));
+        if ($resultCode === '') {
+            return $this->isSuccessfulOperation($responseBody);
+        }
+
+        return in_array($resultCode, ['0', '00', '200', 'success', 'true'], true);
+    }
+
+    private function formatAlibabaBuyerItemMoney($value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return number_format($this->toFloat($value), 2, '.', '');
+    }
+
     private function searchAlibabaBuyerProducts(array $account, array $input): array
     {
         $prepared = $this->prepareAccount($account, true);
@@ -342,8 +544,8 @@ class AliExpressOpenPlatformService
 
         $searchResult = $this->callRestEndpoint($account, '/eco/buyer/product/search', [
             'param0' => $request,
-        ]);
-        if (! $searchResult['ok']) {
+        ], true, 'GET', true);
+        if (! $searchResult['ok'] || ! $this->isSuccessfulOperation($searchResult['responseBody'])) {
             return [
                 'account' => $account,
                 'payload' => [
@@ -360,6 +562,25 @@ class AliExpressOpenPlatformService
 
         $items = $this->extractAlibabaBuyerProductItems($searchResult['responseBody']);
         $countryCode = strtoupper(trim((string) ($input['countryCode'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'CN'))));
+        $fulfillmentChannel = strtolower(trim((string) ($input['fulfillmentChannel'] ?? 'crossborder')));
+        $usesLocalStock = $fulfillmentChannel !== 'crossborder';
+        $usesLocalRegularStock = in_array($fulfillmentChannel, ['standard_us', 'mexico'], true);
+        $checkedProductIds = $this->fetchAlibabaCheckedProductIds($account, [
+            'query' => $query,
+            'countryCode' => $countryCode,
+            'pageSize' => $pageSize,
+            'pageIndex' => $pageIndex,
+            'fulfillmentChannel' => $fulfillmentChannel,
+        ]);
+        $crossborderProductIds = $fulfillmentChannel === 'crossborder'
+            ? $this->fetchAlibabaCrossborderProductIds($account, ['countryCode' => $countryCode])
+            : null;
+        $localProductIds = $usesLocalStock
+            ? $this->fetchAlibabaLocalProductIds($account, ['countryCode' => $countryCode])
+            : null;
+        $localRegularProductIds = $usesLocalRegularStock
+            ? $this->fetchAlibabaLocalRegularProductIds($account, ['countryCode' => $countryCode])
+            : null;
         $products = [];
 
         foreach ($items as $item) {
@@ -373,10 +594,17 @@ class AliExpressOpenPlatformService
                     'product_id' => $productId,
                     'destination_country' => $countryCode,
                 ],
-            ]);
+            ], true, 'GET', true);
 
-            $detailProduct = $detailResult['ok']
-                ? $this->mapAlibabaBuyerDescriptionToProduct($detailResult['responseBody'], $query)
+            $categoryId = $detailResult['ok'] && $this->isSuccessfulOperation($detailResult['responseBody'])
+                ? $this->extractAlibabaBuyerDescriptionCategoryId($detailResult['responseBody'])
+                : null;
+            $supplementalData = $detailResult['ok'] && $this->isSuccessfulOperation($detailResult['responseBody'])
+                ? $this->fetchAlibabaBuyerSupplementalData($account, $productId, $countryCode, $categoryId)
+                : [];
+
+            $detailProduct = $detailResult['ok'] && $this->isSuccessfulOperation($detailResult['responseBody'])
+                ? $this->mapAlibabaBuyerDescriptionToProduct($detailResult['responseBody'], $query, $supplementalData, $categoryId)
                 : null;
 
             $previewItem = $this->buildAlibabaBuyerSearchPreviewItem(
@@ -385,6 +613,41 @@ class AliExpressOpenPlatformService
                 $detailProduct,
                 $detailResult['ok'] ? null : ($this->extractOperationMessage($detailResult['responseBody']) ?? 'Lecture detail produit Alibaba impossible.')
             );
+
+            if ($previewItem !== null && is_array($crossborderProductIds) && ! in_array((string) $previewItem['productId'], $crossborderProductIds, true)) {
+                $previewItem['importable'] = false;
+                $previewItem['importReason'] = 'Produit detail valide mais non liste dans le stock crossborder Alibaba.';
+            }
+
+            if ($previewItem !== null && is_array($checkedProductIds) && ! in_array((string) $previewItem['productId'], $checkedProductIds, true)) {
+                $previewItem['importable'] = false;
+                $previewItem['importReason'] = 'Produit detail valide mais non retourne par la qualification catalogue Alibaba pour ce flux.';
+            }
+
+            if ($previewItem !== null && $usesLocalStock && is_array($localProductIds) && ! in_array((string) $previewItem['productId'], $localProductIds, true)) {
+                $previewItem['importable'] = false;
+                $previewItem['importReason'] = 'Produit detail valide mais non liste dans le stock local Alibaba.';
+            }
+
+            if ($previewItem !== null && $usesLocalRegularStock && is_array($localRegularProductIds) && ! in_array((string) $previewItem['productId'], $localRegularProductIds, true)) {
+                $previewItem['importable'] = false;
+                $previewItem['importReason'] = 'Produit detail valide mais non liste dans la distribution locale reguliere Alibaba.';
+            }
+
+            if ($previewItem !== null && $detailProduct !== null) {
+                $previewItem['product']['catalogCheckEligible'] = is_array($checkedProductIds)
+                    ? in_array((string) $previewItem['productId'], $checkedProductIds, true)
+                    : null;
+                $previewItem['product']['localStockEligible'] = $usesLocalStock
+                    ? (is_array($localProductIds) ? in_array((string) $previewItem['productId'], $localProductIds, true) : null)
+                    : false;
+                $previewItem['product']['localRegularEligible'] = $usesLocalRegularStock
+                    ? (is_array($localRegularProductIds) ? in_array((string) $previewItem['productId'], $localRegularProductIds, true) : null)
+                    : false;
+                $previewItem['product']['crossborderEligible'] = $fulfillmentChannel === 'crossborder'
+                    ? (is_array($crossborderProductIds) ? in_array((string) $previewItem['productId'], $crossborderProductIds, true) : null)
+                    : false;
+            }
 
             if ($previewItem !== null) {
                 $products[] = $previewItem;
@@ -420,11 +683,17 @@ class AliExpressOpenPlatformService
         $record = is_array($detailProduct['rawPayload']['description'] ?? null)
             ? $detailProduct['rawPayload']['description']
             : [];
+        $icbuProduct = is_array($detailProduct['rawPayload']['icbuProduct'] ?? null)
+            ? $detailProduct['rawPayload']['icbuProduct']
+            : [];
+        $itemUrl = $this->getString($record['detail_url'] ?? null)
+            ?? $this->getString($icbuProduct['pc_detail_url'] ?? null)
+            ?? $this->getString($item['permalink'] ?? $item['detail_url'] ?? null);
 
         return [
             'productId' => (string) $detailProduct['sourceProductId'],
             'title' => (string) ($detailProduct['title'] ?? $fallback['title']),
-            'itemUrl' => $this->getString($record['detail_url'] ?? $item['permalink'] ?? $item['detail_url'] ?? null),
+            'itemUrl' => $itemUrl,
             'imageUrl' => (string) ($detailProduct['image'] ?? $fallback['imageUrl'] ?? '/globe.svg'),
             'videoUrl' => $this->getString($detailProduct['videoUrl'] ?? null),
             'salePrice' => isset($detailProduct['minUsd']) ? (string) $detailProduct['minUsd'] : null,
@@ -434,6 +703,676 @@ class AliExpressOpenPlatformService
             'importSource' => 'detail',
             'product' => $detailProduct,
         ];
+    }
+
+    private function fetchAlibabaCrossborderProductIds(array $account, array $input = []): ?array
+    {
+        $countryCode = strtoupper(trim((string) ($input['countryCode'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'CN'))));
+        $payloadCandidates = [
+            ['param0' => []],
+            ['param0' => ['destination_country' => $countryCode]],
+            ['param0' => ['country_code' => $countryCode]],
+        ];
+
+        foreach ($payloadCandidates as $payload) {
+            $result = $this->callRestEndpoint($account, '/eco/buyer/crossborder/product/check', $payload, true, 'GET', true);
+            if (! $result['ok'] || ! $this->isSuccessfulOperation($result['responseBody'])) {
+                continue;
+            }
+
+            $response = $this->toArray($result['responseBody']);
+            $ids = $response['result']['result_data'] ?? $response['result_data'] ?? $response['data'] ?? null;
+            if (! is_array($ids)) {
+                continue;
+            }
+
+            return array_values(array_unique(array_map(
+                fn ($value) => (string) $value,
+                array_filter($ids, fn ($value) => is_scalar($value) || (is_object($value) && method_exists($value, '__toString')))
+            )));
+        }
+
+        return null;
+    }
+
+    private function fetchAlibabaCheckedProductIds(array $account, array $input = []): ?array
+    {
+        $countryCode = strtoupper(trim((string) ($input['countryCode'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'CN'))));
+        $query = trim((string) ($input['query'] ?? ''));
+        $pageSize = max(1, min(20, (int) ($input['pageSize'] ?? 12)));
+        $pageIndex = max(1, (int) ($input['pageIndex'] ?? 1));
+        $fulfillmentChannel = strtolower(trim((string) ($input['fulfillmentChannel'] ?? 'crossborder')));
+        $payloadCandidates = [
+            ['query_req' => [
+                'keyword' => $query,
+                'query' => $query,
+                'destination_country' => $countryCode,
+                'page_size' => $pageSize,
+                'page_index' => $pageIndex,
+            ]],
+            ['query_req' => [
+                'keyword' => $query,
+                'destination_country' => $countryCode,
+                'page_size' => $pageSize,
+            ]],
+            ['query_req' => [
+                'keyword' => $query,
+                'fulfillment_channel' => $fulfillmentChannel,
+                'destination_country' => $countryCode,
+            ]],
+        ];
+
+        foreach ($payloadCandidates as $payload) {
+            $result = $this->callRestEndpoint($account, '/eco/buyer/product/check', $payload, true, 'GET', true);
+            if (! $result['ok'] || ! $this->isSuccessfulOperation($result['responseBody'])) {
+                continue;
+            }
+
+            $response = $this->toArray($result['responseBody']);
+            $ids = $response['result']['result_data'] ?? $response['result_data'] ?? $response['data'] ?? null;
+            if (is_array($ids)) {
+                return $this->normalizeAlibabaIdList($ids);
+            }
+        }
+
+        return null;
+    }
+
+    private function fetchAlibabaLocalProductIds(array $account, array $input = []): ?array
+    {
+        $countryCode = strtoupper(trim((string) ($input['countryCode'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'CN'))));
+        $payloadCandidates = [
+            ['req' => []],
+            ['req' => ['destination_country' => $countryCode]],
+            ['req' => ['country_code' => $countryCode]],
+        ];
+
+        foreach ($payloadCandidates as $payload) {
+            $result = $this->callRestEndpoint($account, '/eco/buyer/local/product/check', $payload, true, 'GET', true);
+            if (! $result['ok'] || ! $this->isSuccessfulOperation($result['responseBody'])) {
+                continue;
+            }
+
+            $response = $this->toArray($result['responseBody']);
+            $ids = $response['result']['result_data'] ?? $response['result_data'] ?? $response['data'] ?? null;
+            if (! is_array($ids)) {
+                continue;
+            }
+
+            return $this->normalizeAlibabaIdList($ids);
+        }
+
+        return null;
+    }
+
+    private function fetchAlibabaLocalRegularProductIds(array $account, array $input = []): ?array
+    {
+        $countryCode = strtoupper(trim((string) ($input['countryCode'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'CN'))));
+        $payloadCandidates = [
+            ['req' => []],
+            ['req' => ['destination_country' => $countryCode]],
+            ['req' => ['country_code' => $countryCode]],
+        ];
+
+        foreach ($payloadCandidates as $payload) {
+            $result = $this->callRestEndpoint($account, '/eco/buyer/localregular/product/check', $payload, true, 'GET', true);
+            if (! $result['ok'] || ! $this->isSuccessfulOperation($result['responseBody'])) {
+                continue;
+            }
+
+            $response = $this->toArray($result['responseBody']);
+            $ids = $response['result']['result_data'] ?? $response['result_data'] ?? $response['data'] ?? null;
+            if (is_array($ids)) {
+                return $this->normalizeAlibabaIdList($ids);
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeAlibabaIdList(array $ids): array
+    {
+        return array_values(array_unique(array_map(
+            fn ($value) => (string) $value,
+            array_filter($ids, fn ($value) => is_scalar($value) || (is_object($value) && method_exists($value, '__toString')))
+        )));
+    }
+
+    private function fetchAlibabaBuyerSupplementalData(array $account, string $productId, string $countryCode, ?string $categoryId = null): array
+    {
+        $icbuProduct = $this->fetchAlibabaIcbuProductDetail($account, $productId);
+        $predictionTitle = $this->getString($icbuProduct['subject'] ?? null) ?? ('Produit Alibaba '.$productId);
+        $predictionDescription = $this->getString($icbuProduct['description'] ?? null);
+        $predictionImage = $this->getString($icbuProduct['main_image']['images'][0]['url'] ?? $icbuProduct['main_image']['images'][0] ?? null);
+        $predictedCategory = $this->fetchAlibabaIcbuCategoryPrediction($account, $predictionTitle, $predictionDescription, $predictionImage);
+        $icbuVideo = $this->fetchAlibabaIcbuVideoRecord($account, $icbuProduct);
+        $warehouseSummary = $this->queryAlibabaWarehouses($account, $productId, $countryCode);
+        $ggsWarehouseSummary = $this->queryAlibabaGgsWarehouses($account, $productId);
+
+        return [
+            'certificates' => $this->fetchAlibabaBuyerCertificates($account, $productId),
+            'keyAttributes' => $this->fetchAlibabaBuyerKeyAttributes($account, $productId),
+            'inventoryByOrigin' => $this->fetchAlibabaBuyerInventoryByOrigin($account, $productId, $countryCode),
+            'categoryInfo' => $this->fetchAlibabaIcbuCategoryInfo($account, $categoryId),
+            'icbuProduct' => $icbuProduct,
+            'icbuInventory' => $this->fetchAlibabaIcbuProductInventory($account, $productId),
+            'icbuScore' => $this->fetchAlibabaIcbuProductScore($account, $productId),
+            'icbuTypeAvailability' => $this->fetchAlibabaIcbuProductTypeAvailability($account, $categoryId),
+            'icbuSchema' => $this->fetchAlibabaIcbuProductSchemaSummary($account, $categoryId),
+            'icbuStatusV2' => $this->fetchAlibabaIcbuProductStatusV2($account, $productId),
+            'predictedCategory' => $predictedCategory,
+            'predictedCategoryAttributes' => $this->fetchAlibabaIcbuCategoryAttributeSummary($account, $this->getString($predictedCategory['categoryId'] ?? null)),
+            'icbuVideo' => $icbuVideo,
+            'warehouseSummary' => $warehouseSummary,
+            'ggsWarehouseSummary' => $ggsWarehouseSummary,
+        ];
+    }
+
+    private function extractAlibabaBuyerDescriptionCategoryId($responseBody): ?string
+    {
+        $body = $this->toArray($responseBody);
+        $record = $body['result']['result_data'] ?? $body['result_data'] ?? $body['data'] ?? null;
+
+        return is_array($record) ? $this->getString($record['category_id'] ?? null) : null;
+    }
+
+    private function fetchAlibabaIcbuCategoryInfo(array $account, ?string $categoryId): array
+    {
+        $categoryId = $this->getString($categoryId);
+        if ($categoryId === null) {
+            return [];
+        }
+
+        $node = $this->fetchAlibabaIcbuCategoryNode($account, $categoryId);
+        if ($node === []) {
+            return [];
+        }
+
+        $path = [];
+        foreach ($node['parentIds'] ?? [] as $parentId) {
+            $parentNode = $this->fetchAlibabaIcbuCategoryNode($account, (string) $parentId);
+            $parentName = $this->getString($parentNode['name'] ?? null);
+            if ($parentName !== null) {
+                $path[] = $parentName;
+            }
+        }
+
+        $name = $this->getString($node['name'] ?? null);
+        if ($name !== null) {
+            $path[] = $name;
+        }
+
+        return [
+            'categoryId' => $categoryId,
+            'categoryTitle' => $name,
+            'categoryPath' => array_values(array_unique(array_filter($path))),
+            'leafCategory' => ($node['leafCategory'] ?? false) === true,
+        ];
+    }
+
+    private function fetchAlibabaIcbuCategoryNode(array $account, string $categoryId): array
+    {
+        static $cache = [];
+
+        if (array_key_exists($categoryId, $cache)) {
+            return $cache[$categoryId];
+        }
+
+        $result = $this->callRestEndpoint($account, '/icbu/product/category/get', [
+            'cat_id' => $categoryId,
+        ], true, 'GET', true);
+
+        if (! $result['ok'] || ! $this->isSuccessfulOperation($result['responseBody'])) {
+            return $cache[$categoryId] = [];
+        }
+
+        $response = $this->toArray($result['responseBody']);
+        $record = $response['result']['result'] ?? $response['data'] ?? null;
+        if (! is_array($record)) {
+            return $cache[$categoryId] = [];
+        }
+
+        $parentIds = preg_split('/\s*,\s*/', (string) ($record['parent_ids'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $parentIds = array_values(array_filter(array_map(fn ($value) => $this->getString($value), $parentIds), fn ($value) => $value !== null && $value !== $categoryId));
+
+        return $cache[$categoryId] = [
+            'categoryId' => $this->getString($record['category_id'] ?? null) ?? $categoryId,
+            'name' => $this->getString($record['name'] ?? $record['cn_name'] ?? null),
+            'parentIds' => $parentIds,
+            'leafCategory' => strtolower((string) ($record['leaf_category'] ?? 'false')) === 'true',
+        ];
+    }
+
+    private function fetchAlibabaIcbuProductDetail(array $account, string $productId): array
+    {
+        $result = $this->callRestEndpoint($account, '/icbu/product/get', [
+            'product_get_request' => [
+                'productId' => $productId,
+            ],
+        ], true, 'GET', true);
+
+        if (! $result['ok']) {
+            return [];
+        }
+
+        $response = $this->toArray($result['responseBody']);
+        $product = $response['product'] ?? $response['result']['product'] ?? null;
+
+        return is_array($product) ? $product : [];
+    }
+
+    private function fetchAlibabaIcbuProductInventory(array $account, string $productId): array
+    {
+        $result = $this->callRestEndpoint($account, '/icbu/product/inventory/get', [
+            'product_id' => $productId,
+            'language' => 'en_US',
+        ], true, 'GET', true);
+
+        if (! $result['ok']) {
+            return [];
+        }
+
+        $response = $this->toArray($result['responseBody']);
+        $dataList = $response['result']['data_list'] ?? $response['data_list'] ?? null;
+        if (! is_array($dataList)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(function ($entry) {
+            if (! is_array($entry)) {
+                return null;
+            }
+
+            return [
+                'skuId' => $this->getString($entry['sku_id'] ?? null),
+                'inventory' => $this->toInt($entry['inventory'] ?? 0),
+                'skuOuterId' => $this->getString($entry['sku_outer_id'] ?? null),
+                'inventoryCode' => $this->getString($entry['inventory_code'] ?? null),
+            ];
+        }, $dataList)));
+    }
+
+    private function fetchAlibabaIcbuProductScore(array $account, string $productId): array
+    {
+        $result = $this->callRestEndpoint($account, '/icbu/product/score/get', [
+            'product_id' => $productId,
+        ], true, 'GET', true);
+
+        if (! $result['ok']) {
+            return [];
+        }
+
+        $response = $this->toArray($result['responseBody']);
+        $record = $response['result'] ?? null;
+        if (! is_array($record)) {
+            return [];
+        }
+
+        return [
+            'finalScore' => $this->nullableFloat($record['final_score'] ?? null),
+            'boutiqueTag' => $this->getString($record['boutique_tag'] ?? null),
+            'traceId' => $this->getString($record['trace_id'] ?? null),
+        ];
+    }
+
+    private function fetchAlibabaIcbuProductTypeAvailability(array $account, ?string $categoryId): array
+    {
+        $categoryId = $this->getString($categoryId);
+        if ($categoryId === null) {
+            return [];
+        }
+
+        $result = $this->callRestEndpoint($account, '/icbu/product/other/available/get', [
+            'cat_id' => $categoryId,
+            'language' => 'en_US',
+        ], true, 'GET', true);
+
+        if (! $result['ok']) {
+            return [];
+        }
+
+        $response = $this->toArray($result['responseBody']);
+        $data = $response['result']['data'] ?? null;
+        if (! is_array($data)) {
+            return [];
+        }
+
+        return [
+            'supportPostWholeSale' => strtolower((string) ($data['supportPostWholeSale'] ?? 'false')) === 'true',
+            'supportPostSourcing' => strtolower((string) ($data['supportPostSourcing'] ?? 'false')) === 'true',
+        ];
+    }
+
+    private function fetchAlibabaIcbuProductSchemaSummary(array $account, ?string $categoryId): array
+    {
+        $categoryId = $this->getString($categoryId);
+        if ($categoryId === null) {
+            return [];
+        }
+
+        $result = $this->callRestEndpoint($account, '/alibaba/icbu/product/schema/get', [
+            'cat_id' => $categoryId,
+            'language' => 'en_US',
+        ], true, 'GET', true);
+
+        if (! $result['ok']) {
+            return [];
+        }
+
+        $response = $this->toArray($result['responseBody']);
+        $xml = $this->getString($response['result']['data'] ?? $response['data'] ?? null);
+        if ($xml === null) {
+            return [];
+        }
+
+        preg_match_all('/<field\b/i', $xml, $fieldMatches);
+
+        return [
+            'fieldCount' => count($fieldMatches[0] ?? []),
+            'hasSchema' => trim($xml) !== '',
+            'xmlLength' => strlen($xml),
+            'traceId' => $this->getString($response['result']['trace_id'] ?? null),
+        ];
+    }
+
+    private function fetchAlibabaIcbuProductStatusV2(array $account, string $productId): array
+    {
+        $result = $this->callRestEndpoint($account, '/alibaba/icbu/product/status/get/v2', [
+            'product_id' => $productId,
+        ], true, 'GET', true);
+
+        if (! $result['ok']) {
+            return [];
+        }
+
+        $response = $this->toArray($result['responseBody']);
+        $record = $response['result']['data'] ?? $response['data'] ?? null;
+        if (! is_array($record)) {
+            return [];
+        }
+
+        return [
+            'status' => $this->getString($record['status'] ?? null),
+            'statusDesc' => $this->getString($record['status_desc'] ?? null),
+        ];
+    }
+
+    private function fetchAlibabaIcbuCategoryPrediction(array $account, string $title, ?string $description = null, ?string $image = null): array
+    {
+        $payload = array_filter([
+            'title' => $title,
+            'description' => $description,
+            'image' => $image,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        if (($payload['title'] ?? '') === '') {
+            return [];
+        }
+
+        $result = $this->callRestEndpoint($account, '/alibaba/icbu/category/predict/v2', $payload, true, 'GET', true);
+        if (! $result['ok']) {
+            return [];
+        }
+
+        $response = $this->toArray($result['responseBody']);
+        $data = $response['result']['data'] ?? $response['data'] ?? null;
+        if (! is_array($data)) {
+            return [];
+        }
+
+        $path = $this->getString($data['category_path'] ?? null);
+
+        return [
+            'categoryId' => $this->getString($data['category_id'] ?? null),
+            'categoryName' => $this->getString($data['category_name'] ?? null),
+            'categoryPath' => $path !== null ? array_values(array_filter(array_map('trim', explode('>>', $path)))) : [],
+            'message' => $this->getString($response['result']['message'] ?? $response['message'] ?? null),
+            'msgCode' => $this->getString($response['result']['msg_code'] ?? $response['msg_code'] ?? null),
+        ];
+    }
+
+    private function fetchAlibabaIcbuCategoryAttributeSummary(array $account, ?string $categoryId): array
+    {
+        $categoryId = $this->getString($categoryId);
+        if ($categoryId === null) {
+            return [];
+        }
+
+        $result = $this->callRestEndpoint($account, '/alibaba/icbu/category/attribute/get/v2', [
+            'category_id' => $categoryId,
+        ], true, 'GET', true);
+        if (! $result['ok']) {
+            return [];
+        }
+
+        $response = $this->toArray($result['responseBody']);
+        $data = $response['data'] ?? null;
+        if (! is_array($data)) {
+            return [];
+        }
+
+        $categoryAttributes = is_array($data['category_attributes'] ?? null) ? $data['category_attributes'] : [];
+        $saleAttributes = is_array($data['sale_attributes'] ?? null) ? $data['sale_attributes'] : [];
+
+        return [
+            'categoryAttributeCount' => count($categoryAttributes),
+            'saleAttributeCount' => count($saleAttributes),
+        ];
+    }
+
+    private function fetchAlibabaIcbuVideoRecord(array $account, array $icbuProduct): array
+    {
+        $videoId = $this->extractAlibabaIcbuVideoId($icbuProduct);
+        if ($videoId === null) {
+            return [];
+        }
+
+        $result = $this->callRestEndpoint($account, '/alibaba/icbu/video/query', [
+            'current_page' => 1,
+            'page_size' => 10,
+            'video_id' => $videoId,
+        ], true, 'GET', true);
+
+        if (! $result['ok']) {
+            return [];
+        }
+
+        $response = $this->toArray($result['responseBody']);
+        $items = $response['result']['model']['list'] ?? null;
+        if (! is_array($items)) {
+            return [];
+        }
+
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $itemVideoId = $this->getString($item['video_id'] ?? null);
+            if ($itemVideoId !== null && $itemVideoId !== $videoId) {
+                continue;
+            }
+
+            return [
+                'videoId' => $itemVideoId ?? $videoId,
+                'title' => $this->getString($item['title'] ?? null),
+                'status' => $this->getString($item['status'] ?? null),
+                'quality' => $this->getString($item['quality'] ?? null),
+                'duration' => $this->toInt($item['duration'] ?? 0),
+                'videoUrl' => $this->getString($item['video_url'] ?? null),
+                'coverUrl' => $this->getString($item['cover_url'] ?? null),
+                'publishTime' => $this->getString($item['publish_time'] ?? null),
+                'fileSize' => $this->toInt($item['file_size'] ?? 0),
+            ];
+        }
+
+        return [];
+    }
+
+    private function extractAlibabaIcbuVideoId(array $icbuProduct): ?string
+    {
+        $candidates = [
+            $icbuProduct['video_id'] ?? null,
+            $icbuProduct['videoId'] ?? null,
+            $icbuProduct['main_video']['video_id'] ?? null,
+            $icbuProduct['mainVideo']['videoId'] ?? null,
+            $icbuProduct['multimedia']['video_id'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            $value = $this->getString($candidate);
+            if ($value !== null) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function fetchAlibabaBuyerCertificates(array $account, string $productId): array
+    {
+        $result = $this->callRestEndpoint($account, '/eco/buyer/product/cert', [
+            'req' => [
+                'product_id' => $productId,
+            ],
+        ], true, 'GET', true);
+
+        if (! $result['ok'] || ! $this->isSuccessfulOperation($result['responseBody'])) {
+            return [];
+        }
+
+        $response = $this->toArray($result['responseBody']);
+        $records = $response['result']['result_data'] ?? $response['result_data'] ?? $response['data'] ?? null;
+        if (! is_array($records)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(function ($record) {
+            if (! is_array($record)) {
+                return null;
+            }
+
+            $name = $this->getString($record['cert_name'] ?? $record['name'] ?? null);
+            $number = $this->getString($record['cert_no'] ?? $record['cert_number'] ?? $record['number'] ?? null);
+            $urls = is_array($record['cert_urls'] ?? null)
+                ? array_values(array_filter(array_map(fn ($value) => $this->getString($value), $record['cert_urls'])))
+                : [];
+
+            if ($name === null && $number === null && $urls === []) {
+                return null;
+            }
+
+            return [
+                'name' => $name,
+                'number' => $number,
+                'urls' => $urls,
+            ];
+        }, $records)));
+    }
+
+    private function fetchAlibabaBuyerKeyAttributes(array $account, string $productId): array
+    {
+        $result = $this->callRestEndpoint($account, '/eco/buyer/product/keyattributes', [
+            'query_req' => [
+                'product_id' => $productId,
+            ],
+        ], true, 'GET', true);
+
+        if (! $result['ok'] || ! $this->isSuccessfulOperation($result['responseBody'])) {
+            return [];
+        }
+
+        $response = $this->toArray($result['responseBody']);
+        $groups = $response['result']['result_data']['attributes'] ?? $response['result_data']['attributes'] ?? $response['data']['attributes'] ?? null;
+        if (! is_array($groups)) {
+            return [];
+        }
+
+        $specs = [];
+        foreach ($groups as $group) {
+            if (! is_array($group) || ! is_array($group['attributes'] ?? null)) {
+                continue;
+            }
+
+            foreach ($group['attributes'] as $attribute) {
+                if (! is_array($attribute)) {
+                    continue;
+                }
+
+                $label = $this->getString($attribute['name'] ?? null);
+                $values = is_array($attribute['values'] ?? null)
+                    ? array_values(array_filter(array_map(function ($value) {
+                        if (is_array($value)) {
+                            return $this->getString($value['value'] ?? $value['name'] ?? null);
+                        }
+
+                        return $this->getString($value);
+                    }, $attribute['values'])))
+                    : [];
+
+                if ($label === null || $values === []) {
+                    continue;
+                }
+
+                $specs[] = [
+                    'group' => $this->getString($group['type'] ?? null),
+                    'label' => $label,
+                    'value' => implode(', ', $values),
+                ];
+            }
+        }
+
+        return $specs;
+    }
+
+    private function fetchAlibabaBuyerInventoryByOrigin(array $account, string $productId, string $countryCode): array
+    {
+        $payloadCandidates = [
+            ['inv_req' => ['product_id' => $productId, 'shipping_from' => $countryCode]],
+            ['inv_req' => ['product_id' => $productId]],
+        ];
+
+        foreach ($payloadCandidates as $payload) {
+            $result = $this->callRestEndpoint($account, '/eco/buyer/product/inventory', $payload, true, 'GET', true);
+            if (! $result['ok'] || ! $this->isSuccessfulOperation($result['responseBody'])) {
+                continue;
+            }
+
+            $response = $this->toArray($result['responseBody']);
+            $records = $response['result']['result_data'] ?? $response['result_data'] ?? $response['data'] ?? null;
+            if (! is_array($records)) {
+                continue;
+            }
+
+            return array_values(array_filter(array_map(function ($record) {
+                if (! is_array($record)) {
+                    return null;
+                }
+
+                $shippingFrom = $this->getString($record['shipping_from'] ?? $record['shippingFrom'] ?? null);
+                $inventoryList = is_array($record['inventory_list'] ?? null) ? $record['inventory_list'] : [];
+                $entries = array_values(array_filter(array_map(function ($entry) {
+                    if (! is_array($entry)) {
+                        return null;
+                    }
+
+                    return [
+                        'productId' => $this->getString($entry['product_id'] ?? null),
+                        'skuId' => $this->getString($entry['sku_id'] ?? null),
+                        'inventoryUnit' => $this->getString($entry['inventory_unit'] ?? null),
+                        'inventoryCount' => $this->toInt($entry['inventory_count'] ?? 0),
+                    ];
+                }, $inventoryList)));
+
+                return [
+                    'shippingFrom' => $shippingFrom,
+                    'inventoryTotal' => array_sum(array_map(fn ($entry) => (int) ($entry['inventoryCount'] ?? 0), $entries)),
+                    'entries' => $entries,
+                ];
+            }, $records)));
+        }
+
+        return [];
     }
 
     private function fetchAlibabaBuyerProduct(array $account, array $input): array
@@ -451,10 +1390,17 @@ class AliExpressOpenPlatformService
                 'product_id' => $sourceProductId,
                 'destination_country' => strtoupper(trim((string) ($input['destinationCountry'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'CN')))),
             ],
-        ]);
-        $product = $this->mapAlibabaBuyerDescriptionToProduct($result['responseBody'], $identifier);
+        ], true, 'GET', true);
+        $destinationCountry = strtoupper(trim((string) ($input['destinationCountry'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'CN'))));
+        $categoryId = $result['ok'] && $this->isSuccessfulOperation($result['responseBody'])
+            ? $this->extractAlibabaBuyerDescriptionCategoryId($result['responseBody'])
+            : null;
+        $supplementalData = $result['ok'] && $this->isSuccessfulOperation($result['responseBody'])
+            ? $this->fetchAlibabaBuyerSupplementalData($account, $sourceProductId, $destinationCountry, $categoryId)
+            : [];
+        $product = $this->mapAlibabaBuyerDescriptionToProduct($result['responseBody'], $identifier, $supplementalData, $categoryId);
 
-        if ($product === null) {
+        if (! $result['ok'] || ! $this->isSuccessfulOperation($result['responseBody']) || $product === null) {
             throw new RuntimeException($this->extractOperationMessage($result['responseBody']) ?? 'Produit Alibaba introuvable via eco/buyer/product/description.');
         }
 
@@ -586,7 +1532,7 @@ class AliExpressOpenPlatformService
         ];
     }
 
-    private function mapAlibabaBuyerDescriptionToProduct($responseBody, string $query): ?array
+    private function mapAlibabaBuyerDescriptionToProduct($responseBody, string $query, array $supplementalData = [], ?string $categoryId = null): ?array
     {
         $body = $this->toArray($responseBody);
         $record = $body['result']['result_data'] ?? $body['result_data'] ?? $body['data'] ?? null;
@@ -604,53 +1550,150 @@ class AliExpressOpenPlatformService
         $firstSku = is_array($skus[0] ?? null) ? $skus[0] : [];
         $price = $this->extractAlibabaBuyerDescriptionPrice($record, $firstSku);
         $image = $this->getString($record['main_image'] ?? null) ?? $this->extractAlibabaBuyerImage($firstSku);
+        $certificates = is_array($supplementalData['certificates'] ?? null) ? array_values($supplementalData['certificates']) : [];
+        $keyAttributes = is_array($supplementalData['keyAttributes'] ?? null) ? array_values($supplementalData['keyAttributes']) : [];
+        $inventoryByOrigin = is_array($supplementalData['inventoryByOrigin'] ?? null) ? array_values($supplementalData['inventoryByOrigin']) : [];
+        $categoryInfo = is_array($supplementalData['categoryInfo'] ?? null) ? $supplementalData['categoryInfo'] : [];
+        $icbuProduct = is_array($supplementalData['icbuProduct'] ?? null) ? $supplementalData['icbuProduct'] : [];
+        $icbuInventory = is_array($supplementalData['icbuInventory'] ?? null) ? array_values($supplementalData['icbuInventory']) : [];
+        $icbuScore = is_array($supplementalData['icbuScore'] ?? null) ? $supplementalData['icbuScore'] : [];
+        $icbuTypeAvailability = is_array($supplementalData['icbuTypeAvailability'] ?? null) ? $supplementalData['icbuTypeAvailability'] : [];
+        $icbuSchema = is_array($supplementalData['icbuSchema'] ?? null) ? $supplementalData['icbuSchema'] : [];
+        $icbuStatusV2 = is_array($supplementalData['icbuStatusV2'] ?? null) ? $supplementalData['icbuStatusV2'] : [];
+        $predictedCategory = is_array($supplementalData['predictedCategory'] ?? null) ? $supplementalData['predictedCategory'] : [];
+        $predictedCategoryAttributes = is_array($supplementalData['predictedCategoryAttributes'] ?? null) ? $supplementalData['predictedCategoryAttributes'] : [];
+        $icbuVideo = is_array($supplementalData['icbuVideo'] ?? null) ? $supplementalData['icbuVideo'] : [];
+        $warehouseSummary = is_array($supplementalData['warehouseSummary'] ?? null) ? $supplementalData['warehouseSummary'] : [];
+        $ggsWarehouseSummary = is_array($supplementalData['ggsWarehouseSummary'] ?? null) ? $supplementalData['ggsWarehouseSummary'] : [];
+        $resolvedTitle = $this->getString($icbuProduct['subject'] ?? null) ?? $title;
         $gallery = array_values(array_unique(array_filter([
             $image,
             ...(is_array($record['images'] ?? null) ? array_filter(array_map(fn ($item) => $this->getString($item), $record['images'])) : []),
+            ...(is_array($icbuProduct['main_image']['images'] ?? null) ? array_filter(array_map(fn ($item) => is_array($item) ? $this->getString($item['url'] ?? null) : $this->getString($item), $icbuProduct['main_image']['images'])) : []),
         ])));
+        $inventoryBySku = [];
+        foreach ($inventoryByOrigin as $origin) {
+            foreach (($origin['entries'] ?? []) as $entry) {
+                $skuId = $this->getString($entry['skuId'] ?? null);
+                if ($skuId === null) {
+                    continue;
+                }
+
+                $inventoryBySku[$skuId] = ($inventoryBySku[$skuId] ?? 0) + $this->toInt($entry['inventoryCount'] ?? 0);
+            }
+        }
+        foreach ($icbuInventory as $entry) {
+            $skuId = $this->getString($entry['skuId'] ?? null);
+            if ($skuId === null) {
+                continue;
+            }
+
+            $inventoryBySku[$skuId] = max($inventoryBySku[$skuId] ?? 0, $this->toInt($entry['inventory'] ?? 0));
+        }
+        $inventoryTotal = $inventoryByOrigin !== []
+            ? array_sum(array_map(fn ($origin) => (int) ($origin['inventoryTotal'] ?? 0), $inventoryByOrigin))
+            : ($icbuInventory !== []
+                ? array_sum(array_map(fn ($entry) => (int) ($entry['inventory'] ?? 0), $icbuInventory))
+                : $this->toInt($firstSku['inventory_count'] ?? 0));
+        $specs = array_values(array_filter(array_map(fn ($item) => is_array($item) ? [
+            'label' => $this->getString($item['label'] ?? null),
+            'value' => $this->getString($item['value'] ?? null),
+        ] : null, $keyAttributes), fn ($item) => is_array($item) && ($item['label'] ?? null) !== null && ($item['value'] ?? null) !== null));
+        $icbuAttributes = is_array($icbuProduct['attributes'] ?? null) ? $icbuProduct['attributes'] : [];
+        foreach ($icbuAttributes as $attribute) {
+            if (! is_array($attribute)) {
+                continue;
+            }
+
+            $label = $this->getString($attribute['attribute_name'] ?? null);
+            $value = $this->getString($attribute['value_name'] ?? $attribute['sku_custom_value_name'] ?? null);
+            if ($label !== null && $value !== null) {
+                $specs[] = ['label' => $label, 'value' => $value];
+            }
+        }
+        $specs = array_values(array_unique($specs, SORT_REGULAR));
+        $keywords = array_values(array_filter(array_unique(array_merge(
+            is_array($icbuProduct['keywords'] ?? null) ? array_values(array_filter(array_map(fn ($value) => $this->getString($value), $icbuProduct['keywords']))) : [],
+            array_values(array_filter([$this->getString($record['category'] ?? null), $query]))
+        ))));
+        $overview = array_values(array_filter([
+            'Produit charge via Get Product Description Alibaba.',
+            $certificates !== [] ? count($certificates).' certificat(s) fournisseur remonte(s).' : null,
+            $inventoryByOrigin !== [] ? 'Inventaire multi-origine remonte via eco/buyer/product/inventory.' : null,
+            $icbuProduct !== [] ? 'Detail ICBU vendeur remonte via /icbu/product/get.' : null,
+            $icbuInventory !== [] ? 'Stock ICBU remonte via /icbu/product/inventory/get.' : null,
+            isset($icbuScore['finalScore']) ? 'Score qualite ICBU '.$icbuScore['finalScore'].'.' : null,
+            ($icbuTypeAvailability['supportPostSourcing'] ?? false) === true ? 'Publication sourcing ICBU supportee.' : null,
+            ($icbuTypeAvailability['supportPostWholeSale'] ?? false) === true ? 'Publication wholesale ICBU supportee.' : null,
+            $this->getString($icbuStatusV2['status'] ?? null) !== null ? 'Statut seller v2 '.$icbuStatusV2['status'].'.' : null,
+            $this->getString($predictedCategory['categoryName'] ?? null) !== null ? 'Categorie predite '.$predictedCategory['categoryName'].'.' : null,
+            $this->getString($icbuVideo['status'] ?? null) !== null ? 'Video seller '.$icbuVideo['status'].'.' : null,
+            ($warehouseSummary['total'] ?? 0) > 0 ? 'Entrepots Alibaba '.(int) $warehouseSummary['total'].'.' : null,
+            ($ggsWarehouseSummary['total'] ?? 0) > 0 ? 'Entrepots GGS '.(int) $ggsWarehouseSummary['total'].'.' : null,
+        ]));
 
         return [
             'sourceProductId' => $sourceProductId,
-            'categorySlug' => $this->getString($record['category_id'] ?? null),
-            'categoryTitle' => $this->getString($record['category'] ?? null),
-            'slug' => $this->slugify($title.'-'.$sourceProductId),
-            'title' => $title,
-            'shortTitle' => Str::limit($title, 88, ''),
-            'description' => $this->getString($record['description'] ?? null) ?? $title,
+            'categorySlug' => $this->getString($categoryId ?? $record['category_id'] ?? null),
+            'categoryTitle' => $this->getString($categoryInfo['categoryTitle'] ?? $record['category'] ?? null),
+            'categoryPath' => is_array($categoryInfo['categoryPath'] ?? null) ? array_values($categoryInfo['categoryPath']) : [],
+            'slug' => $this->slugify($resolvedTitle.'-'.$sourceProductId),
+            'title' => $resolvedTitle,
+            'shortTitle' => Str::limit($resolvedTitle, 88, ''),
+            'description' => $this->getString($icbuProduct['description'] ?? $record['description'] ?? null) ?? $resolvedTitle,
             'query' => $query,
-            'keywords' => array_values(array_filter([$this->getString($record['category'] ?? null), $query])),
+            'keywords' => $keywords,
             'image' => $image ?? '/globe.svg',
             'gallery' => $gallery,
-            'videoUrl' => $this->getString($record['video_url'] ?? null),
-            'packaging' => $this->getString($record['wholesale_trade']['package_size'] ?? null) ?? 'Selon fournisseur Alibaba',
-            'itemWeightGrams' => (int) round($this->toFloat($record['wholesale_trade']['weight'] ?? 0) * 1000),
+            'videoUrl' => $this->getString($icbuVideo['videoUrl'] ?? null) ?? $this->getString($record['video_url'] ?? null),
+            'packaging' => $this->getString($icbuProduct['sourcing_trade']['packaging_desc'] ?? $record['wholesale_trade']['package_size'] ?? null) ?? 'Selon fournisseur Alibaba',
+            'itemWeightGrams' => (int) round($this->toFloat($icbuProduct['wholesale_trade']['weight'] ?? $record['wholesale_trade']['weight'] ?? 0) * 1000),
             'lotCbm' => '0',
             'minUsd' => $price,
-            'maxUsd' => null,
-            'moq' => max(1, $this->toInt($record['min_order_quantity'] ?? $record['wholesale_trade']['min_order_quantity'] ?? 1)),
-            'unit' => $this->getString($firstSku['unit'] ?? $record['wholesale_trade']['unit_type'] ?? null) ?? 'Piece',
-            'supplierName' => $this->getString($record['supplier'] ?? null) ?? 'Alibaba Supplier',
+            'maxUsd' => $this->nullableFloat($icbuProduct['sourcing_trade']['fob_max_price'] ?? null),
+            'moq' => max(1, $this->toInt($icbuProduct['sourcing_trade']['min_order_quantity_sourcing'] ?? $icbuProduct['wholesale_trade']['min_order_quantity'] ?? $record['min_order_quantity'] ?? $record['wholesale_trade']['min_order_quantity'] ?? 1)),
+            'unit' => $this->getString($icbuProduct['sourcing_trade']['min_order_unit_type'] ?? $firstSku['unit'] ?? $record['wholesale_trade']['unit_type'] ?? null) ?? 'Piece',
+            'supplierName' => $this->getString($icbuProduct['owner_member_display_name'] ?? $record['supplier'] ?? null) ?? 'Alibaba Supplier',
             'supplierLocation' => 'Alibaba.com',
-            'supplierCompanyId' => $this->getString($record['eCompanyId'] ?? null),
+            'supplierCompanyId' => $this->getString($icbuProduct['owner_member'] ?? $record['eCompanyId'] ?? null),
             'responseTime' => '24h',
             'yearsInBusiness' => 1,
             'transactionsLabel' => 'Alibaba.com',
-            'soldLabel' => 'Catalogue Alibaba',
+            'soldLabel' => $this->getString($icbuProduct['status'] ?? null) ? 'Statut '.(string) $icbuProduct['status'] : 'Catalogue Alibaba',
             'customizationLabel' => 'Selon fournisseur',
             'shippingLabel' => 'Fret Alibaba a calculer',
-            'overview' => ['Produit charge via Get Product Description Alibaba.'],
+            'overview' => $overview,
             'variantGroups' => [],
             'variantPricing' => [],
             'variantSkus' => array_values(array_filter(array_map(fn ($sku) => is_array($sku) ? [
                 'skuId' => $this->getString($sku['sku_id'] ?? null),
                 'label' => collect($sku['sku_attr_list'] ?? [])->map(fn ($attr) => is_array($attr) ? trim(($attr['attr_name_desc'] ?? '').': '.($attr['attr_value_desc'] ?? '')) : '')->filter()->implode(' / '),
+                'inventory' => $this->toInt($inventoryBySku[$this->getString($sku['sku_id'] ?? null) ?? ''] ?? 0),
             ] : null, $skus))),
             'tiers' => [],
-            'specs' => [],
-            'inventory' => $this->toInt($firstSku['inventory_count'] ?? 0),
+            'specs' => $specs,
+            'inventory' => $inventoryTotal,
+            'certificates' => $certificates,
+            'keyAttributes' => $keyAttributes,
+            'inventoryByOrigin' => $inventoryByOrigin,
             'rawPayload' => [
                 'provider' => 'alibaba',
                 'description' => $record,
+                'alibabaCertificates' => $certificates,
+                'alibabaKeyAttributes' => $keyAttributes,
+                'alibabaInventoryByOrigin' => $inventoryByOrigin,
+                'alibabaCategoryInfo' => $categoryInfo,
+                'icbuProduct' => $icbuProduct,
+                'icbuInventory' => $icbuInventory,
+                'icbuScore' => $icbuScore,
+                'icbuTypeAvailability' => $icbuTypeAvailability,
+                'icbuSchema' => $icbuSchema,
+                'icbuStatusV2' => $icbuStatusV2,
+                'predictedCategory' => $predictedCategory,
+                'predictedCategoryAttributes' => $predictedCategoryAttributes,
+                'icbuVideo' => $icbuVideo,
+                'warehouseSummary' => $warehouseSummary,
+                'ggsWarehouseSummary' => $ggsWarehouseSummary,
                 'response' => $body,
             ],
         ];
@@ -1080,6 +2123,342 @@ class AliExpressOpenPlatformService
         ];
     }
 
+    public function queryAlibabaOrderTracking(array $account, string $tradeId): array
+    {
+        $prepared = $this->prepareAccount($account, true);
+        $account = $prepared['account'];
+        $result = $this->callRestEndpoint($account, '/order/logistics/tracking/get', [
+            'trade_id' => trim($tradeId),
+        ], true, 'GET', true);
+
+        return [
+            'account' => $account,
+            'payload' => [
+                'ok' => $result['ok'] && $this->isSuccessfulOperation($result['responseBody']),
+                'endpoint' => '/order/logistics/tracking/get',
+                'trackingList' => $this->extractAlibabaTrackingList($result['responseBody']),
+                'responseBody' => $result['responseBody'],
+            ],
+        ];
+    }
+
+    public function queryAlibabaOrderFund(array $account, string $tradeId, string $dataSelect = 'fund_transaction_fee'): array
+    {
+        $prepared = $this->prepareAccount($account, true);
+        $account = $prepared['account'];
+        $result = $this->callRestEndpoint($account, '/alibaba/order/fund/query', [
+            'e_trade_id' => trim($tradeId),
+            'data_select' => $dataSelect,
+        ], true, 'GET', true);
+
+        return [
+            'account' => $account,
+            'payload' => [
+                'ok' => $result['ok'] && $this->isSuccessfulOperation($result['responseBody']),
+                'endpoint' => '/alibaba/order/fund/query',
+                'fund' => $this->extractAlibabaFundSummary($result['responseBody']),
+                'responseBody' => $result['responseBody'],
+            ],
+        ];
+    }
+
+    public function queryAlibabaMergePay(array $account, array $orderIds): array
+    {
+        $prepared = $this->prepareAccount($account, true);
+        $account = $prepared['account'];
+        $normalizedOrderIds = array_values(array_filter(array_map(fn ($value) => $this->getString($value), $orderIds)));
+        $result = $this->callRestEndpoint($account, '/order/merge/pay/query', [
+            'order_ids' => $normalizedOrderIds,
+        ], true, 'GET', true);
+
+        return [
+            'account' => $account,
+            'payload' => [
+                'ok' => $result['ok'] && $this->isSuccessfulOperation($result['responseBody']),
+                'endpoint' => '/order/merge/pay/query',
+                'mergePay' => $this->extractAlibabaMergePaySummary($result['responseBody']),
+                'responseBody' => $result['responseBody'],
+            ],
+        ];
+    }
+
+    public function checkAlibabaOverseasAdmittance(array $account): array
+    {
+        $prepared = $this->prepareAccount($account, true);
+        $account = $prepared['account'];
+        $result = $this->callRestEndpoint($account, '/icbu/check/overseas/admittance', [], true, 'GET', true);
+        $response = $this->toArray($result['responseBody']);
+        $record = $response['result'] ?? [];
+
+        return [
+            'account' => $account,
+            'payload' => [
+                'ok' => $result['ok'] && $this->isSuccessfulOperation($result['responseBody']),
+                'endpoint' => '/icbu/check/overseas/admittance',
+                'response' => strtolower((string) ($record['response'] ?? 'false')) === 'true',
+                'errorCode' => $this->getString($record['error_code'] ?? null),
+                'errorMessage' => $this->getString($record['error_message'] ?? null),
+                'exception' => $this->getString($record['exception'] ?? null),
+                'responseBody' => $result['responseBody'],
+            ],
+        ];
+    }
+
+    public function queryAlibabaOrderDetail(array $account, string $tradeId, ?string $dataSelect = 'statusAction,draft_role,snapshot_product', string $language = 'en_US'): array
+    {
+        $prepared = $this->prepareAccount($account, true);
+        $account = $prepared['account'];
+        $payload = array_filter([
+            'e_trade_id' => trim($tradeId),
+            'data_select' => $dataSelect,
+            'language' => $language,
+        ], fn ($value) => $value !== null && $value !== '');
+        $result = $this->callRestEndpoint($account, '/alibaba/order/get', $payload, true, 'GET', true);
+
+        return [
+            'account' => $account,
+            'payload' => [
+                'ok' => $result['ok'] && $this->isSuccessfulOperation($result['responseBody']),
+                'endpoint' => '/alibaba/order/get',
+                'order' => $this->extractAlibabaOrderDetailSummary($result['responseBody']),
+                'responseBody' => $result['responseBody'],
+            ],
+        ];
+    }
+
+    public function queryAlibabaOrderLogistics(array $account, string $tradeId, ?string $dataSelect = 'logistic_order'): array
+    {
+        $prepared = $this->prepareAccount($account, true);
+        $account = $prepared['account'];
+        $payload = array_filter([
+            'trade_id' => trim($tradeId),
+            'data_select' => $dataSelect,
+        ], fn ($value) => $value !== null && $value !== '');
+        $result = $this->callRestEndpoint($account, '/order/logistics/query', $payload, true, 'GET', true);
+
+        return [
+            'account' => $account,
+            'payload' => [
+                'ok' => $result['ok'] && $this->isSuccessfulOperation($result['responseBody']),
+                'endpoint' => '/order/logistics/query',
+                'logistics' => $this->extractAlibabaOrderLogisticsSummary($result['responseBody']),
+                'responseBody' => $result['responseBody'],
+            ],
+        ];
+    }
+
+    public function cancelAlibabaOrder(array $account, string $tradeId): array
+    {
+        $prepared = $this->prepareAccount($account, true);
+        $account = $prepared['account'];
+        $result = $this->callRestEndpoint($account, '/alibaba/order/cancel', [
+            'trade_id' => trim($tradeId),
+        ], true, 'POST', true);
+
+        return [
+            'account' => $account,
+            'payload' => [
+                'ok' => $result['ok'] && $this->isSuccessfulOperation($result['responseBody']),
+                'endpoint' => '/alibaba/order/cancel',
+                'responseBody' => $result['responseBody'],
+            ],
+        ];
+    }
+
+    public function queryAlibabaWarehouses(array $account, string $productId, ?string $countryCode = null, int $currentPage = 1): array
+    {
+        $prepared = $this->prepareAccount($account, true);
+        $account = $prepared['account'];
+        $result = $this->callRestEndpoint($account, '/warehouse/list', array_filter([
+            'product_id' => $productId,
+            'country_code' => $countryCode,
+            'current_page' => (string) max(1, $currentPage),
+        ], fn ($value) => $value !== null && $value !== ''), true, 'GET', true);
+
+        return $this->extractAlibabaWarehouseSummaryFromResponse($result['responseBody'], 'response');
+    }
+
+    public function queryAlibabaGgsWarehouses(array $account, string $productId, int $pageSize = 10, int $currentPage = 1): array
+    {
+        $prepared = $this->prepareAccount($account, true);
+        $account = $prepared['account'];
+        $result = $this->callRestEndpoint($account, '/alibaba/ggs/warehouse/list', [
+            'product_id' => $productId,
+            'page_size' => (string) max(1, $pageSize),
+            'current_page' => (string) max(1, $currentPage),
+        ], false, 'GET', true);
+
+        return $this->extractAlibabaWarehouseSummaryFromResponse($result['responseBody'], 'result');
+    }
+
+    public function extractAlibabaFreightSummary($responseBody): array
+    {
+        $response = $this->toArray($responseBody);
+        $entries = is_array($response['value'] ?? null) ? $response['value'] : [];
+        $first = is_array($entries[0] ?? null) ? $entries[0] : null;
+        if ($first === null) {
+            return [];
+        }
+
+        $fee = is_array($first['fee'] ?? null) ? $first['fee'] : [];
+
+        return [
+            'vendorCode' => $this->getString($first['vendor_code'] ?? null),
+            'vendorName' => $this->getString($first['vendor_name'] ?? null),
+            'shippingType' => $this->getString($first['shipping_type'] ?? null),
+            'dispatchCountry' => $this->getString($first['dispatch_country'] ?? null),
+            'destinationCountry' => $this->getString($first['destination_country'] ?? null),
+            'deliveryTime' => $this->getString($first['delivery_time'] ?? null),
+            'tradeTerm' => $this->getString($first['trade_term'] ?? null),
+            'solutionBizType' => $this->getString($first['solution_biz_type'] ?? null),
+            'feeAmount' => $this->nullableFloat($fee['amount'] ?? null),
+            'feeCurrency' => $this->getString($fee['currency'] ?? null),
+        ];
+    }
+
+    private function extractAlibabaTrackingList($responseBody): array
+    {
+        $response = $this->toArray($responseBody);
+        $trackingList = is_array($response['tracking_list'] ?? null) ? $response['tracking_list'] : [];
+
+        return array_values(array_filter(array_map(function ($entry) {
+            if (! is_array($entry)) {
+                return null;
+            }
+
+            $events = is_array($entry['event_list'] ?? null) ? $entry['event_list'] : [];
+            $lastEvent = is_array($events[0] ?? null) ? $events[0] : [];
+
+            return [
+                'carrier' => $this->getString($entry['carrier'] ?? null),
+                'trackingNumber' => $this->getString($entry['tracking_number'] ?? null),
+                'trackingUrl' => $this->getString($entry['tracking_url'] ?? null),
+                'currentEventCode' => $this->getString($entry['current_event_code'] ?? null),
+                'lastEventName' => $this->getString($lastEvent['event_name'] ?? null),
+                'lastEventTime' => $this->getString($lastEvent['event_time'] ?? null),
+                'lastEventLocation' => $this->getString($lastEvent['event_location'] ?? null),
+            ];
+        }, $trackingList)));
+    }
+
+    private function extractAlibabaFundSummary($responseBody): array
+    {
+        $response = $this->toArray($responseBody);
+        $value = is_array($response['value'] ?? null) ? $response['value'] : [];
+        $fee = is_array($value['payment_transaction_fee'] ?? null) ? $value['payment_transaction_fee'] : [];
+
+        return [
+            'paymentTransactionFeeAmount' => $this->nullableFloat($fee['amount'] ?? null),
+            'paymentTransactionFeeCurrency' => $this->getString($fee['currency'] ?? null),
+        ];
+    }
+
+    private function extractAlibabaMergePaySummary($responseBody): array
+    {
+        $response = $this->toArray($responseBody);
+        $value = is_array($response['value'] ?? null) ? $response['value'] : [];
+        $groups = is_array($value['groups'] ?? null) ? $value['groups'] : [];
+
+        return [
+            'groupCount' => count($groups),
+            'groups' => array_values(array_filter(array_map(function ($group) {
+                if (! is_array($group)) {
+                    return null;
+                }
+
+                return [
+                    'groupCode' => $this->getString($group['group_code'] ?? null),
+                    'canMergePay' => strtolower((string) ($group['can_merge_pay'] ?? 'false')) === 'true',
+                    'cannotMergeReason' => $this->getString($group['can_not_merge_pay_reason'] ?? null),
+                    'cannotMergeReasonMessage' => $this->getString($group['can_not_merge_pay_reason_message'] ?? null),
+                    'mergeableOrderIds' => is_array($group['can_merge_pay_order_items'] ?? null)
+                        ? array_values(array_filter(array_map(fn ($item) => is_array($item) ? $this->getString($item['order_id'] ?? null) : null, $group['can_merge_pay_order_items'])))
+                        : [],
+                    'blockedOrderIds' => is_array($group['can_not_merge_pay_order_items'] ?? null)
+                        ? array_values(array_filter(array_map(fn ($item) => is_array($item) ? $this->getString($item['order_id'] ?? null) : null, $group['can_not_merge_pay_order_items'])))
+                        : [],
+                ];
+            }, $groups))),
+        ];
+    }
+
+    private function extractAlibabaOrderDetailSummary($responseBody): array
+    {
+        $response = $this->toArray($responseBody);
+        $value = is_array($response['value'] ?? null) ? $response['value'] : [];
+        $statusAction = is_array($value['status_action'] ?? null) ? $value['status_action'] : [];
+        $actions = is_array($statusAction['actions'] ?? null) ? $statusAction['actions'] : [];
+        $paymentLink = collect($actions)->first(fn ($item) => is_array($item) && $this->getString($item['name'] ?? null) === 'view_payment_link');
+        $totalAmount = is_array($value['total_amount'] ?? null) ? $value['total_amount'] : [];
+        $shipmentFee = is_array($value['shipment_fee'] ?? null) ? $value['shipment_fee'] : [];
+        $attachments = is_array($value['attachments'] ?? null) ? $value['attachments'] : [];
+
+        return [
+            'tradeStatus' => $this->getString($value['trade_status'] ?? null),
+            'fulfillmentChannel' => $this->getString($value['fulfillment_channel'] ?? null),
+            'carrierCode' => $this->getString($value['carrier']['code'] ?? null),
+            'carrierName' => $this->getString($value['carrier']['name'] ?? null),
+            'shipmentMethod' => $this->getString($value['shipment_method'] ?? null),
+            'tradeTerm' => $this->getString($value['trade_term'] ?? null),
+            'payUrl' => is_array($paymentLink) ? $this->getString($paymentLink['value'] ?? null) : null,
+            'statusActionStatus' => $this->getString($statusAction['status'] ?? null),
+            'totalAmount' => $this->nullableFloat($totalAmount['amount'] ?? null),
+            'totalCurrency' => $this->getString($totalAmount['currency'] ?? null),
+            'shipmentFeeAmount' => $this->nullableFloat($shipmentFee['amount'] ?? null),
+            'shipmentFeeCurrency' => $this->getString($shipmentFee['currency'] ?? null),
+            'attachmentCount' => count($attachments),
+        ];
+    }
+
+    private function extractAlibabaOrderLogisticsSummary($responseBody): array
+    {
+        $response = $this->toArray($responseBody);
+        $value = is_array($response['value'] ?? null) ? $response['value'] : [];
+        $shippingOrders = is_array($value['shipping_order_list'] ?? null) ? $value['shipping_order_list'] : [];
+        $first = is_array($shippingOrders[0] ?? null) ? $shippingOrders[0] : [];
+        $voucher = is_array($first['voucher'] ?? null) ? $first['voucher'] : [];
+
+        return [
+            'logisticStatus' => $this->getString($value['logistic_status'] ?? null),
+            'shipmentTimestamp' => $this->getString($value['shipment_date']['timestamp'] ?? null),
+            'trackingNumber' => $this->getString($voucher['tracking_number'] ?? null),
+            'serviceProvider' => $this->getString($voucher['service_provider'] ?? null),
+            'logisticsType' => $this->getString($voucher['logistics_type'] ?? null),
+        ];
+    }
+
+    private function extractAlibabaWarehouseSummaryFromResponse($responseBody, string $rootKey): array
+    {
+        $response = $this->toArray($responseBody);
+        $root = is_array($response[$rootKey] ?? null) ? $response[$rootKey] : [];
+        $records = is_array($root['records'] ?? null)
+            ? $root['records']
+            : (is_array($root['data'] ?? null) ? $root['data'] : []);
+
+        return [
+            'total' => $this->toInt($root['total'] ?? count($records)),
+            'currentPage' => $this->toInt($root['current_page'] ?? 1),
+            'pageSize' => $this->toInt($root['page_size'] ?? count($records)),
+            'records' => array_values(array_filter(array_map(function ($record) {
+                if (! is_array($record)) {
+                    return null;
+                }
+
+                return [
+                    'warehouseId' => $this->getString($record['warehouse_id'] ?? $record['id'] ?? null),
+                    'warehouseCode' => $this->getString($record['warehouse_code'] ?? null),
+                    'warehouseName' => $this->getString($record['warehouse_name'] ?? $record['name'] ?? null),
+                    'countryCode' => $this->getString($record['country_code'] ?? null),
+                    'country' => $this->getString($record['country'] ?? $record['warehouse_country'] ?? null),
+                    'city' => $this->getString($record['city'] ?? $record['warehouse_city'] ?? null),
+                    'state' => $this->getString($record['state'] ?? $record['warehouse_province'] ?? null),
+                    'status' => $this->getString($record['warehouse_status'] ?? null),
+                    'warehouseType' => $this->getString($record['warehouse_type'] ?? null),
+                ];
+            }, $records))),
+        ];
+    }
+
     public function extractTradeIdFromResponse($responseBody): ?string
     {
         return $this->extractTradeId($responseBody);
@@ -1214,7 +2593,7 @@ class AliExpressOpenPlatformService
         ];
     }
 
-    private function callRestEndpoint(array $account, string $pathOrUrl, array $payload, bool $includeAccessToken = true): array
+    private function callRestEndpoint(array $account, string $pathOrUrl, array $payload, bool $includeAccessToken = true, string $method = 'POST', bool $systemParamsInHeaders = false): array
     {
         $endpoint = $this->resolveEndpoint($pathOrUrl, (string) ($account['apiBaseUrl'] ?? self::ALIBABA_API_BASE_URL));
         $system = [
@@ -1238,13 +2617,34 @@ class AliExpressOpenPlatformService
 
         $signParams = array_merge($system, $params);
         ksort($signParams);
-        $params = array_merge($params, $system, [
-            'sign' => $this->signRestRequest($endpoint['apiPath'], $signParams, (string) ($account['appSecret'] ?? '')),
-        ]);
+        $sign = $this->signRestRequest($endpoint['apiPath'], $signParams, (string) ($account['appSecret'] ?? ''));
 
-        $response = Http::timeout((int) env('ALIEXPRESS_TIMEOUT', 20))
-            ->asForm()
-            ->post($endpoint['requestUrl'], $params);
+        if (! $systemParamsInHeaders) {
+            $params = array_merge($params, $system, [
+                'sign' => $sign,
+            ]);
+        }
+
+        $headers = $systemParamsInHeaders
+            ? array_merge($system, ['sign' => $sign])
+            : [];
+
+        $requestedMethod = strtoupper($method);
+        $normalizedMethod = in_array($requestedMethod, ['GET', 'POST', 'PUT'], true) ? $requestedMethod : 'POST';
+        $requestUrl = $normalizedMethod === 'GET'
+            ? $endpoint['requestUrl'].'?'.http_build_query($params)
+            : $endpoint['requestUrl'];
+
+        $client = Http::timeout((int) env('ALIEXPRESS_TIMEOUT', 20));
+        if ($headers !== []) {
+            $client = $client->withHeaders($headers);
+        }
+
+        $response = match ($normalizedMethod) {
+            'GET' => $client->get($requestUrl),
+            'PUT' => $client->asForm()->put($requestUrl, $params),
+            default => $client->asForm()->post($requestUrl, $params),
+        };
 
         return [
             'ok' => $response->successful(),
@@ -2608,7 +4008,7 @@ class AliExpressOpenPlatformService
             ? $response['result']
             : ($this->isAssoc($respResult['result'] ?? null) ? $respResult['result'] : $response);
 
-        return $this->getString($envelope['message'] ?? $envelope['msg'] ?? $envelope['error_msg'] ?? $envelope['response_msg'] ?? $respResult['resp_msg'] ?? $response['message'] ?? $response['msg'] ?? null);
+        return $this->getString($envelope['message'] ?? $envelope['msg'] ?? $envelope['error_msg'] ?? $envelope['response_msg'] ?? $envelope['result_msg'] ?? $respResult['resp_msg'] ?? $response['message'] ?? $response['msg'] ?? $response['result_msg'] ?? null);
     }
 
     private function extractOperationCode($responseBody): ?string
@@ -2619,7 +4019,7 @@ class AliExpressOpenPlatformService
             ? $response['result']
             : ($this->isAssoc($respResult['result'] ?? null) ? $respResult['result'] : $response);
 
-        return $this->getString($envelope['msg_code'] ?? $envelope['error_code'] ?? $envelope['code'] ?? $envelope['response_code'] ?? $respResult['resp_code'] ?? $response['code'] ?? null);
+        return $this->getString($envelope['msg_code'] ?? $envelope['error_code'] ?? $envelope['code'] ?? $envelope['response_code'] ?? $envelope['result_code'] ?? $respResult['resp_code'] ?? $response['code'] ?? $response['result_code'] ?? null);
     }
 
     private function extractTradeId($responseBody): ?string
@@ -2638,7 +4038,7 @@ class AliExpressOpenPlatformService
     private function isSuccessfulOperation($responseBody): bool
     {
         $code = strtolower(trim((string) ($this->extractOperationCode($responseBody) ?? '')));
-        if ($code !== '' && ! in_array($code, ['0', '200', 'null', 'success', 'true'], true) && $this->extractTradeId($responseBody) === null) {
+        if ($code !== '' && ! in_array($code, ['0', '00', '200', 'null', 'success', 'true'], true) && $this->extractTradeId($responseBody) === null) {
             return false;
         }
 

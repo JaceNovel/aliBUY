@@ -206,6 +206,45 @@ class AlibabaAdminController extends Controller
         ));
     }
 
+    public function syncBuyerItem(Request $request, string $importedProductId): JsonResponse
+    {
+        $this->alibabaAdmin->assertAdmin($request->user('sanctum'));
+
+        try {
+            return response()->json($this->alibabaAdmin->syncImportedProductBuyerItem($importedProductId));
+        } catch (RuntimeException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+    }
+
+    public function refreshBuyerItem(Request $request, string $importedProductId): JsonResponse
+    {
+        $this->alibabaAdmin->assertAdmin($request->user('sanctum'));
+
+        try {
+            return response()->json($this->alibabaAdmin->refreshImportedProductBuyerItem($importedProductId));
+        } catch (RuntimeException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+    }
+
+    public function deleteBuyerItem(Request $request, string $importedProductId): JsonResponse
+    {
+        $this->alibabaAdmin->assertAdmin($request->user('sanctum'));
+
+        try {
+            return response()->json($this->alibabaAdmin->deleteImportedProductBuyerItem($importedProductId));
+        } catch (RuntimeException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+    }
+
     public function purchaseOrders(Request $request): JsonResponse
     {
         $this->alibabaAdmin->assertAdmin($request->user('sanctum'));
@@ -228,6 +267,19 @@ class AlibabaAdminController extends Controller
                 $orderId,
                 (string) $request->json('action', 'pay')
             ));
+        } catch (RuntimeException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+    }
+
+    public function cancelPurchaseOrder(Request $request, string $orderId): JsonResponse
+    {
+        $this->alibabaAdmin->assertAdmin($request->user('sanctum'));
+
+        try {
+            return response()->json($this->alibabaAdmin->payPurchaseOrder($orderId, 'cancel'));
         } catch (RuntimeException $exception) {
             return response()->json([
                 'message' => $exception->getMessage(),

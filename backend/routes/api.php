@@ -112,8 +112,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/admin/alibaba/reception-addresses', [AlibabaAdminController::class, 'receptionAddresses']);
     Route::put('/admin/alibaba/country-profiles', [AlibabaAdminController::class, 'countryProfiles']);
     Route::post('/admin/alibaba/publish', [AlibabaAdminController::class, 'publish']);
+    Route::post('/admin/alibaba/buyer-items/{importedProductId}/sync', [AlibabaAdminController::class, 'syncBuyerItem']);
+    Route::post('/admin/alibaba/buyer-items/{importedProductId}/refresh', [AlibabaAdminController::class, 'refreshBuyerItem']);
+    Route::delete('/admin/alibaba/buyer-items/{importedProductId}', [AlibabaAdminController::class, 'deleteBuyerItem']);
     Route::post('/admin/alibaba/purchase-orders', [AlibabaAdminController::class, 'purchaseOrders']);
     Route::post('/admin/alibaba/purchase-orders/{orderId}/pay', [AlibabaAdminController::class, 'payPurchaseOrder']);
+    Route::post('/admin/alibaba/purchase-orders/{orderId}/cancel', [AlibabaAdminController::class, 'cancelPurchaseOrder']);
     Route::get('/admin/diagnostics/manychat', [AdminDiagnosticsController::class, 'manychat']);
     Route::get('/admin/free-deals', [FreeDealController::class, 'adminShow']);
     Route::put('/admin/free-deals', [FreeDealController::class, 'adminSave']);

@@ -62,8 +62,18 @@ type SearchPreviewProduct = {
   inventory: number;
   moq: number;
   unit: string;
+  categoryTitle?: string;
+  categoryPath?: string[];
   variantGroups: Array<{ label: string; values: string[] }>;
   videoUrl?: string;
+  rawPayload?: unknown;
+  certificates?: Array<{ name?: string; number?: string; urls?: string[] }>;
+  keyAttributes?: Array<{ group?: string; label?: string; value?: string }>;
+  inventoryByOrigin?: Array<{ shippingFrom?: string; inventoryTotal?: number }>;
+  localStockEligible?: boolean | null;
+  localRegularEligible?: boolean | null;
+  catalogCheckEligible?: boolean | null;
+  crossborderEligible?: boolean | null;
 };
 
 type SearchPreviewItem = {
@@ -182,6 +192,14 @@ function formatCount(value: unknown) {
   return String(typeof value === "number" && Number.isFinite(value) ? value : 0);
 }
 
+function formatUsdAmount(value: number | null | undefined, currency = "USD") {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "-";
+  }
+
+  return `${value.toFixed(2)} ${currency}`;
+}
+
 function createRowId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -233,6 +251,113 @@ function getImportedCampaignLabel(product: AlibabaImportedProduct) {
   }
 }
 
+function getAlibabaExtraSummary(rawPayload: unknown) {
+  if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) {
+    return {
+      certificates: [] as Array<{ name?: string; number?: string; urls?: string[] }>,
+      keyAttributes: [] as Array<{ group?: string; label?: string; value?: string }>,
+      inventoryByOrigin: [] as Array<{ shippingFrom?: string; inventoryTotal?: number }>,
+      icbuStatus: null as string | null,
+      icbuDisplay: null as string | null,
+      icbuRts: null as boolean | null,
+      icbuInventoryCount: 0,
+      icbuScore: null as number | null,
+      icbuSupportsSourcing: null as boolean | null,
+      icbuSupportsWholesale: null as boolean | null,
+      icbuSchemaFieldCount: 0,
+      sellerStatusV2: null as string | null,
+      sellerStatusDescV2: null as string | null,
+      predictedCategoryName: null as string | null,
+      predictedCategoryPath: [] as string[],
+      predictedCategoryAttributeCount: 0,
+      predictedSaleAttributeCount: 0,
+      icbuVideoStatus: null as string | null,
+      icbuVideoQuality: null as string | null,
+      icbuVideoDuration: 0,
+      buyerSharedItemId: null as string | null,
+      buyerSharedState: null as string | null,
+      buyerSharedResultCode: null as string | null,
+      buyerSharedQuantity: null as number | null,
+      warehouseCount: 0,
+      ggsWarehouseCount: 0,
+    };
+  }
+
+  const record = rawPayload as Record<string, unknown>;
+  const icbuProduct = record.icbuProduct && typeof record.icbuProduct === "object" && !Array.isArray(record.icbuProduct)
+    ? record.icbuProduct as Record<string, unknown>
+    : null;
+  const icbuInventory = Array.isArray(record.icbuInventory) ? record.icbuInventory : [];
+  const icbuScore = record.icbuScore && typeof record.icbuScore === "object" && !Array.isArray(record.icbuScore)
+    ? record.icbuScore as Record<string, unknown>
+    : null;
+  const icbuTypeAvailability = record.icbuTypeAvailability && typeof record.icbuTypeAvailability === "object" && !Array.isArray(record.icbuTypeAvailability)
+    ? record.icbuTypeAvailability as Record<string, unknown>
+    : null;
+  const icbuSchema = record.icbuSchema && typeof record.icbuSchema === "object" && !Array.isArray(record.icbuSchema)
+    ? record.icbuSchema as Record<string, unknown>
+    : null;
+  const icbuStatusV2 = record.icbuStatusV2 && typeof record.icbuStatusV2 === "object" && !Array.isArray(record.icbuStatusV2)
+    ? record.icbuStatusV2 as Record<string, unknown>
+    : null;
+  const predictedCategory = record.predictedCategory && typeof record.predictedCategory === "object" && !Array.isArray(record.predictedCategory)
+    ? record.predictedCategory as Record<string, unknown>
+    : null;
+  const predictedCategoryAttributes = record.predictedCategoryAttributes && typeof record.predictedCategoryAttributes === "object" && !Array.isArray(record.predictedCategoryAttributes)
+    ? record.predictedCategoryAttributes as Record<string, unknown>
+    : null;
+  const icbuVideo = record.icbuVideo && typeof record.icbuVideo === "object" && !Array.isArray(record.icbuVideo)
+    ? record.icbuVideo as Record<string, unknown>
+    : null;
+  const buyerSharedItem = record.buyerSharedItem && typeof record.buyerSharedItem === "object" && !Array.isArray(record.buyerSharedItem)
+    ? record.buyerSharedItem as Record<string, unknown>
+    : null;
+  const warehouseSummary = record.warehouseSummary && typeof record.warehouseSummary === "object" && !Array.isArray(record.warehouseSummary)
+    ? record.warehouseSummary as Record<string, unknown>
+    : null;
+  const ggsWarehouseSummary = record.ggsWarehouseSummary && typeof record.ggsWarehouseSummary === "object" && !Array.isArray(record.ggsWarehouseSummary)
+    ? record.ggsWarehouseSummary as Record<string, unknown>
+    : null;
+
+  return {
+    certificates: Array.isArray(record.alibabaCertificates) ? record.alibabaCertificates as Array<{ name?: string; number?: string; urls?: string[] }> : [],
+    keyAttributes: Array.isArray(record.alibabaKeyAttributes) ? record.alibabaKeyAttributes as Array<{ group?: string; label?: string; value?: string }> : [],
+    inventoryByOrigin: Array.isArray(record.alibabaInventoryByOrigin) ? record.alibabaInventoryByOrigin as Array<{ shippingFrom?: string; inventoryTotal?: number }> : [],
+    icbuStatus: typeof icbuProduct?.status === "string" ? icbuProduct.status : null,
+    icbuDisplay: typeof icbuProduct?.display === "string" ? icbuProduct.display : null,
+    icbuRts: typeof icbuProduct?.rts === "string" ? icbuProduct.rts.toLowerCase() === "true" || icbuProduct.rts.toLowerCase() === "rts" : null,
+    icbuInventoryCount: icbuInventory.length,
+    icbuScore: typeof icbuScore?.finalScore === "number" ? icbuScore.finalScore : null,
+    icbuSupportsSourcing: typeof icbuTypeAvailability?.supportPostSourcing === "boolean" ? icbuTypeAvailability.supportPostSourcing : null,
+    icbuSupportsWholesale: typeof icbuTypeAvailability?.supportPostWholeSale === "boolean" ? icbuTypeAvailability.supportPostWholeSale : null,
+    icbuSchemaFieldCount: typeof icbuSchema?.fieldCount === "number" ? icbuSchema.fieldCount : 0,
+    sellerStatusV2: typeof icbuStatusV2?.status === "string" ? icbuStatusV2.status : null,
+    sellerStatusDescV2: typeof icbuStatusV2?.statusDesc === "string" ? icbuStatusV2.statusDesc : null,
+    predictedCategoryName: typeof predictedCategory?.categoryName === "string" ? predictedCategory.categoryName : null,
+    predictedCategoryPath: Array.isArray(predictedCategory?.categoryPath) ? predictedCategory.categoryPath as string[] : [],
+    predictedCategoryAttributeCount: typeof predictedCategoryAttributes?.categoryAttributeCount === "number" ? predictedCategoryAttributes.categoryAttributeCount : 0,
+    predictedSaleAttributeCount: typeof predictedCategoryAttributes?.saleAttributeCount === "number" ? predictedCategoryAttributes.saleAttributeCount : 0,
+    icbuVideoStatus: typeof icbuVideo?.status === "string" ? icbuVideo.status : null,
+    icbuVideoQuality: typeof icbuVideo?.quality === "string" ? icbuVideo.quality : null,
+    icbuVideoDuration: typeof icbuVideo?.duration === "number" ? icbuVideo.duration : 0,
+    buyerSharedItemId: typeof buyerSharedItem?.itemId === "string" ? buyerSharedItem.itemId : null,
+    buyerSharedState: typeof buyerSharedItem?.state === "string" ? buyerSharedItem.state : null,
+    buyerSharedResultCode: typeof buyerSharedItem?.lastResultCode === "string" ? buyerSharedItem.lastResultCode : null,
+    buyerSharedQuantity: typeof buyerSharedItem?.availableQuantity === "number" ? buyerSharedItem.availableQuantity : null,
+    warehouseCount: typeof warehouseSummary?.total === "number" ? warehouseSummary.total : 0,
+    ggsWarehouseCount: typeof ggsWarehouseSummary?.total === "number" ? ggsWarehouseSummary.total : 0,
+  };
+}
+
+function formatAlibabaInventoryOrigins(inventoryByOrigin: Array<{ shippingFrom?: string; inventoryTotal?: number }>) {
+  const visibleOrigins = inventoryByOrigin
+    .filter((entry) => entry && (entry.shippingFrom || typeof entry.inventoryTotal === "number"))
+    .slice(0, 2)
+    .map((entry) => `${entry.shippingFrom ?? "?"}:${formatCount(entry.inventoryTotal)}`);
+
+  return visibleOrigins.length > 0 ? visibleOrigins.join(" · ") : null;
+}
+
 export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBasePath = "/api/admin/alibaba" }: { initialDashboard: DashboardData; adminApiBasePath?: string }) {
   const router = useRouter();
   const [isRefreshing, startRefreshTransition] = useTransition();
@@ -268,6 +393,8 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
   const [isImporting, setIsImporting] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isDeletingImported, setIsDeletingImported] = useState(false);
+  const [buyerItemBusy, setBuyerItemBusy] = useState<{ id: string | null; action: "sync" | "refresh" | "delete" | null }>({ id: null, action: null });
+  const [purchaseOrderBusy, setPurchaseOrderBusy] = useState<{ id: string | null; action: "pay" | "refresh" | "cancel" | null }>({ id: null, action: null });
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [importForm, setImportForm] = useState({
@@ -327,6 +454,7 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
         pageSize: searchForm.pageSize,
         pageIndex,
         currency: searchForm.currency,
+        fulfillmentChannel: importForm.fulfillmentChannel,
         selectionName: searchForm.selectionName.trim() || undefined,
         searchExtend: normalizeSearchExtendRows(searchExtendRows),
         supplierAccountId: selectedSupplierAccountId || undefined,
@@ -550,6 +678,67 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
     refresh();
   };
 
+  const syncBuyerItem = async (importedProductId: string, alreadyShared: boolean) => {
+    setBuyerItemBusy({ id: importedProductId, action: "sync" });
+    setFeedback(null);
+    setErrorMessage(null);
+
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/buyer-items/${importedProductId}/sync`, {
+      method: "POST",
+    });
+    const payload = await response.json().catch(() => null) as { message?: string } | null;
+    setBuyerItemBusy({ id: null, action: null });
+    if (!response.ok) {
+      setErrorMessage(payload?.message ?? "Synchronisation Buyer Item impossible.");
+      return;
+    }
+
+    setFeedback(alreadyShared ? "Buyer Item mis a jour sur Alibaba." : "Buyer Item partage sur Alibaba.");
+    refresh();
+  };
+
+  const refreshBuyerItem = async (importedProductId: string) => {
+    setBuyerItemBusy({ id: importedProductId, action: "refresh" });
+    setFeedback(null);
+    setErrorMessage(null);
+
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/buyer-items/${importedProductId}/refresh`, {
+      method: "POST",
+    });
+    const payload = await response.json().catch(() => null) as { message?: string } | null;
+    setBuyerItemBusy({ id: null, action: null });
+    if (!response.ok) {
+      setErrorMessage(payload?.message ?? "Verification Buyer Item impossible.");
+      return;
+    }
+
+    setFeedback("Etat Buyer Item actualise.");
+    refresh();
+  };
+
+  const deleteBuyerItem = async (importedProductId: string) => {
+    if (!window.confirm("Retirer cet article partage de Alibaba Buyer ?")) {
+      return;
+    }
+
+    setBuyerItemBusy({ id: importedProductId, action: "delete" });
+    setFeedback(null);
+    setErrorMessage(null);
+
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/buyer-items/${importedProductId}`, {
+      method: "DELETE",
+    });
+    const payload = await response.json().catch(() => null) as { message?: string } | null;
+    setBuyerItemBusy({ id: null, action: null });
+    if (!response.ok) {
+      setErrorMessage(payload?.message ?? "Retrait Buyer Item impossible.");
+      return;
+    }
+
+    setFeedback("Buyer Item retire de Alibaba.");
+    refresh();
+  };
+
   const createPurchaseOrder = async (importedProductId: string, sourceProductId?: string) => {
     if (!defaultAddressId) {
       setErrorMessage("Ajoute d'abord une adresse de reception avant de creer un lot d'achat.");
@@ -578,6 +767,42 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
     setFeedback(payload?.order?.payUrl
       ? "Lot d'achat cree. Ouvre maintenant le lien de paiement Alibaba."
       : "Lot d'achat cree en brouillon ou sans lien de paiement.");
+    refresh();
+  };
+
+  const managePurchaseOrder = async (orderId: string, action: "pay" | "refresh" | "cancel") => {
+    if (action === "cancel" && !window.confirm("Annuler cette commande Alibaba ?")) {
+      return;
+    }
+
+    setPurchaseOrderBusy({ id: orderId, action });
+    setFeedback(null);
+    setErrorMessage(null);
+
+    const endpoint = action === "cancel"
+      ? `${adminApiBasePath}/purchase-orders/${orderId}/cancel`
+      : `${adminApiBasePath}/purchase-orders/${orderId}/pay`;
+    const response = await fetchAdminSourcing(endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: action === "cancel" ? undefined : JSON.stringify({ action }),
+    });
+    const payload = await response.json().catch(() => null) as { message?: string; order?: { payUrl?: string } } | null;
+    setPurchaseOrderBusy({ id: null, action: null });
+    if (!response.ok) {
+      setErrorMessage(payload?.message ?? "Action lot fournisseur impossible.");
+      return;
+    }
+
+    if (action === "cancel") {
+      setFeedback("Commande Alibaba annulee.");
+    } else if (action === "pay" && payload?.order?.payUrl) {
+      setFeedback("Paiement fournisseur mis a jour. Utilise le lien de paiement Alibaba si necessaire.");
+    } else if (action === "pay") {
+      setFeedback("Paiement fournisseur lance ou recontrole.");
+    } else {
+      setFeedback("Etat du lot fournisseur actualise.");
+    }
     refresh();
   };
 
@@ -804,6 +1029,10 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
             <div className="mt-5 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
               {visibleSearchProducts.length === 0 ? <div className="rounded-[18px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Aucun resultat disponible pour ces parametres.</div> : visibleSearchProducts.map((item) => {
                 const isSelected = selectedPreviewIds.includes(item.productId);
+                const metadata = getAlibabaExtraSummary(item.product?.rawPayload);
+                const inventoryOriginsLabel = formatAlibabaInventoryOrigins(metadata.inventoryByOrigin);
+                const categoryPathLabel = item.product?.categoryPath?.length ? item.product.categoryPath.join(" > ") : item.product?.categoryTitle;
+                const predictedCategoryLabel = metadata.predictedCategoryPath.length > 0 ? metadata.predictedCategoryPath.join(" > ") : metadata.predictedCategoryName;
                 return (
                   <article key={item.productId} className={`overflow-hidden rounded-[22px] border ${isSelected ? "border-[#1d4f91] shadow-[0_16px_36px_rgba(29,79,145,0.18)]" : "border-[#e8ecf3] shadow-[0_10px_24px_rgba(15,23,42,0.05)]"} bg-white transition`}>
                     <div className="relative aspect-[4/3] bg-[#f4f6f8]">
@@ -822,6 +1051,7 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
                         <div className="min-w-0 flex-1">
                           <div className="line-clamp-2 text-[15px] font-black leading-6 tracking-[-0.03em] text-[#101828]">{item.title}</div>
                           <div className="mt-2 text-[12px] font-semibold text-[#667085]">ID {item.productId}{item.categoryId ? ` · cate ${item.categoryId}` : ""}</div>
+                          {categoryPathLabel ? <div className="mt-1 line-clamp-2 text-[12px] text-[#98a2b3]">{categoryPathLabel}</div> : null}
                         </div>
                       </div>
 
@@ -839,6 +1069,37 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
                         <div className="rounded-[14px] bg-[#f8fafc] px-3 py-2">Fournisseur<br /><span className="font-semibold text-[#101828]">{item.product?.supplierName ?? "Alibaba"}</span></div>
                         <div className="rounded-[14px] bg-[#f8fafc] px-3 py-2">MOQ / Stock<br /><span className="font-semibold text-[#101828]">{item.product ? `${item.product.moq} / ${formatCount(item.product.inventory)}` : "-"}</span></div>
                       </div>
+
+                      {item.product ? (
+                        <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold text-[#475467]">
+                          <div className="rounded-full bg-[#eef4ff] px-3 py-1 text-[#1d4f91]">Certificats {formatCount(metadata.certificates.length)}</div>
+                          <div className="rounded-full bg-[#f4f3ff] px-3 py-1 text-[#5b21b6]">Attributs {formatCount(metadata.keyAttributes.length)}</div>
+                          {inventoryOriginsLabel ? <div className="rounded-full bg-[#ecfdf3] px-3 py-1 text-[#027a48]">Stock {inventoryOriginsLabel}</div> : null}
+                          {metadata.icbuStatus ? <div className="rounded-full bg-[#f8f9fc] px-3 py-1 text-[#344054]">ICBU {metadata.icbuStatus}</div> : null}
+                          {metadata.icbuRts === true ? <div className="rounded-full bg-[#ecfdf3] px-3 py-1 text-[#027a48]">RTS</div> : null}
+                          {metadata.icbuInventoryCount > 0 ? <div className="rounded-full bg-[#fff7ed] px-3 py-1 text-[#b45309]">Stock ICBU {formatCount(metadata.icbuInventoryCount)}</div> : null}
+                          {typeof metadata.icbuScore === "number" ? <div className="rounded-full bg-[#f5f3ff] px-3 py-1 text-[#6d28d9]">Score {metadata.icbuScore.toFixed(1)}</div> : null}
+                          {metadata.sellerStatusV2 ? <div className="rounded-full bg-[#f8fafc] px-3 py-1 text-[#475467]">Seller {metadata.sellerStatusV2}</div> : null}
+                          {metadata.icbuVideoStatus ? <div className="rounded-full bg-[#ecfeff] px-3 py-1 text-[#0f766e]">Video {metadata.icbuVideoStatus}</div> : null}
+                          {metadata.icbuVideoQuality ? <div className="rounded-full bg-[#f0fdf4] px-3 py-1 text-[#15803d]">Qualite {metadata.icbuVideoQuality}</div> : null}
+                          {metadata.icbuVideoDuration > 0 ? <div className="rounded-full bg-[#fff7ed] px-3 py-1 text-[#b45309]">Video {formatCount(metadata.icbuVideoDuration)}s</div> : null}
+                          {metadata.buyerSharedItemId ? <div className="rounded-full bg-[#eef4ff] px-3 py-1 text-[#1d4f91]">Buyer #{metadata.buyerSharedItemId}</div> : null}
+                          {metadata.buyerSharedState ? <div className="rounded-full bg-[#f8fafc] px-3 py-1 text-[#475467]">Buyer {metadata.buyerSharedState}</div> : null}
+                          {typeof metadata.buyerSharedQuantity === "number" ? <div className="rounded-full bg-[#ecfdf3] px-3 py-1 text-[#027a48]">Buyer stock {formatCount(metadata.buyerSharedQuantity)}</div> : null}
+                          {metadata.warehouseCount > 0 ? <div className="rounded-full bg-[#f8fafc] px-3 py-1 text-[#475467]">Entrepots {formatCount(metadata.warehouseCount)}</div> : null}
+                          {metadata.ggsWarehouseCount > 0 ? <div className="rounded-full bg-[#eef4ff] px-3 py-1 text-[#1d4f91]">GGS {formatCount(metadata.ggsWarehouseCount)}</div> : null}
+                          {predictedCategoryLabel ? <div className="rounded-full bg-[#fffaeb] px-3 py-1 text-[#b54708]">Pred. {predictedCategoryLabel}</div> : null}
+                          {metadata.predictedCategoryAttributeCount > 0 ? <div className="rounded-full bg-[#eff8ff] px-3 py-1 text-[#175cd3]">Attr. cat {formatCount(metadata.predictedCategoryAttributeCount)}</div> : null}
+                          {metadata.predictedSaleAttributeCount > 0 ? <div className="rounded-full bg-[#eef4ff] px-3 py-1 text-[#1d4f91]">Attr. vente {formatCount(metadata.predictedSaleAttributeCount)}</div> : null}
+                          {metadata.icbuSupportsSourcing === true ? <div className="rounded-full bg-[#eef4ff] px-3 py-1 text-[#1d4f91]">Schema sourcing OK</div> : null}
+                          {metadata.icbuSupportsWholesale === true ? <div className="rounded-full bg-[#eff8ff] px-3 py-1 text-[#175cd3]">Schema wholesale OK</div> : null}
+                          {metadata.icbuSchemaFieldCount > 0 ? <div className="rounded-full bg-[#f8fafc] px-3 py-1 text-[#475467]">Champs schema {formatCount(metadata.icbuSchemaFieldCount)}</div> : null}
+                          {item.product.catalogCheckEligible === true ? <div className="rounded-full bg-[#eff8ff] px-3 py-1 text-[#175cd3]">Catalogue OK</div> : null}
+                          {item.product.crossborderEligible === true ? <div className="rounded-full bg-[#fff7ed] px-3 py-1 text-[#b45309]">Crossborder OK</div> : null}
+                          {item.product.localStockEligible === true ? <div className="rounded-full bg-[#fffaeb] px-3 py-1 text-[#b54708]">Stock local OK</div> : null}
+                          {item.product.localRegularEligible === true ? <div className="rounded-full bg-[#f0f9ff] px-3 py-1 text-[#0369a1]">Local regulier OK</div> : null}
+                        </div>
+                      ) : null}
 
                       {!item.importable && item.importReason ? <div className="mt-4 rounded-[14px] bg-[#fff7f7] px-3 py-3 text-[12px] font-medium text-[#b42318]">{item.importReason}</div> : null}
 
@@ -895,6 +1156,10 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
         <div className="mt-5 space-y-3">
           {initialDashboard.importedProducts.length === 0 ? <div className="rounded-[18px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Aucun article importe pour le moment.</div> : initialDashboard.importedProducts.map((product) => {
             const selected = selectedImportedProductIds.includes(product.id);
+            const metadata = getAlibabaExtraSummary(product.rawPayload);
+            const inventoryOriginsLabel = formatAlibabaInventoryOrigins(metadata.inventoryByOrigin);
+            const categoryPathLabel = product.categoryPath?.length ? product.categoryPath.join(" > ") : product.categoryTitle;
+            const predictedCategoryLabel = metadata.predictedCategoryPath.length > 0 ? metadata.predictedCategoryPath.join(" > ") : metadata.predictedCategoryName;
             return (
               <div key={product.id} className="rounded-[18px] border border-[#edf1f6] p-4">
                 <div className="flex gap-3">
@@ -908,6 +1173,28 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
                         <div className="line-clamp-2 text-[15px] font-black tracking-[-0.03em] text-[#101828]">{product.shortTitle}</div>
                         <div className="mt-1 text-[13px] text-[#667085]">{product.supplierName} · minimum {formatCount(product.moq)} {product.unit}</div>
                         <div className="mt-1 text-[12px] text-[#98a2b3]">{formatCount(product.gallery.length)} images · {hasRecoveredVideo(product) ? "video recuperee" : "pas de video"} · stock estime {formatCount(product.inventory)}</div>
+                        {categoryPathLabel ? <div className="mt-1 line-clamp-2 text-[12px] text-[#98a2b3]">{categoryPathLabel}</div> : null}
+                        <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold text-[#475467]">
+                          <div className="rounded-full bg-[#eef4ff] px-3 py-1 text-[#1d4f91]">Certificats {formatCount(metadata.certificates.length)}</div>
+                          <div className="rounded-full bg-[#f4f3ff] px-3 py-1 text-[#5b21b6]">Attributs {formatCount(metadata.keyAttributes.length)}</div>
+                          {inventoryOriginsLabel ? <div className="rounded-full bg-[#ecfdf3] px-3 py-1 text-[#027a48]">Stock {inventoryOriginsLabel}</div> : null}
+                          {metadata.icbuStatus ? <div className="rounded-full bg-[#f8f9fc] px-3 py-1 text-[#344054]">ICBU {metadata.icbuStatus}</div> : null}
+                          {metadata.icbuRts === true ? <div className="rounded-full bg-[#ecfdf3] px-3 py-1 text-[#027a48]">RTS</div> : null}
+                          {metadata.icbuInventoryCount > 0 ? <div className="rounded-full bg-[#fff7ed] px-3 py-1 text-[#b45309]">Stock ICBU {formatCount(metadata.icbuInventoryCount)}</div> : null}
+                          {typeof metadata.icbuScore === "number" ? <div className="rounded-full bg-[#f5f3ff] px-3 py-1 text-[#6d28d9]">Score {metadata.icbuScore.toFixed(1)}</div> : null}
+                          {metadata.sellerStatusV2 ? <div className="rounded-full bg-[#f8fafc] px-3 py-1 text-[#475467]">Seller {metadata.sellerStatusV2}</div> : null}
+                          {metadata.icbuVideoStatus ? <div className="rounded-full bg-[#ecfeff] px-3 py-1 text-[#0f766e]">Video {metadata.icbuVideoStatus}</div> : null}
+                          {metadata.icbuVideoQuality ? <div className="rounded-full bg-[#f0fdf4] px-3 py-1 text-[#15803d]">Qualite {metadata.icbuVideoQuality}</div> : null}
+                          {metadata.icbuVideoDuration > 0 ? <div className="rounded-full bg-[#fff7ed] px-3 py-1 text-[#b45309]">Video {formatCount(metadata.icbuVideoDuration)}s</div> : null}
+                          {metadata.warehouseCount > 0 ? <div className="rounded-full bg-[#f8fafc] px-3 py-1 text-[#475467]">Entrepots {formatCount(metadata.warehouseCount)}</div> : null}
+                          {metadata.ggsWarehouseCount > 0 ? <div className="rounded-full bg-[#eef4ff] px-3 py-1 text-[#1d4f91]">GGS {formatCount(metadata.ggsWarehouseCount)}</div> : null}
+                          {predictedCategoryLabel ? <div className="rounded-full bg-[#fffaeb] px-3 py-1 text-[#b54708]">Pred. {predictedCategoryLabel}</div> : null}
+                          {metadata.predictedCategoryAttributeCount > 0 ? <div className="rounded-full bg-[#eff8ff] px-3 py-1 text-[#175cd3]">Attr. cat {formatCount(metadata.predictedCategoryAttributeCount)}</div> : null}
+                          {metadata.predictedSaleAttributeCount > 0 ? <div className="rounded-full bg-[#eef4ff] px-3 py-1 text-[#1d4f91]">Attr. vente {formatCount(metadata.predictedSaleAttributeCount)}</div> : null}
+                          {metadata.icbuSupportsSourcing === true ? <div className="rounded-full bg-[#eef4ff] px-3 py-1 text-[#1d4f91]">Schema sourcing OK</div> : null}
+                          {metadata.icbuSupportsWholesale === true ? <div className="rounded-full bg-[#eff8ff] px-3 py-1 text-[#175cd3]">Schema wholesale OK</div> : null}
+                          {metadata.icbuSchemaFieldCount > 0 ? <div className="rounded-full bg-[#f8fafc] px-3 py-1 text-[#475467]">Champs schema {formatCount(metadata.icbuSchemaFieldCount)}</div> : null}
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {getImportedCampaignLabel(product) ? <div className="rounded-full bg-[#eef4ff] px-3 py-1 text-[12px] font-semibold text-[#1d4f91]">{getImportedCampaignLabel(product)}</div> : null}
@@ -930,6 +1217,20 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
                         <RefreshCcw className="h-4 w-4" />
                         Reenrichir
                       </button>
+                      <button type="button" onClick={() => syncBuyerItem(product.id, Boolean(metadata.buyerSharedItemId))} disabled={buyerItemBusy.id === product.id} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#d6dbe6] bg-white px-4 text-[13px] font-semibold text-[#344054] transition hover:border-[#1d4f91] hover:text-[#1d4f91] disabled:opacity-60">
+                        {buyerItemBusy.id === product.id && buyerItemBusy.action === "sync" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <WandSparkles className="h-4 w-4" />}
+                        {metadata.buyerSharedItemId ? "Maj Buyer" : "Partager Buyer"}
+                      </button>
+                      <button type="button" onClick={() => refreshBuyerItem(product.id)} disabled={buyerItemBusy.id === product.id} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#d6dbe6] bg-white px-4 text-[13px] font-semibold text-[#344054] transition hover:border-[#1d4f91] hover:text-[#1d4f91] disabled:opacity-60">
+                        {buyerItemBusy.id === product.id && buyerItemBusy.action === "refresh" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                        Verifier Buyer
+                      </button>
+                      {metadata.buyerSharedItemId ? (
+                        <button type="button" onClick={() => deleteBuyerItem(product.id)} disabled={buyerItemBusy.id === product.id} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#f3d1d1] bg-[#fff7f7] px-4 text-[13px] font-semibold text-[#b42318] transition hover:bg-[#fff1f1] disabled:opacity-60">
+                          {buyerItemBusy.id === product.id && buyerItemBusy.action === "delete" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          Retirer Buyer
+                        </button>
+                      ) : null}
                       <button type="button" onClick={() => deleteImportedItem(product.id, product.sourceProductId)} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#f3d1d1] bg-[#fff7f7] px-4 text-[13px] font-semibold text-[#b42318] transition hover:bg-[#fff1f1]">
                         <Trash2 className="h-4 w-4" />
                         Supprimer
@@ -952,6 +1253,90 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
             {isRefreshing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
             Actualiser le catalogue importe
           </button>
+        </div>
+      </section>
+
+      <section className="rounded-[24px] border border-[#e3e8f2] bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)] sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#1d4f91]">Lots fournisseur</div>
+            <h2 className="mt-2 text-[24px] font-black tracking-[-0.05em] text-[#101828]">Paiement, fret et tracking Alibaba</h2>
+          </div>
+          <div className="rounded-[14px] bg-[#eef4ff] px-4 py-2 text-[13px] font-semibold text-[#1d4f91]">{formatCount(initialDashboard.purchaseOrders.length)} lot(s)</div>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          {initialDashboard.purchaseOrders.length === 0 ? (
+            <div className="rounded-[18px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Aucun lot fournisseur cree pour le moment.</div>
+          ) : initialDashboard.purchaseOrders.map((order) => {
+            const tracking = Array.isArray(order.tracking?.trackingList) ? order.tracking.trackingList[0] : null;
+            const mergeGroup = Array.isArray(order.mergePay?.groups) ? order.mergePay.groups[0] : null;
+            const detailPayUrl = order.orderDetail?.payUrl;
+            return (
+              <div key={order.id} className="rounded-[18px] border border-[#edf1f6] p-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="line-clamp-2 text-[15px] font-black tracking-[-0.03em] text-[#101828]">{order.productTitle}</div>
+                    <div className="mt-1 text-[13px] text-[#667085]">{order.supplierName} · lot {order.id.slice(0, 8)} · trade {order.tradeId ?? "-"}</div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold text-[#475467]">
+                      <div className="rounded-full bg-[#eef4ff] px-3 py-1 text-[#1d4f91]">Commande {order.orderStatus}</div>
+                      <div className="rounded-full bg-[#fff7ed] px-3 py-1 text-[#b45309]">Paiement {order.paymentStatus}</div>
+                      {order.overseasAdmittance?.response === true ? <div className="rounded-full bg-[#ecfdf3] px-3 py-1 text-[#027a48]">Overseas OK</div> : null}
+                      {order.overseasAdmittance?.response === false && order.overseasAdmittance?.errorCode ? <div className="rounded-full bg-[#fff7f7] px-3 py-1 text-[#b42318]">Overseas {order.overseasAdmittance.errorCode}</div> : null}
+                      {order.freightSummary?.feeAmount ? <div className="rounded-full bg-[#f8fafc] px-3 py-1 text-[#475467]">Fret {formatUsdAmount(order.freightSummary.feeAmount, order.freightSummary.feeCurrency ?? "USD")}</div> : null}
+                      {order.freightSummary?.deliveryTime ? <div className="rounded-full bg-[#fffaeb] px-3 py-1 text-[#b54708]">Delai {order.freightSummary.deliveryTime}</div> : null}
+                      {order.fund?.paymentTransactionFeeAmount ? <div className="rounded-full bg-[#f4f3ff] px-3 py-1 text-[#5b21b6]">Frais {formatUsdAmount(order.fund.paymentTransactionFeeAmount, order.fund.paymentTransactionFeeCurrency ?? "USD")}</div> : null}
+                      {typeof order.mergePay?.groupCount === "number" ? <div className="rounded-full bg-[#eef4ff] px-3 py-1 text-[#1d4f91]">Groupes paiement {formatCount(order.mergePay.groupCount)}</div> : null}
+                      {mergeGroup?.canMergePay === true ? <div className="rounded-full bg-[#ecfdf3] px-3 py-1 text-[#027a48]">Merge pay OK</div> : null}
+                      {mergeGroup?.canMergePay === false && mergeGroup.cannotMergeReason ? <div className="rounded-full bg-[#fff7f7] px-3 py-1 text-[#b42318]">Merge pay {mergeGroup.cannotMergeReason}</div> : null}
+                      {order.orderDetail?.tradeStatus ? <div className="rounded-full bg-[#f4f3ff] px-3 py-1 text-[#5b21b6]">Trade {order.orderDetail.tradeStatus}</div> : null}
+                      {order.logisticsQuery?.logisticStatus ? <div className="rounded-full bg-[#ecfeff] px-3 py-1 text-[#0f766e]">Logistique {order.logisticsQuery.logisticStatus}</div> : null}
+                      {tracking?.trackingNumber ? <div className="rounded-full bg-[#ecfeff] px-3 py-1 text-[#0f766e]">Tracking {tracking.trackingNumber}</div> : null}
+                      {tracking?.currentEventCode ? <div className="rounded-full bg-[#f8fafc] px-3 py-1 text-[#475467]">{tracking.currentEventCode}</div> : null}
+                    </div>
+                    {order.payFailureReason ? <div className="mt-3 rounded-[14px] bg-[#fff7f7] px-3 py-3 text-[12px] font-medium text-[#b42318]">{order.payFailureReason}</div> : null}
+                    {order.orderDetail?.carrierName || order.orderDetail?.shipmentMethod || order.logisticsQuery?.serviceProvider ? (
+                      <div className="mt-2 text-[12px] text-[#667085]">
+                        {order.orderDetail?.carrierName ? `Transporteur ${order.orderDetail.carrierName}` : null}
+                        {order.orderDetail?.shipmentMethod ? ` · expédition ${order.orderDetail.shipmentMethod}` : null}
+                        {order.logisticsQuery?.serviceProvider ? ` · service ${order.logisticsQuery.serviceProvider}` : null}
+                        {order.orderDetail?.attachmentCount ? ` · pieces jointes ${formatCount(order.orderDetail.attachmentCount)}` : null}
+                      </div>
+                    ) : null}
+                    {tracking?.lastEventName ? <div className="mt-2 text-[12px] text-[#667085]">Dernier evenement: {tracking.lastEventName}{tracking.lastEventLocation ? ` · ${tracking.lastEventLocation}` : ""}{tracking.lastEventTime ? ` · ${tracking.lastEventTime}` : ""}</div> : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => managePurchaseOrder(order.id, "refresh")} disabled={purchaseOrderBusy.id === order.id} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#d6dbe6] bg-white px-4 text-[13px] font-semibold text-[#344054] transition hover:border-[#1d4f91] hover:text-[#1d4f91] disabled:opacity-60">
+                      {purchaseOrderBusy.id === order.id && purchaseOrderBusy.action === "refresh" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                      Actualiser
+                    </button>
+                    <button type="button" onClick={() => managePurchaseOrder(order.id, "pay")} disabled={purchaseOrderBusy.id === order.id} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937] disabled:opacity-60">
+                      {purchaseOrderBusy.id === order.id && purchaseOrderBusy.action === "pay" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                      Payer / relancer
+                    </button>
+                    {order.orderStatus !== "cancelled" ? (
+                      <button type="button" onClick={() => managePurchaseOrder(order.id, "cancel")} disabled={purchaseOrderBusy.id === order.id} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#f3d1d1] bg-[#fff7f7] px-4 text-[13px] font-semibold text-[#b42318] transition hover:bg-[#fff1f1] disabled:opacity-60">
+                        {purchaseOrderBusy.id === order.id && purchaseOrderBusy.action === "cancel" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                        Annuler
+                      </button>
+                    ) : null}
+                    {(order.payUrl || detailPayUrl) ? (
+                      <a href={order.payUrl ?? detailPayUrl ?? undefined} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#d6dbe6] bg-white px-4 text-[13px] font-semibold text-[#1d4f91] transition hover:border-[#1d4f91] hover:text-[#173d71]">
+                        Ouvrir paiement
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    ) : null}
+                    {tracking?.trackingUrl ? (
+                      <a href={tracking.trackingUrl} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#d6dbe6] bg-white px-4 text-[13px] font-semibold text-[#344054] transition hover:border-[#1d4f91] hover:text-[#1d4f91]">
+                        Ouvrir tracking
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </section>
     </div>
