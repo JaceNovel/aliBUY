@@ -343,11 +343,53 @@ class AliExpressOpenPlatformService
         $searchResult = $this->callRestEndpoint($account, '/eco/buyer/product/search', [
             'param0' => $request,
         ]);
+        if (! $searchResult['ok']) {
+            return [
+                'account' => $account,
+                'payload' => [
+                    'products' => [],
+                    'totalCount' => 0,
+                    'pageIndex' => $pageIndex,
+                    'pageSize' => $pageSize,
+                    'requestId' => $this->getString($searchResult['responseBody']['request_id'] ?? null),
+                    'message' => $this->extractOperationMessage($searchResult['responseBody']) ?? 'Recherche catalogue Alibaba impossible.',
+                    'debug' => $searchResult['responseBody'],
+                ],
+            ];
+        }
+
         $items = $this->extractAlibabaBuyerProductItems($searchResult['responseBody']);
-        $products = array_values(array_filter(array_map(
-            fn ($item) => $this->mapAlibabaBuyerSearchItem($item, $query),
-            $items
-        )));
+        $countryCode = strtoupper(trim((string) ($input['countryCode'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'FR'))));
+        $products = [];
+
+        foreach ($items as $item) {
+            $productId = $this->getString($item['product_id'] ?? $item['productId'] ?? $item['item_id'] ?? $item['itemId'] ?? null);
+            if ($productId === null) {
+                continue;
+            }
+
+            $detailResult = $this->callRestEndpoint($account, '/eco/buyer/product/description', [
+                'query_req' => [
+                    'product_id' => $productId,
+                    'destination_country' => $countryCode,
+                ],
+            ]);
+
+            $detailProduct = $detailResult['ok']
+                ? $this->mapAlibabaBuyerDescriptionToProduct($detailResult['responseBody'], $query)
+                : null;
+
+            $previewItem = $this->buildAlibabaBuyerSearchPreviewItem(
+                $item,
+                $query,
+                $detailProduct,
+                $detailResult['ok'] ? null : ($this->extractOperationMessage($detailResult['responseBody']) ?? 'Lecture detail produit Alibaba impossible.')
+            );
+
+            if ($previewItem !== null) {
+                $products[] = $previewItem;
+            }
+        }
 
         return [
             'account' => $account,
@@ -358,6 +400,39 @@ class AliExpressOpenPlatformService
                 'pageSize' => $pageSize,
                 'requestId' => $this->getString($searchResult['responseBody']['request_id'] ?? null),
             ],
+        ];
+    }
+
+    private function buildAlibabaBuyerSearchPreviewItem(array $item, string $query, ?array $detailProduct, ?string $detailError = null): ?array
+    {
+        $fallback = $this->mapAlibabaBuyerSearchItem($item, $query);
+        if ($fallback === null) {
+            return null;
+        }
+
+        if ($detailProduct === null) {
+            $fallback['importable'] = false;
+            $fallback['importReason'] = $detailError ?: 'Detail produit Alibaba indisponible pour cet article.';
+
+            return $fallback;
+        }
+
+        $record = is_array($detailProduct['rawPayload']['description'] ?? null)
+            ? $detailProduct['rawPayload']['description']
+            : [];
+
+        return [
+            'productId' => (string) $detailProduct['sourceProductId'],
+            'title' => (string) ($detailProduct['title'] ?? $fallback['title']),
+            'itemUrl' => $this->getString($record['detail_url'] ?? $item['permalink'] ?? $item['detail_url'] ?? null),
+            'imageUrl' => (string) ($detailProduct['image'] ?? $fallback['imageUrl'] ?? '/globe.svg'),
+            'videoUrl' => $this->getString($detailProduct['videoUrl'] ?? null),
+            'salePrice' => isset($detailProduct['minUsd']) ? (string) $detailProduct['minUsd'] : null,
+            'salePriceCurrency' => $this->getString($record['currency'] ?? $item['currency'] ?? null) ?? 'USD',
+            'categoryId' => $this->getString($detailProduct['categorySlug'] ?? $record['category_id'] ?? $item['category_id'] ?? $item['isv_category_id'] ?? null),
+            'importable' => true,
+            'importSource' => 'detail',
+            'product' => $detailProduct,
         ];
     }
 

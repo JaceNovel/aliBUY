@@ -77,7 +77,7 @@ class AlibabaAdminService
                 throw new RuntimeException((string) $payload['message']);
             }
 
-            $this->appendLog('catalog-search', 'aliexpress.ds.text.search', 'success', $input, [
+            $this->appendLog('catalog-search', '/eco/buyer/product/search -> /eco/buyer/product/description', 'success', $input, [
                 'query' => trim((string) ($input['query'] ?? '')),
                 'totalCount' => $payload['totalCount'] ?? 0,
                 'pageIndex' => $payload['pageIndex'] ?? 1,
@@ -116,7 +116,7 @@ class AlibabaAdminService
         $offset = ($pageIndex - 1) * $pageSize;
         $pageItems = array_slice($filtered, $offset, $pageSize);
 
-        $this->appendLog('catalog-search', 'internal/aliexpress/search', 'success', $input, [
+        $this->appendLog('catalog-search', 'internal/alibaba/search', 'success', $input, [
             'query' => $query,
             'totalCount' => $totalCount,
             'pageIndex' => $pageIndex,
@@ -139,7 +139,7 @@ class AlibabaAdminService
             $result = $this->openPlatform->fetchRemote($account, $input);
             $this->persistResolvedLiveAccount($result['account']);
             $payload = $result['payload'];
-            $this->appendLog('catalog-fetch-remote', 'aliexpress.ds.product.get', 'success', $input, [
+            $this->appendLog('catalog-fetch-remote', '/eco/buyer/product/description', 'success', $input, [
                 'sourceProductId' => $payload['sourceProductId'] ?? null,
                 'live' => true,
             ]);
@@ -183,7 +183,7 @@ class AlibabaAdminService
                 ]],
             ];
 
-            $this->appendLog('catalog-fetch-remote', 'internal/aliexpress/fetch-remote', 'success', $input, [
+            $this->appendLog('catalog-fetch-remote', 'internal/alibaba/fetch-remote', 'success', $input, [
                 'sourceProductId' => $previewProduct['sourceProductId'],
             ]);
 
@@ -213,7 +213,7 @@ class AlibabaAdminService
             ]],
         ];
 
-        $this->appendLog('catalog-fetch-remote', 'internal/aliexpress/fetch-remote', 'failed', $input, $debug);
+        $this->appendLog('catalog-fetch-remote', 'internal/alibaba/fetch-remote', 'failed', $input, $debug);
 
         throw new RuntimeException("Produit Alibaba introuvable dans le stockage backend actuel. L'import exact live n'est pas encore porte en PHP; ajoute d'abord un snapshot via le flux fournisseur ou importe depuis une source deja connue.");
     }
@@ -319,7 +319,7 @@ class AlibabaAdminService
             'freeDealProductSlugs' => [],
         ];
 
-        $this->appendLog('catalog-import', 'internal/aliexpress/import', 'success', $input, [
+        $this->appendLog('catalog-import', 'internal/alibaba/import', 'success', $input, [
             'createdCount' => count($created),
             'purgedCount' => $purgedCount,
             'skippedExistingCount' => $skippedExistingCount,

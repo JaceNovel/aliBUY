@@ -594,12 +594,12 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
               Recherche, previsualisation et import cible des produits Alibaba
             </h1>
             <p className="mt-3 max-w-[760px] text-[14px] leading-7 text-[#475467]">
-              La page d'import passe maintenant par une etape claire: tu recherches les produits DS, tu vois lesquels sont reellement importables apres verification `ds.product.get`, puis tu importes seulement les fiches choisies.
+              La page d'import passe maintenant par une etape claire: tu recherches les produits Alibaba, tu vois lesquels sont reellement importables apres verification detail produit, puis tu importes seulement les fiches choisies.
             </p>
             <div className="mt-5 flex flex-wrap gap-3 text-[13px] font-semibold text-[#344054]">
               <div className="rounded-[16px] bg-white px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.06)]">{formatCount(initialDashboard.stats.importedCount)} produits importes</div>
               <div className="rounded-[16px] bg-white px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.06)]">{formatCount(initialDashboard.stats.publishedCount)} produits publies</div>
-              <div className="rounded-[16px] bg-white px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.06)]">{formatCount(initialDashboard.purchaseOrders.length)} lots DS crees</div>
+              <div className="rounded-[16px] bg-white px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.06)]">{formatCount(initialDashboard.purchaseOrders.length)} lots d'achat crees</div>
             </div>
           </div>
 
@@ -630,8 +630,8 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85c14]">Recherche fournisseur</div>
-              <h2 className="mt-2 text-[24px] font-black tracking-[-0.05em] text-[#101828]">Parametres DS exacts</h2>
-              <p className="mt-2 text-[13px] leading-6 text-[#667085]">Mot-cle, pays, locale, devise, categorie, tri, pagination, `selectionName` et `searchExtend` sont exposes directement dans l'interface. Pour l'import, le pays de livraison est verrouille sur la France.</p>
+              <h2 className="mt-2 text-[24px] font-black tracking-[-0.05em] text-[#101828]">Parametres exacts fournisseur</h2>
+              <p className="mt-2 text-[13px] leading-6 text-[#667085]">La recherche live utilise Alibaba Buyer Sourcing via `/eco/buyer/product/search`, puis chaque article est enrichi via `/eco/buyer/product/description` avant import. Pour l'import, le pays de livraison est verrouille sur la France.</p>
             </div>
             <button
               type="button"
@@ -647,7 +647,7 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <label className="text-[13px] font-semibold text-[#344054] md:col-span-2">
               Mot-cle
-              <input value={searchForm.query} onChange={(event) => setSearchForm((current) => ({ ...current, query: event.target.value }))} placeholder="robe, airpods, 100500..., montre..." className="mt-2 h-11 w-full rounded-[14px] border border-[#d6dbe6] px-4 text-[14px] text-[#111827] outline-none focus:border-[#d85c14]" />
+              <input value={searchForm.query} onChange={(event) => setSearchForm((current) => ({ ...current, query: event.target.value }))} placeholder="robe, airpods, 1601206892606, montre..." className="mt-2 h-11 w-full rounded-[14px] border border-[#d6dbe6] px-4 text-[14px] text-[#111827] outline-none focus:border-[#d85c14]" />
             </label>
             <label className="text-[13px] font-semibold text-[#344054]">
               Compte fournisseur
@@ -689,7 +689,7 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
             <label className="text-[13px] font-semibold text-[#344054]">
               Page size
               <select value={searchForm.pageSize} onChange={(event) => setSearchForm((current) => ({ ...current, pageSize: Number(event.target.value) || 12 }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d6dbe6] px-4 text-[14px] text-[#111827] outline-none focus:border-[#d85c14]">
-                {[8, 12, 16, 20, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
+                {[8, 12, 16, 20].map((size) => <option key={size} value={size}>{size}</option>)}
               </select>
             </label>
             <label className="text-[13px] font-semibold text-[#344054] md:col-span-2">
@@ -812,7 +812,7 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
                         <div className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] ${item.importable ? "bg-[#eafaf0] text-[#15803d]" : "bg-[#fff1f1] text-[#b42318]"}`}>
                           {item.importable ? "Importable" : "A verifier"}
                         </div>
-                        {item.importSource ? <div className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-[#344054]">{item.importSource === "detail" ? "DS detail" : "Fallback recherche"}</div> : null}
+                        {item.importSource ? <div className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-[#344054]">{item.importSource === "detail" ? "Detail fournisseur" : "Fallback recherche"}</div> : null}
                       </div>
                     </div>
 
@@ -924,7 +924,7 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
                       <input value={quantityByProduct[product.id] ?? product.moq ?? 1} onChange={(event) => setQuantityByProduct((current) => ({ ...current, [product.id]: Number(event.target.value) || 1 }))} type="number" min={1} className="h-10 w-28 rounded-[12px] border border-[#d6dbe6] px-3 text-[13px] text-[#111827] outline-none focus:border-[#1d4f91]" />
                       <button type="button" onClick={() => createPurchaseOrder(product.id, product.sourceProductId)} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]">
                         <Warehouse className="h-4 w-4" />
-                        Creer un lot DS
+                        Creer un lot fournisseur
                       </button>
                       <button type="button" onClick={() => reenrichImportedItem(product.id)} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#d6dbe6] bg-white px-4 text-[13px] font-semibold text-[#344054] transition hover:border-[#1d4f91] hover:text-[#1d4f91]">
                         <RefreshCcw className="h-4 w-4" />
