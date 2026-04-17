@@ -682,6 +682,10 @@ function getTierMinimum(tier: Pick<ProductTier, "quantityLabel">) {
   return singleMatch ? Number(singleMatch[1]) : 0;
 }
 
+function getValidProductTiers(tiers: ProductTier[] = []) {
+  return tiers.filter((tier) => Number.isFinite(tier.priceUsd) && tier.priceUsd > 0);
+}
+
 export function getApplicableVariantPricing(product: VariantPricedProduct, selection?: VariantSelection) {
   const matchedRules = matchVariantRules(product, selection);
   if (matchedRules.length === 0) {
@@ -694,7 +698,7 @@ export function getApplicableVariantPricing(product: VariantPricedProduct, selec
 export function getDisplayPriceTiers(product: VariantPricedProduct, selection?: VariantSelection) {
   const variantRules = getApplicableVariantPricing(product, selection);
   if (variantRules.length === 0) {
-    return product.tiers;
+    return getValidProductTiers(product.tiers);
   }
 
   return variantRules.map((rule) => ({
@@ -725,7 +729,7 @@ export function resolveProductPriceSummaryUsd(product: VariantPricedProduct, inp
     return buildPriceSummary(minUsd, maxUsd);
   }
 
-  const sortedTiers = [...product.tiers].sort((left, right) => getTierMinimum(left) - getTierMinimum(right));
+  const sortedTiers = [...getValidProductTiers(product.tiers)].sort((left, right) => getTierMinimum(left) - getTierMinimum(right));
   const activeTier = [...sortedTiers].reverse().find((tier) => quantity >= getTierMinimum(tier)) ?? sortedTiers[0];
   if (activeTier) {
     return buildPriceSummary(activeTier.priceUsd);
