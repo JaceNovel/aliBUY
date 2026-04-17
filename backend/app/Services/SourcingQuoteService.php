@@ -177,7 +177,7 @@ class SourcingQuoteService
     {
         $fallback = [
             'currencyCode' => 'XOF',
-            'airRatePerKgFcfa' => 10000,
+            'airRatePerKgFcfa' => 11000,
             'airEstimatedDays' => '5-10 jours',
             'seaRealCostPerCbmFcfa' => 180000,
             'seaSellRatePerCbmFcfa' => 210000,

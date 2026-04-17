@@ -502,7 +502,7 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
       <section className="rounded-[20px] border border-[#e6eaf0] bg-white px-5 py-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-[18px] font-bold text-[#1f2937]">Automatisation Alibaba</div>
+            <div className="text-[18px] font-bold text-[#1f2937]">Automatisation fournisseur</div>
             <div className="mt-1 text-[13px] text-[#667085]">Paiement dropshipping, résultat de paiement et suivi logistique par trade.</div>
           </div>
           {canLaunchSupplierPayment ? (
@@ -527,10 +527,10 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
         {!alibabaAutomation || alibabaAutomation.trades.length === 0 ? (
           <div className="mt-4 rounded-[16px] bg-[#fafbfd] px-4 py-4 text-[13px] text-[#667085] ring-1 ring-[#edf1f6]">
             {canLaunchSupplierPayment
-              ? "Aucune automatisation Alibaba n'a encore été lancée pour cette commande. Utilisez le bouton ci-dessus pour creer la demande d'achat et demarrer le suivi automatique."
+              ? "Aucune automatisation fournisseur n'a encore été lancée pour cette commande. Utilisez le bouton ci-dessus pour creer la demande d'achat et demarrer le suivi automatique."
               : payUrls.length > 0
-                ? "La demande d'achat a deja produit un lien de paiement manuel. Ouvrez-le ci-dessus pour reprendre le paiement Alibaba."
-                : "Aucun état automatique Alibaba enregistré pour cette commande pour le moment."}
+                ? "La demande d'achat a deja produit un lien de paiement manuel. Ouvrez-le ci-dessus pour reprendre le paiement fournisseur."
+                : "Aucun état automatique fournisseur enregistré pour cette commande pour le moment."}
           </div>
         ) : (
           <div className="mt-4 space-y-3">
@@ -551,7 +551,7 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
 
                 <div className="mt-4 grid gap-3 md:grid-cols-3">
                   <div className="rounded-[14px] bg-white px-3 py-3 ring-1 ring-[#edf1f6]">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Paiement Alibaba</div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Paiement fournisseur</div>
                     <div className="mt-1 text-[14px] font-semibold text-[#1f2937]">{trade.paymentResultStatus || trade.paymentRequestStatus}</div>
                     {trade.paymentRequestMessage ? <div className="mt-1 text-[12px] leading-5 text-[#667085]">{trade.paymentRequestMessage}</div> : null}
                     {trade.paymentResultMessage ? <div className="mt-1 text-[12px] leading-5 text-[#667085]">{trade.paymentResultMessage}</div> : null}

@@ -126,7 +126,7 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
     countryCode: input.countryCode,
   });
   if (quote.items.length === 0) {
-    throw new Error("Les articles selectionnes ne correspondent plus a des produits Alibaba publiés. Rechargez le panier puis reessayez.");
+    throw new Error("Les articles selectionnes ne correspondent plus a des produits fournisseur publiés. Rechargez le panier puis reessayez.");
   }
   const shippingOption = quote.shippingOptions.find((option) => option.key === input.shippingMethod);
 

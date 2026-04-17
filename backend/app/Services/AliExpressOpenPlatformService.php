@@ -26,9 +26,9 @@ class AliExpressOpenPlatformService
         $timestamp = now()->toIso8601String();
 
         return [
-            'id' => 'env-alibaba',
-            'name' => 'Alibaba Environment',
-            'email' => 'env@alibaba.local',
+            'id' => 'env-supplier',
+            'name' => 'Supplier Environment',
+            'email' => 'env@supplier.local',
             'accountPlatform' => 'seller',
             'countryCode' => strtoupper(trim((string) env('ALIEXPRESS_DS_SHIP_TO_COUNTRY', 'FR')) ?: 'FR'),
             'defaultDispatchLocation' => 'CN',
@@ -112,7 +112,7 @@ class AliExpressOpenPlatformService
     {
         $refreshToken = trim((string) ($account['refreshToken'] ?? ''));
         if ($refreshToken === '') {
-            throw new RuntimeException('Aucun refresh token Alibaba disponible.');
+            throw new RuntimeException('Aucun refresh token fournisseur disponible.');
         }
 
         $refreshUrl = trim((string) ($account['refreshUrl'] ?? self::ALIBABA_REFRESH_URL));
@@ -529,7 +529,7 @@ class AliExpressOpenPlatformService
         $account = $prepared['account'];
         $query = trim((string) ($input['query'] ?? ''));
         if ($query === '') {
-            throw new RuntimeException('Requete de recherche Alibaba manquante.');
+            throw new RuntimeException('Requete de recherche fournisseur manquante.');
         }
 
         $pageSize = max(1, min(20, (int) ($input['pageSize'] ?? 12)));
@@ -558,7 +558,7 @@ class AliExpressOpenPlatformService
                     'pageSize' => $pageSize,
                     'requestId' => $this->getString($searchResult['responseBody']['request_id'] ?? null),
                     'message' => $this->extractOperationMessage($searchResult['responseBody'])
-                        ?? $this->buildOperationFailureMessage('Recherche catalogue Alibaba impossible.', $searchResult),
+                        ?? $this->buildOperationFailureMessage('Recherche catalogue fournisseur impossible.', $searchResult),
                     'debug' => $searchResult['responseBody'],
                 ],
             ];
@@ -589,7 +589,7 @@ class AliExpressOpenPlatformService
                 $item,
                 $query,
                 $detailProduct,
-                $detailResult['ok'] ? null : ($this->extractOperationMessage($detailResult['responseBody']) ?? 'Lecture detail produit Alibaba impossible.')
+                $detailResult['ok'] ? null : ($this->extractOperationMessage($detailResult['responseBody']) ?? 'Lecture detail produit fournisseur impossible.')
             );
 
             if ($previewItem !== null && $detailProduct !== null) {
@@ -625,7 +625,7 @@ class AliExpressOpenPlatformService
 
         if ($detailProduct === null) {
             $fallback['importable'] = false;
-            $fallback['importReason'] = $detailError ?: 'Detail produit Alibaba indisponible pour cet article.';
+            $fallback['importReason'] = $detailError ?: 'Detail produit fournisseur indisponible pour cet article.';
 
             return $fallback;
         }
@@ -791,7 +791,7 @@ class AliExpressOpenPlatformService
     private function fetchAlibabaBuyerSupplementalData(array $account, string $productId, string $countryCode, ?string $categoryId = null): array
     {
         $icbuProduct = $this->fetchAlibabaIcbuProductDetail($account, $productId);
-        $predictionTitle = $this->getString($icbuProduct['subject'] ?? null) ?? ('Produit Alibaba '.$productId);
+        $predictionTitle = $this->getString($icbuProduct['subject'] ?? null) ?? ('Produit fournisseur '.$productId);
         $predictionDescription = $this->getString($icbuProduct['description'] ?? null);
         $predictionImage = $this->getString($icbuProduct['main_image']['images'][0]['url'] ?? $icbuProduct['main_image']['images'][0] ?? null);
         $predictedCategory = $this->fetchAlibabaIcbuCategoryPrediction($account, $predictionTitle, $predictionDescription, $predictionImage);
@@ -1332,7 +1332,7 @@ class AliExpressOpenPlatformService
         $identifier = trim((string) ($input['query'] ?? ''));
         $sourceProductId = $this->extractSourceProductId($identifier);
         if ($sourceProductId === '') {
-            throw new RuntimeException('Import manuel impossible: saisis un product_id Alibaba ou un lien produit Alibaba.');
+            throw new RuntimeException('Import manuel impossible: saisis un product_id fournisseur ou un lien produit fournisseur.');
         }
 
         $result = $this->callRestEndpoint($account, '/eco/buyer/product/description', [
@@ -1351,7 +1351,7 @@ class AliExpressOpenPlatformService
         $product = $this->mapAlibabaBuyerDescriptionToProduct($result['responseBody'], $identifier, $supplementalData, $categoryId);
 
         if (! $result['ok'] || ! $this->isSuccessfulOperation($result['responseBody']) || $product === null) {
-            throw new RuntimeException($this->extractOperationMessage($result['responseBody']) ?? 'Produit Alibaba introuvable via eco/buyer/product/description.');
+            throw new RuntimeException($this->extractOperationMessage($result['responseBody']) ?? 'Produit fournisseur introuvable via eco/buyer/product/description.');
         }
 
         return [
@@ -1428,7 +1428,7 @@ class AliExpressOpenPlatformService
         }
 
         $image = $this->extractAlibabaBuyerImage($item);
-        $title = $this->getString($item['title'] ?? null) ?? 'Produit Alibaba '.$sourceProductId;
+        $title = $this->getString($item['title'] ?? null) ?? 'Produit fournisseur '.$sourceProductId;
         $price = $this->toFloat($item['price'] ?? $item['original_price'] ?? 0);
         $product = [
             'sourceProductId' => $sourceProductId,
@@ -1440,22 +1440,22 @@ class AliExpressOpenPlatformService
             'keywords' => array_values(array_filter([$query])),
             'image' => $image,
             'gallery' => array_values(array_unique(array_filter([$image]))),
-            'packaging' => 'Selon fournisseur Alibaba',
+            'packaging' => 'Selon fournisseur',
             'itemWeightGrams' => 0,
             'lotCbm' => '0',
             'minUsd' => $price,
             'maxUsd' => null,
             'moq' => 1,
             'unit' => 'Piece',
-            'supplierName' => 'Alibaba Supplier',
-            'supplierLocation' => 'Alibaba.com',
+            'supplierName' => 'Fournisseur partenaire',
+            'supplierLocation' => 'Plateforme partenaire',
             'responseTime' => '24h',
             'yearsInBusiness' => 1,
-            'transactionsLabel' => 'Alibaba.com',
-            'soldLabel' => $this->getString($item['sold_quantity'] ?? null) ? ((string) $item['sold_quantity']).' vendu(s)' : 'Catalogue Alibaba',
+            'transactionsLabel' => 'Plateforme partenaire',
+            'soldLabel' => $this->getString($item['sold_quantity'] ?? null) ? ((string) $item['sold_quantity']).' vendu(s)' : 'Catalogue partenaire',
             'customizationLabel' => 'Selon fournisseur',
-            'shippingLabel' => 'Fret Alibaba a calculer',
-            'overview' => ['Produit trouve via Alibaba Buyer Sourcing API.'],
+            'shippingLabel' => 'Fret fournisseur a calculer',
+            'overview' => ['Produit trouve via le flux buyer fournisseur.'],
             'variantGroups' => [],
             'variantPricing' => [],
             'variantSkus' => [],
@@ -1495,7 +1495,7 @@ class AliExpressOpenPlatformService
             return null;
         }
 
-        $title = $this->getString($record['title'] ?? null) ?? 'Produit Alibaba '.$sourceProductId;
+        $title = $this->getString($record['title'] ?? null) ?? 'Produit fournisseur '.$sourceProductId;
         $skus = is_array($record['skus'] ?? null) ? $record['skus'] : [];
         $firstSku = is_array($skus[0] ?? null) ? $skus[0] : [];
         $price = $this->extractAlibabaBuyerDescriptionPrice($record, $firstSku);
@@ -1567,7 +1567,7 @@ class AliExpressOpenPlatformService
             array_values(array_filter([$this->getString($record['category'] ?? null), $query]))
         ))));
         $overview = array_values(array_filter([
-            'Produit charge via Get Product Description Alibaba.',
+            'Produit charge via Get Product Description fournisseur.',
             $certificates !== [] ? count($certificates).' certificat(s) fournisseur remonte(s).' : null,
             $inventoryByOrigin !== [] ? 'Inventaire multi-origine remonte via eco/buyer/product/inventory.' : null,
             $icbuProduct !== [] ? 'Detail ICBU vendeur remonte via /icbu/product/get.' : null,
@@ -1578,7 +1578,7 @@ class AliExpressOpenPlatformService
             $this->getString($icbuStatusV2['status'] ?? null) !== null ? 'Statut seller v2 '.$icbuStatusV2['status'].'.' : null,
             $this->getString($predictedCategory['categoryName'] ?? null) !== null ? 'Categorie predite '.$predictedCategory['categoryName'].'.' : null,
             $this->getString($icbuVideo['status'] ?? null) !== null ? 'Video seller '.$icbuVideo['status'].'.' : null,
-            ($warehouseSummary['total'] ?? 0) > 0 ? 'Entrepots Alibaba '.(int) $warehouseSummary['total'].'.' : null,
+            ($warehouseSummary['total'] ?? 0) > 0 ? 'Entrepots fournisseur '.(int) $warehouseSummary['total'].'.' : null,
             ($ggsWarehouseSummary['total'] ?? 0) > 0 ? 'Entrepots GGS '.(int) $ggsWarehouseSummary['total'].'.' : null,
         ]));
 
@@ -1596,22 +1596,22 @@ class AliExpressOpenPlatformService
             'image' => $image ?? '/globe.svg',
             'gallery' => $gallery,
             'videoUrl' => $this->getString($icbuVideo['videoUrl'] ?? null) ?? $this->getString($record['video_url'] ?? null),
-            'packaging' => $this->getString($icbuProduct['sourcing_trade']['packaging_desc'] ?? $record['wholesale_trade']['package_size'] ?? null) ?? 'Selon fournisseur Alibaba',
+            'packaging' => $this->getString($icbuProduct['sourcing_trade']['packaging_desc'] ?? $record['wholesale_trade']['package_size'] ?? null) ?? 'Selon fournisseur',
             'itemWeightGrams' => (int) round($this->toFloat($icbuProduct['wholesale_trade']['weight'] ?? $record['wholesale_trade']['weight'] ?? 0) * 1000),
             'lotCbm' => '0',
             'minUsd' => $price,
             'maxUsd' => $this->nullableFloat($icbuProduct['sourcing_trade']['fob_max_price'] ?? null),
             'moq' => max(1, $this->toInt($icbuProduct['sourcing_trade']['min_order_quantity_sourcing'] ?? $icbuProduct['wholesale_trade']['min_order_quantity'] ?? $record['min_order_quantity'] ?? $record['wholesale_trade']['min_order_quantity'] ?? 1)),
             'unit' => $this->getString($icbuProduct['sourcing_trade']['min_order_unit_type'] ?? $firstSku['unit'] ?? $record['wholesale_trade']['unit_type'] ?? null) ?? 'Piece',
-            'supplierName' => $this->getString($icbuProduct['owner_member_display_name'] ?? $record['supplier'] ?? null) ?? 'Alibaba Supplier',
-            'supplierLocation' => 'Alibaba.com',
+            'supplierName' => $this->getString($icbuProduct['owner_member_display_name'] ?? $record['supplier'] ?? null) ?? 'Fournisseur partenaire',
+            'supplierLocation' => 'Plateforme partenaire',
             'supplierCompanyId' => $this->getString($icbuProduct['owner_member'] ?? $record['eCompanyId'] ?? null),
             'responseTime' => '24h',
             'yearsInBusiness' => 1,
-            'transactionsLabel' => 'Alibaba.com',
-            'soldLabel' => $this->getString($icbuProduct['status'] ?? null) ? 'Statut '.(string) $icbuProduct['status'] : 'Catalogue Alibaba',
+            'transactionsLabel' => 'Plateforme partenaire',
+            'soldLabel' => $this->getString($icbuProduct['status'] ?? null) ? 'Statut '.(string) $icbuProduct['status'] : 'Catalogue partenaire',
             'customizationLabel' => 'Selon fournisseur',
-            'shippingLabel' => 'Fret Alibaba a calculer',
+            'shippingLabel' => 'Fret fournisseur a calculer',
             'overview' => $overview,
             'variantGroups' => [],
             'variantPricing' => [],
@@ -1880,14 +1880,14 @@ class AliExpressOpenPlatformService
         $dispatchLocation = strtoupper(trim((string) ($product['dispatchLocation'] ?? $account['defaultDispatchLocation'] ?? env('ALIBABA_DISPATCH_LOCATION', 'CN'))));
         $sourceProductId = (string) ($product['sourceProductId'] ?? '');
         if ($sourceProductId === '') {
-            throw new RuntimeException('product_id Alibaba manquant pour creer la commande BuyNow.');
+            throw new RuntimeException('product_id fournisseur manquant pour creer la commande BuyNow.');
         }
 
         $skuId = $this->extractSkuIdFromVariantSkus($product['variantSkus'] ?? null)
             ?? $this->extractSkuId($product['rawPayload'] ?? null)
             ?? $this->getString($product['skuId'] ?? null);
         if ($skuId === null) {
-            throw new RuntimeException('sku_id Alibaba introuvable pour cet article. Reimporte le produit puis relance le lot.');
+            throw new RuntimeException('sku_id fournisseur introuvable pour cet article. Reimporte le produit puis relance le lot.');
         }
 
         $shipmentAddress = [
@@ -1924,7 +1924,7 @@ class AliExpressOpenPlatformService
 
         if ($carrierCode === null || trim((string) $carrierCode) === '') {
             $message = $this->extractOperationMessage($freightResult['responseBody']);
-            throw new RuntimeException($message !== null ? "Verification livraison Alibaba impossible: {$message}" : "Aucune option de livraison Alibaba n'a ete retournee pour ce lot.");
+            throw new RuntimeException($message !== null ? "Verification livraison fournisseur impossible: {$message}" : "Aucune option de livraison fournisseur n'a ete retournee pour ce lot.");
         }
 
         $buyNowPayload = [

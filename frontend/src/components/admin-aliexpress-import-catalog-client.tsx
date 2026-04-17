@@ -466,7 +466,7 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
       if (!response.ok || !payload) {
         setSearchState(null);
         setSelectedPreviewIds([]);
-        setErrorMessage(payload?.message ?? "Recherche catalogue Alibaba impossible.");
+        setErrorMessage(payload?.message ?? "Recherche catalogue fournisseur impossible.");
         setIsSearching(false);
         return;
       }
@@ -476,12 +476,12 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
       setSearchState(payload);
       setSelectedPreviewIds([]);
       setIsSearching(false);
-      setFeedback(`${visibleCount} produit(s) Alibaba visibles sur ${payload.totalCount} resultat(s).`);
+      setFeedback(`${visibleCount} produit(s) fournisseur visibles sur ${payload.totalCount} resultat(s).`);
       return;
     } catch (error) {
       setSearchState(null);
       setSelectedPreviewIds([]);
-      setErrorMessage(error instanceof Error && error.message ? error.message : "Recherche catalogue Alibaba impossible.");
+      setErrorMessage(error instanceof Error && error.message ? error.message : "Recherche catalogue fournisseur impossible.");
       setIsSearching(false);
       return;
     }
@@ -495,7 +495,7 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
     }
 
     if (!importSupplierAccount || importSupplierAccount.status !== "connected") {
-      setErrorMessage("Choisis d'abord un compte Alibaba connecte pour importer.");
+      setErrorMessage("Choisis d'abord un compte fournisseur connecte pour importer.");
       return;
     }
 
@@ -546,7 +546,7 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
     if (failures.length > 0) {
       setErrorMessage(`Import termine avec ${failures.length} echec(s). ${failures.slice(0, 3).join(" | ")}`);
     } else {
-      setFeedback(`${importedCount} produit(s) importe(s) depuis Alibaba.`);
+      setFeedback(`${importedCount} produit(s) importe(s) depuis la plateforme fournisseur.`);
     }
 
     setSelectedPreviewIds([]);
@@ -703,7 +703,7 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
       return;
     }
 
-    setFeedback(alreadyShared ? "Buyer Item mis a jour sur Alibaba." : "Buyer Item partage sur Alibaba.");
+    setFeedback(alreadyShared ? "Buyer Item mis a jour sur la plateforme fournisseur." : "Buyer Item partage sur la plateforme fournisseur.");
     refresh();
   };
 
@@ -727,7 +727,7 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
   };
 
   const deleteBuyerItem = async (importedProductId: string) => {
-    if (!window.confirm("Retirer cet article partage de Alibaba Buyer ?")) {
+    if (!window.confirm("Retirer cet article partage du buyer fournisseur ?")) {
       return;
     }
 
@@ -745,7 +745,7 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
       return;
     }
 
-    setFeedback("Buyer Item retire de Alibaba.");
+    setFeedback("Buyer Item retire de la plateforme fournisseur.");
     refresh();
   };
 
@@ -775,13 +775,13 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
     }
 
     setFeedback(payload?.order?.payUrl
-      ? "Lot d'achat cree. Ouvre maintenant le lien de paiement Alibaba."
+      ? "Lot d'achat cree. Ouvre maintenant le lien de paiement fournisseur."
       : "Lot d'achat cree en brouillon ou sans lien de paiement.");
     refresh();
   };
 
   const managePurchaseOrder = async (orderId: string, action: "pay" | "refresh" | "cancel") => {
-    if (action === "cancel" && !window.confirm("Annuler cette commande Alibaba ?")) {
+    if (action === "cancel" && !window.confirm("Annuler cette commande fournisseur ?")) {
       return;
     }
 
@@ -805,9 +805,9 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
     }
 
     if (action === "cancel") {
-      setFeedback("Commande Alibaba annulee.");
+      setFeedback("Commande fournisseur annulee.");
     } else if (action === "pay" && payload?.order?.payUrl) {
-      setFeedback("Paiement fournisseur mis a jour. Utilise le lien de paiement Alibaba si necessaire.");
+      setFeedback("Paiement fournisseur mis a jour. Utilise le lien de paiement fournisseur si necessaire.");
     } else if (action === "pay") {
       setFeedback("Paiement fournisseur lance ou recontrole.");
     } else {
@@ -823,13 +823,13 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
           <div className="max-w-[840px]">
             <div className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-[12px] font-black uppercase tracking-[0.18em] text-[#d85c14] shadow-[0_8px_20px_rgba(15,23,42,0.06)]">
               <Sparkles className="h-4 w-4" />
-              Alibaba catalogue search
+              Recherche catalogue fournisseur
             </div>
             <h1 className="mt-4 max-w-[720px] text-[30px] font-black tracking-[-0.05em] text-[#101828] sm:text-[36px]">
-              Recherche, previsualisation et import cible des produits Alibaba
+              Recherche, previsualisation et import cible des produits fournisseur
             </h1>
             <p className="mt-3 max-w-[760px] text-[14px] leading-7 text-[#475467]">
-              La page d'import passe maintenant par une etape claire: tu recherches les produits Alibaba, tu vois lesquels sont reellement importables apres verification detail produit, puis tu importes seulement les fiches choisies.
+              La page d'import passe maintenant par une etape claire: tu recherches les produits fournisseur, tu vois lesquels sont reellement importables apres verification detail produit, puis tu importes seulement les fiches choisies.
             </p>
             <div className="mt-5 flex flex-wrap gap-3 text-[13px] font-semibold text-[#344054]">
               <div className="rounded-[16px] bg-white px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.06)]">{formatCount(initialDashboard.stats.importedCount)} produits importes</div>
@@ -866,7 +866,7 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
             <div>
               <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85c14]">Recherche fournisseur</div>
               <h2 className="mt-2 text-[24px] font-black tracking-[-0.05em] text-[#101828]">Parametres exacts fournisseur</h2>
-              <p className="mt-2 text-[13px] leading-6 text-[#667085]">La recherche live utilise Alibaba Buyer Sourcing via `/eco/buyer/product/search`, puis chaque article est enrichi via `/eco/buyer/product/description` avant import. Pour l'import, le pays de livraison est verrouille sur la Chine.</p>
+              <p className="mt-2 text-[13px] leading-6 text-[#667085]">La recherche live utilise le flux buyer via `/eco/buyer/product/search`, puis chaque article est enrichi via `/eco/buyer/product/description` avant import. Pour l'import, le pays de livraison est verrouille sur la Chine.</p>
             </div>
             <button
               type="button"
@@ -1006,9 +1006,9 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
       <section className="rounded-[24px] border border-[#e3e8f2] bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)] sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85c14]">Resultats Alibaba</div>
+            <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85c14]">Resultats fournisseur</div>
             <h2 className="mt-2 text-[24px] font-black tracking-[-0.05em] text-[#101828]">Previsualisation avant import</h2>
-            <p className="mt-2 text-[13px] leading-6 text-[#667085]">Chaque carte provient du catalogue Alibaba puis est controlee avant import pour savoir si elle reste exploitable.</p>
+            <p className="mt-2 text-[13px] leading-6 text-[#667085]">Chaque carte provient du catalogue fournisseur puis est controlee avant import pour savoir si elle reste exploitable.</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -1076,7 +1076,7 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
                       <div className="mt-4 grid grid-cols-2 gap-2 text-[12px] text-[#475467]">
                         <div className="rounded-[14px] bg-[#f8fafc] px-3 py-2">Commandes<br /><span className="font-semibold text-[#101828]">{item.orders ?? "-"}</span></div>
                         <div className="rounded-[14px] bg-[#f8fafc] px-3 py-2">Evaluation<br /><span className="font-semibold text-[#101828]">{item.evaluateRate ?? item.score ?? "-"}</span></div>
-                        <div className="rounded-[14px] bg-[#f8fafc] px-3 py-2">Fournisseur<br /><span className="font-semibold text-[#101828]">{item.product?.supplierName ?? "Alibaba"}</span></div>
+                        <div className="rounded-[14px] bg-[#f8fafc] px-3 py-2">Fournisseur<br /><span className="font-semibold text-[#101828]">{item.product?.supplierName ?? "Source partenaire"}</span></div>
                         <div className="rounded-[14px] bg-[#f8fafc] px-3 py-2">MOQ / Stock<br /><span className="font-semibold text-[#101828]">{item.product ? `${item.product.moq} / ${formatCount(item.product.inventory)}` : "-"}</span></div>
                       </div>
 

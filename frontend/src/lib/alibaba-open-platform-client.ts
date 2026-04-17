@@ -3025,7 +3025,7 @@ export async function getAlibabaIcbuProduct(input: {
   bizModel?: string;
 }) {
   if (!input.productId && !input.skuId) {
-    throw new Error("product_id ou sku_id est obligatoire pour lire un produit Alibaba.");
+    throw new Error("product_id ou sku_id est obligatoire pour lire un produit fournisseur.");
   }
 
   const credentials = await resolveAlibabaCredentialsForLiveCall();
@@ -3358,7 +3358,7 @@ function mapAlibabaSearchResultToProduct(raw: Record<string, unknown>, query: st
     ?? getStringValue(raw.supplier_name)
     ?? getStringValue(raw.seller_name)
     ?? getStringValue(raw.company)
-    ?? "Fournisseur Alibaba";
+    ?? "Fournisseur partenaire";
   const supplierLocation = getStringValue(raw.country)
     ?? getStringValue(raw.country_code)
     ?? getStringValue(raw.supplier_country)
@@ -3406,13 +3406,13 @@ function mapAlibabaSearchResultToProduct(raw: Record<string, unknown>, query: st
     maxUsd,
     moq,
     unit,
-    badge: "Alibaba Import",
+    badge: "Import fournisseur",
     supplierName,
     supplierLocation,
     supplierCompanyId,
     responseTime: getStringValue(raw.response_time) ?? "Sous 24 h",
     yearsInBusiness: Math.round(getNumberValue(raw.years_in_business, raw.yearsInBusiness) ?? 1),
-    transactionsLabel: getStringValue(raw.transactions_label) ?? "Alibaba live",
+    transactionsLabel: getStringValue(raw.transactions_label) ?? "Catalogue live",
     soldLabel: getStringValue(raw.sold_label) ?? `MOQ ${moq} ${unit}`,
     customizationLabel: getStringValue(raw.customization_label) ?? "Selon fiche fournisseur",
     shippingLabel: getStringValue(raw.shipping_label) ?? "Transport a configurer",
@@ -3515,13 +3515,13 @@ function mapAlibabaIcbuProductToProduct(raw: Record<string, unknown>, query: str
     maxUsd,
     moq,
     unit,
-    badge: "Alibaba ICBU",
-    supplierName: "Catalogue vendeur Alibaba",
+    badge: "Catalogue ICBU",
+    supplierName: "Catalogue vendeur partenaire",
     supplierLocation: getStringValue(basicInfo.language) ?? "en_US",
     supplierCompanyId: getStringValue(basicInfo.owner_ali_id),
     responseTime: "Catalogue deja liste",
     yearsInBusiness: 1,
-    transactionsLabel: getStringValue(basicInfo.status) ?? "Alibaba listing",
+    transactionsLabel: getStringValue(basicInfo.status) ?? "Listing fournisseur",
     soldLabel: getStringValue(skuInfo[0]?.sku_code) ?? `MOQ ${moq}`,
     customizationLabel: getStringValue(basicInfo.audit_status) ?? "Selon fiche fournisseur",
     shippingLabel: getStringValue(logisticsInfo.shipping_template_id) ? `Template ${getStringValue(logisticsInfo.shipping_template_id)}` : "Transport a configurer",
@@ -3592,7 +3592,7 @@ async function searchAlibabaIcbuProducts(input: {
           products: [] as AlibabaSearchProduct[],
           errorMessage: message
             ? `La recherche catalogue Alibaba ICBU a echoue: ${message}`
-            : "La recherche catalogue Alibaba ICBU a echoue.",
+            : "La recherche catalogue fournisseur ICBU a echoue.",
         };
       }
 
@@ -3888,7 +3888,7 @@ async function callAlibabaMultipartEndpoint(input: {
 async function refreshAlibabaAccountTokens(account: AlibabaSupplierAccount) {
   const credentials = getAccountCredentials(account);
   if (!credentials?.refreshToken) {
-    throw new Error("Aucun refresh token Alibaba disponible.");
+    throw new Error("Aucun refresh token fournisseur disponible.");
   }
 
   const refreshUrl = account.refreshUrl || credentials.refreshUrl;
@@ -5986,7 +5986,7 @@ export async function createAlibabaIcbuProductListing(input: {
   aiOptimizationConfig?: AlibabaAiOptimizationConfig;
 }) {
   if (!isRecord(input.productInfo) || Object.keys(input.productInfo).length === 0) {
-    throw new Error("product_info est obligatoire pour creer une fiche Alibaba.");
+    throw new Error("product_info est obligatoire pour creer une fiche fournisseur.");
   }
 
   return callAlibabaEndpoint("/alibaba/icbu/product/listing/v2", {
@@ -6530,7 +6530,7 @@ export function normalizeAlibabaBuyerAddressOptions(responseBody: unknown): Alib
 
 export async function editAlibabaIcbuProductPrice(input: AlibabaEditProductPriceInput) {
   if (!String(input.productId).trim()) {
-    throw new Error("product_id est obligatoire pour modifier le prix Alibaba.");
+    throw new Error("product_id est obligatoire pour modifier le prix fournisseur.");
   }
 
   if ((!input.price || Object.keys(input.price).length === 0) && (!input.skuPrice || input.skuPrice.length === 0)) {
@@ -6554,7 +6554,7 @@ export async function updateAlibabaIcbuProduct(input: {
   productInfo: Record<string, unknown>;
 }) {
   if (!isRecord(input.productInfo) || Object.keys(input.productInfo).length === 0) {
-    throw new Error("product_info est obligatoire pour mettre a jour une fiche Alibaba.");
+    throw new Error("product_info est obligatoire pour mettre a jour une fiche fournisseur.");
   }
 
   return callAlibabaEndpoint("/alibaba/icbu/product/update/v2", {
@@ -6566,15 +6566,15 @@ export async function updateAlibabaIcbuProduct(input: {
 
 export async function calculateAlibabaBasicFreight(input: AlibabaBasicFreightInput) {
   if (!String(input.destinationCountry).trim()) {
-    throw new Error("destination_country est obligatoire pour estimer le fret Alibaba.");
+    throw new Error("destination_country est obligatoire pour estimer le fret fournisseur.");
   }
 
   if (!String(input.productId).trim()) {
-    throw new Error("product_id est obligatoire pour estimer le fret Alibaba.");
+    throw new Error("product_id est obligatoire pour estimer le fret fournisseur.");
   }
 
   if (!String(input.quantity).trim()) {
-    throw new Error("quantity est obligatoire pour estimer le fret Alibaba.");
+    throw new Error("quantity est obligatoire pour estimer le fret fournisseur.");
   }
 
   const credentials = await resolveAlibabaCredentialsForLiveCall();
@@ -6608,7 +6608,7 @@ export async function calculateAlibabaBasicFreight(input: AlibabaBasicFreightInp
 
 export async function calculateAlibabaAdvancedFreight(input: AlibabaAdvancedFreightInput) {
   if (!String(input.destinationCountry).trim()) {
-    throw new Error("destination_country est obligatoire pour le calcul avance du fret Alibaba.");
+    throw new Error("destination_country est obligatoire pour le calcul avance du fret fournisseur.");
   }
 
   if (!Array.isArray(input.logisticsProductList) || input.logisticsProductList.length === 0) {
@@ -6637,7 +6637,7 @@ export async function calculateAlibabaAdvancedFreight(input: AlibabaAdvancedFrei
   }
 
   if (!String(input.eCompanyId).trim()) {
-    throw new Error("e_company_id est obligatoire pour le calcul avance du fret Alibaba.");
+    throw new Error("e_company_id est obligatoire pour le calcul avance du fret fournisseur.");
   }
 
   return callAlibabaEndpoint("/order/freight/calculate", {
@@ -6776,7 +6776,7 @@ export function normalizeAlibabaMergePayGroups(responseBody: unknown): AlibabaMe
 
 export async function queryAlibabaOrderLogisticsTracking(input: { tradeId: string | number; language?: string }) {
   if (!String(input.tradeId).trim()) {
-    throw new Error("trade_id est obligatoire pour lire le suivi logistique Alibaba.");
+    throw new Error("trade_id est obligatoire pour lire le suivi logistique fournisseur.");
   }
 
   const credentials = await resolveAlibabaCredentialsForLiveCall();
@@ -6803,7 +6803,7 @@ export async function uploadAlibabaOrderAttachment(input: {
 }) {
   const normalizedName = String(input.fileName).trim();
   if (!normalizedName) {
-    throw new Error("file_name est obligatoire pour envoyer une piece jointe Alibaba.");
+    throw new Error("file_name est obligatoire pour envoyer une piece jointe fournisseur.");
   }
 
   if (!/\.(jpg|jpeg|png|pdf|doc)$/i.test(normalizedName)) {
@@ -6812,11 +6812,11 @@ export async function uploadAlibabaOrderAttachment(input: {
 
   const fileBytes = input.data instanceof Uint8Array ? input.data : new Uint8Array(input.data);
   if (fileBytes.byteLength === 0) {
-    throw new Error("Le fichier Alibaba est vide.");
+    throw new Error("Le fichier fournisseur est vide.");
   }
 
   if (fileBytes.byteLength > 5 * 1024 * 1024) {
-    throw new Error("Le fichier depasse la limite Alibaba de 5 MB.");
+    throw new Error("Le fichier depasse la limite fournisseur de 5 MB.");
   }
 
   return callAlibabaMultipartEndpoint({
@@ -6943,7 +6943,7 @@ export function normalizeAlibabaLogisticsTracking(responseBody: unknown): Alibab
 
 export async function cancelAlibabaOrder(input: { tradeId: string | number }) {
   if (!String(input.tradeId).trim()) {
-    throw new Error("trade_id est obligatoire pour annuler une commande Alibaba.");
+    throw new Error("trade_id est obligatoire pour annuler une commande fournisseur.");
   }
 
   return callAlibabaEndpoint("/alibaba/order/cancel", {
@@ -6983,7 +6983,7 @@ export async function createAlibabaDropshippingPayment(input: {
     : undefined;
 
   if (!paymentRequest && !String(input.tradeId ?? "").trim()) {
-    throw new Error("tradeId ou paymentRequest est obligatoire pour le paiement dropshipping Alibaba.");
+    throw new Error("tradeId ou paymentRequest est obligatoire pour le paiement dropshipping fournisseur.");
   }
 
   return callAlibabaEndpoint("/alibaba/dropshipping/order/pay", {
@@ -7071,7 +7071,7 @@ export async function exchangeAlibabaOAuthCode(input: { accountId: string; code:
   }
 
   if (!account || !credentials) {
-    throw new Error("Compte Alibaba introuvable ou incomplet. Verifie la persistance des comptes (DB ou Vercel Blob) et reconnecte le compte.");
+    throw new Error("Compte fournisseur introuvable ou incomplet. Verifie la persistance des comptes (DB ou Vercel Blob) et reconnecte le compte.");
   }
 
   const tokenUrl = account.tokenUrl || credentials.tokenUrl;
@@ -7179,7 +7179,7 @@ export async function refreshAlibabaOAuthAccessToken(input?: { accountId?: strin
       ?? null;
 
   if (!account?.refreshToken) {
-    throw new Error("Aucun refresh token Alibaba disponible.");
+    throw new Error("Aucun refresh token fournisseur disponible.");
   }
 
   return refreshAlibabaAccountTokens(account);
@@ -7546,7 +7546,7 @@ export async function createAlibabaSupplierOrders(order: SourcingOrder, mappings
         requestOk: false,
         responseBody: {
           code: "missing_carrier_code",
-          message: "Aucun transporteur valide n'a ete retourne par la verification fret Alibaba pour ce fournisseur.",
+          message: "Aucun transporteur valide n'a ete retourne par la verification fret fournisseur pour ce fournisseur.",
         },
       });
       await createAlibabaIntegrationLog({
@@ -7560,7 +7560,7 @@ export async function createAlibabaSupplierOrders(order: SourcingOrder, mappings
         },
         responseBody: {
           code: "missing_carrier_code",
-          message: "Aucun transporteur valide n'a ete retourne par la verification fret Alibaba pour ce fournisseur.",
+          message: "Aucun transporteur valide n'a ete retourne par la verification fret fournisseur pour ce fournisseur.",
         },
       });
       supplierOrderStatus = "failed";
@@ -7623,7 +7623,7 @@ export async function createAlibabaSupplierOrders(order: SourcingOrder, mappings
       requestOk: false,
       responseBody: {
         code: "missing_trade_id",
-        message: "Alibaba n'a retourne aucun trade_id apres la creation de la commande fournisseur.",
+        message: "La plateforme fournisseur n'a retourne aucun trade_id apres la creation de la commande fournisseur.",
       },
     });
   }

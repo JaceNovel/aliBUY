@@ -8,7 +8,6 @@ import { useEffect, useRef, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
 import { PaymentMethodIcon } from "@/components/payment-method-icon";
-import { isEuropeanUnionCountry, isSupportedDirectDeliveryCountry } from "@/lib/alibaba-sourcing";
 import { getStorefrontMoqDisplay } from "@/lib/product-moq";
 import { CURRENCY_CONFIG, type CurrencyCode } from "@/lib/pricing-options";
 import { resolveProductPriceSummaryUsd, resolveProductUnitPriceUsd, resolveVariantSku } from "@/lib/product-variant-pricing";
@@ -178,10 +177,8 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const [isFavorite, setIsFavorite] = useState(initialIsFavorite ?? false);
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
-  const [shippingSelectionPulse, setShippingSelectionPulse] = useState<"air" | "sea" | null>(null);
   const [isCartAnimating, setIsCartAnimating] = useState(false);
   const [cartToastVisible, setCartToastVisible] = useState(false);
-  const [shippingMethod, setShippingMethod] = useState<"air" | "sea" | null>(null);
   const [orderQuantity, setOrderQuantity] = useState(Math.max(product.moq, 1));
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
   const touchStartXRef = useRef<number | null>(null);
@@ -375,8 +372,6 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     variantPricing: product.variantPricing,
   };
   const totalSelectedQuantity = orderQuantity;
-  const totalWeightKg = (product.itemWeightGrams * totalSelectedQuantity) / 1000;
-  const exceedsSeaThreshold = product.itemWeightGrams > 0 && totalWeightKg > 5;
   const modalSelections = Object.fromEntries(
     product.variantGroups.flatMap((group) => {
       const value = resolveVariantGroupSelection(group);
@@ -395,11 +390,11 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const hasAllRequiredVariantSelections = missingVariantGroups.length === 0;
   const currentPriceSummary = resolveProductPriceSummaryUsd(productWithNormalizedTiers, {
     quantity: totalSelectedQuantity,
-    selection: previewSelection,
+    selection: selectedVariants,
   });
   const currentUnitPrice = resolveProductUnitPriceUsd(productWithNormalizedTiers, {
     quantity: totalSelectedQuantity,
-    selection: previewSelection,
+    selection: selectedVariants,
   });
   const subtotal = currentUnitPrice * totalSelectedQuantity;
   const subtotalRange = {
@@ -418,52 +413,12 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const promoSavingsLabel = formatMoney(promoSavingsUsd);
   const promoThresholdUsd = Math.max(15, Math.ceil((promoCurrentMinUsd * 1.9) / 5) * 5);
   const promoThresholdLabel = formatMoney(promoThresholdUsd);
-  const freeShippingThresholdLabel = new Intl.NumberFormat(product.locale, {
-    style: "currency",
-    currency: "XOF",
-    maximumFractionDigits: 0,
-  }).format(20000);
-  const supportsDirectAliExpressDelivery = isSupportedDirectDeliveryCountry(product.countryCode);
-  const supportsEuropeanDirectDelivery = supportsDirectAliExpressDelivery && isEuropeanUnionCountry(product.countryCode);
-  const shippingChoices = supportsEuropeanDirectDelivery
-    ? [
-        {
-          key: "air" as const,
-          title: "Express",
-          description: "Livraison rapide à domicile avec suivi prioritaire.",
-          feeLabel: "+2,99 €",
-          summaryLabel: "Express (+2,99 €)",
-        },
-        {
-          key: "sea" as const,
-          title: "Standard",
-          description: "Livraison standard offerte pour les destinations européennes.",
-          feeLabel: "Gratuit",
-          summaryLabel: "Standard (Gratuit)",
-        },
-      ]
-    : [
-        {
-          key: "air" as const,
-          title: "Avion",
-          description: "Transport aérien pour les colis urgents ou de faible poids.",
-          feeLabel: "Rapide",
-          summaryLabel: "Avion",
-        },
-        {
-          key: "sea" as const,
-          title: "Bateau",
-          description: "Transport maritime mieux adapté aux commandes lourdes et aux gros volumes.",
-          feeLabel: "Économique",
-          summaryLabel: "Bateau",
-        },
-      ];
-  const selectedShippingChoice = shippingChoices.find((option) => option.key === shippingMethod) ?? null;
   const moqDisplay = getStorefrontMoqDisplay(product);
+  const variantSummary = product.variantGroups.length > 0 ? `${product.variantGroups.length} option${product.variantGroups.length > 1 ? "s" : ""}` : "Aucune";
   const offerMetrics = [
     { label: "Ventes", value: product.soldLabel },
     { label: moqDisplay.label, value: moqDisplay.value },
-    { label: "Expédition", value: displayShippingLabel },
+    { label: "Variantes", value: variantSummary },
     { label: "Personnalisation", value: product.customizationLabel },
   ];
   const supplierMetrics = [
@@ -478,35 +433,23 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       description: product.overview[1] ?? "Assistance AfriPay dédiée avant et après validation.",
     },
     {
-      title: "Logistique cadrée",
-      description: `Livraison gratuite dès ${freeShippingThresholdLabel} selon le poids et la zone.`,
+      title: "Transport au panier",
+      description: "Le mode de livraison est choisi au panier selon le poids et le volume du produit.",
     },
     {
       title: "Sélection fiable",
       description: product.shippingLabel || "Produit importé avec contrôle des informations clés.",
     },
   ];
-  const estimatedLeadTime = shippingMethod === "sea"
-    ? "4 à 8 semaines selon groupage"
-    : shippingMethod === "air"
-      ? "7 à 12 jours après validation"
-      : supportsDirectAliExpressDelivery
-        ? "Délais recalculés au checkout"
-        : "Choisissez avion ou bateau pour confirmer";
-  const customsRiskLabel = shippingMethod === "sea"
-    ? "Risque réduit avec passage hub AfriPay"
-    : shippingMethod === "air"
-      ? "Risque modéré, contrôle documentaire recommandé"
-      : "Risque à confirmer selon méthode";
   const verificationLabel = product.moqVerified
     ? `Vérification forte • MOQ confirmé • ${Math.max(product.yearsInBusiness, 3)}+ ans`
     : `Vérification standard • fournisseur ${Math.max(product.yearsInBusiness, 3)}+ ans`;
   const trustSignals = [
-    { label: "Délai estimé", value: estimatedLeadTime },
+    { label: "Délai estimé", value: "Confirmé au panier selon le transport retenu" },
     { label: "Poids colis", value: weightLabel },
     { label: "Origine", value: product.supplierLocation || "Chine" },
-    { label: "Livraison", value: selectedShippingChoice?.summaryLabel ?? "À choisir" },
-    { label: "Risque douane", value: customsRiskLabel },
+    { label: "Livraison", value: "Choix au panier" },
+    { label: "Risque douane", value: "Évalué au panier selon le mode choisi" },
     { label: "Niveau de vérification", value: verificationLabel },
   ];
 
@@ -566,7 +509,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     }
   };
 
-  const canSubmitOrder = totalSelectedQuantity > 0 && shippingMethod !== null && hasAllRequiredVariantSelections;
+  const canSubmitOrder = totalSelectedQuantity > 0 && hasAllRequiredVariantSelections;
   const buildOrderSelections = () => {
     return [{ quantity: orderQuantity, selectedVariants: modalSelections }];
   };
@@ -594,13 +537,6 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       }, 1800);
     });
   };
-  const triggerShippingSelectionAnimation = (method: "air" | "sea") => {
-    setShippingMethod(method);
-    setShippingSelectionPulse(method);
-    window.setTimeout(() => {
-      setShippingSelectionPulse((current) => (current === method ? null : current));
-    }, 420);
-  };
   const addSelectionToCart = () => {
     if (!canSubmitOrder) {
       return;
@@ -615,11 +551,6 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const validateSelectionBeforeOrder = () => {
     if (missingVariantGroups.length > 0) {
       triggerShareFeedback(`Choisissez d'abord : ${missingVariantGroups.map((group) => group.label).join(", ")}.`);
-      return false;
-    }
-
-    if (shippingMethod === null) {
-      triggerShareFeedback("Choisissez un mode de livraison avant d'ajouter au panier.");
       return false;
     }
 
@@ -958,37 +889,6 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 <ChevronRight className="h-4 w-4" />
               </div>
 
-              {product.variantGroups.length > 0 ? (
-                <div className="mt-6 max-w-[620px] border-t border-[#efefef] pt-5">
-                  {product.variantGroups.map((group) => (
-                    <div key={group.label} className="mb-5 last:mb-0">
-                      <div className="text-[15px] font-bold text-[#191919]">
-                        {group.label}: <span className="uppercase">{resolveVariantGroupSelection(group, true) || "A choisir"}</span>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {group.values.map((value) => {
-                          const isSelected = selectedVariants[group.label] === value;
-
-                          return (
-                            <button
-                              key={`${group.label}-${value}`}
-                              type="button"
-                              onClick={() => handleVariantPreviewSelection(group, value)}
-                              className={[
-                                "min-w-[76px] rounded-[8px] border bg-white px-3 py-2 text-[13px] font-medium transition",
-                                isSelected ? "border-[#ff6a00] bg-[#fff7ef] text-[#191919]" : "border-[#dcdcdc] text-[#241b15] hover:border-[#999]",
-                              ].join(" ")}
-                            >
-                              {value}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-
               <div className="mt-5 max-w-[620px] grid gap-2 sm:grid-cols-2">
                 {offerMetrics.map((metric) => (
                   <div key={metric.label} className="rounded-[8px] border border-[#ededed] bg-[#fafafa] px-3 py-3">
@@ -1016,14 +916,6 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-[#4caf50]">✓</div>
                       <div>
-                        <div className="text-[14px] font-semibold text-[#191919]">Livraison suivie</div>
-                        <div className="mt-1 text-[13px] text-[#666]">{selectedShippingChoice?.summaryLabel ?? product.shippingLabel}</div>
-                      </div>
-                      <ChevronRight className="ml-auto mt-0.5 h-4 w-4 text-[#888]" />
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5 text-[#4caf50]">✓</div>
-                      <div>
                         <div className="text-[14px] font-semibold text-[#191919]">Retour et securite</div>
                         <div className="mt-1 text-[13px] text-[#666]">Paiement traçable, suivi client et preuve logistique regroupés.</div>
                       </div>
@@ -1031,34 +923,39 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     </div>
                   </div>
 
-                  <div>
-                    <div className="text-[14px] font-semibold text-[#191919]">Livraison</div>
-                    <div className="mt-3 grid gap-2">
-                      {shippingChoices.map((option) => (
-                        <button
-                          key={option.key}
-                          type="button"
-                          onClick={() => triggerShippingSelectionAnimation(option.key)}
-                          className={[
-                            "rounded-[8px] border px-4 py-3 text-left transition duration-300",
-                            shippingMethod === option.key ? "border-[#ff6a00] bg-[#fff7ef] shadow-[0_10px_24px_rgba(255,106,0,0.14)]" : "border-[#e5e5e5] bg-white hover:border-[#999]",
-                            shippingSelectionPulse === option.key ? "scale-[1.02] -translate-y-0.5 shadow-[0_16px_34px_rgba(240,111,18,0.22)]" : "",
-                          ].join(" ")}
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="text-[15px] font-semibold text-[#221813]">{option.title}</div>
-                            <div className="text-[13px] font-bold text-[#f06f12]">{option.feeLabel}</div>
+                  {product.variantGroups.length > 0 ? (
+                    <div className="border-b border-[#efefef] pb-4">
+                      <div className="text-[14px] font-semibold text-[#191919]">Variantes</div>
+                      <div className="mt-3 space-y-4">
+                        {product.variantGroups.map((group) => (
+                          <div key={group.label}>
+                            <div className="text-[14px] font-semibold text-[#221813]">
+                              {group.label}: <span className="uppercase">{resolveVariantGroupSelection(group, true) || "A choisir"}</span>
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {group.values.map((value) => {
+                                const isSelected = selectedVariants[group.label] === value;
+
+                                return (
+                                  <button
+                                    key={`${group.label}-${value}`}
+                                    type="button"
+                                    onClick={() => handleVariantPreviewSelection(group, value)}
+                                    className={[
+                                      "min-w-[76px] rounded-[8px] border bg-white px-3 py-2 text-[13px] font-medium transition",
+                                      isSelected ? "border-[#ff6a00] bg-[#fff7ef] text-[#191919]" : "border-[#dcdcdc] text-[#241b15] hover:border-[#999]",
+                                    ].join(" ")}
+                                  >
+                                    {value}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
-                          <div className={["mt-1 text-[13px] text-[#706155] transition", shippingSelectionPulse === option.key ? "translate-x-0.5 text-[#4d4035]" : ""].join(" ")}>{option.description}</div>
-                        </button>
-                      ))}
-                    </div>
-                    {exceedsSeaThreshold && !supportsDirectAliExpressDelivery ? (
-                      <div className="mt-3 rounded-[12px] border border-[#f2d0b1] bg-[#fff4ea] px-4 py-3 text-[13px] font-medium text-[#d15f12]">
-                        Ce colis dépasse 5 kg, l’expédition maritime est recommandée.
+                        ))}
                       </div>
-                    ) : null}
-                  </div>
+                    </div>
+                  ) : null}
 
                   <div className="border-t border-[#efefef] pt-4">
                     <div className="text-[14px] font-semibold text-[#191919]">Quantité</div>
@@ -1075,7 +972,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     {selectedVariantSku?.skuCode || typeof selectedVariantSku?.inventory === "number" ? (
                       <div className="mt-3 rounded-[12px] border border-[#ececec] bg-[#fafafa] px-3 py-3 text-[12px] text-[#5f5145]">
                         {selectedVariantSku?.skuCode ? <div>SKU: <span className="font-semibold text-[#221813]">{selectedVariantSku.skuCode}</span></div> : null}
-                        {typeof selectedVariantSku?.inventory === "number" ? <div>Stock variant: <span className="font-semibold text-[#221813]">{selectedVariantSku.inventory}</span></div> : null}
+                        {typeof selectedVariantSku?.inventory === "number" ? <div>Stock variante: <span className="font-semibold text-[#221813]">{selectedVariantSku.inventory}</span></div> : null}
                       </div>
                     ) : null}
                   </div>
@@ -1085,12 +982,6 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                       Options à choisir : {missingVariantGroups.map((group) => group.label).join(", ")}
                     </div>
                   ) : null}
-                  {shippingMethod === null ? (
-                    <div className="rounded-[12px] border border-[#d9e2f2] bg-[#f7fbff] px-4 py-3 text-[13px] font-medium text-[#305b8a]">
-                      Choisissez un mode de livraison avant d&apos;acheter.
-                    </div>
-                  ) : null}
-
                   <div className="grid gap-3">
                     <button
                       type="button"

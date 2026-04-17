@@ -179,11 +179,11 @@ export async function fetchAlibabaRemoteExactProduct(input: AlibabaExactRemoteFe
   const normalizedQuery = input.query.trim();
   const directProductIdMatch = normalizedQuery.match(/(?:^|\D)(\d{12,20})(?:\D|$)/);
   if (!normalizedQuery) {
-    throw new Error("Import manuel impossible: saisis un External product ID Alibaba ou un lien produit fournisseur.");
+    throw new Error("Import manuel impossible: saisis un External product ID fournisseur ou un lien produit fournisseur.");
   }
 
   if (!directProductIdMatch?.[1]) {
-    throw new Error("Import manuel impossible: renseigne un External product ID Alibaba numerique valide ou un lien produit fournisseur contenant cet ID.");
+    throw new Error("Import manuel impossible: renseigne un External product ID fournisseur numerique valide ou un lien produit fournisseur contenant cet ID.");
   }
 
   const requestedProductId = directProductIdMatch[1];
@@ -248,11 +248,11 @@ function formatAlibabaOrderCreateFailure(errorCode?: string, errorMessage?: stri
   }
 
   if (code === "Item is not allowed to this country") {
-    return "Ce produit Alibaba n'est pas autorise a la vente pour le pays de destination choisi.";
+    return "Ce produit fournisseur n'est pas autorise a la vente pour le pays de destination choisi.";
   }
 
   if (code === "SKU_NOT_EXIST") {
-    return "Le SKU Alibaba de ce produit n'existe plus ou n'a pas ete transmis. Reimporte l'article pour resynchroniser ses variantes avant de relancer le lot fournisseur.";
+    return "Le SKU fournisseur de ce produit n'existe plus ou n'a pas ete transmis. Reimporte l'article pour resynchroniser ses variantes avant de relancer le lot fournisseur.";
   }
 
   if (code === "B_DROPSHIPPER_DELIVERY_ADDRESS_VALIDATE_FAIL") {
@@ -276,27 +276,27 @@ function formatAlibabaOrderCreateFailure(errorCode?: string, errorMessage?: stri
   }
 
   if (code === "DELIVERY_METHOD_NOT_EXIST") {
-    return "Aucune methode de livraison Alibaba valide n'est disponible pour cette adresse.";
+    return "Aucune methode de livraison fournisseur valide n'est disponible pour cette adresse.";
   }
 
   if (code === "PRICE_PAY_CURRENCY_ERROR") {
-    return "La devise de paiement Alibaba ne correspond pas a la devise du produit.";
+    return "La devise de paiement fournisseur ne correspond pas a la devise du produit.";
   }
 
   if (code === "INVENTORY_HOLD_ERROR") {
-    return "Alibaba a refuse la commande: stock insuffisant ou erreur de reservation d'inventaire.";
+    return "Le fournisseur a refuse la commande: stock insuffisant ou erreur de reservation d'inventaire.";
   }
 
   if (code === "REPEATED_ORDER_ERROR") {
-    return "Alibaba signale une commande dupliquee pour ce lot.";
+    return "Le fournisseur signale une commande dupliquee pour ce lot.";
   }
 
   if (code === "USER_ACCOUNT_DISABLED") {
-    return "Le compte Alibaba utilise pour le paiement fournisseur est desactive.";
+    return "Le compte fournisseur utilise pour le paiement fournisseur est desactive.";
   }
 
   if (code === "BLACKLIST_BUYER_IN_LIST") {
-    return "Le compte acheteur Alibaba est temporairement bloque pour cette commande.";
+    return "Le compte acheteur fournisseur est temporairement bloque pour cette commande.";
   }
 
   return [code, message].filter(Boolean).join(" - ") || "Lancement DS impossible";
@@ -312,7 +312,7 @@ function isAlibabaAutoPayFailure(errorMessage?: string) {
 
 function formatAlibabaAutoPayFailure(errorMessage?: string) {
   const details = String(errorMessage ?? "").trim();
-  const guidance = "Commande fournisseur creee, mais le paiement automatique a echoue. Verifie la whitelist auto-pay, le compte acheteur Alibaba et le moyen de paiement rattache au compte buyer.";
+  const guidance = "Commande fournisseur creee, mais le paiement automatique a echoue. Verifie la whitelist auto-pay, le compte acheteur fournisseur et le moyen de paiement rattache au compte buyer.";
   return details ? `${guidance} Detail: ${details}` : guidance;
 }
 
@@ -866,7 +866,7 @@ export async function upsertAlibabaSupplierAccountTokens(input: {
   const accounts = await getAlibabaSupplierAccounts();
   const existing = accounts.find((account) => account.id === input.accountId);
   if (!existing) {
-    throw new Error("Compte fournisseur Alibaba introuvable. En production, configure une persistance (DATABASE_URL ou BLOB_READ_WRITE_TOKEN) puis relance OAuth.");
+    throw new Error("Compte fournisseur introuvable. En production, configure une persistance (DATABASE_URL ou BLOB_READ_WRITE_TOKEN) puis relance OAuth.");
   }
 
   const nextAccount: AlibabaSupplierAccount = {
@@ -1144,11 +1144,11 @@ export async function runAlibabaCatalogImport(input: {
   const directProductIdMatch = normalizedQuery.match(/(?:^|\D)(\d{12,20})(?:\D|$)/);
   const manualDirectImport = Boolean(input.manualProductMode);
   if (manualDirectImport && !normalizedQuery) {
-    throw new Error("Import manuel impossible: saisis un External product ID Alibaba ou un lien produit fournisseur.");
+    throw new Error("Import manuel impossible: saisis un External product ID fournisseur ou un lien produit fournisseur.");
   }
 
   if (manualDirectImport && !directProductIdMatch?.[1]) {
-    throw new Error("Import manuel impossible: renseigne un External product ID Alibaba numerique valide ou un lien produit fournisseur contenant cet ID.");
+    throw new Error("Import manuel impossible: renseigne un External product ID fournisseur numerique valide ou un lien produit fournisseur contenant cet ID.");
   }
 
   const timestamp = nowIso();
@@ -1176,7 +1176,7 @@ export async function runAlibabaCatalogImport(input: {
     endpoint: manualDirectImport
       ? (directProductIdMatch?.[1] ? "/aliexpress/ds/product/get" : "/aliexpress/ds/product/search")
       : "/aliexpress/ds/product/search",
-    errorMessage: "Recherche Alibaba impossible.",
+    errorMessage: "Recherche fournisseur impossible.",
   };
 
   try {
@@ -1319,13 +1319,13 @@ export async function runAlibabaCatalogImport(input: {
     }
 
     if (!searchResult.ok && resolvedProducts.length === 0) {
-      throw createAlibabaImportError(searchResult.errorMessage ?? "Recherche Alibaba impossible.", searchResult.debug);
+      throw createAlibabaImportError(searchResult.errorMessage ?? "Recherche fournisseur impossible.", searchResult.debug);
     }
 
     if (resolvedProducts.length === 0) {
       throw new Error(manualDirectImport
         ? "Aucun produit exact n'a ete trouve pour ce SKU, ce lien fournisseur ou ce product_id."
-        : "Aucun produit live Alibaba n'a ete renvoye pour cette recherche.");
+        : "Aucun produit live fournisseur n'a ete renvoye pour cette recherche.");
     }
 
     const uniqueSearchProducts = resolvedProducts
@@ -2195,7 +2195,7 @@ export async function payAlibabaPurchaseOrder(orderId: string) {
       ? undefined
       : permissionDenied
         ? paymentMessage ?? "Permission API insuffisante pour lire le statut detaille du paiement fournisseur."
-        : paymentMessage ?? "Paiement Alibaba echoue",
+        : paymentMessage ?? "Paiement fournisseur echoue",
     rawPaymentResponse: paymentResult.responseBody,
     updatedAt: nowIso(),
   };
@@ -2253,7 +2253,7 @@ export async function repayAlibabaPurchaseOrder(orderId: string) {
       ? undefined
       : permissionDenied
         ? paymentMessage ?? "Permission API insuffisante pour lire le statut detaille du paiement fournisseur."
-        : paymentMessage ?? "Repaiement Alibaba echoue",
+        : paymentMessage ?? "Repaiement fournisseur echoue",
     rawPaymentResponse: paymentResult.responseBody,
     updatedAt: nowIso(),
     orderStatus: paymentSucceeded || permissionDenied ? "payment_pending" : "failed",

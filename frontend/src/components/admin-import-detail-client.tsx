@@ -93,7 +93,7 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-[760px]">
               <div className="inline-flex rounded-full bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#f0631b] backdrop-blur">Open Platform update</div>
-              <h2 className="mt-3 text-[23px] font-black tracking-[-0.05em] text-[#111827] sm:text-[30px]">Cockpit Alibaba Open Platform pour import, OAuth, orders, shipping et webhooks</h2>
+              <h2 className="mt-3 text-[23px] font-black tracking-[-0.05em] text-[#111827] sm:text-[30px]">Cockpit plateforme fournisseur pour import, OAuth, orders, shipping et webhooks</h2>
               <p className="mt-3 max-w-[680px] text-[13px] leading-6 text-[#475467] sm:text-[15px] sm:leading-7">
                 Cette demande sert maintenant de dossier d&apos;integration. La documentation recue fournie le socle pour l&apos;onboarding GGS, le compte linking, la creation de token, les appels order, l&apos;expedition API et les notifications push.
               </p>
@@ -112,6 +112,20 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+
+            function sanitizeVendorText(value: string | null | undefined) {
+              const input = (value ?? "").trim();
+              if (!input) {
+                return "";
+              }
+
+              return input
+                .replace(/openapi-auth\.alibaba\.com/gi, "openapi-auth.platform.local")
+                .replace(/openapi-api\.alibaba\.com/gi, "openapi-api.platform.local")
+                .replace(/alibaba\.com/gi, "plateforme-partenaire.local")
+                .replace(/\/alibaba\//g, "/platform/")
+                .replace(/Alibaba/gi, "plateforme fournisseur");
+            }
             {[
               { label: "Prerequis", value: String(openPlatformOverview.prerequisites.length), icon: CheckCircle2, accent: "bg-[#eefbf2] text-[#16a34a]" },
               { label: "APIs cles", value: String(essentialApis.length), icon: KeyRound, accent: "bg-[#eef4ff] text-[#2f67f6]" },
@@ -120,6 +134,8 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
             ].map((item) => {
               const Icon = item.icon;
 
+                              <div className="mt-2 text-[15px] font-semibold text-[#111827]">{sanitizeVendorText(openPlatformOverview.environment)}</div>
+                              <div className="mt-2 break-all text-[14px] font-semibold text-[#111827]">{sanitizeVendorText(openPlatformOverview.authServiceAddress)}</div>
               return (
                 <article key={item.label} className="rounded-[16px] border border-white/70 bg-white/80 px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.04)] backdrop-blur">
                   <div className={`inline-flex h-10 w-10 items-center justify-center rounded-[12px] ${item.accent}`}>
@@ -140,6 +156,7 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
               <div className="text-[14px] font-medium text-[#667085]">URL du produit</div>
               <a href={request.productUrl} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-[16px] text-[#386bf6] transition hover:text-[#214fce]">
                 {request.productUrl}
+                                {productUrlLabel}
                 <ExternalLink className="h-4 w-4" />
               </a>
             </div>
@@ -175,6 +192,7 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
                 <div key={item} className="flex items-start gap-3 rounded-[14px] bg-[#f8fafc] px-4 py-3 text-[14px] leading-6 text-[#344054]">
                   <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#f0631b]" />
                   <span>{item}</span>
+                                  <span>{sanitizeVendorText(item)}</span>
                 </div>
               ))}
             </div>
@@ -189,6 +207,10 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
                   <div>
                     <div className="text-[15px] font-semibold text-[#111827]">{step.title}</div>
                     <div className="mt-1 text-[13px] leading-6 text-[#667085]">{step.detail}</div>
+                                      <div className="mt-1 text-[13px] leading-6 text-[#667085]">{sanitizeVendorText(step.detail)}</div>
+                                    <div className="mt-1 text-[13px] leading-6 text-[#667085]">{sanitizeVendorText(step.detail)}</div>
+                                    <div className="mt-1 text-[13px] leading-6 text-[#667085]">{sanitizeVendorText(step.detail)}</div>
+                                          <div className="mt-1 text-[13px] leading-6 text-[#667085]">{sanitizeVendorText(step.detail)}</div>
                   </div>
                 </div>
               ))}
@@ -271,6 +293,7 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
                         <td className="py-3 pr-4 font-semibold text-[#111827]">{field.key}</td>
                         <td className="py-3 pr-4">{field.value}</td>
                         <td className="py-3">{field.detail}</td>
+                                              <td className="py-3">{sanitizeVendorText(field.detail)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -300,6 +323,7 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
                 <div className="text-[13px] font-semibold text-[#111827]">{note.key}</div>
                 <div className="mt-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#2f67f6]">{note.value}</div>
                 {note.detail ? <div className="mt-2 text-[13px] leading-6 text-[#667085]">{note.detail}</div> : null}
+                              {note.detail ? <div className="mt-2 text-[13px] leading-6 text-[#667085]">{sanitizeVendorText(note.detail)}</div> : null}
               </div>
             ))}
           </div>
@@ -310,6 +334,7 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
                 <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60">Step {index + 1}</div>
                 <div className="mt-2 text-[15px] font-semibold">{step.title}</div>
                 <div className="mt-1 text-[13px] leading-6 text-white/75">{step.detail}</div>
+                              <div className="mt-1 text-[13px] leading-6 text-white/75">{sanitizeVendorText(step.detail)}</div>
               </div>
             ))}
           </div>
@@ -326,9 +351,10 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
                     <div className="flex flex-wrap items-center gap-2">
                       <div className="text-[15px] font-semibold text-[#111827]">{api.name}</div>
                       <span className="rounded-full bg-[#eef4ff] px-2 py-0.5 text-[11px] font-semibold text-[#2f67f6]">{api.path}</span>
+                                          <span className="rounded-full bg-[#eef4ff] px-2 py-0.5 text-[11px] font-semibold text-[#2f67f6]">{sanitizeVendorText(api.path)}</span>
                     </div>
                     <div className="mt-1 text-[13px] leading-6 text-[#667085]">{api.purpose}</div>
-                    {api.note ? <div className="mt-1 text-[12px] text-[#98a2b3]">{api.note}</div> : null}
+                    {api.note ? <div className="mt-1 text-[12px] text-[#98a2b3]">{sanitizeVendorText(api.note)}</div> : null}
                   </div>
                 ))}
               </div>
@@ -344,6 +370,7 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
                       <div className="text-[14px] font-semibold text-[#111827]">{status.label}</div>
                     </div>
                     <div className="mt-1 text-[13px] leading-6 text-[#667085]">{status.detail}</div>
+                                      <div className="mt-1 text-[13px] leading-6 text-[#667085]">{sanitizeVendorText(status.detail)}</div>
                   </div>
                 ))}
               </div>
@@ -375,15 +402,16 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
               <div key={rule.title} className="rounded-[16px] border border-[#edf1f6] bg-[#fcfcfd] px-4 py-4">
                 <div className="text-[14px] font-semibold text-[#111827]">{rule.title}</div>
                 <div className="mt-2 text-[13px] leading-6 text-[#667085]">{rule.detail}</div>
+                              <div className="mt-2 text-[13px] leading-6 text-[#667085]">{sanitizeVendorText(rule.detail)}</div>
               </div>
             ))}
           </div>
         </section>
 
         <section className="rounded-[18px] border border-[#dcdfe4] bg-white p-5 shadow-[0_2px_10px_rgba(16,24,40,0.04)] sm:p-7">
-          <h2 className="text-[22px] font-bold tracking-[-0.04em] text-black">Alibaba buyer feeds, recherche et execution live</h2>
+          <h2 className="text-[22px] font-bold tracking-[-0.04em] text-black">Buyer feeds, recherche et execution live</h2>
           <div className="mt-3 text-[13px] leading-6 text-[#667085]">
-            Ces endpoints couvrent la decouverte catalogue, la recherche texte ou image, la normalisation d&apos;adresse, la verification logistique et le cycle commande / tracking du flux fournisseur Alibaba.
+            Ces endpoints couvrent la decouverte catalogue, la recherche texte ou image, la normalisation d&apos;adresse, la verification logistique et le cycle commande / tracking du flux fournisseur.
           </div>
 
           <div className="mt-6 grid gap-5 xl:grid-cols-2">
@@ -399,9 +427,12 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="text-[15px] font-semibold text-[#111827]">{api.name}</div>
                         <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-[#667085]">{api.path}</span>
+                                              <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-[#667085]">{sanitizeVendorText(api.path)}</span>
                       </div>
                       <div className="mt-2 text-[13px] leading-6 text-[#667085]">{api.purpose}</div>
-                      {api.note ? <div className="mt-2 text-[12px] leading-5 text-[#98a2b3]">{api.note}</div> : null}
+                      {api.note ? <div className="mt-2 text-[12px] leading-5 text-[#98a2b3]">{sanitizeVendorText(api.note)}</div> : null}
+                                        {note.detail ? <div className="mt-2 text-[13px] leading-6 text-[#667085]">{sanitizeVendorText(note.detail)}</div> : null}
+                                    <div className="mt-1 text-[13px] leading-6 text-[#667085]">{sanitizeVendorText(step.detail)}</div>
                     </div>
                   ))}
                 </div>
@@ -470,8 +501,8 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
                     <div key={api.path} className="rounded-[14px] bg-[#fcfcfd] px-4 py-4">
                       <div className="text-[15px] font-semibold text-[#111827]">{api.name}</div>
                       <div className="mt-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#98a2b3]">{api.path}</div>
-                      <div className="mt-2 text-[13px] leading-6 text-[#667085]">{api.purpose}</div>
-                      {api.note ? <div className="mt-2 text-[12px] leading-5 text-[#98a2b3]">{api.note}</div> : null}
+                      <div className="mt-2 text-[13px] leading-6 text-[#667085]">{sanitizeVendorText(api.purpose)}</div>
+                      {api.note ? <div className="mt-2 text-[12px] leading-5 text-[#98a2b3]">{sanitizeVendorText(api.note)}</div> : null}
                     </div>
                   ))}
                 </div>
@@ -489,7 +520,8 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
                     <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-[#667085]">{api.path}</span>
                   </div>
                   <div className="mt-2 text-[13px] leading-6 text-[#667085]">{api.purpose}</div>
-                  {api.note ? <div className="mt-2 text-[12px] leading-5 text-[#98a2b3]">{api.note}</div> : null}
+                  {api.note ? <div className="mt-2 text-[12px] leading-5 text-[#98a2b3]">{sanitizeVendorText(api.note)}</div> : null}
+                                <div className="mt-1 text-[13px] leading-6 text-white/75">{sanitizeVendorText(step.detail)}</div>
                 </div>
               ))}
             </div>
@@ -559,8 +591,10 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
                     <div key={api.path} className="rounded-[14px] bg-[#fcfcfd] px-4 py-4">
                       <div className="text-[15px] font-semibold text-[#111827]">{api.name}</div>
                       <div className="mt-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#98a2b3]">{api.path}</div>
-                      <div className="mt-2 text-[13px] leading-6 text-[#667085]">{api.purpose}</div>
-                      {api.note ? <div className="mt-2 text-[12px] leading-5 text-[#98a2b3]">{api.note}</div> : null}
+                      <div className="mt-2 text-[13px] leading-6 text-[#667085]">{sanitizeVendorText(api.purpose)}</div>
+                      {api.note ? <div className="mt-2 text-[12px] leading-5 text-[#98a2b3]">{sanitizeVendorText(api.note)}</div> : null}
+                                      {note.detail ? <div className="mt-2 text-[13px] leading-6 text-[#667085]">{sanitizeVendorText(note.detail)}</div> : null}
+                                    <div className="mt-1 text-[13px] leading-6 text-[#667085]">{sanitizeVendorText(step.detail)}</div>
                     </div>
                   ))}
                 </div>
@@ -628,8 +662,9 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
                     <div key={api.path} className="rounded-[14px] bg-[#fcfcfd] px-4 py-4">
                       <div className="text-[15px] font-semibold text-[#111827]">{api.name}</div>
                       <div className="mt-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#98a2b3]">{api.path}</div>
-                      <div className="mt-2 text-[13px] leading-6 text-[#667085]">{api.purpose}</div>
-                      {api.note ? <div className="mt-2 text-[12px] leading-5 text-[#98a2b3]">{api.note}</div> : null}
+                      <div className="mt-2 text-[13px] leading-6 text-[#667085]">{sanitizeVendorText(api.purpose)}</div>
+                      {api.note ? <div className="mt-2 text-[12px] leading-5 text-[#98a2b3]">{sanitizeVendorText(api.note)}</div> : null}
+                                      {note.detail ? <div className="mt-2 text-[13px] leading-6 text-[#667085]">{sanitizeVendorText(note.detail)}</div> : null}
                     </div>
                   ))}
                 </div>
@@ -745,7 +780,7 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
                   <div key={message.path} className="rounded-[14px] bg-[#fcfcfd] px-4 py-4">
                     <div className="text-[15px] font-semibold text-[#111827]">{message.name}</div>
                     <div className="mt-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#2f67f6]">{message.path}</div>
-                    <div className="mt-2 text-[13px] leading-6 text-[#667085]">{message.purpose}</div>
+                    <div className="mt-2 text-[13px] leading-6 text-[#667085]">{sanitizeVendorText(message.purpose)}</div>
                   </div>
                 ))}
               </div>
@@ -757,6 +792,7 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
                     <div key={item.key}>
                       <div className="text-[14px] font-semibold">{item.key}: <span className="font-medium text-white/80">{item.value}</span></div>
                       {item.detail ? <div className="mt-1 text-[12px] leading-5 text-white/70">{item.detail}</div> : null}
+                                          {item.detail ? <div className="mt-1 text-[12px] leading-5 text-white/70">{sanitizeVendorText(item.detail)}</div> : null}
                     </div>
                   ))}
                 </div>
@@ -771,6 +807,7 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
                     <div key={item.title} className="rounded-[14px] bg-[#f8fafc] px-4 py-4">
                       <div className="text-[15px] font-semibold text-[#111827]">{item.title}</div>
                       <div className="mt-1 text-[13px] leading-6 text-[#667085]">{item.detail}</div>
+                                          <div className="mt-1 text-[13px] leading-6 text-[#667085]">{sanitizeVendorText(item.detail)}</div>
                     </div>
                   ))}
                 </div>

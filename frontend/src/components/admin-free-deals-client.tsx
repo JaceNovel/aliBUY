@@ -153,7 +153,7 @@ export function AdminFreeDealsClient({
 
   const importFreeDealProducts = async () => {
     if (!importForm.query.trim()) {
-      setFeedback("Saisis une recherche Alibaba pour importer des produits gratuits.");
+      setFeedback("Saisis une recherche fournisseur pour importer des produits gratuits.");
       return;
     }
 
@@ -183,7 +183,7 @@ export function AdminFreeDealsClient({
       if (!response.ok || !payload?.config) {
         const message = typeof payload?.message === "string" && payload.message.trim().length > 0
           ? payload.message
-          : `Import Alibaba impossible pour l'offre gratuite (HTTP ${response.status}).`;
+          : `Import fournisseur impossible pour l'offre gratuite (HTTP ${response.status}).`;
         setFeedback(message);
         return;
       }
@@ -200,7 +200,7 @@ export function AdminFreeDealsClient({
       );
       router.refresh();
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : "Import Alibaba impossible pour l'offre gratuite.");
+      setFeedback(error instanceof Error ? error.message : "Import fournisseur impossible pour l'offre gratuite.");
     } finally {
       setIsImporting(false);
     }
@@ -248,7 +248,7 @@ export function AdminFreeDealsClient({
             <h1 className="mt-3 text-[30px] font-black tracking-[-0.06em]">Acquisition client par lot promo</h1>
             <p className="mt-3 text-[15px] leading-7 text-white/90">
               Cette section pilote la page spéciale accessible depuis la recherche “gratuit”, “produit gratuit” ou “article gratuit”.
-              Tu importes ici des produits Alibaba très bon marché, tu décides lesquels apparaissent sur la page et tu règles tout le marketing.
+              Tu importes ici des produits fournisseur très bon marché, tu décides lesquels apparaissent sur la page et tu règles tout le marketing.
             </p>
           </div>
 
@@ -288,7 +288,7 @@ export function AdminFreeDealsClient({
 
           <div className="mt-5 grid gap-4 md:grid-cols-[1fr_120px_140px_auto]">
             <label className="space-y-2 text-[13px] font-semibold text-[#344054]">
-              <span>Recherche Alibaba</span>
+              <span>Recherche fournisseur</span>
               <input
                 value={importForm.query}
                 onChange={(event) => setImportForm((current) => ({ ...current, query: event.target.value }))}

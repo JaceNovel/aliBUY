@@ -163,7 +163,7 @@ class AlibabaAdminController extends Controller
         $target = rtrim($origin, '/').'/admin/alibaba-sourcing/accounts';
         $separator = str_contains($target, '?') ? '&' : '?';
 
-        return $target.$separator.'oauth=failed&message='.rawurlencode($message !== '' ? $message : 'Demarrage OAuth Alibaba impossible.');
+        return $target.$separator.'oauth=failed&message='.rawurlencode($message !== '' ? $message : 'Demarrage OAuth fournisseur impossible.');
     }
 
     public function oauthCallback(Request $request): RedirectResponse

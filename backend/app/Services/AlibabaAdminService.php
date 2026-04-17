@@ -148,7 +148,7 @@ class AlibabaAdminService
 
         $query = trim((string) ($input['query'] ?? ''));
         if ($query === '') {
-            throw new RuntimeException("Import manuel impossible: saisis un External product ID Alibaba ou un lien produit fournisseur.");
+            throw new RuntimeException("Import manuel impossible: saisis un External product ID fournisseur ou un lien produit fournisseur.");
         }
 
         $sourceProductId = $this->extractSourceProductId($query);
@@ -215,14 +215,14 @@ class AlibabaAdminService
 
         $this->appendLog('catalog-fetch-remote', 'internal/alibaba/fetch-remote', 'failed', $input, $debug);
 
-        throw new RuntimeException("Produit Alibaba introuvable dans le stockage backend actuel. L'import exact live n'est pas encore porte en PHP; ajoute d'abord un snapshot via le flux fournisseur ou importe depuis une source deja connue.");
+        throw new RuntimeException("Produit fournisseur introuvable dans le stockage backend actuel. L'import exact live n'est pas encore porte en PHP; ajoute d'abord un snapshot via le flux fournisseur ou importe depuis une source deja connue.");
     }
 
     public function probe(array $input): array
     {
         $account = $this->resolveLiveAccount($this->stringOrNull($input['supplierAccountId'] ?? null), true);
         if ($account === null) {
-            throw new RuntimeException("Aucun compte Alibaba connecte n'est disponible pour executer un appel fournisseur live.");
+            throw new RuntimeException("Aucun compte fournisseur connecte n'est disponible pour executer un appel fournisseur live.");
         }
 
         $result = $this->openPlatform->probeDsApi($account, $input);
@@ -254,7 +254,7 @@ class AlibabaAdminService
     {
         $query = trim((string) ($input['query'] ?? ''));
         if ($query === '') {
-            throw new RuntimeException("Requete d'import Alibaba manquante.");
+            throw new RuntimeException("Requete d'import fournisseur manquante.");
         }
 
         $existing = $this->readJsonArray('alibaba-imported-products.json');
@@ -266,7 +266,7 @@ class AlibabaAdminService
 
         $sources = $this->resolveImportSources($input, $existing);
         if ($sources === []) {
-            throw new RuntimeException("Aucun produit exploitable n'a ete trouve pour cet import Laravel. Le flux live Alibaba n'est pas encore porte en PHP; fournis un prefetchedProduct ou pars d'un snapshot deja stocke.");
+            throw new RuntimeException("Aucun produit exploitable n'a ete trouve pour cet import Laravel. Le flux live fournisseur n'est pas encore porte en PHP; fournis un prefetchedProduct ou pars d'un snapshot deja stocke.");
         }
 
         $targetImportCount = max(1, (int) ($input['limit'] ?? count($sources)));
@@ -823,7 +823,7 @@ class AlibabaAdminService
 
         $account = $this->resolveLiveAccount(null, true);
         if ($account === null) {
-            throw new RuntimeException('Aucun compte Alibaba connecte n\'est disponible pour synchroniser un Buyer Item.');
+            throw new RuntimeException('Aucun compte fournisseur connecte n\'est disponible pour synchroniser un Buyer Item.');
         }
 
         $rawPayload = is_array($product['rawPayload'] ?? null) ? $product['rawPayload'] : [];
@@ -882,7 +882,7 @@ class AlibabaAdminService
 
         $account = $this->resolveLiveAccount(null, true);
         if ($account === null) {
-            throw new RuntimeException('Aucun compte Alibaba connecte n\'est disponible pour verifier un Buyer Item.');
+            throw new RuntimeException('Aucun compte fournisseur connecte n\'est disponible pour verifier un Buyer Item.');
         }
 
         $rawPayload = is_array($product['rawPayload'] ?? null) ? $product['rawPayload'] : [];
@@ -924,7 +924,7 @@ class AlibabaAdminService
 
         $account = $this->resolveLiveAccount(null, true);
         if ($account === null) {
-            throw new RuntimeException('Aucun compte Alibaba connecte n\'est disponible pour retirer un Buyer Item.');
+            throw new RuntimeException('Aucun compte fournisseur connecte n\'est disponible pour retirer un Buyer Item.');
         }
 
         $result = $this->openPlatform->deleteAlibabaBuyerItem($account, [
@@ -1068,8 +1068,8 @@ class AlibabaAdminService
             'id' => (string) Str::uuid(),
             'sourceImportedProductId' => $importedProductId,
             'sourceProductId' => (string) ($product['sourceProductId'] ?? $importedProductId),
-            'productTitle' => (string) ($product['title'] ?? 'Produit Alibaba'),
-            'supplierName' => (string) ($product['supplierName'] ?? 'Alibaba Supplier'),
+            'productTitle' => (string) ($product['title'] ?? 'Produit fournisseur'),
+            'supplierName' => (string) ($product['supplierName'] ?? 'Fournisseur partenaire'),
             'supplierCompanyId' => $this->stringOrNull($product['supplierCompanyId'] ?? null),
             'quantity' => $quantity,
             'shippingAddressId' => $shippingAddressId,
@@ -1121,7 +1121,7 @@ class AlibabaAdminService
     {
         $account = $this->resolveLiveAccount(null, true);
         if ($account === null) {
-            throw new RuntimeException('Aucun compte Alibaba connecte n\'est disponible pour creer une commande fournisseur live.');
+            throw new RuntimeException('Aucun compte fournisseur connecte n\'est disponible pour creer une commande fournisseur live.');
         }
 
         $address = $this->buildDropshippingAddressFromOrder($order);
@@ -1232,7 +1232,7 @@ class AlibabaAdminService
         $now = $this->nowIso();
         $account = $this->resolveLiveAccount(null, true);
         if ($account === null) {
-            throw new RuntimeException('Aucun compte Alibaba connecte n\'est disponible pour le paiement fournisseur live.');
+            throw new RuntimeException('Aucun compte fournisseur connecte n\'est disponible pour le paiement fournisseur live.');
         }
         $isAlibabaAccount = ($account['provider'] ?? null) === 'alibaba';
 
@@ -1467,7 +1467,7 @@ class AlibabaAdminService
             'persistentRequired' => true,
             'issue' => $persistentAvailable
                 ? null
-                : "Le backend Laravel repond bien pour Alibaba, mais aucune persistance base de donnees exploitable n'a ete detectee pour ce module. Verifie la configuration MySQL Hostinger cote backend.",
+                : "Le backend Laravel repond bien pour le flux fournisseur, mais aucune persistance base de donnees exploitable n'a ete detectee pour ce module. Verifie la configuration MySQL Hostinger cote backend.",
         ];
     }
 
@@ -1526,7 +1526,7 @@ class AlibabaAdminService
     private function buildImportedProductRecord(array $source, array $input, string $timestamp): array
     {
         $sourceProductId = $this->stringOrFallback($source['sourceProductId'] ?? $source['productId'] ?? null, (string) Str::uuid());
-        $title = $this->stringOrFallback($source['title'] ?? $source['shortTitle'] ?? null, 'Produit Alibaba');
+        $title = $this->stringOrFallback($source['title'] ?? $source['shortTitle'] ?? null, 'Produit fournisseur');
         $shortTitle = $this->stringOrFallback($source['shortTitle'] ?? null, $title);
         $rawPayload = is_array($source['rawPayload'] ?? null) ? $source['rawPayload'] : $source;
         $rawGallery = $this->extractRawMediaGallery($rawPayload);
@@ -1576,7 +1576,7 @@ class AlibabaAdminService
             'moqVerified' => ($source['moqVerified'] ?? true) !== false,
             'unit' => $this->stringOrFallback($source['unit'] ?? null, 'piece'),
             'badge' => $this->stringOrNull($source['badge'] ?? null),
-            'supplierName' => $this->stringOrFallback($source['supplierName'] ?? null, 'Alibaba Supplier'),
+            'supplierName' => $this->stringOrFallback($source['supplierName'] ?? null, 'Fournisseur partenaire'),
             'supplierLocation' => $this->stringOrFallback($source['supplierLocation'] ?? null, 'China'),
             'supplierCompanyId' => $this->stringOrNull($source['supplierCompanyId'] ?? null),
             'responseTime' => $this->stringOrFallback($source['responseTime'] ?? null, '24h'),
@@ -1655,15 +1655,15 @@ class AlibabaAdminService
         ]);
 
         $product->fill([
-            'title' => (string) ($item['title'] ?? 'Produit Alibaba'),
-            'slug' => (string) ($item['slug'] ?? $this->slugify((string) ($item['title'] ?? 'produit-alibaba'))),
+            'title' => (string) ($item['title'] ?? 'Produit fournisseur'),
+            'slug' => (string) ($item['slug'] ?? $this->slugify((string) ($item['title'] ?? 'produit-fournisseur'))),
             'description' => (string) ($item['description'] ?? $item['title'] ?? ''),
             'price' => round($this->toFloat($item['minUsd'] ?? 0), 2),
             'category' => $resolvedCategory['slug'],
             'stock' => max(0, $this->toInt($item['inventory'] ?? 0)),
             'image' => $image,
             'gallery' => $gallery,
-            'supplier_name' => (string) ($item['supplierName'] ?? 'Alibaba Supplier'),
+            'supplier_name' => (string) ($item['supplierName'] ?? 'Fournisseur partenaire'),
             'supplier_location' => (string) ($item['supplierLocation'] ?? 'China'),
             'moq' => max(1, $this->toInt($item['moq'] ?? 1)),
             'unit' => (string) ($item['unit'] ?? 'piece'),
@@ -1720,7 +1720,7 @@ class AlibabaAdminService
 
         return [
             'productId' => (string) ($preview['sourceProductId'] ?? $preview['productId'] ?? ''),
-            'title' => (string) ($preview['title'] ?? $preview['shortTitle'] ?? 'Produit Alibaba'),
+            'title' => (string) ($preview['title'] ?? $preview['shortTitle'] ?? 'Produit fournisseur'),
             'itemUrl' => $extra['itemUrl'] ?? null,
             'imageUrl' => $preview['image'] ?? '/globe.svg',
             'videoUrl' => $preview['videoUrl'] ?? null,
@@ -1751,12 +1751,12 @@ class AlibabaAdminService
     {
         return [
             'sourceProductId' => (string) ($product['sourceProductId'] ?? $product['id'] ?? ''),
-            'shortTitle' => (string) ($product['shortTitle'] ?? $product['title'] ?? 'Produit Alibaba'),
-            'title' => (string) ($product['title'] ?? 'Produit Alibaba'),
+            'shortTitle' => (string) ($product['shortTitle'] ?? $product['title'] ?? 'Produit fournisseur'),
+            'title' => (string) ($product['title'] ?? 'Produit fournisseur'),
             'image' => (string) ($product['image'] ?? (($product['gallery'][0] ?? null) ?: '/globe.svg')),
             'minUsd' => $this->toFloat($product['minUsd'] ?? 0),
             'maxUsd' => $this->nullableFloat($product['maxUsd'] ?? null),
-            'supplierName' => (string) ($product['supplierName'] ?? 'Alibaba Supplier'),
+            'supplierName' => (string) ($product['supplierName'] ?? 'Fournisseur partenaire'),
             'supplierLocation' => (string) ($product['supplierLocation'] ?? 'China'),
             'inventory' => max(0, $this->toInt($product['inventory'] ?? 0)),
             'moq' => max(1, $this->toInt($product['moq'] ?? 1)),
@@ -1798,7 +1798,7 @@ class AlibabaAdminService
             'image' => (string) ($product->image ?: (($product->gallery[0] ?? null) ?: '/globe.svg')),
             'minUsd' => (float) $product->price,
             'maxUsd' => isset($metadata['maxUsd']) ? $this->nullableFloat($metadata['maxUsd']) : null,
-            'supplierName' => (string) ($product->supplier_name ?? 'Alibaba Supplier'),
+            'supplierName' => (string) ($product->supplier_name ?? 'Fournisseur partenaire'),
             'supplierLocation' => (string) ($product->supplier_location ?? 'China'),
             'inventory' => (int) $product->stock,
             'moq' => (int) ($product->moq ?? 1),
@@ -2309,7 +2309,7 @@ class AlibabaAdminService
     private function formatAliExpressDsAutoPayFailure(?string $errorMessage): string
     {
         $details = trim((string) $errorMessage);
-        $guidance = 'Commande fournisseur creee, mais le paiement automatique a echoue. Verifie la whitelist auto-pay, le compte acheteur Alibaba et le moyen de paiement lie au buyer account.';
+        $guidance = 'Commande fournisseur creee, mais le paiement automatique a echoue. Verifie la whitelist auto-pay, le compte acheteur fournisseur et le moyen de paiement lie au buyer account.';
         return $details !== '' ? $guidance.' Detail: '.$details : $guidance;
     }
 
@@ -2324,11 +2324,11 @@ class AlibabaAdminService
         }
 
         if ($code === 'Item is not allowed to this country') {
-            return "Ce produit Alibaba n'est pas autorise a la vente pour le pays de destination choisi.";
+            return "Ce produit fournisseur n'est pas autorise a la vente pour le pays de destination choisi.";
         }
 
         if ($code === 'SKU_NOT_EXIST') {
-            return "Le SKU Alibaba de ce produit n'existe plus ou n'a pas ete transmis. Reimporte l'article pour resynchroniser ses variantes avant de relancer le lot fournisseur.";
+            return "Le SKU fournisseur de ce produit n'existe plus ou n'a pas ete transmis. Reimporte l'article pour resynchroniser ses variantes avant de relancer le lot fournisseur.";
         }
 
         if ($code === 'B_DROPSHIPPER_DELIVERY_ADDRESS_VALIDATE_FAIL') {
@@ -2352,27 +2352,27 @@ class AlibabaAdminService
         }
 
         if ($code === 'DELIVERY_METHOD_NOT_EXIST') {
-            return 'Aucune methode de livraison Alibaba valide n\'est disponible pour cette adresse.';
+            return 'Aucune methode de livraison fournisseur valide n\'est disponible pour cette adresse.';
         }
 
         if ($code === 'PRICE_PAY_CURRENCY_ERROR') {
-            return 'La devise de paiement Alibaba ne correspond pas a la devise du produit.';
+            return 'La devise de paiement fournisseur ne correspond pas a la devise du produit.';
         }
 
         if ($code === 'INVENTORY_HOLD_ERROR') {
-            return 'Alibaba a refuse la commande: stock insuffisant ou erreur de reservation d\'inventaire.';
+            return 'Le fournisseur a refuse la commande: stock insuffisant ou erreur de reservation d\'inventaire.';
         }
 
         if ($code === 'REPEATED_ORDER_ERROR') {
-            return 'Alibaba signale une commande dupliquee pour ce lot.';
+            return 'Le fournisseur signale une commande dupliquee pour ce lot.';
         }
 
         if ($code === 'USER_ACCOUNT_DISABLED') {
-            return 'Le compte Alibaba utilise pour le paiement fournisseur est desactive.';
+            return 'Le compte fournisseur utilise pour le paiement fournisseur est desactive.';
         }
 
         if ($code === 'BLACKLIST_BUYER_IN_LIST') {
-            return 'Le compte acheteur Alibaba est temporairement bloque pour cette commande.';
+            return 'Le compte acheteur fournisseur est temporairement bloque pour cette commande.';
         }
 
         return implode(' - ', array_filter([$code, $message])) ?: 'Lancement DS impossible';

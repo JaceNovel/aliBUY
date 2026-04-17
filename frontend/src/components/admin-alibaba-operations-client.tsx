@@ -158,20 +158,20 @@ function getSupplierAccountStatusMeta(status: AlibabaSupplierAccount["status"]) 
 
 function getOauthFeedback(status?: string | null, message?: string | null) {
   if (status === "success") {
-    return "Connexion Alibaba terminee. Le compte est pret si le jeton a bien ete recu.";
+    return "Connexion fournisseur terminee. Le compte est pret si le jeton a bien ete recu.";
   }
 
   if (status === "missing_params") {
-    return "Retour OAuth Alibaba incomplet. Relance la connexion depuis le bouton Connecter.";
+    return "Retour OAuth incomplet. Relance la connexion depuis le bouton Connecter.";
   }
 
   if (status === "failed") {
     const detail = (message ?? "").trim();
     if (detail) {
-      return `Connexion Alibaba echouee: ${detail}`;
+      return `Connexion fournisseur echouee: ${detail}`;
     }
 
-    return "Connexion Alibaba echouee. Relance la connexion pour terminer l'autorisation.";
+    return "Connexion fournisseur echouee. Relance la connexion pour terminer l'autorisation.";
   }
 
   return null;
@@ -247,7 +247,7 @@ function getAlibabaImportLikelyCause(diagnostic: AlibabaImportDiagnostic) {
   }
 
   if (providerCode?.includes("token") || providerMessage?.includes("token")) {
-    return "Le token OAuth du compte semble invalide, expire ou rattache au mauvais compte Alibaba.";
+    return "Le token OAuth du compte semble invalide, expire ou rattache au mauvais compte fournisseur.";
   }
 
   if (providerMessage?.includes("country") || providerMessage?.includes("pays")) {
@@ -278,11 +278,11 @@ function getAlibabaImportChecklist(diagnostic: AlibabaImportDiagnostic) {
     items.push(`Le meme echec apparait sur ${dsCountries.join("/")}, donc le pays n'est probablement pas la seule cause.`);
   }
 
-  items.push("Verifier que l'app Alibaba connectee a bien les droits necessaires.");
+  items.push("Verifier que l'app connectee a bien les droits necessaires.");
   items.push("Verifier que le token OAuth actif appartient au bon compte et n'est pas expire.");
 
   if (diagnostic.externalProductId) {
-    items.push(`Confirmer dans Alibaba que le product_id ${diagnostic.externalProductId} est toujours actif et exploitable.`);
+    items.push(`Confirmer sur la plateforme fournisseur que le product_id ${diagnostic.externalProductId} est toujours actif et exploitable.`);
   }
 
   if (diagnostic.fallbackUsed === false) {
@@ -485,7 +485,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
   const activeFeedback = feedback
     ?? getOauthFeedback(oauthStatus, oauthMessage)
     ?? (seededSource === "image-search" && seededQuery
-      ? "Recherche image liee a l'import IA Alibaba. Verifie la requete puis lance l'import."
+      ? "Recherche image liee a l'import IA fournisseur. Verifie la requete puis lance l'import."
       : null);
   const importButtonDisabled = isPending || !activeImportForm.query.trim() || !manualImportHasValidProductId || !importSupplierAccount || importSupplierAccount.status !== "connected";
   const feedbackLikelyCause = useMemo(
@@ -534,12 +534,12 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
   const runImport = async () => {
     resetFeedbackState();
     if (!importSupplierAccount || importSupplierAccount.status !== "connected") {
-      setFeedback(importSupplierAccount ? "Le compte choisi pour l'import n'est pas encore autorise. Clique sur Connecter pour terminer OAuth." : "Choisis d'abord un compte Alibaba connecte pour lancer l'import live.");
+      setFeedback(importSupplierAccount ? "Le compte choisi pour l'import n'est pas encore autorise. Clique sur Connecter pour terminer OAuth." : "Choisis d'abord un compte fournisseur connecte pour lancer l'import live.");
       return;
     }
 
     if (activeImportForm.manualProductMode && !manualProductId) {
-      setFeedback("Renseigne un External product ID Alibaba numerique valide ou colle un lien fournisseur contenant cet ID.");
+      setFeedback("Renseigne un External product ID fournisseur numerique valide ou colle un lien fournisseur contenant cet ID.");
       return;
     }
 
@@ -559,7 +559,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
       });
       const previewPayload = await previewResponse.json().catch(() => null);
       if (!previewResponse.ok && activeImportForm.limit <= 1) {
-        setFeedback(previewPayload?.message ?? "Chargement du produit Alibaba impossible.");
+        setFeedback(previewPayload?.message ?? "Chargement du produit fournisseur impossible.");
         setFeedbackDiagnostic(parseAlibabaImportDiagnostic(previewPayload?.debug));
         setFeedbackDebug(formatAlibabaImportDebugDetails(previewPayload?.debug));
         return;
@@ -585,7 +585,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
     });
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
-      setFeedback(payload?.message ?? "Import Alibaba impossible.");
+      setFeedback(payload?.message ?? "Import fournisseur impossible.");
       setFeedbackDiagnostic(parseAlibabaImportDiagnostic(payload?.debug));
       setFeedbackDebug(formatAlibabaImportDebugDetails(payload?.debug));
       return;
@@ -596,7 +596,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
       return;
     }
 
-    setFeedback(`${typeof payload?.purgedCount === "number" && payload.purgedCount > 0 ? `Catalogue purge: ${payload.purgedCount} article(s). ` : ""}Import Alibaba live termine: ${Array.isArray(payload?.products) ? payload.products.length : 0}/${payload?.targetImportCount ?? activeImportForm.limit} importes.${typeof payload?.skippedExistingCount === "number" && payload.skippedExistingCount > 0 ? ` Deja importes ignores: ${payload.skippedExistingCount}.` : ""}${Array.isArray(payload?.freeDealProductSlugs) && payload.freeDealProductSlugs.length > 0 ? ` Campagne gratuite mise a jour: ${payload.freeDealProductSlugs.length} slug(s).` : ""}`);
+    setFeedback(`${typeof payload?.purgedCount === "number" && payload.purgedCount > 0 ? `Catalogue purge: ${payload.purgedCount} article(s). ` : ""}Import fournisseur live termine: ${Array.isArray(payload?.products) ? payload.products.length : 0}/${payload?.targetImportCount ?? activeImportForm.limit} importes.${typeof payload?.skippedExistingCount === "number" && payload.skippedExistingCount > 0 ? ` Deja importes ignores: ${payload.skippedExistingCount}.` : ""}${Array.isArray(payload?.freeDealProductSlugs) && payload.freeDealProductSlugs.length > 0 ? ` Campagne gratuite mise a jour: ${payload.freeDealProductSlugs.length} slug(s).` : ""}`);
     refresh();
   };
 
@@ -684,7 +684,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
     const payUrl = typeof payload?.order?.payUrl === "string" ? payload.order.payUrl : undefined;
     setFeedback(
       payUrl
-        ? "Lot d'achat lance. Ouvre maintenant le lien de paiement si Alibaba en a renvoye un."
+        ? "Lot d'achat lance. Ouvre maintenant le lien de paiement si la plateforme en a renvoye un."
         : "Lot d'achat cree en brouillon ou lance sans lien de paiement. Utilise Actualiser pour relire le statut.",
     );
     refresh();
@@ -837,8 +837,8 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
 
     if (action !== "refresh") {
       setFeedback(action === "repay"
-        ? "Repaiement dropshipping relance. Si Alibaba renvoie un pay_url, ouvre-le pour finaliser le paiement."
-        : "Commande dropshipping lancee. Si Alibaba renvoie un pay_url, ouvre-le pour finaliser le paiement.");
+        ? "Repaiement dropshipping relance. Si la plateforme renvoie un pay_url, ouvre-le pour finaliser le paiement."
+        : "Commande dropshipping lancee. Si la plateforme renvoie un pay_url, ouvre-le pour finaliser le paiement.");
     } else {
       setFeedback("Statut paiement actualise.");
     }
@@ -985,11 +985,11 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
       <section className="rounded-[24px] border border-[#e6eaf0] bg-[linear-gradient(135deg,#fff5ef_0%,#ffffff_45%,#eef5ff_100%)] px-5 py-6 shadow-[0_8px_22px_rgba(17,24,39,0.05)] sm:px-7">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-[980px]">
-            <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a3d]">Automatisation fournisseur Alibaba</div>
-            <h1 className="mt-2 text-[32px] font-black tracking-[-0.05em] text-[#1f2937]">Import catalogue, lots d&apos;achat et commandes Alibaba</h1>
+            <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a3d]">Automatisation fournisseur</div>
+            <h1 className="mt-2 text-[32px] font-black tracking-[-0.05em] text-[#1f2937]">Import catalogue, lots d&apos;achat et commandes fournisseur</h1>
             <p className="mt-3 text-[14px] leading-7 text-[#667085]">
               Recherche DS par mot-clé, récupération des attributs/SKU, marge 10%, publication catalogue site, création des lots internes puis lancement manuel
-              des commandes Alibaba depuis le back-office.
+              des commandes fournisseur depuis le back-office.
             </p>
             <div className="mt-4 inline-flex flex-wrap items-center gap-2 rounded-[16px] bg-white px-4 py-3 text-[13px] text-[#475467] shadow-[0_8px_18px_rgba(17,24,39,0.05)]">
               <span className="font-semibold text-[#1f2937]">Compte selectionne:</span>
@@ -1077,7 +1077,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
         {[
           { label: "Articles importes", value: formatCount(initialDashboard.stats.importedCount), icon: Package2, accent: "bg-[#fff1e8] text-[#ff6a00]", href: adminHref("/import-catalog"), hint: "Voir les articles importes" },
           { label: "Publies sur le site", value: formatCount(initialDashboard.stats.publishedCount), icon: CheckCircle2, accent: "bg-[#eafaf0] text-[#16a34a]", href: adminHref("/import-catalog"), hint: "Voir les produits publies" },
-          { label: "Paiements en attente", value: formatCount(initialDashboard.stats.pendingPayments), icon: Wallet, accent: "bg-[#eef4ff] text-[#2f67f6]", href: adminHref("/lots"), hint: (typeof initialDashboard.stats.pendingPayments === "number" ? initialDashboard.stats.pendingPayments : 0) > 0 ? "Ouvrir les liens de paiement Alibaba" : "Aucun lien de paiement en attente" },
+          { label: "Paiements en attente", value: formatCount(initialDashboard.stats.pendingPayments), icon: Wallet, accent: "bg-[#eef4ff] text-[#2f67f6]", href: adminHref("/lots"), hint: (typeof initialDashboard.stats.pendingPayments === "number" ? initialDashboard.stats.pendingPayments : 0) > 0 ? "Ouvrir les liens de paiement fournisseur" : "Aucun lien de paiement en attente" },
           { label: "Ordres payes", value: formatCount(initialDashboard.stats.paidOrders), icon: Building2, accent: "bg-[#f5efff] text-[#7c3aed]", href: adminHref("/lots"), hint: "Voir les lots d'achat" },
         ].map((card) => {
           const Icon = card.icon;
@@ -1098,8 +1098,8 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
         <section className="rounded-[20px] border border-[#d8e4ff] bg-[#f5f9ff] px-5 py-4 shadow-[0_8px_22px_rgba(17,24,39,0.03)]">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#2f67f6]">Paiement Alibaba</div>
-              <div className="mt-1 text-[18px] font-black tracking-[-0.04em] text-[#1f2937]">{pendingPaymentOrders.length} lien(s) de paiement Alibaba a ouvrir</div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#2f67f6]">Paiement fournisseur</div>
+              <div className="mt-1 text-[18px] font-black tracking-[-0.04em] text-[#1f2937]">{pendingPaymentOrders.length} lien(s) de paiement fournisseur a ouvrir</div>
               <div className="mt-1 text-[13px] text-[#50637d]">Ouvre le panneau Groupes prets pour voir chaque lot, lancer le DS puis relire le statut.</div>
             </div>
             <Link href={adminHref("/lots")} className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#2f67f6] px-5 text-[14px] font-semibold text-white transition hover:bg-[#2557d6]">
@@ -1143,7 +1143,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
           </article>
 
           <article className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
-            <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Achats Alibaba</div>
+            <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Achats fournisseur</div>
             <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Lots, lancement DS et paiements</div>
             <div className="mt-4 space-y-3">
               {recentOrders.length === 0 ? <div className="rounded-[16px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Aucun lot d&apos;achat cree pour le moment.</div> : recentOrders.map((order) => (
@@ -1170,13 +1170,13 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
         <section className="grid gap-4 xl:grid-cols-[0.88fr_1.12fr]">
           <article className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
             <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Import catalogue</div>
-            <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Import Alibaba par recherche catalogue ou par External product ID exact</div>
+            <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Import fournisseur par recherche catalogue ou par External product ID exact</div>
             <div className="mt-3 rounded-[14px] bg-[#f8fafc] px-4 py-3 text-[13px] text-[#667085]">
               {importSupplierAccount
-                ? `Import live via ${importSupplierAccount.name} (${importSupplierAccount.accountLogin ?? importSupplierAccount.email}). Le mode catalogue reste disponible pour la recherche. Le mode manuel utilise un External product ID Alibaba exact ou une URL produit comme graine: pour 1 produit, il tente la fiche exacte; pour plusieurs produits, il recherche aussi des similaires exploitables.`
+                ? `Import live via ${importSupplierAccount.name} (${importSupplierAccount.accountLogin ?? importSupplierAccount.email}). Le mode catalogue reste disponible pour la recherche. Le mode manuel utilise un External product ID fournisseur exact ou une URL produit comme graine: pour 1 produit, il tente la fiche exacte; pour plusieurs produits, il recherche aussi des similaires exploitables.`
                 : selectedSupplierAccount
                   ? `Le compte choisi pour l'import est ${selectedSupplierAccount.status === "connected" ? "connecte" : "en attente d'autorisation"}. Termine OAuth dans l'onglet Comptes partenaires avant l'import.`
-                  : "Aucun compte Alibaba configure. Ajoute et autorise un compte dans l'onglet Comptes partenaires avant l'import."}
+                  : "Aucun compte fournisseur configure. Ajoute et autorise un compte dans l'onglet Comptes partenaires avant l'import."}
             </div>
             <label className="mt-4 inline-flex items-center gap-3 text-[13px] font-semibold text-[#344054]">
               <input checked={activeImportForm.manualProductMode} onChange={(event) => setImportForm((current) => ({ ...current, manualProductMode: event.target.checked, limit: Math.max(current.limit, 1) }))} type="checkbox" className="h-4 w-4 rounded border-[#d7dce5] text-[#ff6a00] focus:ring-[#ff6a00]" />
@@ -1199,7 +1199,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
                 </select>
               </label>
               <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">
-                {activeImportForm.manualProductMode ? "External product ID Alibaba ou URL produit" : "Mot-cle ou reference exacte"}
+                {activeImportForm.manualProductMode ? "External product ID fournisseur ou URL produit" : "Mot-cle ou reference exacte"}
                 <input value={activeImportForm.query} onChange={(event) => setImportForm((current) => ({ ...current, query: event.target.value }))} placeholder={activeImportForm.manualProductMode ? "1005006435740412 ou URL produit fournisseur" : "1005010812705425, BCD126748, bague, piercing..."} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
               </label>
               {activeImportForm.manualProductMode ? (
@@ -1256,7 +1256,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
             </div>
             {!importSupplierAccount || importSupplierAccount.status !== "connected" ? (
               <div className="mt-3 rounded-[14px] bg-[#fff7ed] px-4 py-3 text-[13px] font-medium text-[#9a3412]">
-                Aucun compte Alibaba connecte n&apos;est choisi pour cet import. Va dans l&apos;onglet Comptes partenaires, clique sur <span className="font-semibold">Connecter</span> ou termine OAuth, puis choisis ce compte dans la liste avant de relancer l&apos;import.
+                Aucun compte fournisseur connecte n&apos;est choisi pour cet import. Va dans l&apos;onglet Comptes partenaires, clique sur <span className="font-semibold">Connecter</span> ou termine OAuth, puis choisis ce compte dans la liste avant de relancer l&apos;import.
               </div>
             ) : null}
           </article>
@@ -1343,7 +1343,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
       {panel === "accounts" ? (
         <section className="grid gap-4 xl:grid-cols-[0.86fr_1.14fr]">
           <article className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
-            <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Compte Alibaba</div>
+            <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Compte fournisseur</div>
             <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Autorisation seller / buyer / ISV</div>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="text-[13px] font-semibold text-[#344054] sm:col-span-2">Nom<input value={accountForm.name} onChange={(event) => setAccountForm((current) => ({ ...current, name: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] outline-none focus:border-[#ff6a00]" /></label>
@@ -1372,10 +1372,10 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
             </div>
             <div className="mt-3 text-[12px] leading-5 text-[#667085]">
               {hasOauthCredentials
-                ? "Le bouton OAuth est pret. Un clic ouvre la page de connexion Alibaba puis la demande d'autorisation."
+                ? "Le bouton OAuth est pret. Un clic ouvre la page de connexion fournisseur puis la demande d'autorisation."
                 : editingSupplierAccount?.hasAppSecret
                   ? "Ajoutez l'App Key du compte puis cliquez sur Autoriser OAuth. Le secret deja enregistre sera reutilise."
-                  : "Renseignez App Key et App Secret pour ouvrir la page OAuth Alibaba."}
+                  : "Renseignez App Key et App Secret pour ouvrir la page OAuth fournisseur."}
             </div>
           </article>
 
@@ -1389,7 +1389,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
                     <div>
                       <div className="text-[15px] font-semibold text-[#1f2937]">{account.name}</div>
                       <div className="mt-1 text-[13px] text-[#667085]">{account.email} · {account.accountPlatform} · {account.countryCode}</div>
-                      <div className="mt-1 text-[12px] text-[#98a2b3]">{account.accountLogin ?? "Connexion Alibaba a finaliser"} · {account.hasAccessToken ? "session active" : "session non finalisee"}</div>
+                      <div className="mt-1 text-[12px] text-[#98a2b3]">{account.accountLogin ?? "Connexion fournisseur a finaliser"} · {account.hasAccessToken ? "session active" : "session non finalisee"}</div>
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2">
                       {account.isActive ? <div className="rounded-full bg-[#eef4ff] px-3 py-1 text-[12px] font-semibold text-[#2f67f6]">Selectionne</div> : null}
@@ -1493,7 +1493,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
       {panel === "mappings" ? (
         <section className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
           <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Mappings</div>
-          <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Correspondance produit site et source Alibaba</div>
+          <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Correspondance produit site et source fournisseur</div>
           <div className="mt-5 overflow-x-auto">
             <table className="min-w-full text-left">
               <thead>
@@ -1526,7 +1526,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
           <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Groupes prets</div>
           <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Lots internes, lancement DS et suivi manuel</div>
           <div className="mt-5 space-y-3">
-            {initialDashboard.purchaseOrders.length === 0 ? <div className="rounded-[16px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Aucun lot d&apos;achat Alibaba.</div> : initialDashboard.purchaseOrders.map((order) => (
+            {initialDashboard.purchaseOrders.length === 0 ? <div className="rounded-[16px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Aucun lot d&apos;achat fournisseur.</div> : initialDashboard.purchaseOrders.map((order) => (
               <div key={order.id} className="rounded-[16px] border border-[#edf1f6] p-4">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                   <div>

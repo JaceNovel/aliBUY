@@ -8,7 +8,7 @@ async function disableAliExpressAdminApi(context: RouteContext) {
   const { path } = await context.params;
   return NextResponse.json({
     error: true,
-    message: "Le namespace admin AliExpress est desactive. Utilisez /api/admin/alibaba/*.",
+    message: "Cet ancien namespace admin est desactive. Utilisez le namespace fournisseur actif.",
     path,
   }, { status: 410, headers: { "x-afripay-admin-proxy": "frontend-aliexpress-disabled" } });
 }

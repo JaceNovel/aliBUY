@@ -10,7 +10,7 @@ type RouteContext = {
 
 async function proxyAdminAlibaba(request: Request, context: RouteContext) {
   if (!API_URL) {
-    return NextResponse.json({ message: "Backend Laravel non configure pour Alibaba." }, { status: 503 });
+    return NextResponse.json({ message: "Backend Laravel non configure pour le flux fournisseur." }, { status: 503 });
   }
 
   const adminAccess = await getCurrentAdminAccess().catch(() => null);

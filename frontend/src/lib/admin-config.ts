@@ -37,7 +37,7 @@ export const adminNavItems: AdminNavItem[] = [
   { slug: "products", label: "Produits", icon: "package", description: "Catalogue produit et fiches detail.", href: "/admin/products", publicHref: "/products" },
   { slug: "partner-requests", label: "Demandes partenaire", icon: "file-text", description: "Lecture des dossiers partenaire avec validation ou refus depuis l'admin.", href: "/admin/partner-requests", publicHref: "/partnership" },
   { slug: "partner-withdrawals", label: "Retraits partenaire", icon: "landmark", description: "Suivi du solde actif, demandes de retrait et decisions d'approbation ou de refus.", href: "/admin/partner-withdrawals", publicHref: "/dashboard/wallet" },
-  { slug: "alibaba-sourcing", label: "Alibaba Sourcing", icon: "boxes", description: "Flux sourcing Alibaba buyer pour imports, comptes partenaires, lots d'achat et paiements fournisseur.", href: "/admin/alibaba-sourcing", publicHref: "/products" },
+  { slug: "alibaba-sourcing", label: "Sourcing fournisseur", icon: "boxes", description: "Flux sourcing buyer pour imports, comptes partenaires, lots d'achat et paiements fournisseur.", href: "/admin/alibaba-sourcing", publicHref: "/products" },
   { slug: "categories", label: "Categories", icon: "list", description: "Taxonomie de navigation et familles produit.", href: "/admin/categories", publicHref: "/products" },
   { slug: "promotions", label: "Promotions", icon: "badge-percent", description: "Promos hero, badges et campagnes mode.", href: "/admin/promotions", publicHref: "/mode" },
   { slug: "promo-codes", label: "Codes Promo", icon: "ticket-percent", description: "Codes de reduction et activations marketing.", href: "/admin/promo-codes", publicHref: "/mode" },
