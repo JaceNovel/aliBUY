@@ -434,6 +434,11 @@ export function AdminAliExpressOperationsClient({ initialDashboard, adminBasePat
     () => initialDashboard.purchaseOrders.filter((order) => order.paymentStatus === "pending" || order.paymentStatus === "pay_url_generated"),
     [initialDashboard.purchaseOrders],
   );
+  const allImportedProductIds = useMemo(
+    () => initialDashboard.importedProducts.map((product) => product.id),
+    [initialDashboard.importedProducts],
+  );
+  const allImportedSelected = allImportedProductIds.length > 0 && selectedProductIds.length === allImportedProductIds.length;
   const selectedSupplierAccount = useMemo(
     () => initialDashboard.supplierAccounts.find((account) => account.isActive) ?? initialDashboard.supplierAccounts[0] ?? null,
     [initialDashboard.supplierAccounts],
@@ -770,6 +775,44 @@ export function AdminAliExpressOperationsClient({ initialDashboard, adminBasePat
 
     setSelectedProductIds([]);
     setFeedback(`Catalogue importe purge: ${Number(payload?.deletedCount ?? 0)} article(s) supprime(s).`);
+    refresh();
+  };
+
+  const deleteSelectedImportedItems = async () => {
+    resetFeedbackState();
+
+    if (selectedProductIds.length === 0) {
+      setFeedback("Selectionne au moins un article importe a supprimer.");
+      return;
+    }
+
+    if (!window.confirm(`Supprimer ${selectedProductIds.length} article(s) importe(s) selectionne(s) ?`)) {
+      return;
+    }
+
+    const selected = new Set(selectedProductIds);
+    const productsToDelete = initialDashboard.importedProducts.filter((product) => selected.has(product.id));
+    const failures: string[] = [];
+
+    for (const product of productsToDelete) {
+      const deleteUrl = product.sourceProductId
+        ? `${adminApiBasePath}/import/${product.id}?sourceProductId=${encodeURIComponent(product.sourceProductId)}`
+        : `${adminApiBasePath}/import/${product.id}`;
+      const response = await fetchAdminSourcing(deleteUrl, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        failures.push(`${product.shortTitle}: ${payload?.message ?? "suppression impossible"}`);
+      }
+    }
+
+    setSelectedProductIds([]);
+    setFeedback(
+      failures.length > 0
+        ? `Suppression terminee avec ${failures.length} echec(s). ${failures.slice(0, 3).join(" | ")}`
+        : `${productsToDelete.length} article(s) importe(s) supprime(s).`,
+    );
     refresh();
   };
 
@@ -1225,6 +1268,13 @@ export function AdminAliExpressOperationsClient({ initialDashboard, adminBasePat
                 <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Images, videos et publication catalogue</div>
               </div>
               <div className="flex items-center gap-3">
+                <button type="button" onClick={() => setSelectedProductIds(allImportedSelected ? [] : allImportedProductIds)} disabled={initialDashboard.importedProducts.length === 0} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#dbe2ea] bg-white px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:opacity-60">
+                  {allImportedSelected ? "Tout deselectionner" : "Tout selectionner"}
+                </button>
+                <button type="button" onClick={deleteSelectedImportedItems} disabled={selectedProductIds.length === 0} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#f2d1d1] bg-[#fff8f8] px-4 text-[13px] font-semibold text-[#c74444] transition hover:bg-[#fff1f1] disabled:opacity-60">
+                  <Trash2 className="h-4 w-4" />
+                  Supprimer la selection
+                </button>
                 <button type="button" onClick={deleteAllImportedItems} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#f2d1d1] bg-[#fff8f8] px-4 text-[13px] font-semibold text-[#c74444] transition hover:bg-[#fff1f1]">
                   <Trash2 className="h-4 w-4" />
                   Tout purger

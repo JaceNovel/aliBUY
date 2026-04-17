@@ -267,6 +267,7 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard, adminApiB
   const [isSearching, setIsSearching] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isDeletingImported, setIsDeletingImported] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [importForm, setImportForm] = useState({
@@ -297,6 +298,11 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard, adminApiB
     () => selectedPreviewItems.filter((item) => item.importable && item.product).length,
     [selectedPreviewItems],
   );
+  const allImportedProductIds = useMemo(
+    () => initialDashboard.importedProducts.map((product) => product.id),
+    [initialDashboard.importedProducts],
+  );
+  const allImportedSelected = allImportedProductIds.length > 0 && selectedImportedProductIds.length === allImportedProductIds.length;
 
   const refresh = () => {
     startRefreshTransition(() => {
@@ -459,6 +465,71 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard, adminApiB
     if (sourceProductId) {
       setRecentlyImportedSourceProductIds((current) => current.filter((item) => item !== sourceProductId));
     }
+    refresh();
+  };
+
+  const deleteSelectedImportedItems = async () => {
+    if (selectedImportedProductIds.length === 0) {
+      setErrorMessage("Selectionne au moins un article importe a supprimer.");
+      return;
+    }
+
+    if (!window.confirm(`Supprimer ${selectedImportedProductIds.length} article(s) importe(s) selectionne(s) ?`)) {
+      return;
+    }
+
+    setIsDeletingImported(true);
+    setFeedback(null);
+    setErrorMessage(null);
+
+    const selected = new Set(selectedImportedProductIds);
+    const productsToDelete = initialDashboard.importedProducts.filter((product) => selected.has(product.id));
+    const failures: string[] = [];
+
+    for (const product of productsToDelete) {
+      const deleteUrl = product.sourceProductId
+        ? `${adminApiBasePath}/import/${product.id}?sourceProductId=${encodeURIComponent(product.sourceProductId)}`
+        : `${adminApiBasePath}/import/${product.id}`;
+      const response = await fetchAdminSourcing(deleteUrl, { method: "DELETE" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { message?: string } | null;
+        failures.push(`${product.shortTitle}: ${payload?.message ?? "suppression impossible"}`);
+      }
+    }
+
+    setIsDeletingImported(false);
+    if (failures.length > 0) {
+      setErrorMessage(`Suppression terminee avec ${failures.length} echec(s). ${failures.slice(0, 3).join(" | ")}`);
+    } else {
+      setFeedback(`${productsToDelete.length} article(s) importe(s) supprime(s).`);
+    }
+    setSelectedImportedProductIds([]);
+    refresh();
+  };
+
+  const deleteAllImportedItems = async () => {
+    if (initialDashboard.importedProducts.length === 0) {
+      return;
+    }
+
+    if (!window.confirm(`Supprimer tous les ${initialDashboard.importedProducts.length} article(s) importes du catalogue admin ?`)) {
+      return;
+    }
+
+    setIsDeletingImported(true);
+    setFeedback(null);
+    setErrorMessage(null);
+
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/import`, { method: "DELETE" });
+    const payload = await response.json().catch(() => null) as { message?: string; deletedCount?: number } | null;
+    setIsDeletingImported(false);
+    if (!response.ok) {
+      setErrorMessage(payload?.message ?? "Suppression totale impossible.");
+      return;
+    }
+
+    setSelectedImportedProductIds([]);
+    setFeedback(`Catalogue importe purge: ${Number(payload?.deletedCount ?? 0)} article(s) supprime(s).`);
     refresh();
   };
 
@@ -802,9 +873,19 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard, adminApiB
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            <button type="button" onClick={() => setSelectedImportedProductIds(allImportedSelected ? [] : allImportedProductIds)} disabled={initialDashboard.importedProducts.length === 0 || isDeletingImported} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#d6dbe6] bg-white px-4 text-[13px] font-semibold text-[#344054] transition hover:border-[#1d4f91] hover:text-[#1d4f91] disabled:opacity-60">
+              {allImportedSelected ? "Tout deselectionner" : "Tout selectionner"}
+            </button>
             <button type="button" onClick={publishSelection} disabled={isPublishing || selectedImportedProductIds.length === 0} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] bg-[#1d4f91] px-4 text-[13px] font-semibold text-white transition hover:bg-[#173d71] disabled:opacity-60">
               {isPublishing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               Publier la selection
+            </button>
+            <button type="button" onClick={deleteSelectedImportedItems} disabled={isDeletingImported || selectedImportedProductIds.length === 0} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#f3d1d1] bg-[#fff7f7] px-4 text-[13px] font-semibold text-[#b42318] transition hover:bg-[#fff1f1] disabled:opacity-60">
+              {isDeletingImported ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Supprimer la selection
+            </button>
+            <button type="button" onClick={deleteAllImportedItems} disabled={isDeletingImported || initialDashboard.importedProducts.length === 0} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#f3d1d1] bg-white px-4 text-[13px] font-semibold text-[#b42318] transition hover:bg-[#fff7f7] disabled:opacity-60">
+              Tout supprimer
             </button>
             <div className="rounded-[14px] bg-[#eef4ff] px-4 py-2 text-[13px] font-semibold text-[#1d4f91]">{formatCount(selectedImportedProductIds.length)} coche(s)</div>
           </div>
