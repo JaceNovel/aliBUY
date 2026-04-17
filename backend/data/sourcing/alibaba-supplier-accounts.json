@@ -1,1 +1,22 @@
-[]
+[
+    {
+        "id": "env-alibaba",
+        "name": "Alibaba Environment",
+        "email": "env@alibaba.local",
+        "accountPlatform": "seller",
+        "countryCode": "FR",
+        "defaultDispatchLocation": "CN",
+        "status": "connected",
+        "appKey": "502142",
+        "appSecret": "JNNTFIDQoDvB7o6s6UaPnmrG9mmhGq9q",
+        "authorizeUrl": "https://openapi-auth.alibaba.com/oauth/authorize",
+        "tokenUrl": "https://openapi-api.alibaba.com/rest/auth/token/create",
+        "refreshUrl": "https://openapi-api.alibaba.com/rest/auth/token/refresh",
+        "apiBaseUrl": "https://openapi-api.alibaba.com",
+        "accessToken": "...",
+        "refreshToken": null,
+        "isActive": true,
+        "createdAt": "2026-04-17T18:30:34+00:00",
+        "updatedAt": "2026-04-17T18:30:34+00:00"
+    }
+]

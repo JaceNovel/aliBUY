@@ -12954,5 +12954,27 @@
             "pageIndex": 1,
             "pageSize": 5
         }
+    },
+    {
+        "id": "bdc4370c-db53-419f-8623-4c431c953255",
+        "createdAt": "2026-04-17T18:26:47+00:00",
+        "action": "catalog-search",
+        "endpoint": "internal/alibaba/search",
+        "status": "success",
+        "requestBody": {
+            "provider": "alibaba",
+            "query": "montre",
+            "pageSize": 12,
+            "pageIndex": 1,
+            "countryCode": "CN",
+            "currency": "USD",
+            "fulfillmentChannel": "crossborder"
+        },
+        "responseBody": {
+            "query": "montre",
+            "totalCount": 0,
+            "pageIndex": 1,
+            "pageSize": 12
+        }
     }
 ]

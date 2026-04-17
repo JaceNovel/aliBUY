@@ -4032,6 +4032,11 @@ class AliExpressOpenPlatformService
         $status = isset($result['status']) ? (int) $result['status'] : 0;
         $code = $this->extractOperationCode($result['responseBody'] ?? null);
         $responseBody = $result['responseBody'] ?? null;
+        $endpoint = $this->getString($result['endpoint'] ?? null);
+
+        if ($endpoint !== null) {
+            $parts[] = $endpoint;
+        }
 
         if ($status > 0) {
             $parts[] = "HTTP {$status}";
@@ -4045,6 +4050,11 @@ class AliExpressOpenPlatformService
             $excerpt = trim(preg_replace('/\s+/', ' ', $responseBody) ?? '');
             if ($excerpt !== '') {
                 $parts[] = mb_substr($excerpt, 0, 240);
+            }
+        } elseif (is_array($responseBody) && $responseBody !== []) {
+            $encoded = json_encode($responseBody, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            if (is_string($encoded) && $encoded !== '') {
+                $parts[] = mb_substr($encoded, 0, 240);
             }
         }
 
