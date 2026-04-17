@@ -520,7 +520,7 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard, adminApiB
     setFeedback(null);
     setErrorMessage(null);
 
-    const response = await fetchAdminSourcing(`${adminApiBasePath}/import`, { method: "DELETE" });
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/import?siteReset=true`, { method: "DELETE" });
     const payload = await response.json().catch(() => null) as { message?: string; deletedCount?: number } | null;
     setIsDeletingImported(false);
     if (!response.ok) {

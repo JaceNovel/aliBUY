@@ -763,7 +763,7 @@ export function AdminAliExpressOperationsClient({ initialDashboard, adminBasePat
       return;
     }
 
-    const response = await fetchAdminSourcing(`${adminApiBasePath}/import`, {
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/import?siteReset=true`, {
       method: "DELETE",
     });
     const payload = await response.json().catch(() => null);

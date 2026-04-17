@@ -42784,3 +42784,69 @@ Did you mean one of these?
 #38 /home/kernelx/aliBUY/backend/artisan(16): Illuminate\\Foundation\\Application->handleCommand()
 #39 {main}
 "} 
+[2026-04-17 10:43:20] production.ERROR: Uncaught PDOException: could not find driver in /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connectors/Connector.php:66
+Stack trace:
+#0 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connectors/Connector.php(66): PDO->__construct()
+#1 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connectors/Connector.php(44): Illuminate\Database\Connectors\Connector->createPdoConnection()
+#2 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connectors/MySqlConnector.php(24): Illuminate\Database\Connectors\Connector->createConnection()
+#3 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connectors/ConnectionFactory.php(186): Illuminate\Database\Connectors\MySqlConnector->connect()
+#4 [internal function]: Illuminate\Database\Connectors\ConnectionFactory->Illuminate\Database\Connectors\{closure}()
+#5 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(1279): call_user_func()
+#6 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(1317): Illuminate\Database\Connection->getPdo()
+#7 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(528): Illuminate\Database\Connection->getReadPdo()
+#8 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(421): Illuminate\Database\Connection->getPdoForSelect()
+#9 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(830): Illuminate\Database\Connection->Illuminate\Database\{closure}()
+#10 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(797): Illuminate\Database\Connection->runQueryCallback()
+#11 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(412): Illuminate\Database\Connection->run()
+#12 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Query/Builder.php(3562): Illuminate\Database\Connection->select()
+#13 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Query/Builder.php(3546): Illuminate\Database\Query\Builder->runSelect()
+#14 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Eloquent/Builder.php(907): Illuminate\Database\Query\Builder->get()
+#15 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Eloquent/Builder.php(889): Illuminate\Database\Eloquent\Builder->getModels()
+#16 Command line code(1): Illuminate\Database\Eloquent\Builder->get()
+#17 {main}
+
+Next Illuminate\Database\QueryException: could not find driver (Connection: mysql, Host: 127.0.0.1, Port: 3306, Database: afripay, SQL: select source_provider, count(*) as total from `products` group by `source_provider`) in /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php:841
+Stack trace:
+#0 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(797): Illuminate\Database\Connection->runQueryCallback()
+#1 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(412): Illuminate\Database\Connection->run()
+#2 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Query/Builder.php(3562): Illuminate\Database\Connection->select()
+#3 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Query/Builder.php(3546): Illuminate\Database\Query\Builder->runSelect()
+#4 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Eloquent/Builder.php(907): Illuminate\Database\Query\Builder->get()
+#5 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Eloquent/Builder.php(889): Illuminate\Database\Eloquent\Builder->getModels()
+#6 Command line code(1): Illuminate\Database\Eloquent\Builder->get()
+#7 {main}
+  thrown {"exception":"[object] (Symfony\\Component\\ErrorHandler\\Error\\FatalError(code: 0): Uncaught PDOException: could not find driver in /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connectors/Connector.php:66
+Stack trace:
+#0 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connectors/Connector.php(66): PDO->__construct()
+#1 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connectors/Connector.php(44): Illuminate\\Database\\Connectors\\Connector->createPdoConnection()
+#2 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connectors/MySqlConnector.php(24): Illuminate\\Database\\Connectors\\Connector->createConnection()
+#3 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connectors/ConnectionFactory.php(186): Illuminate\\Database\\Connectors\\MySqlConnector->connect()
+#4 [internal function]: Illuminate\\Database\\Connectors\\ConnectionFactory->Illuminate\\Database\\Connectors\\{closure}()
+#5 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(1279): call_user_func()
+#6 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(1317): Illuminate\\Database\\Connection->getPdo()
+#7 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(528): Illuminate\\Database\\Connection->getReadPdo()
+#8 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(421): Illuminate\\Database\\Connection->getPdoForSelect()
+#9 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(830): Illuminate\\Database\\Connection->Illuminate\\Database\\{closure}()
+#10 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(797): Illuminate\\Database\\Connection->runQueryCallback()
+#11 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(412): Illuminate\\Database\\Connection->run()
+#12 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Query/Builder.php(3562): Illuminate\\Database\\Connection->select()
+#13 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Query/Builder.php(3546): Illuminate\\Database\\Query\\Builder->runSelect()
+#14 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Eloquent/Builder.php(907): Illuminate\\Database\\Query\\Builder->get()
+#15 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Eloquent/Builder.php(889): Illuminate\\Database\\Eloquent\\Builder->getModels()
+#16 Command line code(1): Illuminate\\Database\\Eloquent\\Builder->get()
+#17 {main}
+
+Next Illuminate\\Database\\QueryException: could not find driver (Connection: mysql, Host: 127.0.0.1, Port: 3306, Database: afripay, SQL: select source_provider, count(*) as total from `products` group by `source_provider`) in /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php:841
+Stack trace:
+#0 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(797): Illuminate\\Database\\Connection->runQueryCallback()
+#1 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(412): Illuminate\\Database\\Connection->run()
+#2 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Query/Builder.php(3562): Illuminate\\Database\\Connection->select()
+#3 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Query/Builder.php(3546): Illuminate\\Database\\Query\\Builder->runSelect()
+#4 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Eloquent/Builder.php(907): Illuminate\\Database\\Query\\Builder->get()
+#5 /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Eloquent/Builder.php(889): Illuminate\\Database\\Eloquent\\Builder->getModels()
+#6 Command line code(1): Illuminate\\Database\\Eloquent\\Builder->get()
+#7 {main}
+  thrown at /home/kernelx/aliBUY/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php:841)
+[stacktrace]
+#0 {main}
+"} 

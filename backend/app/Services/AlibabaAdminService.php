@@ -371,8 +371,9 @@ class AlibabaAdminService
         }
 
         $this->writeJsonArray('alibaba-imported-products.json', $remaining);
+        $deletedCatalogProducts = $this->deleteCatalogProductsForImportedItem($products, $importedProductId, $sourceProductId);
 
-        return ['deleted' => true, 'deletedCount' => $deletedCount];
+        return ['deleted' => true, 'deletedCount' => $deletedCount, 'deletedCatalogProducts' => $deletedCatalogProducts];
     }
 
     private function resetAliExpressSiteCatalogState(): array
@@ -382,7 +383,7 @@ class AlibabaAdminService
 
         try {
             $deletedCatalogProducts = Product::query()
-                ->where('source_provider', 'aliexpress')
+                ->whereIn('source_provider', ['aliexpress', 'alibaba'])
                 ->delete();
         } catch (Throwable $exception) {
             $catalogWarning = 'Catalogue SQL non purge localement. Verifie la connexion base de donnees puis relance la purge site.';
@@ -398,6 +399,32 @@ class AlibabaAdminService
             'siteConfigReset' => $this->resetSiteConfigReferences(),
             ...(is_string($catalogWarning) ? ['warningMessage' => $catalogWarning] : []),
         ];
+    }
+
+    private function deleteCatalogProductsForImportedItem(array $products, string $importedProductId, ?string $sourceProductId): int
+    {
+        $importedProduct = collect($products)->first(fn ($item) => is_array($item) && (string) ($item['id'] ?? '') === $importedProductId);
+        $sourceId = trim((string) ($sourceProductId ?? (is_array($importedProduct) ? ($importedProduct['sourceProductId'] ?? '') : '')));
+        $slug = trim((string) (is_array($importedProduct) ? ($importedProduct['slug'] ?? '') : ''));
+        if ($sourceId === '' && $slug === '') {
+            return 0;
+        }
+
+        try {
+            return Product::query()
+                ->whereIn('source_provider', ['aliexpress', 'alibaba'])
+                ->where(function ($query) use ($sourceId, $slug): void {
+                    if ($sourceId !== '') {
+                        $query->where('source_product_id', $sourceId);
+                    }
+                    if ($slug !== '') {
+                        $sourceId !== '' ? $query->orWhere('slug', $slug) : $query->where('slug', $slug);
+                    }
+                })
+                ->delete();
+        } catch (Throwable) {
+            return 0;
+        }
     }
 
     private function resetSiteConfigReferences(): array
