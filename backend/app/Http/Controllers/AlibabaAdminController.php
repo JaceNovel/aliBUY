@@ -35,6 +35,10 @@ class AlibabaAdminController extends Controller
             return response()->json([
                 'message' => $exception->getMessage(),
             ], 422);
+        } catch (Throwable $exception) {
+            return response()->json([
+                'message' => $exception->getMessage() !== '' ? $exception->getMessage() : 'Recherche fournisseur impossible.',
+            ], 500);
         }
     }
 

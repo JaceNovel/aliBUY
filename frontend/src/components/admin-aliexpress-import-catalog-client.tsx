@@ -442,45 +442,54 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
     setFeedback(null);
     setErrorMessage(null);
 
-    const response = await fetchAdminSourcing(`${adminApiBasePath}/search`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        query: searchForm.query,
-        local: searchForm.local,
-        countryCode: searchForm.countryCode,
-        categoryId: searchForm.categoryId.trim() || undefined,
-        sortBy: searchForm.sortBy,
-        pageSize: searchForm.pageSize,
-        pageIndex,
-        currency: searchForm.currency,
-        fulfillmentChannel: importForm.fulfillmentChannel,
-        selectionName: searchForm.selectionName.trim() || undefined,
-        searchExtend: normalizeSearchExtendRows(searchExtendRows),
-        supplierAccountId: selectedSupplierAccountId || undefined,
-      }),
-    });
+    try {
+      const response = await fetchAdminSourcing(`${adminApiBasePath}/search`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          query: searchForm.query,
+          local: searchForm.local,
+          countryCode: searchForm.countryCode,
+          categoryId: searchForm.categoryId.trim() || undefined,
+          sortBy: searchForm.sortBy,
+          pageSize: searchForm.pageSize,
+          pageIndex,
+          currency: searchForm.currency,
+          fulfillmentChannel: importForm.fulfillmentChannel,
+          selectionName: searchForm.selectionName.trim() || undefined,
+          searchExtend: normalizeSearchExtendRows(searchExtendRows),
+          supplierAccountId: selectedSupplierAccountId || undefined,
+        }),
+      });
 
-    const payload = await response.json().catch(() => null) as SearchResponse & { message?: string } | null;
-    if (!response.ok || !payload) {
+      const payload = await response.json().catch(() => null) as SearchResponse & { message?: string } | null;
+      if (!response.ok || !payload) {
+        setSearchState(null);
+        setSelectedPreviewIds([]);
+        setErrorMessage(payload?.message ?? "Recherche catalogue Alibaba impossible.");
+        setIsSearching(false);
+        return;
+      }
+
+      setSearchForm((current) => ({ ...current, pageIndex: payload.pageIndex }));
+      const visibleCount = payload.products.filter((item) => !hiddenImportedSourceProductIds.has(item.productId)).length;
+      setSearchState(payload);
+      setSelectedPreviewIds([]);
+      setIsSearching(false);
+      setFeedback(`${visibleCount} produit(s) Alibaba visibles sur ${payload.totalCount} resultat(s).`);
+      return;
+    } catch (error) {
       setSearchState(null);
       setSelectedPreviewIds([]);
-      setErrorMessage(payload?.message ?? "Recherche catalogue Alibaba impossible.");
+      setErrorMessage(error instanceof Error && error.message ? error.message : "Recherche catalogue Alibaba impossible.");
       setIsSearching(false);
       return;
     }
-
-    setSearchForm((current) => ({ ...current, pageIndex: payload.pageIndex }));
-    const visibleCount = payload.products.filter((item) => !hiddenImportedSourceProductIds.has(item.productId)).length;
-    setSearchState(payload);
-    setSelectedPreviewIds([]);
-    setFeedback(`${visibleCount} resultat(s) disponibles sur ${payload.totalCount} au total.`);
-    setIsSearching(false);
   };
 
   const importPreviewItems = async (items: SearchPreviewItem[]) => {
     const importableItems = items.filter((item) => item.importable && item.product);
-    if (importableItems.length === 0) {
+      setErrorMessage(error instanceof Error && error.message ? error.message : "Recherche catalogue Alibaba impossible.");
       setErrorMessage("Selection vide: choisis au moins un resultat importable.");
       return;
     }
@@ -523,26 +532,27 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
       }
 
       importedCount += Array.isArray(payload?.products) ? payload.products.length : 0;
-      importedSourceProductIds.push(item.productId);
-    }
+          setSearchState(null);
+          setSelectedPreviewIds([]);
+          setErrorMessage(payload?.message ?? "Recherche catalogue Alibaba impossible.");
+          setIsSearching(false);
+          return;
+        }
 
-    setIsImporting(false);
-    setSelectedPreviewIds([]);
-    if (importedSourceProductIds.length > 0) {
-      setRecentlyImportedSourceProductIds((current) => Array.from(new Set([...current, ...importedSourceProductIds])));
+        setSearchForm((current) => ({ ...current, pageIndex: payload.pageIndex }));
       setSearchState((current) => current
         ? { ...current, products: current.products.filter((item) => !importedSourceProductIds.includes(item.productId)) }
         : current);
     }
     refresh();
-
-    if (failures.length > 0) {
-      setErrorMessage(`Import termine avec ${failures.length} echec(s). ${failures.slice(0, 3).join(" | ")}`);
-    }
-
-    setFeedback(`Import termine: ${importedCount}/${importableItems.length} produit(s) importes.`);
-  };
-
+        return;
+      } catch (error) {
+        setSearchState(null);
+        setSelectedPreviewIds([]);
+        setErrorMessage(error instanceof Error && error.message ? error.message : "Recherche catalogue Alibaba impossible.");
+        setIsSearching(false);
+        return;
+      }
   const publishSelection = async () => {
     if (selectedImportedProductIds.length === 0) {
       setErrorMessage("Selectionne au moins un produit importe a publier.");
