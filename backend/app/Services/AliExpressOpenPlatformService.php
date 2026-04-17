@@ -566,25 +566,6 @@ class AliExpressOpenPlatformService
 
         $items = $this->extractAlibabaBuyerProductItems($searchResult['responseBody']);
         $countryCode = strtoupper(trim((string) ($input['countryCode'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'CN'))));
-        $fulfillmentChannel = strtolower(trim((string) ($input['fulfillmentChannel'] ?? 'crossborder')));
-        $usesLocalStock = $fulfillmentChannel !== 'crossborder';
-        $usesLocalRegularStock = in_array($fulfillmentChannel, ['standard_us', 'mexico'], true);
-        $checkedProductIds = $this->fetchAlibabaCheckedProductIds($account, [
-            'query' => $query,
-            'countryCode' => $countryCode,
-            'pageSize' => $pageSize,
-            'pageIndex' => $pageIndex,
-            'fulfillmentChannel' => $fulfillmentChannel,
-        ]);
-        $crossborderProductIds = $fulfillmentChannel === 'crossborder'
-            ? $this->fetchAlibabaCrossborderProductIds($account, ['countryCode' => $countryCode])
-            : null;
-        $localProductIds = $usesLocalStock
-            ? $this->fetchAlibabaLocalProductIds($account, ['countryCode' => $countryCode])
-            : null;
-        $localRegularProductIds = $usesLocalRegularStock
-            ? $this->fetchAlibabaLocalRegularProductIds($account, ['countryCode' => $countryCode])
-            : null;
         $products = [];
 
         foreach ($items as $item) {
@@ -600,15 +581,8 @@ class AliExpressOpenPlatformService
                 ],
             ], true, 'GET', true);
 
-            $categoryId = $detailResult['ok'] && $this->isSuccessfulOperation($detailResult['responseBody'])
-                ? $this->extractAlibabaBuyerDescriptionCategoryId($detailResult['responseBody'])
-                : null;
-            $supplementalData = $detailResult['ok'] && $this->isSuccessfulOperation($detailResult['responseBody'])
-                ? $this->fetchAlibabaBuyerSupplementalData($account, $productId, $countryCode, $categoryId)
-                : [];
-
             $detailProduct = $detailResult['ok'] && $this->isSuccessfulOperation($detailResult['responseBody'])
-                ? $this->mapAlibabaBuyerDescriptionToProduct($detailResult['responseBody'], $query, $supplementalData, $categoryId)
+                ? $this->mapAlibabaBuyerDescriptionToProduct($detailResult['responseBody'], $query, [], null)
                 : null;
 
             $previewItem = $this->buildAlibabaBuyerSearchPreviewItem(
@@ -618,39 +592,11 @@ class AliExpressOpenPlatformService
                 $detailResult['ok'] ? null : ($this->extractOperationMessage($detailResult['responseBody']) ?? 'Lecture detail produit Alibaba impossible.')
             );
 
-            if ($previewItem !== null && is_array($crossborderProductIds) && ! in_array((string) $previewItem['productId'], $crossborderProductIds, true)) {
-                $previewItem['importable'] = false;
-                $previewItem['importReason'] = 'Produit detail valide mais non liste dans le stock crossborder Alibaba.';
-            }
-
-            if ($previewItem !== null && is_array($checkedProductIds) && ! in_array((string) $previewItem['productId'], $checkedProductIds, true)) {
-                $previewItem['importable'] = false;
-                $previewItem['importReason'] = 'Produit detail valide mais non retourne par la qualification catalogue Alibaba pour ce flux.';
-            }
-
-            if ($previewItem !== null && $usesLocalStock && is_array($localProductIds) && ! in_array((string) $previewItem['productId'], $localProductIds, true)) {
-                $previewItem['importable'] = false;
-                $previewItem['importReason'] = 'Produit detail valide mais non liste dans le stock local Alibaba.';
-            }
-
-            if ($previewItem !== null && $usesLocalRegularStock && is_array($localRegularProductIds) && ! in_array((string) $previewItem['productId'], $localRegularProductIds, true)) {
-                $previewItem['importable'] = false;
-                $previewItem['importReason'] = 'Produit detail valide mais non liste dans la distribution locale reguliere Alibaba.';
-            }
-
             if ($previewItem !== null && $detailProduct !== null) {
-                $previewItem['product']['catalogCheckEligible'] = is_array($checkedProductIds)
-                    ? in_array((string) $previewItem['productId'], $checkedProductIds, true)
-                    : null;
-                $previewItem['product']['localStockEligible'] = $usesLocalStock
-                    ? (is_array($localProductIds) ? in_array((string) $previewItem['productId'], $localProductIds, true) : null)
-                    : false;
-                $previewItem['product']['localRegularEligible'] = $usesLocalRegularStock
-                    ? (is_array($localRegularProductIds) ? in_array((string) $previewItem['productId'], $localRegularProductIds, true) : null)
-                    : false;
-                $previewItem['product']['crossborderEligible'] = $fulfillmentChannel === 'crossborder'
-                    ? (is_array($crossborderProductIds) ? in_array((string) $previewItem['productId'], $crossborderProductIds, true) : null)
-                    : false;
+                $previewItem['product']['catalogCheckEligible'] = null;
+                $previewItem['product']['localStockEligible'] = null;
+                $previewItem['product']['localRegularEligible'] = null;
+                $previewItem['product']['crossborderEligible'] = null;
             }
 
             if ($previewItem !== null) {
