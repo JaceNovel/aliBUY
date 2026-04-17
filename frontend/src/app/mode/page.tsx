@@ -5,6 +5,7 @@ import { BadgeCheck, Bike, Flame, PackageCheck, RefreshCcw, Shirt, Sparkles, Tru
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { getCatalogCategories } from "@/lib/catalog-category-service";
 import { getCatalogProducts } from "@/lib/catalog-service";
+import { getStorefrontMoqDisplay } from "@/lib/product-moq";
 import { getProductImageUrl } from "@/lib/product-image";
 import { getPricingContext } from "@/lib/pricing";
 import { isModeStorefrontProduct, normalizeStorefrontBadge, normalizeStorefrontText, shuffleStorefrontItems } from "@/lib/public-storefront";
@@ -79,23 +80,28 @@ export default async function ModePage() {
           </div>
 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-8">
-              {spotlightProducts.map((product, index) => (
-                <Link key={product.slug} href={`/products/${product.slug}`} className="group overflow-hidden rounded-[4px] bg-white transition hover:-translate-y-0.5">
-                  <div className="flex items-center justify-between bg-[#ff7b36] px-2 py-1 text-[10px] font-bold text-white">
-                    <span className="inline-flex items-center gap-1"><BadgeCheck className="h-3 w-3" /> ALL</span>
-                    <span>Site</span>
-                  </div>
-                  <div className="relative aspect-square overflow-hidden bg-[#f5f5f5]">
-                    <Image src={getProductImageUrl(product.image, { width: 420, quality: 74 })} alt={product.shortTitle} fill sizes="(min-width: 1280px) 11vw, (min-width: 1024px) 18vw, 30vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
-                  </div>
-                  <div className="px-1.5 pb-1.5 pt-2">
-                    <div className="line-clamp-2 min-h-[32px] text-[10px] font-semibold leading-4 text-[#222] sm:text-[11px]">{product.shortTitle}</div>
-                    {index % 3 === 0 ? <div className="mt-1 text-[9px] font-semibold text-[#ef4444]">Stock faible</div> : null}
-                    <div className="mt-1 line-clamp-1 text-[9px] text-[#6b7280]">{normalizeStorefrontText(product.supplierName)}</div>
-                    <div className="mt-1 text-[12px] font-black tracking-[-0.03em] text-[#111827] sm:text-[13px]">{pricing.formatPrice(product.minUsd)}</div>
-                  </div>
-                </Link>
-              ))}
+              {spotlightProducts.map((product, index) => {
+                const moqDisplay = getStorefrontMoqDisplay(product);
+
+                return (
+                  <Link key={product.slug} href={`/products/${product.slug}`} className="group overflow-hidden rounded-[4px] bg-white transition hover:-translate-y-0.5">
+                    <div className="flex items-center justify-between bg-[#ff7b36] px-2 py-1 text-[10px] font-bold text-white">
+                      <span className="inline-flex items-center gap-1"><BadgeCheck className="h-3 w-3" /> ALL</span>
+                      <span>Site</span>
+                    </div>
+                    <div className="relative aspect-square overflow-hidden bg-[#f5f5f5]">
+                      <Image src={getProductImageUrl(product.image, { width: 420, quality: 74 })} alt={product.shortTitle} fill sizes="(min-width: 1280px) 11vw, (min-width: 1024px) 18vw, 30vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                    </div>
+                    <div className="px-1.5 pb-1.5 pt-2">
+                      <div className="line-clamp-2 min-h-[32px] text-[10px] font-semibold leading-4 text-[#222] sm:text-[11px]">{product.shortTitle}</div>
+                      {index % 3 === 0 ? <div className="mt-1 text-[9px] font-semibold text-[#ef4444]">Stock faible</div> : null}
+                      <div className="mt-1 line-clamp-1 text-[9px] font-semibold text-[#d85300]">{moqDisplay.label} · {moqDisplay.value}</div>
+                      <div className="mt-1 line-clamp-1 text-[9px] text-[#6b7280]">{normalizeStorefrontText(product.supplierName)}</div>
+                      <div className="mt-1 text-[12px] font-black tracking-[-0.03em] text-[#111827] sm:text-[13px]">{pricing.formatPrice(product.minUsd)}</div>
+                    </div>
+                  </Link>
+                );
+              })}
           </div>
         </section>
 
@@ -109,27 +115,32 @@ export default async function ModePage() {
           </div>
 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-8">
-            {denseGridProducts.map((product, index) => (
-              <Link
-                key={product.slug}
-                href={`/products/${product.slug}`}
-                className="group overflow-hidden rounded-[4px] bg-white transition hover:-translate-y-0.5"
-              >
-                <div className="flex items-center justify-between bg-[#ff7b36] px-2 py-1 text-[10px] font-bold text-white">
-                  <span className="inline-flex items-center gap-1"><BadgeCheck className="h-3 w-3" /> ALL</span>
-                  <span>{normalizeStorefrontBadge(product.badge) || "AfriPay+"}</span>
-                </div>
-                <div className="relative aspect-square overflow-hidden bg-[#f5f5f5]">
-                  <Image src={getProductImageUrl(product.image, { width: 420, quality: 74 })} alt={product.shortTitle} fill sizes="(min-width: 1280px) 11vw, (min-width: 1024px) 18vw, 30vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
-                </div>
-                <div className="px-1.5 pb-2 pt-2">
-                  <div className="line-clamp-2 min-h-[32px] text-[10px] font-semibold leading-4 text-[#222] sm:text-[11px]">{product.shortTitle}</div>
-                  {index % 4 === 1 ? <div className="mt-1 text-[9px] font-semibold text-[#ef4444]">Stock faible</div> : null}
-                  <div className="mt-1 line-clamp-1 text-[9px] text-[#6b7280]">{normalizeStorefrontText(product.supplierName)}</div>
-                  <div className="mt-1 text-[12px] font-black tracking-[-0.03em] text-[#111827] sm:text-[13px]">{pricing.formatPrice(product.minUsd)}</div>
-                </div>
-              </Link>
-            ))}
+            {denseGridProducts.map((product, index) => {
+              const moqDisplay = getStorefrontMoqDisplay(product);
+
+              return (
+                <Link
+                  key={product.slug}
+                  href={`/products/${product.slug}`}
+                  className="group overflow-hidden rounded-[4px] bg-white transition hover:-translate-y-0.5"
+                >
+                  <div className="flex items-center justify-between bg-[#ff7b36] px-2 py-1 text-[10px] font-bold text-white">
+                    <span className="inline-flex items-center gap-1"><BadgeCheck className="h-3 w-3" /> ALL</span>
+                    <span>{normalizeStorefrontBadge(product.badge) || "AfriPay+"}</span>
+                  </div>
+                  <div className="relative aspect-square overflow-hidden bg-[#f5f5f5]">
+                    <Image src={getProductImageUrl(product.image, { width: 420, quality: 74 })} alt={product.shortTitle} fill sizes="(min-width: 1280px) 11vw, (min-width: 1024px) 18vw, 30vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                  </div>
+                  <div className="px-1.5 pb-2 pt-2">
+                    <div className="line-clamp-2 min-h-[32px] text-[10px] font-semibold leading-4 text-[#222] sm:text-[11px]">{product.shortTitle}</div>
+                    {index % 4 === 1 ? <div className="mt-1 text-[9px] font-semibold text-[#ef4444]">Stock faible</div> : null}
+                    <div className="mt-1 line-clamp-1 text-[9px] font-semibold text-[#d85300]">{moqDisplay.label} · {moqDisplay.value}</div>
+                    <div className="mt-1 line-clamp-1 text-[9px] text-[#6b7280]">{normalizeStorefrontText(product.supplierName)}</div>
+                    <div className="mt-1 text-[12px] font-black tracking-[-0.03em] text-[#111827] sm:text-[13px]">{pricing.formatPrice(product.minUsd)}</div>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </section>
       </div>

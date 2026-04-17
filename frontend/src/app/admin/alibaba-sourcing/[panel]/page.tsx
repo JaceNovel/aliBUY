@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
-import { AdminAliExpressImportCatalogClient } from "@/components/admin-aliexpress-import-catalog-client";
-import { AdminAliExpressOperationsClient } from "@/components/admin-alibaba-operations-client";
+import { AdminAlibabaImportCatalogClient } from "@/components/admin-alibaba-import-catalog-client";
+import { AdminAlibabaOperationsClient } from "@/components/admin-alibaba-operations-client";
 import { AdminSourcingDashboardClient } from "@/components/admin-sourcing-dashboard-client";
 import { AdminSourcingProviderNotice } from "@/components/admin-sourcing-provider-notice";
 import { API_URL, buildApiUrl } from "@/lib/api";
@@ -116,7 +116,7 @@ export default async function AdminAlibabaSourcingPanelPage({
     return (
       <>
         <AdminSourcingProviderNotice provider="alibaba" />
-        <AdminAliExpressImportCatalogClient initialDashboard={dashboard} adminApiBasePath="/api/admin/alibaba" />
+        <AdminAlibabaImportCatalogClient initialDashboard={dashboard} adminApiBasePath="/api/admin/alibaba" />
       </>
     );
   }
@@ -124,7 +124,7 @@ export default async function AdminAlibabaSourcingPanelPage({
   return (
     <>
       <AdminSourcingProviderNotice provider="alibaba" />
-      <AdminAliExpressOperationsClient initialDashboard={dashboard} adminBasePath="/admin/alibaba-sourcing" adminApiBasePath="/api/admin/alibaba" />
+      <AdminAlibabaOperationsClient initialDashboard={dashboard} adminBasePath="/admin/alibaba-sourcing" adminApiBasePath="/api/admin/alibaba" />
     </>
   );
 }

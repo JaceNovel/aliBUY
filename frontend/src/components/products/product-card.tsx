@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Star } from "lucide-react";
 
+import { getStorefrontMoqDisplay } from "@/lib/product-moq";
 import { normalizeStorefrontBadge } from "@/lib/public-storefront";
 import type { ProductFeedItem } from "@/lib/products-feed";
 import { getProductImageUrl } from "@/lib/product-image";
@@ -13,6 +14,7 @@ type ProductCardProps = {
 
 export function ProductCard({ product, formattedPrice }: ProductCardProps) {
   const badge = normalizeStorefrontBadge(product.badge);
+  const moqDisplay = getStorefrontMoqDisplay(product);
 
   return (
     <Link href={`/products/${product.slug}`} className="group relative overflow-hidden rounded-[8px] border border-[#eceff3] bg-white shadow-[0_10px_26px_rgba(17,24,39,0.06)] transition duration-500 hover:-translate-y-2 hover:border-[#ff8a3d] hover:shadow-[0_24px_48px_rgba(17,24,39,0.16)]">
@@ -39,6 +41,7 @@ export function ProductCard({ product, formattedPrice }: ProductCardProps) {
       <div className="relative p-3 transition duration-500 group-hover:-translate-y-0.5 sm:p-3.5">
         <div className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#d85300] transition duration-500 group-hover:text-[#ff6a00] sm:text-[10px]">AfriPay Select</div>
         <div className="mt-2 line-clamp-2 min-h-[36px] text-[12px] font-bold leading-4 tracking-[-0.02em] text-[#1f2937] transition duration-500 group-hover:text-[#101828] sm:min-h-[42px] sm:text-[13px] sm:leading-5">{product.title}</div>
+        <div className="mt-2 line-clamp-1 text-[10px] font-semibold text-[#d85300] sm:text-[11px]">{moqDisplay.label} · {moqDisplay.value}</div>
         <div className="mt-2.5 flex items-end justify-between gap-2 transition duration-500 group-hover:translate-y-0.5">
           <div>
             <div className="text-[15px] font-black tracking-[-0.04em] text-[#111827] sm:text-[17px]">{formattedPrice}</div>

@@ -51,7 +51,7 @@ function mapAliExpressOAuthAccountPlatform(value: unknown): AlibabaSupplierAccou
   return undefined;
 }
 
-type AliExpressTopCallResult = AlibabaCallResult;
+type AlibabaPlatformCallResult = AlibabaCallResult;
 
 export type AlibabaSearchProduct = ProductCatalogItem & {
   sourceProductId: string;
@@ -81,14 +81,14 @@ type AlibabaProductSearchResult = {
   skipped?: boolean;
 };
 
-export type AliExpressDsSearchExtend = {
+export type AlibabaBuyerSearchExtend = {
   searchKey?: string;
   searchValue?: string;
   min?: string;
   max?: string;
 };
 
-export type AliExpressDsTextSearchPreviewItem = {
+export type AlibabaBuyerTextSearchPreviewItem = {
   productId: string;
   title: string;
   itemUrl?: string;
@@ -114,11 +114,11 @@ export type AliExpressDsTextSearchPreviewItem = {
   product?: AlibabaSearchProduct;
 };
 
-export type AliExpressDsTextSearchPreviewResult = {
+export type AlibabaBuyerTextSearchPreviewResult = {
   ok: boolean;
   endpoint: string;
   responseBody: unknown;
-  products: AliExpressDsTextSearchPreviewItem[];
+  products: AlibabaBuyerTextSearchPreviewItem[];
   totalCount: number;
   pageIndex: number;
   pageSize: number;
@@ -266,7 +266,7 @@ export type AlibabaFreightOption = {
   feeCurrency?: string;
 };
 
-export type AliExpressDsAddressOption = {
+export type AlibabaBuyerAddressOption = {
   countryCode?: string;
   type?: string;
   childrenJson?: string;
@@ -555,7 +555,7 @@ function normalizeAliExpressDsSortBy(value: unknown) {
   return `${safeField},${safeDirection}`;
 }
 
-function normalizeAliExpressDsSearchExtend(value: unknown) {
+function normalizeAlibabaBuyerSearchExtend(value: unknown) {
   const entries = Array.isArray(value)
     ? value
     : typeof value === "string"
@@ -576,7 +576,7 @@ function normalizeAliExpressDsSearchExtend(value: unknown) {
 
   const normalized = entries.flatMap((entry) => {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-      return [] as AliExpressDsSearchExtend[];
+      return [] as AlibabaBuyerSearchExtend[];
     }
 
     const record = entry as Record<string, unknown>;
@@ -586,7 +586,7 @@ function normalizeAliExpressDsSearchExtend(value: unknown) {
     const max = getStringValue(record.max)?.trim();
 
     if (!searchKey && !searchValue && !min && !max) {
-      return [] as AliExpressDsSearchExtend[];
+      return [] as AlibabaBuyerSearchExtend[];
     }
 
     return [{
@@ -600,13 +600,13 @@ function normalizeAliExpressDsSearchExtend(value: unknown) {
   return normalized.length > 0 ? JSON.stringify(normalized) : undefined;
 }
 
-function buildAliExpressDsTextSearchPreviewItem(input: {
+function buildAlibabaBuyerTextSearchPreviewItem(input: {
   searchItem: Record<string, unknown>;
   query: string;
   shipToCountry: string;
   detailResponseBody?: unknown;
   detailOk: boolean;
-}): AliExpressDsTextSearchPreviewItem | null {
+}): AlibabaBuyerTextSearchPreviewItem | null {
   const productId = getStringValue(input.searchItem.itemId)
     ?? getStringValue(input.searchItem.item_id)
     ?? getStringValue(input.searchItem.product_id)
@@ -3740,7 +3740,7 @@ async function callAliExpressTopEndpoint(apiMethod: string, payload: Record<stri
   includeAccessToken?: boolean;
   credentials?: AlibabaCredentials | null;
   method?: "GET" | "POST";
-}): Promise<AliExpressTopCallResult> {
+}): Promise<AlibabaPlatformCallResult> {
   const credentials = options?.credentials ?? (options?.includeAccessToken === false ? await resolveAlibabaCredentials() : await resolveAlibabaCredentialsForLiveCall());
   if (!credentials) {
     return {
@@ -5624,9 +5624,9 @@ export async function previewAliExpressDsTextSearch(input: {
   pageIndex?: number;
   currency?: string;
   selectionName?: string;
-  searchExtend?: AliExpressDsSearchExtend[] | string;
+  searchExtend?: AlibabaBuyerSearchExtend[] | string;
   supplierAccountId?: string;
-}): Promise<AliExpressDsTextSearchPreviewResult> {
+}): Promise<AlibabaBuyerTextSearchPreviewResult> {
   const credentials = await resolveAlibabaCredentialsForLiveCall({ accountId: input.supplierAccountId });
   if (!isAliExpressCredentials(credentials)) {
     return {
@@ -5682,7 +5682,7 @@ export async function previewAliExpressDsTextSearch(input: {
     requestBody.selectionName = selectionName;
   }
 
-  const normalizedSearchExtend = normalizeAliExpressDsSearchExtend(input.searchExtend);
+  const normalizedSearchExtend = normalizeAlibabaBuyerSearchExtend(input.searchExtend);
   if (normalizedSearchExtend) {
     requestBody.searchExtend = normalizedSearchExtend;
   }
@@ -5723,7 +5723,7 @@ export async function previewAliExpressDsTextSearch(input: {
     ? payloadRecord.data as Record<string, unknown>
     : payloadRecord;
   const searchItems = extractAliExpressSearchItems(payloadRecord);
-  const previewItems: AliExpressDsTextSearchPreviewItem[] = [];
+  const previewItems: AlibabaBuyerTextSearchPreviewItem[] = [];
 
   for (const searchItem of searchItems) {
     const productId = getStringValue(searchItem.itemId)
@@ -5745,7 +5745,7 @@ export async function previewAliExpressDsTextSearch(input: {
       method: "POST",
     });
 
-    const previewItem = buildAliExpressDsTextSearchPreviewItem({
+    const previewItem = buildAlibabaBuyerTextSearchPreviewItem({
       searchItem,
       query,
       shipToCountry: countryCode,
@@ -6503,7 +6503,7 @@ export async function queryAliExpressDsAddress(input: {
   });
 }
 
-export function normalizeAliExpressDsAddressOptions(responseBody: unknown): AliExpressDsAddressOption[] {
+export function normalizeAlibabaBuyerAddressOptions(responseBody: unknown): AlibabaBuyerAddressOption[] {
   const sellerPayload = getAliExpressSellerPayload(responseBody);
   const data = sellerPayload && typeof sellerPayload === "object" && sellerPayload !== null
     ? (sellerPayload as Record<string, unknown>).data
@@ -6517,14 +6517,14 @@ export function normalizeAliExpressDsAddressOptions(responseBody: unknown): AliE
 
   return entries.flatMap((entry) => {
     if (!isRecord(entry)) {
-      return [] as AliExpressDsAddressOption[];
+      return [] as AlibabaBuyerAddressOption[];
     }
 
     return [{
       countryCode: getStringValue(entry.country),
       type: getStringValue(entry.type),
       childrenJson: getStringValue(entry.children),
-    } satisfies AliExpressDsAddressOption];
+    } satisfies AlibabaBuyerAddressOption];
   });
 }
 

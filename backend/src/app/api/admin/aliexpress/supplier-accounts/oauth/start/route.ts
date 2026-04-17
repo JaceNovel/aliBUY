@@ -1,13 +1,9 @@
 import { NextResponse } from "next/server";
-
-import { API_URL, buildApiUrl } from "@/lib/api";
-import { getCurrentAdminAccess } from "@/lib/admin-auth";
 import { getPublicRequestUrl } from "@/lib/public-request-url";
-import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
 
 function buildAdminLoginRedirect(request: Request, message?: string) {
   const requestUrl = getPublicRequestUrl(request);
-  const nextTarget = "/admin/aliexpress-sourcing/accounts";
+  const nextTarget = "/admin/alibaba-sourcing/accounts";
   const target = new URL("/admin-login", requestUrl.origin);
   target.searchParams.set("next", nextTarget);
   if (message && message.trim()) {
@@ -41,54 +37,15 @@ async function buildPayloadFromRequest(request: Request) {
 }
 
 async function proxyOauthStart(request: Request) {
-  if (!API_URL) {
-    return NextResponse.json({ error: true, message: "Backend Laravel non configure pour OAuth AliExpress." }, { status: 503 });
-  }
-
-  const adminAccess = await getCurrentAdminAccess().catch(() => null);
-  if (!adminAccess) {
-    return buildAdminLoginRedirect(request, "Reconnectez-vous avec un compte admin avant de lancer OAuth AliExpress.");
-  }
-
   const payload = request.method === "GET"
     ? buildPayloadFromUrl(request)
     : await buildPayloadFromRequest(request);
-
-  const headers = await buildServerForwardHeaders({
-    accept: "application/json",
-    "content-type": "application/x-www-form-urlencoded",
-  }, {
-    includeAdminApiToken: true,
-  });
-
-  const response = await fetch(buildApiUrl("/api/admin/aliexpress/supplier-accounts/oauth/start"), {
-    method: "POST",
-    headers,
-    body: new URLSearchParams(payload),
-    cache: "no-store",
-    redirect: "manual",
-  });
-
-  if (response.status === 401) {
-    return buildAdminLoginRedirect(request, "La session admin Laravel a expire. Reconnectez-vous puis relancez OAuth AliExpress.");
+  const redirectTarget = new URL("/admin/alibaba-sourcing/accounts", getPublicRequestUrl(request).origin);
+  if (payload.name) {
+    redirectTarget.searchParams.set("migrated_from", "aliexpress");
   }
 
-  const location = response.headers.get("location")?.trim();
-  if (location) {
-    return NextResponse.redirect(location);
-  }
-
-  const payloadBody = await response.json().catch(() => null) as { message?: unknown; redirectUrl?: unknown } | null;
-  const redirectUrl = typeof payloadBody?.redirectUrl === "string" ? payloadBody.redirectUrl.trim() : "";
-  if (redirectUrl) {
-    return NextResponse.redirect(redirectUrl);
-  }
-
-  const message = typeof payloadBody?.message === "string" && payloadBody.message.trim().length > 0
-    ? payloadBody.message.trim()
-    : "Demarrage OAuth AliExpress impossible.";
-
-  return NextResponse.json({ error: true, message }, { status: response.status || 502 });
+  return NextResponse.redirect(redirectTarget);
 }
 
 export async function GET(request: Request) {

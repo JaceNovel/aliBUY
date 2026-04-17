@@ -4,6 +4,7 @@ import { Camera, Search } from "lucide-react";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { getCatalogProductsBySlugs } from "@/lib/catalog-service";
+import { getStorefrontMoqDisplay } from "@/lib/product-moq";
 import { formatTierAwarePrice } from "@/lib/product-price-display";
 import { getPricingContext } from "@/lib/pricing";
 
@@ -51,21 +52,26 @@ export default async function ImageSearchPage({
 
         {results.length > 0 ? (
           <section className="grid grid-cols-2 gap-2.5 sm:gap-5 xl:grid-cols-4 2xl:grid-cols-6">
-            {results.map((product) => (
-              <Link key={product.slug} href={`/products/${product.slug}`} className="group rounded-[16px] bg-white p-2.5 shadow-[0_8px_30px_rgba(17,24,39,0.06)] ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(17,24,39,0.12)] sm:rounded-[24px] sm:p-3">
-                <div className="relative overflow-hidden rounded-[14px] bg-[#f5f5f5] sm:rounded-[18px]">
-                  <div className="relative aspect-square w-full">
-                    <Image src={product.image} alt={product.title} fill sizes="(min-width: 1536px) 14vw, (min-width: 1280px) 18vw, (min-width: 640px) 44vw, 90vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+            {results.map((product) => {
+              const moqDisplay = getStorefrontMoqDisplay(product);
+
+              return (
+                <Link key={product.slug} href={`/products/${product.slug}`} className="group rounded-[16px] bg-white p-2.5 shadow-[0_8px_30px_rgba(17,24,39,0.06)] ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(17,24,39,0.12)] sm:rounded-[24px] sm:p-3">
+                  <div className="relative overflow-hidden rounded-[14px] bg-[#f5f5f5] sm:rounded-[18px]">
+                    <div className="relative aspect-square w-full">
+                      <Image src={product.image} alt={product.title} fill sizes="(min-width: 1536px) 14vw, (min-width: 1280px) 18vw, (min-width: 640px) 44vw, 90vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                    </div>
                   </div>
-                </div>
-                <div className="mt-2.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#d04a0a] sm:mt-4 sm:text-[11px] sm:tracking-[0.14em]">Correspondance image</div>
-                <div className="mt-1.5 line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-4 text-[#222] sm:mt-2 sm:min-h-12 sm:text-[16px] sm:leading-6">{product.title}</div>
-                <div className="mt-2 text-[14px] font-bold tracking-[-0.03em] text-[#f05a00] sm:mt-3 sm:text-[18px]">
-                  {formatTierAwarePrice(pricing.formatPrice, product)}
-                </div>
-                <div className="mt-1 text-[10px] text-[#666] sm:mt-2 sm:text-[13px]">Choix flexible · {product.unit}</div>
-              </Link>
-            ))}
+                  <div className="mt-2.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#d04a0a] sm:mt-4 sm:text-[11px] sm:tracking-[0.14em]">Correspondance image</div>
+                  <div className="mt-1.5 line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-4 text-[#222] sm:mt-2 sm:min-h-12 sm:text-[16px] sm:leading-6">{product.title}</div>
+                  <div className="mt-2 text-[10px] font-semibold text-[#d04a0a] sm:text-[12px]">{moqDisplay.label} · {moqDisplay.value}</div>
+                  <div className="mt-2 text-[14px] font-bold tracking-[-0.03em] text-[#f05a00] sm:mt-3 sm:text-[18px]">
+                    {formatTierAwarePrice(pricing.formatPrice, product)}
+                  </div>
+                  <div className="mt-1 text-[10px] text-[#666] sm:mt-2 sm:text-[13px]">Choix flexible · {product.unit}</div>
+                </Link>
+              );
+            })}
           </section>
         ) : (
           <section className="rounded-[30px] bg-white px-6 py-8 text-center shadow-[0_12px_36px_rgba(24,39,75,0.06)] ring-1 ring-black/5">

@@ -218,7 +218,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
   const { quote, isLoading } = useCartQuote({ disableFreeAir: !deliveryPlan.workflow.freeDeliveryEligible, deliveryMode, countryCode: form.countryCode });
   const shippingOptions = quote.shippingOptions;
   const usesInternalReceptionAddress = deliveryPlan.deliveryProfile.usesInternalReceptionAddress === true;
-  const isDirectAliExpressFlow = deliveryMode !== "forwarder" && !usesInternalReceptionAddress;
+  const isDirectAlibabaFlow = deliveryMode !== "forwarder" && !usesInternalReceptionAddress;
   const requiresTransitAddress = deliveryPlan.deliveryProfile.unsupportedCountry === true || !isSupportedDirectDeliveryCountry(form.countryCode);
 
   useEffect(() => {
@@ -891,7 +891,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
         <section className="overflow-hidden rounded-[18px] bg-white px-4 py-4 shadow-[0_1px_0_rgba(0,0,0,0.06)] sm:px-7 sm:py-5">
           <div className="flex items-center justify-between gap-4">
             <div className="text-[17px] font-bold tracking-[-0.03em] text-[#111827] sm:text-[20px]">
-              {isDirectAliExpressFlow ? "Expédié directement" : "Expédié par AfriPay"}
+              {isDirectAlibabaFlow ? "Expédié directement par le fournisseur" : "Expédié via AfriPay"}
             </div>
             <div className="text-[13px] font-semibold text-[#2563eb] sm:text-[16px]">{quote.items.length > 0 ? `Voir(${quote.items.length})` : null}</div>
           </div>

@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { useCart } from "@/components/cart-provider";
 import { PaymentMethodIcon } from "@/components/payment-method-icon";
 import { isEuropeanUnionCountry, isSupportedDirectDeliveryCountry } from "@/lib/alibaba-sourcing";
+import { getStorefrontMoqDisplay } from "@/lib/product-moq";
 import { CURRENCY_CONFIG, type CurrencyCode } from "@/lib/pricing-options";
 import { resolveProductPriceSummaryUsd, resolveProductUnitPriceUsd, resolveVariantSku } from "@/lib/product-variant-pricing";
 
@@ -55,6 +56,9 @@ type RelatedProduct = {
   title: string;
   image: string;
   formattedPrice: string;
+  moq: number;
+  moqVerified?: boolean;
+  unit?: string;
 };
 
 type ProductDetailClientProps = {
@@ -455,9 +459,10 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
         },
       ];
   const selectedShippingChoice = shippingChoices.find((option) => option.key === shippingMethod) ?? null;
+  const moqDisplay = getStorefrontMoqDisplay(product);
   const offerMetrics = [
     { label: "Ventes", value: product.soldLabel },
-    { label: "MOQ", value: product.moqVerified ? `${product.moq} pcs` : `${product.moq} min.` },
+    { label: moqDisplay.label, value: moqDisplay.value },
     { label: "Expédition", value: displayShippingLabel },
     { label: "Personnalisation", value: product.customizationLabel },
   ];
@@ -1220,19 +1225,24 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               <h2 className="mt-2 text-[28px] font-bold text-[#221813]">Articles similaires</h2>
             </div>
             <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
-              {relatedProducts.map((relatedProduct) => (
-                <Link
-                  key={relatedProduct.slug}
-                  href={`/products/${relatedProduct.slug}`}
-                  className="group overflow-hidden rounded-[8px] border border-[#efefef] bg-white p-3 transition hover:-translate-y-0.5 hover:border-[#ff8a3d] hover:shadow-[0_10px_24px_rgba(0,0,0,0.08)] sm:p-4"
-                >
-                  <div className="relative aspect-square overflow-hidden rounded-[8px] bg-[#fafafa]">
-                    <Image src={relatedProduct.image} alt={relatedProduct.title} fill sizes="(max-width: 1280px) 50vw, 25vw" className="object-cover transition duration-500 group-hover:scale-[1.04]" />
-                  </div>
-                  <div className="mt-3 line-clamp-2 text-[13px] font-semibold leading-5 text-[#221813] sm:mt-4 sm:text-[16px] sm:leading-6">{relatedProduct.title}</div>
-                  <div className="mt-2 text-[18px] font-black tracking-[-0.05em] text-[#221813] sm:mt-3 sm:text-[22px]">{relatedProduct.formattedPrice}</div>
-                </Link>
-              ))}
+              {relatedProducts.map((relatedProduct) => {
+                const relatedMoqDisplay = getStorefrontMoqDisplay(relatedProduct);
+
+                return (
+                  <Link
+                    key={relatedProduct.slug}
+                    href={`/products/${relatedProduct.slug}`}
+                    className="group overflow-hidden rounded-[8px] border border-[#efefef] bg-white p-3 transition hover:-translate-y-0.5 hover:border-[#ff8a3d] hover:shadow-[0_10px_24px_rgba(0,0,0,0.08)] sm:p-4"
+                  >
+                    <div className="relative aspect-square overflow-hidden rounded-[8px] bg-[#fafafa]">
+                      <Image src={relatedProduct.image} alt={relatedProduct.title} fill sizes="(max-width: 1280px) 50vw, 25vw" className="object-cover transition duration-500 group-hover:scale-[1.04]" />
+                    </div>
+                    <div className="mt-3 line-clamp-2 text-[13px] font-semibold leading-5 text-[#221813] sm:mt-4 sm:text-[16px] sm:leading-6">{relatedProduct.title}</div>
+                    <div className="mt-2 text-[11px] font-semibold text-[#d65d00] sm:text-[12px]">{relatedMoqDisplay.label} · {relatedMoqDisplay.value}</div>
+                    <div className="mt-2 text-[18px] font-black tracking-[-0.05em] text-[#221813] sm:mt-3 sm:text-[22px]">{relatedProduct.formattedPrice}</div>
+                  </Link>
+                );
+              })}
             </div>
           </section>
         ) : null}

@@ -13,6 +13,12 @@ export type AlibabaMoqInfo = {
   verified: boolean;
 };
 
+export type StorefrontMoqDisplay = {
+  label: string;
+  value: string;
+  verified: boolean;
+};
+
 const MOQ_KEY_PATTERN = /(moq|min(?:imum)?[_ -]?order|begin_amount|quantity_min|min[_ -]?qty|min[_ -]?quantity|start[_ -]?quantity|order[_ -]?qty|order[_ -]?quantity|minimum[_ -]?quantity|order[_ -]?minimum|lowest[_ -]?order|least[_ -]?order|initial[_ -]?quantity)/i;
 
 function normalizeMoqValue(value: number) {
@@ -233,4 +239,46 @@ export function resolveAlibabaMoq(input: {
 
   const fallback = normalizeMoqValue(input.fallback ?? Number.NaN);
   return fallback ? { value: fallback, verified: false } : { verified: false };
+}
+
+function formatStorefrontMoqUnit(quantity: number, unit?: string) {
+  const normalizedUnit = typeof unit === "string" ? unit.trim().toLowerCase() : "";
+
+  if (!normalizedUnit || ["piece", "pieces", "pièce", "pièces", "pcs", "pc", "unit", "units", "article", "articles"].includes(normalizedUnit)) {
+    return quantity > 1 ? "articles" : "article";
+  }
+
+  if (["set", "sets"].includes(normalizedUnit)) {
+    return quantity > 1 ? "sets" : "set";
+  }
+
+  if (["lot", "lots"].includes(normalizedUnit)) {
+    return quantity > 1 ? "lots" : "lot";
+  }
+
+  return unit?.trim() || "article";
+}
+
+export function getStorefrontMoqDisplay(input: {
+  moq?: number;
+  moqVerified?: boolean;
+  unit?: string;
+}): StorefrontMoqDisplay {
+  const quantity = typeof input.moq === "number" && Number.isFinite(input.moq) && input.moq > 0
+    ? Math.round(input.moq)
+    : undefined;
+
+  if (!input.moqVerified || !quantity) {
+    return {
+      label: "Min de commande",
+      value: "Non renseigne",
+      verified: false,
+    };
+  }
+
+  return {
+    label: "Min de commande",
+    value: `${quantity} ${formatStorefrontMoqUnit(quantity, input.unit)}`,
+    verified: true,
+  };
 }

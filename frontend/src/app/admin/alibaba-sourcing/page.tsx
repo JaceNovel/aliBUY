@@ -1,4 +1,4 @@
-import { AdminAliExpressOperationsClient } from "@/components/admin-alibaba-operations-client";
+import { AdminAlibabaOperationsClient } from "@/components/admin-alibaba-operations-client";
 import { AdminSourcingProviderNotice } from "@/components/admin-sourcing-provider-notice";
 import { API_URL, buildApiUrl } from "@/lib/api";
 import { getAlibabaOperationsDashboardData } from "@/lib/alibaba-operations-service";
@@ -89,7 +89,7 @@ export default async function AdminAlibabaSourcingPage() {
   return (
     <>
       <AdminSourcingProviderNotice provider="alibaba" />
-      <AdminAliExpressOperationsClient initialDashboard={dashboard} adminBasePath="/admin/alibaba-sourcing" adminApiBasePath="/api/admin/alibaba" />
+      <AdminAlibabaOperationsClient initialDashboard={dashboard} adminBasePath="/admin/alibaba-sourcing" adminApiBasePath="/api/admin/alibaba" />
     </>
   );
 }

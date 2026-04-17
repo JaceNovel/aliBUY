@@ -6,10 +6,10 @@ import { BellRing, CheckCircle2, ExternalLink, KeyRound, Mail, Phone, ShieldChec
 
 import type { AdminImportRequest, AdminImportRequestStatus } from "@/lib/admin-data";
 import {
-  aliExpressDsCatalogApis,
-  aliExpressDsErrors,
-  aliExpressDsNotes,
-  aliExpressDsOrderApis,
+  alibabaBuyerCatalogApis,
+  alibabaBuyerErrors,
+  alibabaBuyerNotes,
+  alibabaBuyerOrderApis,
   authTokenEndpointNotes,
   buyerAuthorizationFlow,
   callbackMessages,
@@ -93,7 +93,7 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-[760px]">
               <div className="inline-flex rounded-full bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#f0631b] backdrop-blur">Open Platform update</div>
-              <h2 className="mt-3 text-[23px] font-black tracking-[-0.05em] text-[#111827] sm:text-[30px]">Cockpit AliExpress Open Platform pour import, OAuth, orders, shipping et webhooks</h2>
+              <h2 className="mt-3 text-[23px] font-black tracking-[-0.05em] text-[#111827] sm:text-[30px]">Cockpit Alibaba Open Platform pour import, OAuth, orders, shipping et webhooks</h2>
               <p className="mt-3 max-w-[680px] text-[13px] leading-6 text-[#475467] sm:text-[15px] sm:leading-7">
                 Cette demande sert maintenant de dossier d&apos;integration. La documentation recue fournie le socle pour l&apos;onboarding GGS, le compte linking, la creation de token, les appels order, l&apos;expedition API et les notifications push.
               </p>
@@ -381,15 +381,15 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
         </section>
 
         <section className="rounded-[18px] border border-[#dcdfe4] bg-white p-5 shadow-[0_2px_10px_rgba(16,24,40,0.04)] sm:p-7">
-          <h2 className="text-[22px] font-bold tracking-[-0.04em] text-black">AliExpress DS feeds, recherche et execution live</h2>
+          <h2 className="text-[22px] font-bold tracking-[-0.04em] text-black">Alibaba buyer feeds, recherche et execution live</h2>
           <div className="mt-3 text-[13px] leading-6 text-[#667085]">
-            Ces endpoints couvrent la decouverte de collections DS, la recherche texte ou image, la normalisation d&apos;adresse, la verification logistique et le cycle commande / tracking specifique AliExpress dropshipping.
+            Ces endpoints couvrent la decouverte catalogue, la recherche texte ou image, la normalisation d&apos;adresse, la verification logistique et le cycle commande / tracking du flux fournisseur Alibaba.
           </div>
 
           <div className="mt-6 grid gap-5 xl:grid-cols-2">
             {[
-              { title: "Catalogue et discovery", items: aliExpressDsCatalogApis, accent: "text-[#2f67f6]" },
-              { title: "Commande et suivi DS", items: aliExpressDsOrderApis, accent: "text-[#f0631b]" },
+              { title: "Catalogue et discovery", items: alibabaBuyerCatalogApis, accent: "text-[#2f67f6]" },
+              { title: "Commande et suivi DS", items: alibabaBuyerOrderApis, accent: "text-[#f0631b]" },
             ].map((section) => (
               <article key={section.title} className="rounded-[16px] border border-[#edf1f6] p-4">
                 <div className={`text-[12px] font-semibold uppercase tracking-[0.14em] ${section.accent}`}>{section.title}</div>
@@ -413,7 +413,7 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
             <article className="rounded-[16px] border border-[#edf1f6] p-4">
               <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#98a2b3]">Notes d'integration DS</div>
               <div className="mt-4 grid gap-3">
-                {aliExpressDsNotes.map((note) => (
+                {alibabaBuyerNotes.map((note) => (
                   <div key={note.key} className="rounded-[14px] bg-[#f8fafc] px-4 py-4">
                     <div className="text-[15px] font-semibold text-[#111827]">{note.key}</div>
                     <div className="mt-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#2f67f6]">{note.value}</div>
@@ -426,7 +426,7 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
             <article className="rounded-[16px] border border-[#edf1f6] p-4">
               <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#98a2b3]">Watchlist erreurs DS</div>
               <div className="mt-4 space-y-3">
-                {aliExpressDsErrors.map((error) => (
+                {alibabaBuyerErrors.map((error) => (
                   <div key={error.code} className="rounded-[14px] border border-[#edf1f6] px-4 py-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-[#fff4ea] px-2.5 py-1 text-[11px] font-semibold text-[#f0631b]">{error.code}</span>

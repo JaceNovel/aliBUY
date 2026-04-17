@@ -328,7 +328,7 @@ export function useCartQuote(options?: { disableFreeAir?: boolean; deliveryMode?
       setIsLoading(true);
 
       try {
-        const response = await fetch("/api/aliexpress-sourcing/quote", {
+        const response = await fetch("/api/alibaba-sourcing/quote", {
           method: "POST",
           headers: {
             "content-type": "application/json",

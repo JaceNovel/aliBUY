@@ -1,8 +1,4 @@
-import { AdminAliExpressOperationsClient } from "@/components/admin-alibaba-operations-client";
-import { AdminSourcingProviderNotice } from "@/components/admin-sourcing-provider-notice";
-import { API_URL, buildApiUrl } from "@/lib/api";
-import { getAlibabaOperationsDashboardData } from "@/lib/alibaba-operations-service";
-import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
+import { redirect } from "next/navigation";
 
 function normalizeAliExpressDashboardPayload(payload: unknown) {
   const fallback = buildRemoteDashboardUnavailableState("la reponse dashboard recue est incomplete ou invalide");
@@ -108,12 +104,5 @@ async function getAliExpressDashboardData(panel: string) {
 }
 
 export default async function AdminAliExpressSourcingPage() {
-  const dashboard = await getAliExpressDashboardData("dashboard");
-
-  return (
-    <>
-      <AdminSourcingProviderNotice provider="aliexpress" />
-      <AdminAliExpressOperationsClient initialDashboard={dashboard} />
-    </>
-  );
+  redirect("/admin/alibaba-sourcing");
 }

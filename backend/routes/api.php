@@ -40,7 +40,7 @@ Route::get('/search-suggestions', [SearchSuggestionController::class, 'index']);
 Route::get('/pricing-context', [PricingContextController::class, 'show']);
 Route::post('/promo-codes/preview', [PromoCodeController::class, 'preview']);
 Route::get('/favorites', [FavoriteController::class, 'show']);
-Route::post('/aliexpress-sourcing/quote', [SourcingQuoteController::class, 'quote']);
+Route::post('/alibaba-sourcing/quote', [SourcingQuoteController::class, 'quote']);
 Route::post('/payment/webhook', [PaymentController::class, 'webhook']);
 Route::post('/image-search', [ImageSearchController::class, 'search']);
 Route::post('/location/reverse-geocode', [LocationController::class, 'reverseGeocode']);
@@ -61,7 +61,6 @@ Route::prefix('partner/portal')->group(function () {
     Route::get('/approval-guide', [PartnerPortalController::class, 'approvalGuide']);
     Route::get('/charter', [PartnerPortalController::class, 'charter']);
 });
-Route::get('/admin/aliexpress/supplier-accounts/oauth/callback', [AlibabaAdminController::class, 'oauthCallback']);
 Route::get('/admin/alibaba/supplier-accounts/oauth/callback', [AlibabaAdminController::class, 'oauthCallback']);
 
 Route::prefix('partner')
@@ -98,23 +97,6 @@ Route::get('/catalog/products', [ProductController::class, 'index']);
 Route::get('/catalog/categories', [ProductController::class, 'categories']);
 
 Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/admin/aliexpress/dashboard', [AlibabaAdminController::class, 'dashboard']);
-    Route::post('/admin/aliexpress/search', [AlibabaAdminController::class, 'search']);
-    Route::post('/admin/aliexpress/fetch-remote', [AlibabaAdminController::class, 'fetchRemote']);
-    Route::post('/admin/aliexpress/probe', [AlibabaAdminController::class, 'probe']);
-    Route::post('/admin/aliexpress/import', [AlibabaAdminController::class, 'import']);
-    Route::delete('/admin/aliexpress/import', [AlibabaAdminController::class, 'purgeImports']);
-    Route::post('/admin/aliexpress/import/reenrich', [AlibabaAdminController::class, 'reenrichAllImports']);
-    Route::delete('/admin/aliexpress/import/{importedProductId}', [AlibabaAdminController::class, 'deleteImport']);
-    Route::post('/admin/aliexpress/import/{importedProductId}/reenrich', [AlibabaAdminController::class, 'reenrichImport']);
-    Route::post('/admin/aliexpress/supplier-accounts', [AlibabaAdminController::class, 'supplierAccounts']);
-    Route::match(['GET', 'POST'], '/admin/aliexpress/supplier-accounts/oauth/start', [AlibabaAdminController::class, 'oauthStart']);
-    Route::post('/admin/aliexpress/supplier-accounts/{accountId}/refresh', [AlibabaAdminController::class, 'refreshSupplierAccount']);
-    Route::post('/admin/aliexpress/reception-addresses', [AlibabaAdminController::class, 'receptionAddresses']);
-    Route::put('/admin/aliexpress/country-profiles', [AlibabaAdminController::class, 'countryProfiles']);
-    Route::post('/admin/aliexpress/publish', [AlibabaAdminController::class, 'publish']);
-    Route::post('/admin/aliexpress/purchase-orders', [AlibabaAdminController::class, 'purchaseOrders']);
-    Route::post('/admin/aliexpress/purchase-orders/{orderId}/pay', [AlibabaAdminController::class, 'payPurchaseOrder']);
     Route::get('/admin/alibaba/dashboard', [AlibabaAdminController::class, 'dashboard']);
     Route::post('/admin/alibaba/search', [AlibabaAdminController::class, 'search']);
     Route::post('/admin/alibaba/fetch-remote', [AlibabaAdminController::class, 'fetchRemote']);

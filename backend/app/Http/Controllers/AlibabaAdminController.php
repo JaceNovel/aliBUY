@@ -150,10 +150,10 @@ class AlibabaAdminController extends Controller
             $origin = rtrim((string) config('app.frontend_url', config('app.url', 'https://afripay.space')), '/');
         }
 
-        $target = rtrim($origin, '/').(($payload['provider'] ?? null) === 'alibaba' ? '/admin/alibaba-sourcing/accounts' : '/admin/aliexpress-sourcing/accounts');
+        $target = rtrim($origin, '/').'/admin/alibaba-sourcing/accounts';
         $separator = str_contains($target, '?') ? '&' : '?';
 
-        return $target.$separator.'oauth=failed&message='.rawurlencode($message !== '' ? $message : 'Demarrage OAuth AliExpress impossible.');
+        return $target.$separator.'oauth=failed&message='.rawurlencode($message !== '' ? $message : 'Demarrage OAuth Alibaba impossible.');
     }
 
     public function oauthCallback(Request $request): RedirectResponse
@@ -173,7 +173,7 @@ class AlibabaAdminController extends Controller
 
     protected function withSourcingProvider(Request $request, array $payload): array
     {
-        $provider = str_contains($request->path(), 'admin/alibaba/') ? 'alibaba' : 'aliexpress';
+        $provider = 'alibaba';
 
         return [
             ...$payload,

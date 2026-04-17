@@ -233,7 +233,7 @@ function getImportedCampaignLabel(product: AlibabaImportedProduct) {
   }
 }
 
-export function AdminAliExpressImportCatalogClient({ initialDashboard, adminApiBasePath = "/api/admin/aliexpress" }: { initialDashboard: DashboardData; adminApiBasePath?: string }) {
+export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBasePath = "/api/admin/alibaba" }: { initialDashboard: DashboardData; adminApiBasePath?: string }) {
   const router = useRouter();
   const [isRefreshing, startRefreshTransition] = useTransition();
   const connectedAccounts = useMemo(
@@ -337,7 +337,7 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard, adminApiB
     if (!response.ok || !payload) {
       setSearchState(null);
       setSelectedPreviewIds([]);
-      setErrorMessage(payload?.message ?? "Recherche AliExpress DS impossible.");
+      setErrorMessage(payload?.message ?? "Recherche catalogue Alibaba impossible.");
       setIsSearching(false);
       return;
     }
@@ -358,7 +358,7 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard, adminApiB
     }
 
     if (!importSupplierAccount || importSupplierAccount.status !== "connected") {
-      setErrorMessage("Choisis d'abord un compte AliExpress connecte pour importer.");
+      setErrorMessage("Choisis d'abord un compte Alibaba connecte pour importer.");
       return;
     }
 
@@ -576,7 +576,7 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard, adminApiB
     }
 
     setFeedback(payload?.order?.payUrl
-      ? "Lot d'achat cree. Ouvre maintenant le lien de paiement AliExpress."
+      ? "Lot d'achat cree. Ouvre maintenant le lien de paiement Alibaba."
       : "Lot d'achat cree en brouillon ou sans lien de paiement.");
     refresh();
   };
@@ -588,10 +588,10 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard, adminApiB
           <div className="max-w-[840px]">
             <div className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-[12px] font-black uppercase tracking-[0.18em] text-[#d85c14] shadow-[0_8px_20px_rgba(15,23,42,0.06)]">
               <Sparkles className="h-4 w-4" />
-              AliExpress DS text search
+              Alibaba catalogue search
             </div>
             <h1 className="mt-4 max-w-[720px] text-[30px] font-black tracking-[-0.05em] text-[#101828] sm:text-[36px]">
-              Recherche, previsualisation et import cible des produits `aliexpress.ds.text.search`
+              Recherche, previsualisation et import cible des produits Alibaba
             </h1>
             <p className="mt-3 max-w-[760px] text-[14px] leading-7 text-[#475467]">
               La page d'import passe maintenant par une etape claire: tu recherches les produits DS, tu vois lesquels sont reellement importables apres verification `ds.product.get`, puis tu importes seulement les fiches choisies.
@@ -702,7 +702,7 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard, adminApiB
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#1d4f91]">Search extend</div>
-                <div className="mt-1 text-[13px] text-[#667085]">Ajoute des filtres supportes par AliExpress comme `seller_online`, `ship_from` ou `free_ship_to`.</div>
+                <div className="mt-1 text-[13px] text-[#667085]">Ajoute des filtres supportes par le catalogue fournisseur pour affiner la recherche.</div>
               </div>
               <button type="button" onClick={() => setSearchExtendRows((current) => [...current, { id: createRowId(), searchKey: "", searchValue: "", min: "", max: "" }])} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#d6dbe6] bg-white px-4 text-[13px] font-semibold text-[#111827] transition hover:border-[#d85c14] hover:text-[#d85c14]">
                 <WandSparkles className="h-4 w-4" />
@@ -771,9 +771,9 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard, adminApiB
       <section className="rounded-[24px] border border-[#e3e8f2] bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)] sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85c14]">Resultats DS</div>
+            <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85c14]">Resultats Alibaba</div>
             <h2 className="mt-2 text-[24px] font-black tracking-[-0.05em] text-[#101828]">Previsualisation avant import</h2>
-            <p className="mt-2 text-[13px] leading-6 text-[#667085]">Chaque carte provient de `aliexpress.ds.text.search`, puis est controlee avec `aliexpress.ds.product.get` pour savoir si elle reste importable.</p>
+            <p className="mt-2 text-[13px] leading-6 text-[#667085]">Chaque carte provient du catalogue Alibaba puis est controlee avant import pour savoir si elle reste exploitable.</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -836,7 +836,7 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard, adminApiB
                       <div className="mt-4 grid grid-cols-2 gap-2 text-[12px] text-[#475467]">
                         <div className="rounded-[14px] bg-[#f8fafc] px-3 py-2">Commandes<br /><span className="font-semibold text-[#101828]">{item.orders ?? "-"}</span></div>
                         <div className="rounded-[14px] bg-[#f8fafc] px-3 py-2">Evaluation<br /><span className="font-semibold text-[#101828]">{item.evaluateRate ?? item.score ?? "-"}</span></div>
-                        <div className="rounded-[14px] bg-[#f8fafc] px-3 py-2">Fournisseur<br /><span className="font-semibold text-[#101828]">{item.product?.supplierName ?? "AliExpress"}</span></div>
+                        <div className="rounded-[14px] bg-[#f8fafc] px-3 py-2">Fournisseur<br /><span className="font-semibold text-[#101828]">{item.product?.supplierName ?? "Alibaba"}</span></div>
                         <div className="rounded-[14px] bg-[#f8fafc] px-3 py-2">MOQ / Stock<br /><span className="font-semibold text-[#101828]">{item.product ? `${item.product.moq} / ${formatCount(item.product.inventory)}` : "-"}</span></div>
                       </div>
 
@@ -861,7 +861,8 @@ export function AdminAliExpressImportCatalogClient({ initialDashboard, adminApiB
             </div>
           </>
         ) : (
-          <div className="mt-5 rounded-[18px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Lance une recherche pour afficher les resultats DS previsualises.</div>
+          <div className="mt-5 rounded-[18px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Lance une recherche pour afficher les resultats Alibaba previsualises.</div>
+
         )}
       </section>
 

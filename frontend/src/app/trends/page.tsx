@@ -4,6 +4,7 @@ import { Flame, PackageCheck, Sparkles } from "lucide-react";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { getCatalogProducts } from "@/lib/catalog-service";
+import { getStorefrontMoqDisplay } from "@/lib/product-moq";
 import { getPricingContext } from "@/lib/pricing";
 import { getStorefrontCampaign, isTrendStorefrontProduct, normalizeStorefrontBadge, shuffleStorefrontItems } from "@/lib/public-storefront";
 
@@ -76,6 +77,7 @@ export default async function TrendsPage() {
               const isPromo = campaign.mode === "trends-promo" || product.badge === "Promo" || product.badge === "Offre mise en avant";
               const isHot = campaign.mode === "trends-hot";
               const isStock = product.badge === "En stock" || product.badge === "Livraison rapide";
+              const moqDisplay = getStorefrontMoqDisplay(product);
 
               return (
                 <Link
@@ -125,6 +127,7 @@ export default async function TrendsPage() {
                     <div className="mt-2 text-[13px] font-bold tracking-[-0.03em] text-[#111] sm:text-[18px]">
                       {formatPriceRange(pricing.formatPrice, product.minUsd, product.maxUsd)}
                     </div>
+                    <div className="mt-1 text-[9px] font-semibold text-[#d85300] sm:text-[11px]">{moqDisplay.label} · {moqDisplay.value}</div>
                     <div className="mt-1 text-[9px] text-[#444] sm:text-[12px]">Choix flexible · {product.unit}</div>
                     <div className="mt-1 text-[9px] text-[#8a8a8a] sm:text-[12px]">{product.yearsInBusiness} ans</div>
                   </div>

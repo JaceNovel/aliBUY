@@ -45,13 +45,13 @@ import {
   extractAlibabaOperationCode,
   extractAlibabaOperationMessage,
   extractAlibabaTradeId,
-  fetchAliExpressPublicProductSeed,
+  fetchAliExpressPublicProductSeed as fetchAlibabaPublicProductSeed,
   fetchAlibabaProductSnapshot,
   fetchAlibabaProductSnapshotWithDebug,
-  normalizeAliExpressDsAddressOptions,
+  normalizeAlibabaBuyerAddressOptions as normalizeAlibabaAddressOptions,
   normalizeAlibabaFreightOptions,
   queryAlibabaPaymentResult,
-  queryAliExpressDsAddress,
+  queryAliExpressDsAddress as queryAlibabaAddress,
   resolveAlibabaIcbuCategoryInfo,
   searchAlibabaProducts,
   type AlibabaSearchProduct,
@@ -65,7 +65,7 @@ function nowIso() {
 
 function getAlibabaPersistentStorageIssue() {
   if (API_URL) {
-    return `Ce storefront Next n'utilise pas de stockage persistant local. Si ta source de verite est MySQL sur Hostinger, les operations AliExpress doivent etre servies par le backend Laravel configure dans NEXT_PUBLIC_API_BASE_URL (${API_URL}).`;
+    return `Ce storefront Next n'utilise pas de stockage persistant local. Si ta source de verite est MySQL sur Hostinger, les operations Alibaba doivent etre servies par le backend Laravel configure dans NEXT_PUBLIC_API_BASE_URL (${API_URL}).`;
   }
 
   return "Ce storefront tourne sans backend externe ni stockage persistant local. Si ta source de verite est MySQL sur Hostinger via Laravel, configure NEXT_PUBLIC_API_BASE_URL vers ce backend. Sinon ajoute DATABASE_URL ou BLOB_READ_WRITE_TOKEN pour persister cote frontend.";
@@ -118,15 +118,15 @@ function resolveAlibabaManualImportErrorMessage(debug: {
   const requestIdSuffix = debug.providerRequestId ? ` (request_id=${debug.providerRequestId})` : "";
 
   if (code?.includes("permission") || code?.includes("invalid-permission")) {
-    return `Le compte AliExpress connecte n'a pas les permissions Dropshipping pour cette API.${requestIdSuffix}`;
+    return `Le compte Alibaba connecte n'a pas les permissions requises pour cette API.${requestIdSuffix}`;
   }
 
   if (code?.includes("token") || providerMessage?.toLowerCase().includes("token")) {
-    return `Le token AliExpress semble invalide ou expire. Reconnecte le compte OAuth puis relance l'import.${requestIdSuffix}`;
+    return `Le token Alibaba semble invalide ou expire. Reconnecte le compte OAuth puis relance l'import.${requestIdSuffix}`;
   }
 
   if (providerMessage?.toLowerCase().includes("country") || providerMessage?.toLowerCase().includes("pays")) {
-    return `Le produit AliExpress existe mais n'est pas disponible pour le pays de destination demande.${requestIdSuffix}`;
+    return `Le produit Alibaba existe mais n'est pas disponible pour le pays de destination demande.${requestIdSuffix}`;
   }
 
   if (allDsAttemptsWithoutSkus) {
@@ -136,14 +136,14 @@ function resolveAlibabaManualImportErrorMessage(debug: {
     const fallbackHint = publicPageAttemptFailed
       ? " Le produit semble exister, mais ce compte ne recoit aucun SKU DS exploitable et la fiche publique n'a pas pu etre reconstruite proprement."
       : "";
-    return `Produit AliExpress detecte, mais aucun SKU DS exploitable n'a ete renvoye.${countryHint}${fallbackHint} Verifie d'abord les droits Dropshipping de l'app, puis le token OAuth et enfin la disponibilite pays du produit.${requestIdSuffix}`;
+    return `Produit Alibaba detecte, mais aucun SKU exploitable n'a ete renvoye.${countryHint}${fallbackHint} Verifie d'abord les droits de l'app, puis le token OAuth et enfin la disponibilite pays du produit.${requestIdSuffix}`;
   }
 
   if (debug.responseShape === "result_without_skus") {
-    return `Produit AliExpress trouve, mais aucun SKU DS exploitable n'a ete renvoye. Essaie un autre pays de destination ou verifie les droits Dropshipping de l'app.${requestIdSuffix}`;
+    return `Produit Alibaba trouve, mais aucun SKU exploitable n'a ete renvoye. Essaie un autre pays de destination ou verifie les droits de l'app.${requestIdSuffix}`;
   }
 
-  return `Produit AliExpress DS introuvable ou non lisible pour cet External product ID. Verifie l'ID, le pays de destination, les droits Dropshipping de l'app et le token OAuth.${requestIdSuffix}`;
+  return `Produit Alibaba introuvable ou non lisible pour cet External product ID. Verifie l'ID, le pays de destination, les droits de l'app et le token OAuth.${requestIdSuffix}`;
 }
 
 function buildAlibabaExactRemoteFetchDebug(input: {
@@ -179,11 +179,11 @@ export async function fetchAlibabaRemoteExactProduct(input: AlibabaExactRemoteFe
   const normalizedQuery = input.query.trim();
   const directProductIdMatch = normalizedQuery.match(/(?:^|\D)(\d{12,20})(?:\D|$)/);
   if (!normalizedQuery) {
-    throw new Error("Import manuel impossible: saisis un External product ID AliExpress ou un lien produit AliExpress.");
+    throw new Error("Import manuel impossible: saisis un External product ID Alibaba ou un lien produit fournisseur.");
   }
 
   if (!directProductIdMatch?.[1]) {
-    throw new Error("Import manuel impossible: renseigne un External product ID AliExpress numerique valide ou un lien produit AliExpress contenant cet ID.");
+    throw new Error("Import manuel impossible: renseigne un External product ID Alibaba numerique valide ou un lien produit fournisseur contenant cet ID.");
   }
 
   const requestedProductId = directProductIdMatch[1];
@@ -238,71 +238,71 @@ async function resolveAlibabaCategoryInfoForImport(rawPayload: unknown, index: n
   ]);
 }
 
-function formatAliExpressDsOrderCreateFailure(errorCode?: string, errorMessage?: string) {
+function formatAlibabaOrderCreateFailure(errorCode?: string, errorMessage?: string) {
   const code = String(errorCode ?? "").trim();
   const message = String(errorMessage ?? "").trim();
   const normalizedMessage = message.toLowerCase();
 
   if (code === "ITEM_ID_NOT_FOUND") {
-    return "L'article AliExpress n'existe plus ou l'identifiant produit est invalide.";
+    return "L'article fournisseur n'existe plus ou l'identifiant produit est invalide.";
   }
 
   if (code === "Item is not allowed to this country") {
-    return "Ce produit AliExpress n'est pas autorise a la vente pour le pays de destination choisi.";
+    return "Ce produit Alibaba n'est pas autorise a la vente pour le pays de destination choisi.";
   }
 
   if (code === "SKU_NOT_EXIST") {
-    return "Le SKU AliExpress de ce produit n'existe plus ou n'a pas ete transmis. Reimporte l'article pour resynchroniser ses variantes avant de relancer le lot DS.";
+    return "Le SKU Alibaba de ce produit n'existe plus ou n'a pas ete transmis. Reimporte l'article pour resynchroniser ses variantes avant de relancer le lot fournisseur.";
   }
 
   if (code === "B_DROPSHIPPER_DELIVERY_ADDRESS_VALIDATE_FAIL") {
     if (normalizedMessage.includes("city")) {
-      return "Adresse AliExpress invalide: la ville est obligatoire ou non reconnue.";
+      return "Adresse fournisseur invalide: la ville est obligatoire ou non reconnue.";
     }
 
     if (normalizedMessage.includes("state") || normalizedMessage.includes("province") || normalizedMessage.includes("county")) {
-      return "Adresse AliExpress invalide: l'etat ou la province est obligatoire.";
+      return "Adresse fournisseur invalide: l'etat ou la province est obligatoire.";
     }
 
     if (normalizedMessage.includes("phone") || normalizedMessage.includes("country code")) {
-      return "Adresse AliExpress invalide: verifie le numero de telephone et l'indicatif pays.";
+      return "Adresse fournisseur invalide: verifie le numero de telephone et l'indicatif pays.";
     }
 
     if (normalizedMessage.includes("2 and 32") || normalizedMessage.includes("2 to 32") || normalizedMessage.includes("2-32")) {
-      return "Adresse AliExpress invalide: le nom du contact doit contenir entre 2 et 32 caracteres.";
+      return "Adresse fournisseur invalide: le nom du contact doit contenir entre 2 et 32 caracteres.";
     }
 
-    return message ? `Adresse AliExpress invalide: ${message}` : "Adresse AliExpress invalide. Verifie les champs ville, province, telephone et contact.";
+    return message ? `Adresse fournisseur invalide: ${message}` : "Adresse fournisseur invalide. Verifie les champs ville, province, telephone et contact.";
   }
 
   if (code === "DELIVERY_METHOD_NOT_EXIST") {
-    return "Aucune methode de livraison AliExpress valide n'est disponible pour cette adresse.";
+    return "Aucune methode de livraison Alibaba valide n'est disponible pour cette adresse.";
   }
 
   if (code === "PRICE_PAY_CURRENCY_ERROR") {
-    return "La devise de paiement AliExpress ne correspond pas a la devise du produit.";
+    return "La devise de paiement Alibaba ne correspond pas a la devise du produit.";
   }
 
   if (code === "INVENTORY_HOLD_ERROR") {
-    return "AliExpress a refuse la commande: stock insuffisant ou erreur de reservation d'inventaire.";
+    return "Alibaba a refuse la commande: stock insuffisant ou erreur de reservation d'inventaire.";
   }
 
   if (code === "REPEATED_ORDER_ERROR") {
-    return "AliExpress signale une commande dupliquee pour ce lot.";
+    return "Alibaba signale une commande dupliquee pour ce lot.";
   }
 
   if (code === "USER_ACCOUNT_DISABLED") {
-    return "Le compte AliExpress utilise pour le dropshipping est desactive.";
+    return "Le compte Alibaba utilise pour le paiement fournisseur est desactive.";
   }
 
   if (code === "BLACKLIST_BUYER_IN_LIST") {
-    return "Le compte acheteur AliExpress est temporairement bloque pour cette commande.";
+    return "Le compte acheteur Alibaba est temporairement bloque pour cette commande.";
   }
 
   return [code, message].filter(Boolean).join(" - ") || "Lancement DS impossible";
 }
 
-function isAliExpressDsAutoPayFailure(errorMessage?: string) {
+function isAlibabaAutoPayFailure(errorMessage?: string) {
   const normalized = String(errorMessage ?? "").trim().toLowerCase();
   return normalized.includes("autopay fail")
     || normalized.includes("api pay fail")
@@ -310,9 +310,9 @@ function isAliExpressDsAutoPayFailure(errorMessage?: string) {
     || normalized.includes("ordercreated, autopay fail");
 }
 
-function formatAliExpressDsAutoPayFailure(errorMessage?: string) {
+function formatAlibabaAutoPayFailure(errorMessage?: string) {
   const details = String(errorMessage ?? "").trim();
-  const guidance = "Commande DS creee, mais l'auto-paiement a echoue. Verifie la whitelist auto-pay (appKey), le compte acheteur AliExpress, le compte PayPal lie au buyer account, puis active Auto Pay dans AliExpress DS.";
+  const guidance = "Commande fournisseur creee, mais le paiement automatique a echoue. Verifie la whitelist auto-pay, le compte acheteur Alibaba et le moyen de paiement rattache au compte buyer.";
   return details ? `${guidance} Detail: ${details}` : guidance;
 }
 
@@ -472,11 +472,11 @@ function resolveAlibabaOrderCarrierCode(freightResponseBody: unknown) {
   return preferredOption?.vendorCode ?? preferredOption?.shippingType;
 }
 
-type AliExpressDsAddressNode = {
+type AlibabaBuyerAddressNode = {
   name: string;
   code?: string;
   id?: string;
-  children: AliExpressDsAddressNode[];
+  children: AlibabaBuyerAddressNode[];
 };
 
 function normalizeComparableText(value: string | undefined) {
@@ -488,7 +488,7 @@ function normalizeComparableText(value: string | undefined) {
     .trim();
 }
 
-function parseAliExpressDsAddressNodes(value: unknown): AliExpressDsAddressNode[] {
+function parseAlibabaBuyerAddressNodes(value: unknown): AlibabaBuyerAddressNode[] {
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (!trimmed) {
@@ -496,14 +496,14 @@ function parseAliExpressDsAddressNodes(value: unknown): AliExpressDsAddressNode[
     }
 
     try {
-      return parseAliExpressDsAddressNodes(JSON.parse(trimmed));
+      return parseAlibabaBuyerAddressNodes(JSON.parse(trimmed));
     } catch {
       return [];
     }
   }
 
   if (Array.isArray(value)) {
-    return value.flatMap((entry) => parseAliExpressDsAddressNodes(entry));
+    return value.flatMap((entry) => parseAlibabaBuyerAddressNodes(entry));
   }
 
   if (!value || typeof value !== "object") {
@@ -514,7 +514,7 @@ function parseAliExpressDsAddressNodes(value: unknown): AliExpressDsAddressNode[
   const name = getStringRecordValue(record, "name", "label", "areaName", "provinceName", "cityName", "displayName");
   const code = getStringRecordValue(record, "code", "areaCode", "provinceCode", "cityCode", "countryCode");
   const id = getStringRecordValue(record, "id", "areaId", "provinceId", "cityId");
-  const children = parseAliExpressDsAddressNodes(
+  const children = parseAlibabaBuyerAddressNodes(
     record.children
       ?? record.childList
       ?? record.childs
@@ -532,10 +532,10 @@ function parseAliExpressDsAddressNodes(value: unknown): AliExpressDsAddressNode[
     code: code ?? undefined,
     id: id ?? undefined,
     children,
-  } satisfies AliExpressDsAddressNode];
+  } satisfies AlibabaBuyerAddressNode];
 }
 
-function findAliExpressDsAddressNode(nodes: AliExpressDsAddressNode[], value: string | undefined): AliExpressDsAddressNode | undefined {
+function findAlibabaBuyerAddressNode(nodes: AlibabaBuyerAddressNode[], value: string | undefined): AlibabaBuyerAddressNode | undefined {
   const normalizedTarget = normalizeComparableText(value);
   if (!normalizedTarget) {
     return undefined;
@@ -559,17 +559,17 @@ function findAliExpressDsAddressNode(nodes: AliExpressDsAddressNode[], value: st
   return undefined;
 }
 
-async function resolveValidatedAliExpressAddress(address: AlibabaReceptionAddress) {
-  const addressQuery = await queryAliExpressDsAddress({
+async function resolveValidatedAlibabaAddress(address: AlibabaReceptionAddress) {
+  const addressQuery = await queryAlibabaAddress({
     countryCode: address.countryCode,
     language: process.env.ALIEXPRESS_DEFAULT_LANGUAGE ?? "en_US",
     isMultiLanguage: true,
   }).catch(() => null);
 
-  const options = addressQuery ? normalizeAliExpressDsAddressOptions(addressQuery.responseBody) : [];
+  const options = addressQuery ? normalizeAlibabaAddressOptions(addressQuery.responseBody) : [];
   const typedNodes = options.map((entry) => ({
     type: normalizeComparableText(entry.type),
-    nodes: parseAliExpressDsAddressNodes(entry.childrenJson),
+    nodes: parseAlibabaBuyerAddressNodes(entry.childrenJson),
   }));
   const allRoots = typedNodes.flatMap((entry) => entry.nodes);
 
@@ -586,7 +586,7 @@ async function resolveValidatedAliExpressAddress(address: AlibabaReceptionAddres
     .filter((entry) => /(state|province|county|region)/.test(entry.type))
     .flatMap((entry) => entry.nodes);
   const provinceSearchRoots = provinceRoots.length > 0 ? provinceRoots : allRoots;
-  const provinceMatch = findAliExpressDsAddressNode(provinceSearchRoots, address.state);
+  const provinceMatch = findAlibabaBuyerAddressNode(provinceSearchRoots, address.state);
 
   if (address.state.trim() && provinceSearchRoots.length > 0 && !provinceMatch) {
     throw new Error(`Adresse AliExpress invalide: la province ou l'etat "${address.state}" n'est pas reconnu pour ${address.countryCode}.`);
@@ -600,7 +600,7 @@ async function resolveValidatedAliExpressAddress(address: AlibabaReceptionAddres
     : explicitCityRoots.length > 0
       ? explicitCityRoots
       : allRoots;
-  const cityMatch = findAliExpressDsAddressNode(citySearchRoots, address.city);
+  const cityMatch = findAlibabaBuyerAddressNode(citySearchRoots, address.city);
 
   if (address.city.trim() && citySearchRoots.length > 0 && !cityMatch) {
     throw new Error(`Adresse AliExpress invalide: la ville "${address.city}" n'est pas reconnue pour ${address.countryCode}.`);
@@ -614,7 +614,7 @@ async function resolveValidatedAliExpressAddress(address: AlibabaReceptionAddres
   };
 }
 
-function extractAliExpressTradeOrderStatus(responseBody: unknown) {
+function extractAlibabaTradeOrderStatus(responseBody: unknown) {
   if (!responseBody || typeof responseBody !== "object" || Array.isArray(responseBody)) {
     return undefined;
   }
@@ -633,7 +633,7 @@ function extractAliExpressTradeOrderStatus(responseBody: unknown) {
     ?? getStringRecordValue(body, "order_status", "status");
 }
 
-function extractAliExpressRequestId(responseBody: unknown) {
+function extractAlibabaRequestId(responseBody: unknown) {
   if (!responseBody || typeof responseBody !== "object" || Array.isArray(responseBody)) {
     return undefined;
   }
@@ -645,7 +645,7 @@ function extractAliExpressRequestId(responseBody: unknown) {
     ?? getStringRecordValue(errorResponse, "request_id", "requestId");
 }
 
-function extractAliExpressTradePayUrl(responseBody: unknown) {
+function extractAlibabaTradePayUrl(responseBody: unknown) {
   if (!responseBody || typeof responseBody !== "object" || Array.isArray(responseBody)) {
     return undefined;
   }
@@ -667,7 +667,7 @@ function extractAliExpressTradePayUrl(responseBody: unknown) {
     ?? getStringRecordValue(body, "pay_url", "payUrl", "cashier_url", "cashierUrl");
 }
 
-function extractAliExpressTradeError(responseBody: unknown) {
+function extractAlibabaTradeError(responseBody: unknown) {
   if (!responseBody || typeof responseBody !== "object" || Array.isArray(responseBody)) {
     return null;
   }
@@ -687,7 +687,7 @@ function extractAliExpressTradeError(responseBody: unknown) {
   };
 }
 
-function isAliExpressPermissionError(code?: string, subCode?: string, message?: string) {
+function isAlibabaPermissionError(code?: string, subCode?: string, message?: string) {
   const haystack = [code, subCode, message]
     .map((entry) => String(entry ?? "").trim().toLowerCase())
     .filter(Boolean)
@@ -728,14 +728,14 @@ async function syncAlibabaPurchaseOrderState(order: AlibabaPurchaseOrder) {
   }
 
   const paymentResult = await queryAlibabaPaymentResult({ tradeId: order.tradeId });
-  const remoteError = extractAliExpressTradeError(paymentResult.responseBody);
-  const remoteStatus = String(extractAliExpressTradeOrderStatus(paymentResult.responseBody) ?? "").trim().toUpperCase();
-  const payUrl = extractAliExpressTradePayUrl(paymentResult.responseBody)
+  const remoteError = extractAlibabaTradeError(paymentResult.responseBody);
+  const remoteStatus = String(extractAlibabaTradeOrderStatus(paymentResult.responseBody) ?? "").trim().toUpperCase();
+  const payUrl = extractAlibabaTradePayUrl(paymentResult.responseBody)
     ?? order.payUrl;
   const payFailureReason = remoteError?.subMessage
     ?? remoteError?.message
     ?? extractAlibabaOperationMessage(paymentResult.responseBody);
-  const permissionDenied = isAliExpressPermissionError(remoteError?.code, remoteError?.subCode, payFailureReason);
+  const permissionDenied = isAlibabaPermissionError(remoteError?.code, remoteError?.subCode, payFailureReason);
   const isPaid = remoteStatus === "FINISH" || remoteStatus === "PAID";
   const isFailed = remoteStatus.includes("CANCEL") || remoteStatus.includes("CLOSE") || remoteStatus.includes("FAIL");
 
@@ -749,7 +749,7 @@ async function syncAlibabaPurchaseOrderState(order: AlibabaPurchaseOrder) {
     payUrl,
     providerErrorCode: remoteError?.subCode ?? remoteError?.code,
     providerMessage: payFailureReason,
-    providerRequestId: extractAliExpressRequestId(paymentResult.responseBody),
+    providerRequestId: extractAlibabaRequestId(paymentResult.responseBody),
   });
 
   const nextOrder: AlibabaPurchaseOrder = {
@@ -769,7 +769,7 @@ async function syncAlibabaPurchaseOrderState(order: AlibabaPurchaseOrder) {
   return nextOrder;
 }
 
-function getAliExpressMarginRate() {
+function getAlibabaMarginRate() {
   const configuredMargin = Number(process.env.ALIEXPRESS_MARGIN_RATE ?? "0.1");
   if (!Number.isFinite(configuredMargin) || configuredMargin < 0) {
     return 0.1;
@@ -787,7 +787,7 @@ function getExpiryDate(secondsLike: unknown) {
   return new Date(Date.now() + seconds * 1000).toISOString();
 }
 
-function normalizeAliExpressOAuthUrl(value: string | undefined, type: "authorize" | "token" | "refresh") {
+function normalizeAlibabaOAuthUrl(value: string | undefined, type: "authorize" | "token" | "refresh") {
   const fallback = type === "authorize"
     ? ALIBABA_DEFAULT_AUTHORIZE_URL
     : type === "token"
@@ -866,7 +866,7 @@ export async function upsertAlibabaSupplierAccountTokens(input: {
   const accounts = await getAlibabaSupplierAccounts();
   const existing = accounts.find((account) => account.id === input.accountId);
   if (!existing) {
-    throw new Error("Compte fournisseur AliExpress introuvable. En production, configure une persistance (DATABASE_URL ou BLOB_READ_WRITE_TOKEN) puis relance OAuth.");
+    throw new Error("Compte fournisseur Alibaba introuvable. En production, configure une persistance (DATABASE_URL ou BLOB_READ_WRITE_TOKEN) puis relance OAuth.");
   }
 
   const nextAccount: AlibabaSupplierAccount = {
@@ -891,7 +891,7 @@ export async function upsertAlibabaSupplierAccountTokens(input: {
 
 function buildOverview(product: ProductCatalogItem) {
   return product.overview.length > 0 ? product.overview : [
-    `Import AliExpress pour ${product.shortTitle}.`,
+    `Import Alibaba pour ${product.shortTitle}.`,
     "Médias, variations et détails logistiques synchronisés.",
     "Prêt à être publié dans le catalogue AfriPay.",
   ];
@@ -1137,18 +1137,18 @@ export async function runAlibabaCatalogImport(input: {
   manualSeedQuery?: string;
 }) {
   if (requiresAlibabaPersistentStorage() && !hasAlibabaPersistentStorage()) {
-    throw new Error(`Import AliExpress bloque: ${getAlibabaPersistentStorageIssue()}`);
+    throw new Error(`Import Alibaba bloque: ${getAlibabaPersistentStorageIssue()}`);
   }
 
   const normalizedQuery = input.query.trim();
   const directProductIdMatch = normalizedQuery.match(/(?:^|\D)(\d{12,20})(?:\D|$)/);
   const manualDirectImport = Boolean(input.manualProductMode);
   if (manualDirectImport && !normalizedQuery) {
-    throw new Error("Import manuel impossible: saisis un External product ID AliExpress ou un lien produit AliExpress.");
+    throw new Error("Import manuel impossible: saisis un External product ID Alibaba ou un lien produit fournisseur.");
   }
 
   if (manualDirectImport && !directProductIdMatch?.[1]) {
-    throw new Error("Import manuel impossible: renseigne un External product ID AliExpress numerique valide ou un lien produit AliExpress contenant cet ID.");
+    throw new Error("Import manuel impossible: renseigne un External product ID Alibaba numerique valide ou un lien produit fournisseur contenant cet ID.");
   }
 
   const timestamp = nowIso();
@@ -1176,7 +1176,7 @@ export async function runAlibabaCatalogImport(input: {
     endpoint: manualDirectImport
       ? (directProductIdMatch?.[1] ? "/aliexpress/ds/product/get" : "/aliexpress/ds/product/search")
       : "/aliexpress/ds/product/search",
-    errorMessage: "Recherche AliExpress impossible.",
+    errorMessage: "Recherche Alibaba impossible.",
   };
 
   try {
@@ -1231,7 +1231,7 @@ export async function runAlibabaCatalogImport(input: {
       if (job.limit > 1) {
         const publicSeed = remoteFetchResult.product
           ? null
-          : await fetchAliExpressPublicProductSeed({
+          : await fetchAlibabaPublicProductSeed({
               sourceProductId: requestedProductId,
               query: manualSeedQuery,
               targetLanguage,
@@ -1319,13 +1319,13 @@ export async function runAlibabaCatalogImport(input: {
     }
 
     if (!searchResult.ok && resolvedProducts.length === 0) {
-      throw createAlibabaImportError(searchResult.errorMessage ?? "Recherche AliExpress impossible.", searchResult.debug);
+      throw createAlibabaImportError(searchResult.errorMessage ?? "Recherche Alibaba impossible.", searchResult.debug);
     }
 
     if (resolvedProducts.length === 0) {
       throw new Error(manualDirectImport
-        ? "Aucun produit exact n'a ete trouve pour ce SKU, ce lien AliExpress ou ce product_id."
-        : "Aucun produit live AliExpress n'a ete renvoye pour cette recherche.");
+        ? "Aucun produit exact n'a ete trouve pour ce SKU, ce lien fournisseur ou ce product_id."
+        : "Aucun produit live Alibaba n'a ete renvoye pour cette recherche.");
     }
 
     const uniqueSearchProducts = resolvedProducts
@@ -1802,9 +1802,9 @@ export async function saveAlibabaSupplierAccountInput(input: Omit<AlibabaSupplie
     id: accountId,
     createdAt: existing?.createdAt ?? timestamp,
     updatedAt: timestamp,
-    authorizeUrl: normalizeAliExpressOAuthUrl(input.authorizeUrl ?? existing?.authorizeUrl, "authorize"),
-    tokenUrl: normalizeAliExpressOAuthUrl(input.tokenUrl ?? existing?.tokenUrl, "token"),
-    refreshUrl: normalizeAliExpressOAuthUrl(input.refreshUrl ?? existing?.refreshUrl, "refresh"),
+    authorizeUrl: normalizeAlibabaOAuthUrl(input.authorizeUrl ?? existing?.authorizeUrl, "authorize"),
+    tokenUrl: normalizeAlibabaOAuthUrl(input.tokenUrl ?? existing?.tokenUrl, "token"),
+    refreshUrl: normalizeAlibabaOAuthUrl(input.refreshUrl ?? existing?.refreshUrl, "refresh"),
     apiBaseUrl: input.apiBaseUrl?.trim() || ALIBABA_DEFAULT_API_BASE_URL,
     isActive: input.isActive ?? existing?.isActive ?? false,
     appKey: normalizedAppKey || existing?.appKey,
@@ -1908,7 +1908,7 @@ export async function createAlibabaPurchaseOrder(input: {
   }
 
   const quantity = Math.max(1, input.quantity);
-  const validatedAddress = await resolveValidatedAliExpressAddress(address);
+  const validatedAddress = await resolveValidatedAlibabaAddress(address);
   const liveProduct = await fetchAlibabaProductSnapshot({
     sourceProductId: product.sourceProductId,
     query: product.query,
@@ -1969,7 +1969,7 @@ export async function createAlibabaPurchaseOrder(input: {
     destinationCountry: address.countryCode,
     providerErrorCode: extractAlibabaOperationCode(freightResult.responseBody),
     providerMessage: extractAlibabaOperationMessage(freightResult.responseBody),
-    providerRequestId: extractAliExpressRequestId(freightResult.responseBody),
+    providerRequestId: extractAlibabaRequestId(freightResult.responseBody),
   });
   let carrierCode = resolveAlibabaOrderCarrierCode(freightResult.responseBody);
   if (!carrierCode && (validatedAddress.stateCode || validatedAddress.cityCode)) {
@@ -1990,7 +1990,7 @@ export async function createAlibabaPurchaseOrder(input: {
       destinationCountry: address.countryCode,
       providerErrorCode: extractAlibabaOperationCode(fallbackFreightResult.responseBody),
       providerMessage: extractAlibabaOperationMessage(fallbackFreightResult.responseBody),
-      providerRequestId: extractAliExpressRequestId(fallbackFreightResult.responseBody),
+      providerRequestId: extractAlibabaRequestId(fallbackFreightResult.responseBody),
     });
 
     carrierCode = resolveAlibabaOrderCarrierCode(fallbackFreightResult.responseBody);
@@ -2009,7 +2009,7 @@ export async function createAlibabaPurchaseOrder(input: {
         ? `Verification livraison DS impossible: ${freightMessage}`
         : "Aucune option de livraison AliExpress n'a ete retournee pour ce lot.");
   }
-  const supplierUnitPrice = Math.max(0, Number(product.minUsd) / (1 + getAliExpressMarginRate()));
+  const supplierUnitPrice = Math.max(0, Number(product.minUsd) / (1 + getAlibabaMarginRate()));
   const logisticsPayload = {
     shipment_address: {
       zip: address.postalCode ?? "",
@@ -2078,7 +2078,7 @@ export async function createAlibabaPurchaseOrder(input: {
     rawOrderResponse: {
       provider: "aliexpress-ds",
       status: "batch_saved",
-      marginRate: getAliExpressMarginRate(),
+      marginRate: getAlibabaMarginRate(),
       supplierUnitPriceUsd: supplierUnitPrice,
     },
     rawFreightResponse: { simulated: true, provider: "aliexpress-ds" },
@@ -2129,7 +2129,7 @@ export async function payAlibabaPurchaseOrder(orderId: string) {
     const dsErrorCode = dsResult?.error_code ?? extractAlibabaOperationCode(orderResult.responseBody);
     const dsErrorMessage = dsResult?.error_msg ?? extractAlibabaOperationMessage(orderResult.responseBody);
     const dsOrderCreated = orderResult.ok && dsResult?.is_success !== false;
-    const dsAutoPayFailed = dsOrderCreated && isAliExpressDsAutoPayFailure(dsErrorMessage);
+    const dsAutoPayFailed = dsOrderCreated && isAlibabaAutoPayFailure(dsErrorMessage);
     console.info("[aliexpress-ds-order-create] result", {
       orderId,
       tradeId,
@@ -2137,7 +2137,7 @@ export async function payAlibabaPurchaseOrder(orderId: string) {
       autoPayFailed: dsAutoPayFailed,
       providerErrorCode: dsErrorCode,
       providerMessage: dsErrorMessage,
-      providerRequestId: extractAliExpressRequestId(orderResult.responseBody),
+      providerRequestId: extractAlibabaRequestId(orderResult.responseBody),
     });
     const nextOrder: AlibabaPurchaseOrder = {
       ...order,
@@ -2145,8 +2145,8 @@ export async function payAlibabaPurchaseOrder(orderId: string) {
       orderStatus: dsOrderCreated ? "order_created" : "failed",
       paymentStatus: dsOrderCreated ? (dsAutoPayFailed ? "failed" : "pending") : "failed",
       payFailureReason: dsOrderCreated
-        ? (dsAutoPayFailed ? formatAliExpressDsAutoPayFailure(dsErrorMessage) : undefined)
-        : formatAliExpressDsOrderCreateFailure(dsErrorCode, dsErrorMessage),
+        ? (dsAutoPayFailed ? formatAlibabaAutoPayFailure(dsErrorMessage) : undefined)
+        : formatAlibabaOrderCreateFailure(dsErrorCode, dsErrorMessage),
       rawOrderResponse: orderResult.responseBody,
       updatedAt: nowIso(),
     };
@@ -2160,16 +2160,16 @@ export async function payAlibabaPurchaseOrder(orderId: string) {
   }
 
   const paymentResult = await createAlibabaDropshippingPayment({ tradeId: order.tradeId });
-  const paymentError = extractAliExpressTradeError(paymentResult.responseBody);
+  const paymentError = extractAlibabaTradeError(paymentResult.responseBody);
   const paymentObject = paymentResult.responseBody as { value?: { reason_message?: string }; reason_message?: string };
   const paymentMessage = paymentError?.subMessage
     ?? paymentError?.message
     ?? paymentObject?.value?.reason_message
     ?? paymentObject?.reason_message
     ?? extractAlibabaOperationMessage(paymentResult.responseBody);
-  const payUrl = extractAliExpressTradePayUrl(paymentResult.responseBody)
+  const payUrl = extractAlibabaTradePayUrl(paymentResult.responseBody)
     ?? order.payUrl;
-  const permissionDenied = isAliExpressPermissionError(paymentError?.code, paymentError?.subCode, paymentMessage);
+  const permissionDenied = isAlibabaPermissionError(paymentError?.code, paymentError?.subCode, paymentMessage);
   const hasBusinessError = Boolean(paymentError?.subCode || paymentError?.code);
   const paymentSucceeded = paymentResult.ok && !hasBusinessError;
   console.info("[aliexpress-ds-payment-sync] pay result", {
@@ -2180,7 +2180,7 @@ export async function payAlibabaPurchaseOrder(orderId: string) {
     payUrl,
     providerErrorCode: paymentError?.subCode ?? paymentError?.code,
     providerMessage: paymentMessage,
-    providerRequestId: extractAliExpressRequestId(paymentResult.responseBody),
+    providerRequestId: extractAlibabaRequestId(paymentResult.responseBody),
   });
 
   const nextOrder: AlibabaPurchaseOrder = {
@@ -2194,8 +2194,8 @@ export async function payAlibabaPurchaseOrder(orderId: string) {
     payFailureReason: paymentSucceeded
       ? undefined
       : permissionDenied
-        ? paymentMessage ?? "Permission API insuffisante pour lire le statut detaille du paiement DS."
-        : paymentMessage ?? "Paiement AliExpress echoue",
+        ? paymentMessage ?? "Permission API insuffisante pour lire le statut detaille du paiement fournisseur."
+        : paymentMessage ?? "Paiement Alibaba echoue",
     rawPaymentResponse: paymentResult.responseBody,
     updatedAt: nowIso(),
   };
@@ -2219,16 +2219,16 @@ export async function repayAlibabaPurchaseOrder(orderId: string) {
   }
 
   const paymentResult = await createAlibabaDropshippingPayment({ tradeId: order.tradeId });
-  const paymentError = extractAliExpressTradeError(paymentResult.responseBody);
+  const paymentError = extractAlibabaTradeError(paymentResult.responseBody);
   const paymentObject = paymentResult.responseBody as { value?: { reason_message?: string }; reason_message?: string };
   const paymentMessage = paymentError?.subMessage
     ?? paymentError?.message
     ?? paymentObject?.value?.reason_message
     ?? paymentObject?.reason_message
     ?? extractAlibabaOperationMessage(paymentResult.responseBody);
-  const payUrl = extractAliExpressTradePayUrl(paymentResult.responseBody)
+  const payUrl = extractAlibabaTradePayUrl(paymentResult.responseBody)
     ?? order.payUrl;
-  const permissionDenied = isAliExpressPermissionError(paymentError?.code, paymentError?.subCode, paymentMessage);
+  const permissionDenied = isAlibabaPermissionError(paymentError?.code, paymentError?.subCode, paymentMessage);
   const hasBusinessError = Boolean(paymentError?.subCode || paymentError?.code);
   const paymentSucceeded = paymentResult.ok && !hasBusinessError;
   console.info("[aliexpress-ds-payment-sync] repay result", {
@@ -2239,7 +2239,7 @@ export async function repayAlibabaPurchaseOrder(orderId: string) {
     payUrl,
     providerErrorCode: paymentError?.subCode ?? paymentError?.code,
     providerMessage: paymentMessage,
-    providerRequestId: extractAliExpressRequestId(paymentResult.responseBody),
+    providerRequestId: extractAlibabaRequestId(paymentResult.responseBody),
   });
   const nextOrder: AlibabaPurchaseOrder = {
     ...order,
@@ -2252,8 +2252,8 @@ export async function repayAlibabaPurchaseOrder(orderId: string) {
     payFailureReason: paymentSucceeded
       ? undefined
       : permissionDenied
-        ? paymentMessage ?? "Permission API insuffisante pour lire le statut detaille du paiement DS."
-        : paymentMessage ?? "Repaiement AliExpress echoue",
+        ? paymentMessage ?? "Permission API insuffisante pour lire le statut detaille du paiement fournisseur."
+        : paymentMessage ?? "Repaiement Alibaba echoue",
     rawPaymentResponse: paymentResult.responseBody,
     updatedAt: nowIso(),
     orderStatus: paymentSucceeded || permissionDenied ? "payment_pending" : "failed",

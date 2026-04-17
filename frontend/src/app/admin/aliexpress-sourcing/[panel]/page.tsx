@@ -1,14 +1,6 @@
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 
-import { AdminSourcingDashboardClient } from "@/components/admin-sourcing-dashboard-client";
-import { AdminAliExpressImportCatalogClient } from "@/components/admin-aliexpress-import-catalog-client";
-import { AdminAliExpressOperationsClient } from "@/components/admin-alibaba-operations-client";
-import { AdminSourcingProviderNotice } from "@/components/admin-sourcing-provider-notice";
-import { API_URL, buildApiUrl } from "@/lib/api";
 import { ALIBABA_PANEL_SLUGS, normalizePanelSlug } from "@/lib/alibaba-operations";
-import { getAlibabaOperationsDashboardData } from "@/lib/alibaba-operations-service";
-import { buildServerForwardHeaders } from "@/lib/server-forward-headers";
-import { getSourcingDashboardData } from "@/lib/sourcing-service";
 
 function normalizeAliExpressDashboardPayload(panel: string, payload: unknown) {
   const fallback = buildRemoteDashboardUnavailableState(panel, "la reponse dashboard recue est incomplete ou invalide");
@@ -117,33 +109,8 @@ export default async function AdminAliExpressSourcingPanelPage({
   const normalizedPanel = normalizePanelSlug(panel);
 
   if (panel !== normalizedPanel || !ALIBABA_PANEL_SLUGS.includes(normalizedPanel)) {
-    notFound();
+    redirect("/admin/alibaba-sourcing");
   }
 
-  if (normalizedPanel === "sourcing-lots") {
-    const dashboard = await getSourcingDashboardData();
-    return (
-      <>
-        <AdminSourcingProviderNotice provider="aliexpress" />
-        <AdminSourcingDashboardClient initialDashboard={dashboard} />
-      </>
-    );
-  }
-
-  const dashboard = await getAliExpressDashboardData(normalizedPanel);
-  if (normalizedPanel === "import-catalog") {
-    return (
-      <>
-        <AdminSourcingProviderNotice provider="aliexpress" />
-        <AdminAliExpressImportCatalogClient initialDashboard={dashboard} />
-      </>
-    );
-  }
-
-  return (
-    <>
-      <AdminSourcingProviderNotice provider="aliexpress" />
-      <AdminAliExpressOperationsClient initialDashboard={dashboard} />
-    </>
-  );
+  redirect(`/admin/alibaba-sourcing/${normalizedPanel}`);
 }

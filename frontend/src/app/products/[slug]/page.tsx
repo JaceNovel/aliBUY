@@ -92,6 +92,9 @@ export default async function ProductPage({
     title: entry.shortTitle,
     image: entry.image,
     formattedPrice: formatTierAwarePrice(pricing.formatPrice, entry),
+    moq: entry.moq,
+    moqVerified: entry.moqVerified,
+    unit: entry.unit,
   }));
   return (
     <InternalPageShell pricing={pricing}>
