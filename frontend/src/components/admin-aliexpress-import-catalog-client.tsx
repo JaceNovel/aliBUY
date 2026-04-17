@@ -127,7 +127,7 @@ const LANGUAGE_OPTIONS = [
 ];
 
 const CURRENCY_OPTIONS = ["USD", "EUR", "GBP", "BRL", "XOF"];
-const IMPORT_DELIVERY_COUNTRY = { value: "FR", label: "France (FR)" };
+const IMPORT_DELIVERY_COUNTRY = { value: "CN", label: "Chine (CN)" };
 
 const SORT_OPTIONS = [
   { value: "orders,desc", label: "Commandes decroissant" },
