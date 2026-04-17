@@ -337,7 +337,7 @@ class AliExpressOpenPlatformService
             'query' => $query,
             'page_index' => $pageIndex,
             'page_size' => $pageSize,
-            'destination_country' => strtoupper(trim((string) ($input['countryCode'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'FR')))),
+            'destination_country' => strtoupper(trim((string) ($input['countryCode'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'CN')))),
         ];
 
         $searchResult = $this->callRestEndpoint($account, '/eco/buyer/product/search', [
@@ -359,7 +359,7 @@ class AliExpressOpenPlatformService
         }
 
         $items = $this->extractAlibabaBuyerProductItems($searchResult['responseBody']);
-        $countryCode = strtoupper(trim((string) ($input['countryCode'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'FR'))));
+        $countryCode = strtoupper(trim((string) ($input['countryCode'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'CN'))));
         $products = [];
 
         foreach ($items as $item) {
@@ -449,7 +449,7 @@ class AliExpressOpenPlatformService
         $result = $this->callRestEndpoint($account, '/eco/buyer/product/description', [
             'query_req' => [
                 'product_id' => $sourceProductId,
-                'destination_country' => strtoupper(trim((string) ($input['destinationCountry'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'FR')))),
+                'destination_country' => strtoupper(trim((string) ($input['destinationCountry'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'CN')))),
             ],
         ]);
         $product = $this->mapAlibabaBuyerDescriptionToProduct($result['responseBody'], $identifier);
@@ -883,7 +883,7 @@ class AliExpressOpenPlatformService
     {
         $prepared = $this->prepareAccount($account, true);
         $account = $prepared['account'];
-        $countryCode = strtoupper(trim((string) ($address['countryCode'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'FR'))));
+        $countryCode = strtoupper(trim((string) ($address['countryCode'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'CN'))));
         $dispatchLocation = strtoupper(trim((string) ($product['dispatchLocation'] ?? $account['defaultDispatchLocation'] ?? env('ALIBABA_DISPATCH_LOCATION', 'CN'))));
         $sourceProductId = (string) ($product['sourceProductId'] ?? '');
         if ($sourceProductId === '') {

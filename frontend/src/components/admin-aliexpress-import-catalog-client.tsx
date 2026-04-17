@@ -631,7 +631,7 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
             <div>
               <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#d85c14]">Recherche fournisseur</div>
               <h2 className="mt-2 text-[24px] font-black tracking-[-0.05em] text-[#101828]">Parametres exacts fournisseur</h2>
-              <p className="mt-2 text-[13px] leading-6 text-[#667085]">La recherche live utilise Alibaba Buyer Sourcing via `/eco/buyer/product/search`, puis chaque article est enrichi via `/eco/buyer/product/description` avant import. Pour l'import, le pays de livraison est verrouille sur la France.</p>
+              <p className="mt-2 text-[13px] leading-6 text-[#667085]">La recherche live utilise Alibaba Buyer Sourcing via `/eco/buyer/product/search`, puis chaque article est enrichi via `/eco/buyer/product/description` avant import. Pour l'import, le pays de livraison est verrouille sur la Chine.</p>
             </div>
             <button
               type="button"
