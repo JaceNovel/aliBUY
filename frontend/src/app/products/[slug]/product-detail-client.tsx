@@ -396,10 +396,21 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     quantity: totalSelectedQuantity,
     selection: selectedVariants,
   });
-  const subtotal = currentUnitPrice * totalSelectedQuantity;
+  const fallbackPriceSummary = resolveProductPriceSummaryUsd(productWithNormalizedTiers, {
+    quantity: totalSelectedQuantity,
+    selection: previewSelection,
+  });
+  const fallbackUnitPrice = resolveProductUnitPriceUsd(productWithNormalizedTiers, {
+    quantity: totalSelectedQuantity,
+    selection: previewSelection,
+  });
+  const hasCurrentPrice = currentPriceSummary.minUsd > 0 || (typeof currentPriceSummary.maxUsd === "number" && currentPriceSummary.maxUsd > 0);
+  const displayPriceSummary = hasCurrentPrice ? currentPriceSummary : fallbackPriceSummary;
+  const displayUnitPrice = currentUnitPrice > 0 ? currentUnitPrice : fallbackUnitPrice;
+  const subtotal = displayUnitPrice * totalSelectedQuantity;
   const subtotalRange = {
-    minUsd: currentPriceSummary.minUsd * totalSelectedQuantity,
-    maxUsd: (currentPriceSummary.maxUsd ?? currentPriceSummary.minUsd) * totalSelectedQuantity,
+    minUsd: displayPriceSummary.minUsd * totalSelectedQuantity,
+    maxUsd: (displayPriceSummary.maxUsd ?? displayPriceSummary.minUsd) * totalSelectedQuantity,
   };
   const hasSubtotalRange = subtotalRange.maxUsd > subtotalRange.minUsd;
   const promoCurrentMinUsd = hasSubtotalRange ? subtotalRange.minUsd : subtotal;
