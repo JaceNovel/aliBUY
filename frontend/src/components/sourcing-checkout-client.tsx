@@ -11,6 +11,7 @@ import { buildLocalUrl, createOrder, initializeOrderPayment, previewPromoCode } 
 import {
   formatShippingTradeLabel,
   formatSourcingAmount,
+  getLomeChinaHubGuidance,
   getShippingPreferenceContext,
   isEuropeanUnionCountry,
   readStoredShippingPreference,
@@ -220,6 +221,8 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
   const usesInternalReceptionAddress = deliveryPlan.deliveryProfile.usesInternalReceptionAddress === true;
   const isDirectAlibabaFlow = deliveryMode !== "forwarder" && !usesInternalReceptionAddress;
   const requiresTransitAddress = deliveryPlan.deliveryProfile.unsupportedCountry === true || !isSupportedDirectDeliveryCountry(form.countryCode);
+  const lomeChinaHubGuidance = useMemo(() => getLomeChinaHubGuidance(form.countryCode), [form.countryCode]);
+  const showLomeChinaHubGuidance = usesInternalReceptionAddress && Boolean(lomeChinaHubGuidance);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -928,6 +931,73 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
               );
             })}
           </div>
+
+          {showLomeChinaHubGuidance && lomeChinaHubGuidance ? (
+            <div className="mt-5 rounded-[20px] border border-[#dbe7ff] bg-[linear-gradient(135deg,#f8fbff_0%,#ffffff_45%,#fff7ef_100%)] p-4 sm:mt-6 sm:p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="inline-flex rounded-full bg-[#e9f2ff] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#2457d6]">
+                    Hub Chine vers {lomeChinaHubGuidance.destinationLabel}
+                  </div>
+                  <div className="mt-3 text-[16px] font-black tracking-[-0.04em] text-[#111827] sm:text-[20px]">
+                    Adresse Chine a utiliser pour {lomeChinaHubGuidance.eligibleCountryLabels.join(", ")}
+                  </div>
+                  <p className="mt-2 max-w-[760px] text-[13px] leading-6 text-[#526071] sm:text-[14px]">
+                    Pour ces pays, les commandes passent d'abord par le corridor AfriPay Chine vers Lomé. Le fournisseur doit expédier vers l'adresse correspondant au mode choisi.
+                  </p>
+                </div>
+                <div className="rounded-[16px] border border-white/90 bg-white/85 px-4 py-3 text-[12px] font-semibold text-[#344054] shadow-[0_12px_24px_rgba(17,24,39,0.06)]">
+                  Support corridor: {lomeChinaHubGuidance.supportPhone}
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                {([lomeChinaHubGuidance.modes.air, lomeChinaHubGuidance.modes.sea] as const).map((mode) => {
+                  const isSelected = selectedShipping === mode.key;
+                  const Icon = mode.key === "air" ? Truck : Ship;
+
+                  return (
+                    <article
+                      key={mode.key}
+                      className={[
+                        "rounded-[18px] border bg-white px-4 py-4 shadow-[0_14px_32px_rgba(17,24,39,0.05)] transition sm:px-5 sm:py-5",
+                        isSelected ? "border-[#ff6a00] ring-2 ring-[#ffd2b5]" : "border-[#e6ebf2]",
+                      ].join(" ")}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className={[
+                            "inline-flex h-11 w-11 items-center justify-center rounded-[14px]",
+                            mode.key === "air" ? "bg-[#eef4ff] text-[#2f67f6]" : "bg-[#eafaf0] text-[#15803d]",
+                          ].join(" ")}>
+                            <Icon className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <div className="text-[15px] font-bold text-[#111827] sm:text-[17px]">{mode.title}</div>
+                            <div className="mt-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#98a2b3]">{mode.badge}</div>
+                          </div>
+                        </div>
+                        {isSelected ? <div className="rounded-full bg-[#fff3e8] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#d65d00]">Choisi</div> : null}
+                      </div>
+
+                      <div className="mt-4 rounded-[16px] bg-[#f8fafc] px-4 py-4 text-[13px] leading-6 text-[#334155]">
+                        <div className="font-semibold text-[#111827]">{mode.contactName}</div>
+                        <div>{mode.addressLine1}</div>
+                        <div>{mode.addressLine2}</div>
+                        <div>{mode.city}, {mode.state}, {mode.countryCode}</div>
+                        <div className="mt-2 font-semibold text-[#2457d6]">Telephone: {mode.phone}</div>
+                      </div>
+
+                      <div className="mt-4 rounded-[16px] border border-[#ffe0c7] bg-[#fff8f2] px-4 py-4">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#c85a11]">Shipping mark</div>
+                        <div className="mt-2 text-[13px] font-semibold leading-6 text-[#8a3d11] sm:text-[14px]">{mode.shippingMark}</div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-4 space-y-3 border-t border-[#eef2f6] pt-4 sm:mt-5 sm:space-y-4 sm:pt-5">
             {quote.items.map((item) => {

@@ -1,10 +1,9 @@
 import "server-only";
 
-import { type ShippingMethodKey, type SourcingOrder } from "@/lib/alibaba-sourcing";
+import { getLomeChinaHubGuidance, type ShippingMethodKey, type SourcingOrder } from "@/lib/alibaba-sourcing";
 import type { AlibabaReceptionAddress } from "@/lib/alibaba-operations";
 import { getAlibabaReceptionAddresses } from "@/lib/alibaba-operations-store";
 
-const SHIPPING_MARK = "AfriPay Jacenovel@gmail.com +33688639294 Chine -->Lomé";
 const OPERATOR_NAME = "Zacch Cargo";
 
 function normalizeLabel(value: string | undefined) {
@@ -44,6 +43,34 @@ function buildFallbackAddress(method: ShippingMethodKey): AlibabaReceptionAddres
   };
 }
 
+function buildLomeHubAddress(method: ShippingMethodKey): AlibabaReceptionAddress | null {
+  const guidance = getLomeChinaHubGuidance("TG");
+  if (!guidance) {
+    return null;
+  }
+
+  const config = method === "sea" ? guidance.modes.sea : guidance.modes.air;
+
+  return {
+    id: `lome-hub-${method}`,
+    label: method === "sea" ? "AfriPay China Sea Hub" : "AfriPay China Air Hub",
+    contactName: config.contactName,
+    phone: config.phone,
+    email: process.env.AFRIPAY_INTERNAL_CONTACT_EMAIL?.trim() || "jacenovel@gmail.com",
+    addressLine1: config.addressLine1,
+    addressLine2: config.addressLine2,
+    city: config.city,
+    state: config.state,
+    postalCode: config.postalCode,
+    countryCode: config.countryCode,
+    port: "port" in config ? config.port : undefined,
+    portCode: "portCode" in config ? config.portCode : undefined,
+    isDefault: true,
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+  };
+}
+
 function selectInternalAddress(addresses: AlibabaReceptionAddress[], method: ShippingMethodKey) {
   const keywords = method === "sea" ? ["sea", "mer", "bateau", "ocean"] : ["air", "avion", "express"];
   const matching = addresses.find((address) => {
@@ -59,12 +86,37 @@ function selectInternalAddress(addresses: AlibabaReceptionAddress[], method: Shi
 }
 
 export async function getInternalSupplierFulfillment(order: Pick<SourcingOrder, "shippingMethod" | "countryCode" | "customerName" | "customerPhone" | "customerEmail" | "addressLine1" | "addressLine2" | "city" | "state" | "postalCode" | "createdAt" | "updatedAt">) {
+  const lomeHubGuidance = getLomeChinaHubGuidance(order.countryCode);
   const addresses = await getAlibabaReceptionAddresses();
-  const selectedAddress = selectInternalAddress(addresses, order.shippingMethod) ?? buildFallbackAddress(order.shippingMethod);
+  const selectedAddress = selectInternalAddress(addresses, order.shippingMethod)
+    ?? (lomeHubGuidance ? buildLomeHubAddress(order.shippingMethod) : null)
+    ?? buildFallbackAddress(order.shippingMethod);
+
+  if (lomeHubGuidance) {
+    const methodConfig = order.shippingMethod === "sea" ? lomeHubGuidance.modes.sea : lomeHubGuidance.modes.air;
+
+    return {
+      operatorName: lomeHubGuidance.operatorName,
+      shippingMark: methodConfig.shippingMark,
+      address: {
+        ...selectedAddress,
+        contactName: methodConfig.contactName,
+        phone: methodConfig.phone,
+        addressLine1: methodConfig.addressLine1,
+        addressLine2: methodConfig.addressLine2,
+        city: methodConfig.city,
+        state: methodConfig.state,
+        postalCode: methodConfig.postalCode,
+        countryCode: methodConfig.countryCode,
+        port: "port" in methodConfig ? methodConfig.port : undefined,
+        portCode: "portCode" in methodConfig ? methodConfig.portCode : undefined,
+      },
+    };
+  }
 
   return {
     operatorName: OPERATOR_NAME,
-    shippingMark: SHIPPING_MARK,
+    shippingMark: `Client ${order.customerName} ${order.customerPhone}`,
     address: selectedAddress,
   };
 }

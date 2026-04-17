@@ -382,6 +382,7 @@ export const USD_TO_FCFA = 610;
 export const AIR_BATCH_TARGET_KG = 2;
 export const SEA_BATCH_TARGET_CBM = 1;
 export const INTERNAL_RECEPTION_COUNTRY_CODES = ["TG", "BJ", "GH", "CI", "BF"] as const;
+export const LOME_CHINA_HUB_COUNTRY_CODES = ["TG", "GH", "CI"] as const;
 export const SUPPORTED_DIRECT_DELIVERY_COUNTRY_CODES = (Object.keys(COUNTRY_CONFIG) as CountryCode[])
   .filter((code) => !INTERNAL_RECEPTION_COUNTRY_CODES.includes(code as (typeof INTERNAL_RECEPTION_COUNTRY_CODES)[number]));
 export const SUPPORTED_FORWARDER_COUNTRY_CODES = ["CN"] as const;
@@ -393,6 +394,58 @@ export const EUROPEAN_UNION_COUNTRY_CODES = [
 export function isInternalReceptionCountry(countryCode?: string) {
   const normalizedCode = canonicalizeCountryCode(countryCode, "TG");
   return INTERNAL_RECEPTION_COUNTRY_CODES.includes(normalizedCode as (typeof INTERNAL_RECEPTION_COUNTRY_CODES)[number]);
+}
+
+export function usesLomeChinaHub(countryCode?: string) {
+  const normalizedCode = canonicalizeCountryCode(countryCode, "TG");
+  return LOME_CHINA_HUB_COUNTRY_CODES.includes(normalizedCode as (typeof LOME_CHINA_HUB_COUNTRY_CODES)[number]);
+}
+
+export function getLomeChinaHubGuidance(countryCode?: string) {
+  if (!usesLomeChinaHub(countryCode)) {
+    return null;
+  }
+
+  return {
+    destinationLabel: "Lome, Togo",
+    eligibleCountryCodes: [...LOME_CHINA_HUB_COUNTRY_CODES],
+    eligibleCountryLabels: ["Cote d'Ivoire", "Ghana", "Togo"],
+    operatorName: "AfriPay Space",
+    contactPhone: "13760612978/15234022495",
+    supportPhone: "+33688639294",
+    modes: {
+      air: {
+        key: "air" as const,
+        title: "Adresse colis aerien",
+        badge: "Voie aerienne",
+        contactName: "易运国际贝宁空运",
+        phone: "13760612978/15234022495",
+        addressLine1: "广州市白云区黄石西路474号",
+        addressLine2: "石井仓库三号仓十三号门(3-13) 易运国际贝宁空运 Avion",
+        city: "Guangzhou",
+        state: "Guangdong",
+        postalCode: "510000",
+        countryCode: "CN",
+        shippingMark: "AfriPay.Space. +33688639294 Direction lome togo voie aerien",
+      },
+      sea: {
+        key: "sea" as const,
+        title: "Adresse colis maritime",
+        badge: "Voie maritime",
+        contactName: "易运国际贝宁海运",
+        phone: "13760612978/15234022495",
+        addressLine1: "广州市白云区黄石西路474号",
+        addressLine2: "石井仓库三号仓十三B号门(3-13B) 易运国际贝宁海运 (Bateau)",
+        city: "Guangzhou",
+        state: "Guangdong",
+        postalCode: "510000",
+        countryCode: "CN",
+        port: "Guangzhou",
+        portCode: "CNGZH",
+        shippingMark: "AfriPay.Space. +33688639294 Direction lome togo voie maritime",
+      },
+    },
+  };
 }
 
 export function isSupportedDirectDeliveryCountry(countryCode?: string) {
