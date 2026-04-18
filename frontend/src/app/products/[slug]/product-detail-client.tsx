@@ -387,7 +387,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const cartToastTimeoutRef = useRef<number | null>(null);
   const desktopMediaRailRef = useRef<HTMLDivElement | null>(null);
   const characteristicsSectionRef = useRef<HTMLElement | null>(null);
-  const descriptionParagraphs = buildDescriptionParagraphs(product.description, product.overview);
+  const descriptionParagraphs = [product.title];
   const languageCode = resolveProductLanguageCode(product.locale);
   const isEnglish = languageCode === "en";
   const uiText = isEnglish
@@ -1131,7 +1131,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               ) : null}
 
               <div className="w-full rounded-[28px] bg-[#f7f8fb] px-2 py-3">
-                <div ref={desktopMediaRailRef} className="flex max-h-[560px] w-full flex-col items-center gap-3 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div ref={desktopMediaRailRef} className="flex max-h-[404px] w-full flex-col items-center gap-3 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {product.gallery.map((image, index) => {
                     const isActive = activeMedia === "photo" && activeImage === index;
 
@@ -1187,7 +1187,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
             </div>
 
             <div className="min-w-0">
-              <div className="relative overflow-hidden rounded-[30px] bg-[#f6f7fb] px-8 py-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+              <div className="relative overflow-hidden rounded-[30px] bg-[#f6f7fb] px-6 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
                 <div className="absolute right-5 top-5 z-20 flex flex-col gap-4">
                   <button type="button" onClick={toggleFavorite} className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-white text-[#111827] shadow-[0_14px_30px_rgba(15,23,42,0.12)] transition hover:-translate-y-0.5">
                     <Heart className={["h-5 w-5", isFavorite ? "fill-current text-[#ea580c]" : ""].join(" ")} />
@@ -1211,12 +1211,12 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                   </>
                 ) : null}
 
-                <div className="relative aspect-[1/1] w-full">
+                <div className="relative mx-auto aspect-[1/1] w-full max-w-[520px]">
                   {activeMedia === "video" && product.videoUrl ? (
                     <video controls poster={product.videoPoster} className="h-full w-full rounded-[22px] object-contain" src={product.videoUrl} />
                   ) : (
                     <button type="button" onClick={openImageLightbox} className="relative h-full w-full cursor-zoom-in">
-                      <Image src={product.gallery[activeImage] ?? product.gallery[0]} alt={product.title} fill sizes="(min-width: 1280px) 58vw, 100vw" className="object-contain" priority />
+                      <Image src={product.gallery[activeImage] ?? product.gallery[0]} alt={product.title} fill sizes="(min-width: 1280px) 46vw, 100vw" className="object-contain" priority />
                     </button>
                   )}
                 </div>
@@ -1250,17 +1250,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
             </div>
 
             <aside className="rounded-[28px] border border-[#eceff3] bg-white px-6 py-6 shadow-[0_22px_56px_rgba(15,23,42,0.08)]">
-              <div className="rounded-[20px] border border-[#e5e7eb] bg-[#fcfcfd] px-4 py-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <div className="text-[13px] font-semibold text-[#667085]">Prix de l'échantillon</div>
-                    <div className="mt-1 text-[28px] font-black tracking-[-0.05em] text-[#101828]">{formatMoney(displayUnitPrice > 0 ? displayUnitPrice : displayPriceSummary.minUsd)}</div>
-                  </div>
-                  <button type="button" onClick={openOptionsPanel} className="inline-flex h-12 items-center justify-center rounded-full border border-[#111827] px-6 text-[14px] font-semibold text-[#111827] transition hover:bg-[#111827] hover:text-white">Obtenir</button>
-                </div>
-              </div>
-
-              <div className="mt-7 border-t border-[#edf1f5] pt-7">
+              <div>
                 <div className="flex items-center justify-between gap-4">
                   <div className="text-[18px] font-black tracking-[-0.04em] text-[#101828]">Options</div>
                   <button type="button" onClick={openOptionsPanel} className="text-[15px] font-semibold text-[#0f172a] underline underline-offset-4">Sélectionner</button>
@@ -1323,14 +1313,9 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 })}
               </div>
 
-              <div className="mt-8 border-t border-[#edf1f5] pt-7">
-                <div className="text-[18px] font-black tracking-[-0.04em] text-[#101828]">Expédition</div>
-                <p className="mt-3 text-[15px] leading-7 text-[#475467]">Frais de livraison et date de livraison à négocier. Contactez le fournisseur.</p>
-              </div>
-
               <div className="mt-8 grid grid-cols-2 gap-4">
-                <button type="button" onClick={handlePrimaryBuyNow} className="inline-flex h-14 items-center justify-center rounded-full bg-[#ea580c] px-6 text-[16px] font-bold text-white shadow-[0_18px_34px_rgba(234,88,12,0.28)] transition hover:bg-[#d65200]">Envoyer demande</button>
-                <button type="button" onClick={handlePrimaryAddToCart} className="inline-flex h-14 items-center justify-center rounded-full border border-[#111827] bg-white px-6 text-[16px] font-semibold text-[#111827] transition hover:bg-[#f8fafc]">Discuter ici</button>
+                <button type="button" onClick={handlePrimaryBuyNow} className="inline-flex h-14 items-center justify-center rounded-full bg-[#ea580c] px-6 text-[16px] font-bold text-white shadow-[0_18px_34px_rgba(234,88,12,0.28)] transition hover:bg-[#d65200]">Acheter</button>
+                <button type="button" onClick={handlePrimaryAddToCart} className="inline-flex h-14 items-center justify-center rounded-full border border-[#111827] bg-white px-6 text-[16px] font-semibold text-[#111827] transition hover:bg-[#f8fafc]">Panier</button>
               </div>
             </aside>
           </div>
@@ -1717,7 +1702,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               <div className="mt-6 grid gap-4">
                 {descriptionParagraphs.map((point) => (
                   <div key={point} className="border-b border-[#f1f1f1] px-1 py-4 last:border-b-0">
-                    <p className="text-[15px] leading-7 text-[#4d4035]">{point}</p>
+                    <p className="text-[15px] font-semibold leading-7 text-[#261d17]">{point}</p>
                   </div>
                 ))}
               </div>
