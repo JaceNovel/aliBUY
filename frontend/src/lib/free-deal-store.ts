@@ -10,11 +10,12 @@ import { get, put } from "@vercel/blob";
 import type { SourcingOrder } from "@/lib/alibaba-sourcing";
 import { getSourcingOrderMeta } from "@/lib/alibaba-sourcing";
 import { invalidateCatalogRuntimeCache } from "@/lib/catalog-runtime-cache";
-import { getCatalogProductsBySlugs } from "@/lib/catalog-service";
+import { getCatalogProducts, getCatalogProductsBySlugs } from "@/lib/catalog-service";
 import { convertEurToFcfa } from "@/lib/free-deal";
 import { FREE_DEAL_ROUTE, FREE_DEAL_SHARE_ROUTE_PREFIX } from "@/lib/free-deal-constants";
 import type { ProductCatalogItem } from "@/lib/products-data";
 import { Prisma } from "@/lib/prisma-shim";
+import { isFreeDealStorefrontProduct } from "@/lib/public-storefront";
 import { hasConfiguredDatabaseUrl, prisma } from "@/lib/prisma";
 import { getVercelBlobAccessMode } from "@/lib/vercel-blob-access";
 
@@ -780,7 +781,14 @@ export async function saveFreeDealConfig(input: Partial<FreeDealConfig>) {
 
 export async function getFreeDealProducts(config?: FreeDealConfig): Promise<ProductCatalogItem[]> {
   const resolvedConfig = config ?? await getFreeDealConfig();
-  return getCatalogProductsBySlugs(resolvedConfig.productSlugs, { fresh: true });
+  const configuredProducts = await getCatalogProductsBySlugs(resolvedConfig.productSlugs, { fresh: true });
+
+  if (configuredProducts.length > 0) {
+    return configuredProducts;
+  }
+
+  const catalogProducts = await getCatalogProducts({ fresh: true });
+  return catalogProducts.filter((product) => isFreeDealStorefrontProduct(product));
 }
 
 export async function getFreeDealClaimByOrderId(orderId: string) {
@@ -808,8 +816,9 @@ export async function getFreeDealClaimByOrderId(orderId: string) {
 
 export async function getFreeDealAccessState(input: FreeDealVisitorIdentity, config?: FreeDealConfig): Promise<FreeDealAccessState> {
   const resolvedConfig = config ?? await getFreeDealConfig();
+  const availableProducts = await getFreeDealProducts(resolvedConfig);
 
-  if (!resolvedConfig.enabled || resolvedConfig.productSlugs.length === 0) {
+  if (!resolvedConfig.enabled || availableProducts.length === 0) {
     return {
       status: "disabled",
       claim: null,

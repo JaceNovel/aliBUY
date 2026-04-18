@@ -17,7 +17,6 @@ import {
   getFreeDealFixedPriceFcfa,
   getPurchasedFreeDealProductSlugs,
   getFreeDealProducts,
-  isAllowedFreeDealProductSelection,
   resolveFreeDealIdentity,
   type FreeDealConfig,
   type FreeDealVisitorIdentity,
@@ -54,7 +53,11 @@ function normalizeCountryCode(value: string) {
 }
 
 function normalizeSelectedProducts(config: FreeDealConfig, selectedSlugs: string[], products: ProductCatalogItem[]) {
-  if (!isAllowedFreeDealProductSelection(config, selectedSlugs)) {
+  if (selectedSlugs.length !== config.itemLimit) {
+    throw new Error(`Vous devez choisir exactement ${config.itemLimit} article(s) eligibles.`);
+  }
+
+  if (new Set(selectedSlugs).size !== config.itemLimit) {
     throw new Error(`Vous devez choisir exactement ${config.itemLimit} article(s) eligibles.`);
   }
 
@@ -78,11 +81,11 @@ export async function createFreeDealOrder(input: {
   user?: AuthenticatedUser | null;
 }) {
   const config = input.config ?? await getFreeDealConfig();
-  if (!config.enabled || config.productSlugs.length === 0) {
+  const products = await getFreeDealProducts(config);
+  if (!config.enabled || products.length === 0) {
     throw new Error("Cette offre est actuellement indisponible.");
   }
 
-  const products = await getFreeDealProducts(config);
   const selectedProducts = normalizeSelectedProducts(config, input.selectedSlugs, products);
   const purchasedSlugs = new Set(await getPurchasedFreeDealProductSlugs());
   const alreadyPurchasedProducts = selectedProducts.filter((product) => purchasedSlugs.has(product.slug));

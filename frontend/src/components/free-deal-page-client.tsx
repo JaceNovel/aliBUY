@@ -523,7 +523,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
           <h2 className="text-[34px] font-black tracking-[-0.06em] text-[#111827] sm:text-[48px]">Offres du jour</h2>
         </div>
 
-        <div className="hidden grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
         {products.map((product) => {
           const isSelected = selectedSlugs.includes(product.slug);
           const isDisabled = product.alreadyPurchased || !isSelectable || (selectedSlugs.length >= config.itemLimit && !isSelected);
@@ -589,6 +589,14 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
           );
         })}
         </div>
+        {products.length === 0 ? (
+          <div className="rounded-[24px] border border-dashed border-[#d0d5dd] bg-white px-6 py-10 text-center shadow-[0_10px_28px_rgba(17,24,39,0.05)]">
+            <div className="text-[22px] font-black tracking-[-0.04em] text-[#111827]">Aucun article gratuit disponible pour le moment</div>
+            <div className="mx-auto mt-3 max-w-[640px] text-[14px] leading-7 text-[#667085]">
+              Les produits de la campagne ne sont pas encore relies au catalogue public ou sont en cours de synchronisation.
+            </div>
+          </div>
+        ) : null}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">

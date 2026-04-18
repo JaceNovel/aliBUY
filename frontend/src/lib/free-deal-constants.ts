@@ -1,4 +1,10 @@
 const FREE_DEAL_QUERY_KEYWORDS = [
+  "free deal",
+  "free deals",
+  "freedeal",
+  "freedeals",
+  "deal gratuit",
+  "deals gratuits",
   "gratuit",
   "gratuits",
   "produit gratuit",

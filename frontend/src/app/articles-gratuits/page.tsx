@@ -68,7 +68,10 @@ async function loadFreeDealPageState(headerStore: Headers, cookieStore: Awaited<
     });
 
     if (response.ok) {
-      return await response.json() as FreeDealPageState;
+      const payload = await response.json() as FreeDealPageState;
+      if (payload.products.length > 0 || payload.config.productSlugs.length > 0 || payload.access.status !== "disabled") {
+        return payload;
+      }
     }
   } catch {
     // Fall back to local stores when the API host is unreachable.
