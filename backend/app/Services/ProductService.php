@@ -209,6 +209,12 @@ class ProductService
         $gallery = is_array($product->gallery) && $product->gallery !== []
             ? $product->gallery
             : [$product->image ?? '/globe.svg'];
+        $variantSkus = $this->normalizeVariantSkus($metadata['variantSkus'] ?? null);
+        $variantGroups = $metadata['variantGroups'] ?? [];
+
+        if ((! is_array($variantGroups) || $variantGroups === []) && $variantSkus !== []) {
+            $variantGroups = $this->buildVariantGroupsFromSkus($variantSkus);
+        }
 
         return [
             'slug' => $product->slug,
@@ -246,9 +252,9 @@ class ProductService
             'categoryPath' => $this->resolveCategoryPath($product),
             'overview' => $metadata['overview'] ?? [],
             'tiers' => $metadata['tiers'] ?? [],
-            'variantGroups' => $metadata['variantGroups'] ?? [],
+            'variantGroups' => $variantGroups,
             'variantPricing' => $metadata['variantPricing'] ?? [],
-            'variantSkus' => $metadata['variantSkus'] ?? [],
+            'variantSkus' => $variantSkus,
             'specs' => $metadata['specs'] ?? [],
             'keywords' => $metadata['keywords'] ?? [],
             'rawPayload' => is_array($metadata['rawPayload'] ?? null) ? $metadata['rawPayload'] : null,
@@ -602,6 +608,105 @@ class ProductService
     protected function normalizeCategoryLabel(string $value): string
     {
         return trim(preg_replace('/\s+/', ' ', str_replace(['>', '/', '|', '_'], ' ', $value)) ?? '');
+    }
+
+    protected function normalizeVariantSkus(mixed $value): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(function ($entry) {
+            if (! is_array($entry)) {
+                return null;
+            }
+
+            $skuId = isset($entry['skuId']) ? trim((string) $entry['skuId']) : '';
+            if ($skuId === '') {
+                return null;
+            }
+
+            $selections = [];
+            if (is_array($entry['selections'] ?? null)) {
+                foreach ($entry['selections'] as $label => $selectionValue) {
+                    $normalizedLabel = trim((string) $label);
+                    $normalizedValue = is_scalar($selectionValue) ? trim((string) $selectionValue) : '';
+                    if ($normalizedLabel !== '' && $normalizedValue !== '') {
+                        $selections[$normalizedLabel] = $normalizedValue;
+                    }
+                }
+            }
+
+            if ($selections === []) {
+                $selections = $this->extractSelectionsFromVariantLabel($entry['label'] ?? null);
+            }
+
+            $normalized = array_filter([
+                'skuId' => $skuId,
+                'skuCode' => isset($entry['skuCode']) ? trim((string) $entry['skuCode']) : (isset($entry['sku_code']) ? trim((string) $entry['sku_code']) : null),
+                'inventory' => isset($entry['inventory']) && is_numeric($entry['inventory']) ? (int) $entry['inventory'] : null,
+                'image' => isset($entry['image']) ? trim((string) $entry['image']) : null,
+                'label' => isset($entry['label']) ? trim((string) $entry['label']) : null,
+                'selections' => $selections !== [] ? $selections : null,
+            ], fn ($candidate) => $candidate !== null && $candidate !== '');
+
+            return $normalized !== [] ? $normalized : null;
+        }, $value)));
+    }
+
+    protected function extractSelectionsFromVariantLabel(mixed $value): array
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return [];
+        }
+
+        $segments = preg_split('/\s*\/\s*/', trim($value)) ?: [];
+        $selections = [];
+
+        foreach ($segments as $segment) {
+            $match = preg_match('/^([^:]+):\s*(.+)$/', trim($segment), $parts);
+            if ($match !== 1) {
+                continue;
+            }
+
+            $label = trim((string) ($parts[1] ?? ''));
+            $selectionValue = trim((string) ($parts[2] ?? ''));
+            if ($label !== '' && $selectionValue !== '') {
+                $selections[$label] = $selectionValue;
+            }
+        }
+
+        return $selections;
+    }
+
+    protected function buildVariantGroupsFromSkus(array $variantSkus): array
+    {
+        $groups = [];
+
+        foreach ($variantSkus as $sku) {
+            if (! is_array($sku) || ! is_array($sku['selections'] ?? null)) {
+                continue;
+            }
+
+            foreach ($sku['selections'] as $label => $value) {
+                $normalizedLabel = trim((string) $label);
+                $normalizedValue = trim((string) $value);
+                if ($normalizedLabel === '' || $normalizedValue === '') {
+                    continue;
+                }
+
+                $groups[$normalizedLabel] ??= [];
+                if (! in_array($normalizedValue, $groups[$normalizedLabel], true)) {
+                    $groups[$normalizedLabel][] = $normalizedValue;
+                }
+            }
+        }
+
+        return array_values(array_map(
+            fn (string $label, array $values) => ['label' => $label, 'values' => array_values($values)],
+            array_keys($groups),
+            array_values($groups),
+        ));
     }
 
     protected function isUsefulCategoryLabel(?string $value): bool
