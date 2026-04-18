@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\ProductReview;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Throwable;
 use Illuminate\Validation\ValidationException;
@@ -32,20 +33,18 @@ class ProductService
     {
         $query = trim((string) $request->query('q', ''));
         $perPage = min(max((int) $request->integer('limit', 20), 1), 40);
+        $page = max((int) $request->integer('page', 1), 1);
 
-        $products = Product::query()
-            ->where('is_published', true)
-            ->when($query !== '', function ($builder) use ($query) {
-                $builder->where(function ($nested) use ($query) {
-                    $likeQuery = '%'.$query.'%';
-                    $nested->where('title', 'like', $likeQuery)
-                        ->orWhere('description', 'like', $likeQuery)
-                        ->orWhere('category', 'like', $likeQuery)
-                        ->orWhere('slug', 'like', $likeQuery);
-                });
-            })
-            ->latest()
-            ->paginate($perPage);
+        if ($query === '') {
+            $products = Product::query()
+                ->where('is_published', true)
+                ->latest()
+                ->paginate($perPage);
+
+            return $this->feedPayload($products, ['query' => $query, 'source' => 'search']);
+        }
+
+        $products = $this->paginateSearchProducts($query, $perPage, $page);
 
         return $this->feedPayload($products, ['query' => $query, 'source' => 'search']);
     }
@@ -603,6 +602,225 @@ class ProductService
             $page,
             ['path' => LengthAwarePaginator::resolveCurrentPath()]
         );
+    }
+
+    protected function paginateSearchProducts(string $query, int $perPage, int $page): LengthAwarePaginator
+    {
+        $products = $this->searchPublishedProducts($query);
+        $total = $products->count();
+        $items = $products->slice(($page - 1) * $perPage, $perPage)->values()->all();
+
+        return new LengthAwarePaginator(
+            $items,
+            $total,
+            $perPage,
+            $page,
+            ['path' => LengthAwarePaginator::resolveCurrentPath()]
+        );
+    }
+
+    protected function searchPublishedProducts(string $query): Collection
+    {
+        $normalizedQuery = $this->normalizeSearchText($query);
+        if ($normalizedQuery === '') {
+            return collect();
+        }
+
+        $searchTerms = $this->expandSearchTerms($query);
+        $ranked = Product::query()
+            ->where('is_published', true)
+            ->latest()
+            ->get()
+            ->map(function (Product $product) use ($normalizedQuery, $searchTerms) {
+                return [
+                    'product' => $product,
+                    'score' => $this->scorePublishedProductSearch($product, $normalizedQuery, $searchTerms),
+                ];
+            })
+            ->filter(fn (array $entry) => $entry['score'] > 0)
+            ->values()
+            ->all();
+
+        usort($ranked, function (array $left, array $right) {
+            $scoreComparison = $right['score'] <=> $left['score'];
+            if ($scoreComparison !== 0) {
+                return $scoreComparison;
+            }
+
+            /** @var Product $leftProduct */
+            $leftProduct = $left['product'];
+            /** @var Product $rightProduct */
+            $rightProduct = $right['product'];
+
+            return strcmp((string) $rightProduct->created_at, (string) $leftProduct->created_at);
+        });
+
+        return collect($ranked)->map(fn (array $entry) => $entry['product'])->values();
+    }
+
+    protected function scorePublishedProductSearch(Product $product, string $normalizedQuery, array $searchTerms): int
+    {
+        $title = $this->normalizeSearchText($product->title);
+        $metadata = is_array($product->metadata) ? $product->metadata : [];
+        $shortTitle = $this->normalizeSearchText((string) ($metadata['shortTitle'] ?? ''));
+        $description = $this->normalizeSearchText((string) ($product->description ?? ''));
+        $slug = $this->normalizeSearchText((string) $product->slug);
+        $categoryTitle = $this->normalizeSearchText($this->resolveCategoryTitle($product));
+        $categoryPath = $this->normalizeSearchText(implode(' ', $this->resolveCategoryPath($product)));
+        $supplierName = $this->normalizeSearchText((string) ($product->supplier_name ?? ''));
+        $keywords = collect($metadata['keywords'] ?? [])
+            ->filter(fn ($entry) => is_string($entry) && trim($entry) !== '')
+            ->map(fn (string $entry) => $this->normalizeSearchText($entry))
+            ->filter()
+            ->values()
+            ->all();
+        $specs = collect($metadata['specs'] ?? [])
+            ->filter(fn ($entry) => is_array($entry))
+            ->map(function (array $entry) {
+                $label = isset($entry['label']) ? (string) $entry['label'] : '';
+                $value = isset($entry['value']) ? (string) $entry['value'] : '';
+
+                return $this->normalizeSearchText(trim($label.' '.$value));
+            })
+            ->filter()
+            ->values()
+            ->all();
+
+        $combined = trim(implode(' ', array_filter([
+            $title,
+            $shortTitle,
+            $description,
+            $slug,
+            $categoryTitle,
+            $categoryPath,
+            $supplierName,
+            implode(' ', $keywords),
+            implode(' ', $specs),
+        ])));
+
+        if ($combined === '') {
+            return 0;
+        }
+
+        $score = 0;
+        $matchedTerms = 0;
+
+        if ($title === $normalizedQuery) {
+            $score += 240;
+        }
+
+        if ($shortTitle !== '' && $shortTitle === $normalizedQuery) {
+            $score += 210;
+        }
+
+        if (str_contains($title, $normalizedQuery)) {
+            $score += 160;
+        }
+
+        if ($shortTitle !== '' && str_contains($shortTitle, $normalizedQuery)) {
+            $score += 130;
+        }
+
+        if (str_contains($categoryTitle, $normalizedQuery) || str_contains($categoryPath, $normalizedQuery)) {
+            $score += 80;
+        }
+
+        if (str_contains($description, $normalizedQuery) || str_contains($slug, $normalizedQuery)) {
+            $score += 70;
+        }
+
+        if (collect($keywords)->contains(fn (string $entry) => str_contains($entry, $normalizedQuery))) {
+            $score += 90;
+        }
+
+        if (collect($specs)->contains(fn (string $entry) => str_contains($entry, $normalizedQuery))) {
+            $score += 70;
+        }
+
+        foreach ($searchTerms as $term) {
+            if ($term === '') {
+                continue;
+            }
+
+            $termScore = 0;
+            if (str_contains($title, $term)) {
+                $termScore = 34;
+            } elseif ($shortTitle !== '' && str_contains($shortTitle, $term)) {
+                $termScore = 28;
+            } elseif (collect($keywords)->contains(fn (string $entry) => str_contains($entry, $term))) {
+                $termScore = 22;
+            } elseif (collect($specs)->contains(fn (string $entry) => str_contains($entry, $term))) {
+                $termScore = 18;
+            } elseif (str_contains($categoryTitle, $term) || str_contains($categoryPath, $term)) {
+                $termScore = 18;
+            } elseif (str_contains($description, $term) || str_contains($supplierName, $term) || str_contains($slug, $term) || str_contains($combined, $term)) {
+                $termScore = 12;
+            }
+
+            if ($termScore > 0) {
+                $matchedTerms++;
+                $score += $termScore;
+            }
+        }
+
+        if ($matchedTerms === 0 && ! str_contains($combined, $normalizedQuery)) {
+            return 0;
+        }
+
+        if ($matchedTerms >= max(1, min(count($searchTerms), 2))) {
+            $score += 36;
+        }
+
+        return $score;
+    }
+
+    protected function expandSearchTerms(string $query): array
+    {
+        $normalizedQuery = $this->normalizeSearchText($query);
+        if ($normalizedQuery === '') {
+            return [];
+        }
+
+        $terms = [$normalizedQuery];
+        $tokens = preg_split('/\s+/', $normalizedQuery) ?: [];
+
+        $synonyms = [
+            'ecouteur' => ['earbud', 'earbuds', 'earphone', 'earphones', 'headphone', 'headphones', 'headset'],
+            'ecouteurs' => ['earbud', 'earbuds', 'earphone', 'earphones', 'headphone', 'headphones', 'headset'],
+            'casque' => ['headphone', 'headphones', 'headset', 'gaming headset'],
+            'casques' => ['headphone', 'headphones', 'headset', 'gaming headset'],
+            'montre' => ['watch', 'watches', 'smart watch', 'smartwatch'],
+            'montres' => ['watch', 'watches', 'smart watch', 'smartwatch'],
+            'telephone' => ['phone', 'phones', 'smartphone', 'mobile'],
+            'telephones' => ['phone', 'phones', 'smartphone', 'mobile'],
+            'ecran' => ['screen', 'display', 'monitor'],
+            'chargeur' => ['charger', 'charging', 'adapter'],
+        ];
+
+        foreach ($tokens as $token) {
+            if (mb_strlen($token) < 2) {
+                continue;
+            }
+
+            $terms[] = $token;
+
+            foreach ($synonyms[$token] ?? [] as $synonym) {
+                $normalizedSynonym = $this->normalizeSearchText($synonym);
+                if ($normalizedSynonym !== '') {
+                    $terms[] = $normalizedSynonym;
+                }
+            }
+        }
+
+        return array_values(array_unique(array_filter($terms)));
+    }
+
+    protected function normalizeSearchText(string $value): string
+    {
+        $ascii = Str::of($value)->ascii()->lower()->value();
+        $normalized = preg_replace('/[^a-z0-9]+/', ' ', $ascii) ?? '';
+
+        return trim(preg_replace('/\s+/', ' ', $normalized) ?? '');
     }
 
     protected function normalizeCategoryLabel(string $value): string

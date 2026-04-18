@@ -4,9 +4,9 @@ import type { Metadata } from "next";
 
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { ProductsFeedClient } from "@/components/products/products-feed-client";
+import { getSearchProducts } from "@/lib/api";
 import { FREE_DEAL_ROUTE, isFreeDealSearchQuery } from "@/lib/free-deal-constants";
 import { getPricingContext } from "@/lib/pricing";
-import { getSearchProductsFeedPage } from "@/lib/products-feed";
 import { SITE_NAME, SITE_URL } from "@/lib/site-config";
 
 export const dynamic = "force-dynamic";
@@ -77,7 +77,16 @@ export default async function SearchPage({
   const query = q.trim();
   const [pricing, initialPage] = await Promise.all([
     getPricingContext(),
-    getSearchProductsFeedPage({ q: query }),
+    query ? getSearchProducts(query) : Promise.resolve({
+      items: [],
+      page: 1,
+      nextPage: null,
+      hasMore: false,
+      pageSize: 20,
+      source: "search",
+      query,
+      matchMode: "exact" as const,
+    }),
   ]);
   const isSimilarFallback = initialPage.matchMode === "similar" && initialPage.items.length > 0;
 
