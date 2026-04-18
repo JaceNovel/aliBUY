@@ -1,4 +1,5 @@
 import { API_URL, buildApiUrl } from "@/lib/api";
+import { getEffectiveProductMoq } from "@/lib/alibaba-sourcing";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { deriveVariantGroupsFromPricing, deriveVariantGroupsFromSkus, extractAlibabaVariantPricing, extractAlibabaVariantSkus } from "@/lib/product-variant-pricing";
 import { resolveProductPriceSummaryUsd } from "@/lib/product-variant-pricing";
@@ -130,6 +131,10 @@ function normalizeCatalogTiers(value: unknown): ProductCatalogItem["tiers"] {
   });
 }
 
+function resolveCatalogMoq(moq: number, itemWeightGrams: number | undefined) {
+  return getEffectiveProductMoq(moq, itemWeightGrams);
+}
+
 function resolveRemoteCatalogPricing(candidate: Record<string, unknown>, moq: number) {
   const rawPayload = candidate.rawPayload ?? candidate;
   const variantPricing: NonNullable<ProductCatalogItem["variantPricing"]> = Array.isArray(candidate.variantPricing)
@@ -252,6 +257,7 @@ async function fetchRemoteCatalogProducts() {
       const rawWeightGrams = typeof candidate.itemWeightGrams === "number" && Number.isFinite(candidate.itemWeightGrams) ? candidate.itemWeightGrams : undefined;
       const itemWeightGrams = resolveCoherentItemWeightGrams(rawWeightGrams, weightContext);
       const lotCbm = rawLotCbm && isPositiveLotCbm(rawLotCbm) ? rawLotCbm : calculateLotCbm(packageDimensionsCm);
+      const effectiveMoq = resolveCatalogMoq(moq, itemWeightGrams);
 
       const gallery = buildRichGallery({
         image,
@@ -281,7 +287,7 @@ async function fetchRemoteCatalogProducts() {
         lotCbm,
         minUsd: pricing.minUsd,
         maxUsd: pricing.maxUsd,
-        moq,
+        moq: effectiveMoq,
         moqVerified: typeof candidate.moqVerified === "boolean" ? candidate.moqVerified : false,
         weightVerified: typeof candidate.weightVerified === "boolean" ? candidate.weightVerified : false,
         priceVerified: typeof candidate.priceVerified === "boolean" ? candidate.priceVerified : true,
@@ -383,6 +389,7 @@ async function fetchRemoteCatalogProductDetail(slug: string) {
     const rawWeightGrams = typeof candidate.itemWeightGrams === "number" && Number.isFinite(candidate.itemWeightGrams) ? candidate.itemWeightGrams : undefined;
     const itemWeightGrams = resolveCoherentItemWeightGrams(rawWeightGrams, weightContext);
     const lotCbm = rawLotCbm && isPositiveLotCbm(rawLotCbm) ? rawLotCbm : calculateLotCbm(packageDimensionsCm);
+    const effectiveMoq = resolveCatalogMoq(moq, itemWeightGrams);
 
     const gallery = buildRichGallery({
       image,
@@ -406,7 +413,7 @@ async function fetchRemoteCatalogProductDetail(slug: string) {
       badge: typeof candidate.badge === "string" && candidate.badge.trim() ? candidate.badge.trim() : undefined,
       minUsd: pricing.minUsd,
       maxUsd: pricing.maxUsd,
-      moq,
+      moq: effectiveMoq,
       moqVerified: typeof candidate.moqVerified === "boolean" ? candidate.moqVerified : false,
       weightVerified: typeof candidate.weightVerified === "boolean" ? candidate.weightVerified : undefined,
       priceVerified: typeof candidate.priceVerified === "boolean" ? candidate.priceVerified : undefined,
@@ -461,6 +468,7 @@ function toCatalogProduct(product: Awaited<ReturnType<typeof getAlibabaImportedP
     : product.packageDimensionsCm
       ? calculateLotCbm(product.packageDimensionsCm)
       : product.lotCbm;
+  const effectiveMoq = resolveCatalogMoq(product.moq, product.itemWeightGrams);
 
   return {
     slug: product.slug,
@@ -486,7 +494,7 @@ function toCatalogProduct(product: Awaited<ReturnType<typeof getAlibabaImportedP
     lotCbm,
     minUsd: product.minUsd,
     maxUsd: product.maxUsd,
-    moq: product.moq,
+    moq: effectiveMoq,
     moqVerified: product.moqVerified,
     unit: product.unit,
     badge: product.badge,
@@ -538,6 +546,9 @@ function mergeCatalogProducts(remoteProducts: ProductCatalogItem[], localProduct
     const localGallery = local.gallery && local.gallery.length > 0 ? local.gallery : [];
     const richestGallery = localGallery.length > remoteGallery.length ? localGallery : remoteGallery.length > 0 ? remoteGallery : localGallery;
 
+    const mergedWeightGrams = product.itemWeightGrams > 0 ? product.itemWeightGrams : local.itemWeightGrams;
+    const mergedMoq = resolveCatalogMoq(Math.max(product.moq, local.moq), mergedWeightGrams);
+
     merged.set(product.slug, {
       ...product,
       query: product.query ?? local.query,
@@ -550,8 +561,9 @@ function mergeCatalogProducts(remoteProducts: ProductCatalogItem[], localProduct
       videoPoster: product.videoPoster ?? local.videoPoster,
       packaging: product.packaging !== "Selon catalogue" ? product.packaging : local.packaging,
       packageDimensionsCm: remoteHasPackageDimensions ? product.packageDimensionsCm : localHasPackageDimensions ? local.packageDimensionsCm : product.packageDimensionsCm,
-      itemWeightGrams: product.itemWeightGrams > 0 ? product.itemWeightGrams : local.itemWeightGrams,
+      itemWeightGrams: mergedWeightGrams,
       lotCbm: product.lotCbm && product.lotCbm !== "0" && product.lotCbm !== "0.0000" ? product.lotCbm : local.lotCbm,
+      moq: mergedMoq,
       moqVerified: product.moqVerified ?? local.moqVerified,
       weightVerified: product.weightVerified ?? local.weightVerified,
       priceVerified: product.priceVerified ?? local.priceVerified,

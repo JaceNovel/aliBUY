@@ -244,7 +244,7 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
       return;
     }
 
-    const hasSelectedOption = shippingOptions.some((option) => option.key === selectedShipping);
+    const hasSelectedOption = shippingOptions.some((option) => option.key === selectedShipping && option.isAvailable !== false);
     if (!hasSelectedOption) {
       setSelectedShipping(quote.recommendedMethod);
       return;
@@ -908,12 +908,18 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
                   key={option.key}
                   type="button"
                   onClick={() => {
+                    if (option.isAvailable === false) {
+                      return;
+                    }
                     setHasUserSelectedShipping(true);
                     setSelectedShipping(option.key);
                   }}
+                  disabled={option.isAvailable === false}
                   className={[
                     "flex w-full items-start gap-3 rounded-[16px] border px-3.5 py-3.5 text-left transition sm:rounded-[18px] sm:px-4 sm:py-4",
-                    selectedShipping === option.key ? "border-[#111827] bg-[#fafafa]" : "border-[#e5e7eb] bg-white hover:border-[#cbd5e1]",
+                    option.isAvailable === false
+                      ? "cursor-not-allowed border-[#f3d7c2] bg-[#fff7ed] opacity-80"
+                      : selectedShipping === option.key ? "border-[#111827] bg-[#fafafa]" : "border-[#e5e7eb] bg-white hover:border-[#cbd5e1]",
                   ].join(" ")}
                 >
                   <div className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] bg-[#f3f4f6] text-[#111827] sm:h-10 sm:w-10">
@@ -922,14 +928,19 @@ export function SourcingCheckoutClient({ initialUser, savedAddresses, initialCou
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-[14px] font-semibold text-[#111827] sm:text-[16px]">{option.label}</div>
-                      <div className="text-[14px] font-bold text-[#111827] sm:text-[16px]">{option.isFree ? "gratuit" : formatSourcingAmount(option.priceFcfa, { currencyCode, locale })}</div>
+                      <div className="text-[14px] font-bold text-[#111827] sm:text-[16px]">{option.isAvailable === false ? "indisponible" : option.isFree ? "gratuit" : formatSourcingAmount(option.priceFcfa, { currencyCode, locale })}</div>
                     </div>
                     <div className="mt-1 text-[12px] leading-5 text-[#667085] sm:text-[13px]">{formatShippingTradeLabel(option, { currencyCode, locale })}</div>
                     <div className="mt-1 text-[12px] text-[#667085] sm:text-[13px]">Livraison : {option.deliveryWindow}</div>
+                    {option.availabilityNote ? <div className={["mt-2 text-[12px] leading-5 sm:text-[13px]", option.isAvailable === false ? "font-semibold text-[#b54708]" : "text-[#667085]"].join(" ")}>{option.availabilityNote}</div> : null}
                   </div>
                 </button>
               );
             })}
+          </div>
+
+          <div className="mt-3 rounded-[16px] border border-[#e5e7eb] bg-[#f8fafc] px-4 py-3 text-[12px] leading-6 text-[#475467] sm:text-[13px]">
+            Le transport maritime est disponible a partir de 3 kg et 0.03 CBM. En dessous de ce seuil, le panier reste en avion.
           </div>
 
           {showLomeChinaHubGuidance && lomeChinaHubGuidance ? (

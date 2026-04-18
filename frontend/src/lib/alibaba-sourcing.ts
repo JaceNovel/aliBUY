@@ -29,6 +29,8 @@ export type SourcingSettings = {
   seaRealCostPerCbmFcfa: number;
   seaSellRatePerCbmFcfa: number;
   seaEstimatedDays: string;
+  seaMinimumWeightKg: number;
+  seaMinimumCbm: number;
   freeAirThresholdFcfa: number;
   freeAirEnabled: boolean;
   airWeightThresholdKg: number;
@@ -73,6 +75,8 @@ export type ShippingMethodQuote = {
   priceFcfa: number;
   deliveryWindow: string;
   isFree: boolean;
+  isAvailable?: boolean;
+  availabilityNote?: string;
   tradeLabel: string;
   tradeDescriptor?: string;
   tradeRateFcfa?: number;
@@ -94,6 +98,26 @@ export type AlibabaSourcingQuote = {
     projectedFillPercent: number;
   };
 };
+
+export const LIGHTWEIGHT_MINIMUM_WEIGHT_GRAMS = 1000;
+
+export function getEffectiveProductMoq(moq: number | undefined, itemWeightGrams: number | undefined) {
+  const normalizedMoq = Number.isFinite(moq) && typeof moq === "number" && moq > 0 ? Math.max(1, Math.ceil(moq)) : 1;
+
+  if (typeof itemWeightGrams !== "number" || !Number.isFinite(itemWeightGrams) || itemWeightGrams <= 0 || itemWeightGrams >= LIGHTWEIGHT_MINIMUM_WEIGHT_GRAMS) {
+    return normalizedMoq;
+  }
+
+  return Math.max(normalizedMoq, Math.ceil(LIGHTWEIGHT_MINIMUM_WEIGHT_GRAMS / itemWeightGrams));
+}
+
+export function isSeaShippingEligible(totalWeightKg: number, totalCbm: number, settings: Pick<SourcingSettings, "seaMinimumWeightKg" | "seaMinimumCbm">) {
+  return totalWeightKg >= settings.seaMinimumWeightKg && totalCbm >= settings.seaMinimumCbm;
+}
+
+export function getSeaShippingAvailabilityNote(settings: Pick<SourcingSettings, "seaMinimumWeightKg" | "seaMinimumCbm">) {
+  return `Disponible a partir de ${settings.seaMinimumWeightKg.toFixed(0)} kg et ${settings.seaMinimumCbm.toFixed(2)} CBM.`;
+}
 
 export type SourcingCheckoutAddress = {
   customerAddressId?: string;

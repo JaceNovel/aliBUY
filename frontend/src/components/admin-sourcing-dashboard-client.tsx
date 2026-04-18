@@ -516,6 +516,14 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
               <input value={settings.seaEstimatedDays} onChange={(event) => setSettings((current) => ({ ...current, seaEstimatedDays: event.target.value }))} className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
             </label>
             <label className="text-[13px] font-semibold text-[#344054]">
+              Minimum mer en kg
+              <input value={settings.seaMinimumWeightKg} onChange={(event) => setSettings((current) => ({ ...current, seaMinimumWeightKg: Number(event.target.value) }))} type="number" step="0.1" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+            </label>
+            <label className="text-[13px] font-semibold text-[#344054]">
+              Minimum mer en CBM
+              <input value={settings.seaMinimumCbm} onChange={(event) => setSettings((current) => ({ ...current, seaMinimumCbm: Number(event.target.value) }))} type="number" step="0.0001" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+            </label>
+            <label className="text-[13px] font-semibold text-[#344054]">
               Seuil livraison offerte
               <input value={settings.freeAirThresholdFcfa} onChange={(event) => setSettings((current) => ({ ...current, freeAirThresholdFcfa: Number(event.target.value) }))} type="number" className="mt-2 h-11 w-full rounded-[14px] border border-[#d7dce5] px-4 text-[14px] text-[#111827] outline-none focus:border-[#ff6a00]" />
             </label>

@@ -169,6 +169,8 @@ function buildDescriptionParagraphs(description?: string, fallbackOverview: stri
 
 export function ProductDetailClient({ product, relatedProducts, initialIsFavorite }: ProductDetailClientProps) {
   const selectedCurrency = CURRENCY_CONFIG[(product.currencyCode as CurrencyCode)] ?? CURRENCY_CONFIG.USD;
+  const freeShippingThresholdUsd = 20000 / CURRENCY_CONFIG.XOF.rateFromUsd;
+  const freeShippingDeadline = new Date(Date.UTC(2026, 5, 7, 21, 59, 0));
   const router = useRouter();
   const { addItem } = useCart();
   const [activeImage, setActiveImage] = useState(0);
@@ -181,6 +183,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const [cartToastVisible, setCartToastVisible] = useState(false);
   const [orderQuantity, setOrderQuantity] = useState(Math.max(product.moq, 1));
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
+  const [countdownNow, setCountdownNow] = useState(() => Date.now());
   const touchStartXRef = useRef<number | null>(null);
   const cartAnimationTimeoutRef = useRef<number | null>(null);
   const cartToastTimeoutRef = useRef<number | null>(null);
@@ -198,6 +201,16 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       if (cartToastTimeoutRef.current !== null) {
         window.clearTimeout(cartToastTimeoutRef.current);
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCountdownNow(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(timer);
     };
   }, []);
 
@@ -424,6 +437,19 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const promoSavingsLabel = formatMoney(promoSavingsUsd);
   const promoThresholdUsd = Math.max(15, Math.ceil((promoCurrentMinUsd * 1.9) / 5) * 5);
   const promoThresholdLabel = formatMoney(promoThresholdUsd);
+  const freeShippingThresholdLabel = formatMoney(freeShippingThresholdUsd);
+  const countdownRemainingMs = Math.max(0, freeShippingDeadline.getTime() - countdownNow);
+  const countdownTotalSeconds = Math.floor(countdownRemainingMs / 1000);
+  const countdownDays = Math.floor(countdownTotalSeconds / 86400);
+  const countdownHours = Math.floor((countdownTotalSeconds % 86400) / 3600);
+  const countdownMinutes = Math.floor((countdownTotalSeconds % 3600) / 60);
+  const countdownSeconds = countdownTotalSeconds % 60;
+  const countdownSegments = [
+    { label: "j", value: countdownDays },
+    { label: "h", value: countdownHours },
+    { label: "m", value: countdownMinutes },
+    { label: "s", value: countdownSeconds },
+  ];
   const moqDisplay = getStorefrontMoqDisplay(product);
   const variantSummary = product.variantGroups.length > 0 ? `${product.variantGroups.length} option${product.variantGroups.length > 1 ? "s" : ""}` : "Aucune";
   const offerMetrics = [
@@ -879,24 +905,38 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 <span>{product.soldLabel || "60 vendus"}</span>
               </div>
 
-              <div className="mt-4 max-w-[620px] overflow-hidden rounded-[8px] border border-[#ffd7bd] bg-[#fff8f3] sm:mt-4">
-                <div className="flex flex-wrap items-center justify-between gap-3 bg-[#111827] px-4 py-3 text-white">
-                  <div className="text-[13px] font-bold sm:text-[14px]">En plein air · Offre bienvenue</div>
-                  <div className="text-[12px] font-semibold sm:text-[13px]">Fin : 7 avril, 21:59 (GMT0)</div>
+              <div className="mt-4 max-w-[620px] overflow-hidden rounded-[10px] border border-[#ff6a00] bg-[#ff6a00] text-white shadow-[0_20px_50px_rgba(255,106,0,0.28)] sm:mt-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-[#ff6a00] px-4 py-3">
+                  <div className="text-[13px] font-black uppercase tracking-[0.08em] sm:text-[14px]">Livraison gratuite eligible</div>
+                  <div className="flex flex-wrap items-center gap-2 text-[12px] font-black sm:text-[13px]">
+                    <span>Fin : 7 juin, 21:59 (GMT0)</span>
+                    <div className="flex items-center gap-1.5">
+                      {countdownSegments.map((segment) => (
+                        <span key={segment.label} className="inline-flex min-w-[52px] items-center justify-center rounded-[7px] bg-white px-2 py-1 text-[12px] font-black text-[#ff6a00] shadow-[0_8px_18px_rgba(255,255,255,0.25)] animate-pulse sm:min-w-[56px]">
+                          {String(segment.value).padStart(2, "0")}
+                          <span className="ml-1 text-[10px] uppercase tracking-[0.08em] text-[#ff6a00]">{segment.label}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-                <div className="bg-white px-4 py-4">
+                <div className="bg-[#fff4eb] px-4 py-4 text-[#7a2d00]">
                   <div className="flex flex-wrap items-center gap-3">
-                    <div className="text-[32px] font-bold leading-none tracking-[-0.04em] text-[#111] sm:text-[46px]">
+                    <div className="text-[32px] font-black leading-none tracking-[-0.04em] text-[#7a2d00] sm:text-[46px]">
                       {hasSubtotalRange ? `${formatMoney(subtotalRange.minUsd)} - ${formatMoney(subtotalRange.maxUsd)}` : formatMoney(subtotal)}
                     </div>
-                    <div className="rounded-[6px] bg-[#fff1f0] px-2 py-1 text-[13px] font-bold text-[#ff375f]">Economisez {promoSavingsLabel}</div>
+                    <div className="rounded-[999px] bg-[#ff6a00] px-3 py-1.5 text-[13px] font-black text-white shadow-[0_10px_22px_rgba(255,106,0,0.24)]">
+                      Livraison gratuite des {freeShippingThresholdLabel}
+                    </div>
                   </div>
-                  <div className="mt-2 text-[13px] text-[#888] line-through sm:text-[14px]">{promoOriginalLabel}</div>
+                  <div className="mt-2 text-[14px] font-bold text-[#a04400] sm:text-[15px]">
+                    Livraison gratuite disponible a partir de {freeShippingThresholdLabel} si la commande ne depasse pas 2,5 kg.
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-3 flex max-w-[620px] items-center justify-between rounded-[8px] bg-[#fff1f1] px-4 py-3 text-[14px] text-[#e53b2d]">
-                <span>-{promoSavingsLabel} sur {promoThresholdLabel}</span>
+              <div className="mt-3 flex max-w-[620px] items-center justify-between rounded-[10px] border border-[#ffb37a] bg-[#fff0e4] px-4 py-3 text-[14px] font-bold text-[#d94800] shadow-[0_14px_30px_rgba(255,106,0,0.10)]">
+                <span>Offre transport visible en devise locale jusqu'au 7 juin pour les commandes jusqu'a 2,5 kg.</span>
                 <ChevronRight className="h-4 w-4" />
               </div>
 

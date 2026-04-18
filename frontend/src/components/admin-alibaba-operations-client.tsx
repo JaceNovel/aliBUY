@@ -24,7 +24,7 @@ import {
   ALIBABA_DEFAULT_TOKEN_URL,
 } from "@/lib/alibaba-operations";
 import { buildApiUrl } from "@/lib/api";
-import type { AlibabaCatalogMapping } from "@/lib/alibaba-sourcing";
+import { getEffectiveProductMoq, type AlibabaCatalogMapping } from "@/lib/alibaba-sourcing";
 import { formatTierAwarePrice, formatTierAwarePriceMeta } from "@/lib/product-price-display";
 
 type DashboardData = {
@@ -1288,6 +1288,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
             </div>
             <div className="mt-5 space-y-3 max-h-[860px] overflow-auto pr-1">
               {initialDashboard.importedProducts.length === 0 ? <div className="rounded-[16px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Aucun article importe pour le moment.</div> : initialDashboard.importedProducts.map((product) => {
+                const effectiveMoq = getEffectiveProductMoq(product.moq, product.itemWeightGrams);
                 const selected = selectedProductIds.includes(product.id);
                 return (
                   <div key={product.id} className="rounded-[16px] border border-[#edf1f6] p-3">
@@ -1300,7 +1301,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <div className="line-clamp-2 text-[15px] font-semibold text-[#1f2937]">{product.shortTitle}</div>
-                            <div className="mt-1 text-[13px] text-[#667085]">{product.supplierName} · minimum {formatCount(product.moq)} {product.unit}</div>
+                            <div className="mt-1 text-[13px] text-[#667085]">{product.supplierName} · minimum {formatCount(effectiveMoq)} {product.unit}</div>
                             <div className="mt-1 text-[12px] text-[#98a2b3]">{formatCount(product.gallery.length)} images · {hasRecoveredVideo(product) ? "video recuperee" : "pas de video"} · stock estime {formatCount(product.inventory)}</div>
                           </div>
                           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -1313,7 +1314,7 @@ export function AdminAlibabaOperationsClient({ initialDashboard, adminBasePath =
                             <div className="text-[14px] font-bold text-[#111827]">{formatImportedPrice(product)}</div>
                             {formatTierAwarePriceMeta(product) ? <div className="mt-1 text-[11px] text-[#667085]">{formatTierAwarePriceMeta(product)}</div> : null}
                           </div>
-                          <input value={quantityByProduct[product.id] ?? product.moq ?? 0} onChange={(event) => setQuantityByProduct((current) => ({ ...current, [product.id]: Number(event.target.value) }))} type="number" min={1} className="h-10 w-28 rounded-[12px] border border-[#d7dce5] px-3 text-[13px] text-[#111827] outline-none focus:border-[#ff6a00]" />
+                          <input value={quantityByProduct[product.id] ?? effectiveMoq} onChange={(event) => setQuantityByProduct((current) => ({ ...current, [product.id]: Number(event.target.value) }))} type="number" min={effectiveMoq} className="h-10 w-28 rounded-[12px] border border-[#d7dce5] px-3 text-[13px] text-[#111827] outline-none focus:border-[#ff6a00]" />
                           <button type="button" onClick={() => createPurchaseOrder(product.id, product.sourceProductId)} className="inline-flex h-10 items-center justify-center rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937]">Creer un lot DS</button>
                           <button type="button" onClick={() => reenrichImportedItem(product.id)} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#dbe2ea] bg-white px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
                             <RefreshCcw className="h-4 w-4" />

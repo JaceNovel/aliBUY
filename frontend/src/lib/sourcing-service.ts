@@ -130,8 +130,8 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
   }
   const shippingOption = quote.shippingOptions.find((option) => option.key === input.shippingMethod);
 
-  if (!shippingOption) {
-    throw new Error("La methode de livraison selectionnee n'est pas disponible pour ce panier.");
+  if (!shippingOption || shippingOption.isAvailable === false) {
+    throw new Error(shippingOption?.availabilityNote || "La methode de livraison selectionnee n'est pas disponible pour ce panier.");
   }
 
   const existingOrders = await getSourcingOrders();

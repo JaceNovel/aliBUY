@@ -5,6 +5,8 @@
   "seaRealCostPerCbmFcfa": 180000,
   "seaSellRatePerCbmFcfa": 210000,
   "seaEstimatedDays": "20-40 jours",
+  "seaMinimumWeightKg": 3,
+  "seaMinimumCbm": 0.03,
   "freeAirThresholdFcfa": 20000,
   "freeAirEnabled": true,
   "airWeightThresholdKg": 2.5,

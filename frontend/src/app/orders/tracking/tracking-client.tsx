@@ -67,7 +67,7 @@ function getDirectSupplierTrackingSteps(order: OrderRecord) {
     {
       key: "supplier",
       title: "Achat fournisseur",
-      description: order.status === "Paiement en attente" ? "L'achat démarre après validation du paiement." : "La commande fournisseur AliExpress est prise en charge.",
+      description: order.status === "Paiement en attente" ? "L'achat démarre après validation du paiement." : "La commande fournisseur AfriPay est prise en charge.",
       icon: ShoppingBag,
       state: order.status === "Paiement en attente" ? "pending" : "done",
     },
@@ -188,7 +188,7 @@ function getEstimatedDeliveryLabel(order: OrderRecord) {
   }
 
   if (isDirectSupplierTrackingOrder(order) && order.logistics.supplierTracking?.syncedAt) {
-    return formatDateTimeLabel(order.logistics.supplierTracking.syncedAt) || "Suivi AliExpress actif";
+    return formatDateTimeLabel(order.logistics.supplierTracking.syncedAt) || "Suivi AfriPay actif";
   }
 
   if (order.logistics.availableForPickupAt) {
@@ -213,7 +213,7 @@ function getNextAction(order: OrderRecord) {
   if (isDirectSupplierTrackingOrder(order) && order.logistics.supplierTracking) {
     const latestEvent = order.logistics.supplierTracking.events[0];
     return {
-      title: latestEvent?.eventName || latestEvent?.eventCode || "Suivi AliExpress actif",
+      title: latestEvent?.eventName || latestEvent?.eventCode || "Suivi AfriPay actif",
       description: latestEvent?.eventLocation
         ? `${latestEvent.eventLocation}${latestEvent.eventTime ? ` · ${formatDateTimeLabel(latestEvent.eventTime)}` : ""}`
         : order.logistics.lastUpdate,
@@ -363,7 +363,7 @@ export function TrackingClient({ orders, initialOrderId, initialTracking }: Trac
         <article className="rounded-[18px] bg-[#f8fafc] px-4 py-4 ring-1 ring-[#e5eaf0]">
           <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Tracking</div>
           <div className="mt-1 text-[15px] font-semibold text-[#111]">{selectedOrder.logistics.trackingCode}</div>
-          {selectedOrder.logistics.supplierTracking?.trackingNumber ? <div className="mt-1 text-[12px] text-[#667085]">AliExpress: {selectedOrder.logistics.supplierTracking.trackingNumber}</div> : null}
+          {selectedOrder.logistics.supplierTracking?.trackingNumber ? <div className="mt-1 text-[12px] text-[#667085]">AfriPay: {selectedOrder.logistics.supplierTracking.trackingNumber}</div> : null}
         </article>
         <article className="rounded-[18px] bg-[#f8fafc] px-4 py-4 ring-1 ring-[#e5eaf0]">
           <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Corridor</div>
@@ -390,7 +390,7 @@ export function TrackingClient({ orders, initialOrderId, initialTracking }: Trac
       {isDirectSupplierTrackingOrder(selectedOrder) && selectedOrder.logistics.supplierTracking ? (
         <article className="mt-4 rounded-[20px] bg-[#eef6ff] px-4 py-5 ring-1 ring-[#d8e5fb] sm:px-6 sm:py-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-[18px] font-bold tracking-[-0.04em] text-[#1d4f91] sm:text-[22px]">Suivi transporteur AliExpress</h2>
+            <h2 className="text-[18px] font-bold tracking-[-0.04em] text-[#1d4f91] sm:text-[22px]">Suivi transporteur AfriPay</h2>
             <div className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-[12px] font-semibold text-[#1d4f91] ring-1 ring-[#d8e5fb]">
               <Truck className="h-4 w-4" />
               Mise à jour automatique
@@ -399,14 +399,14 @@ export function TrackingClient({ orders, initialOrderId, initialTracking }: Trac
           <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#6b85a8]">Transporteur</div>
-              <div className="mt-1 text-[14px] font-semibold text-[#1d4f91]">{selectedOrder.logistics.supplierTracking.carrier || "AliExpress Logistics"}</div>
+              <div className="mt-1 text-[14px] font-semibold text-[#1d4f91]">{selectedOrder.logistics.supplierTracking.carrier || "AfriPay Logistics"}</div>
             </div>
             <div>
               <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#6b85a8]">Numéro fournisseur</div>
               <div className="mt-1 break-all text-[14px] font-semibold text-[#1d4f91]">{selectedOrder.logistics.supplierTracking.trackingNumber || "En attente"}</div>
             </div>
             <div>
-              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#6b85a8]">Trade AliExpress</div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#6b85a8]">Trade AfriPay</div>
               <div className="mt-1 break-all text-[14px] font-semibold text-[#1d4f91]">{selectedOrder.logistics.supplierTracking.tradeId || "n/a"}</div>
             </div>
             <div>

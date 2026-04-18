@@ -2,6 +2,7 @@ import type { SourcingOrder } from "@/lib/alibaba-sourcing";
 import { registerFreeDealClaimFromPaidOrder } from "@/lib/free-deal-store";
 import { triggerManyChatOrderPaidFlow } from "@/lib/manychat";
 import { incrementProductSalesCounts } from "@/lib/products-feed";
+import { repairBlockedSourcingOrderForSupplierPayment, syncSourcingOrderForDeferredSupplierPayment } from "@/lib/sourcing-batch-service";
 import { saveSourcingOrder } from "@/lib/sourcing-store";
 
 type HostedCheckoutProvider = "moneroo" | "paypal";
@@ -46,10 +47,18 @@ export function applyHostedCheckoutPaymentToOrder({ order, payment, verified = f
 
 export async function persistHostedCheckoutPaymentToOrder(options: PersistHostedCheckoutOptions) {
   const wasAlreadyPaid = options.order.paymentStatus === "paid";
-  const nextOrder = applyHostedCheckoutPaymentToOrder(options);
+  let nextOrder = applyHostedCheckoutPaymentToOrder(options);
   await saveSourcingOrder(nextOrder);
 
   if (!wasAlreadyPaid && nextOrder.paymentStatus === "paid") {
+    if (nextOrder.supplierOrderStatus !== "created" || nextOrder.alibabaTradeIds.length === 0) {
+      nextOrder = await repairBlockedSourcingOrderForSupplierPayment(nextOrder.id).catch(() => nextOrder);
+    }
+
+    if (nextOrder.supplierOrderStatus === "created" && nextOrder.alibabaTradeIds.length > 0) {
+      nextOrder = await syncSourcingOrderForDeferredSupplierPayment(nextOrder, "moneroo-verify").catch(() => nextOrder);
+    }
+
     await incrementProductSalesCounts(nextOrder.items.map((item) => ({
       slug: item.slug,
       quantity: item.quantity,

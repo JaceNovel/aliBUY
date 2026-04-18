@@ -309,8 +309,8 @@ function buildSupplierTrackingUpdate(supplierTracking?: OrderRecord["logistics"]
 
   if (supplierTracking.trackingNumber) {
     return supplierTracking.carrier
-      ? `Suivi AliExpress actif via ${supplierTracking.carrier} · ${supplierTracking.trackingNumber}`
-      : `Suivi AliExpress actif · ${supplierTracking.trackingNumber}`;
+      ? `Suivi AfriPay actif via ${supplierTracking.carrier} · ${supplierTracking.trackingNumber}`
+      : `Suivi AfriPay actif · ${supplierTracking.trackingNumber}`;
   }
 
   return null;
@@ -335,11 +335,11 @@ function buildLogistics(order: SourcingOrder, status: OrderStatus) {
     ? `Depart -> votre agent ${forwarderHubLabel ?? destination}`
     : usesInternalReceptionAddress
       ? `Hub AfriPay -> ${destination}`
-      : `AliExpress -> ${destination}`;
+      : `AfriPay -> ${destination}`;
   const transitMode = workflow?.routeType === "customer-forwarder"
     ? `Acheminement vers votre agent ${forwarderHubLabel ?? destination}`
     : !usesInternalReceptionAddress
-      ? "Livraison directe AliExpress vers votre adresse"
+      ? "Livraison directe AfriPay vers votre adresse"
     : order.shippingMethod === "sea"
       ? "Groupage mer, dedouanement puis livraison finale"
       : order.shippingMethod === "freight"
@@ -367,7 +367,7 @@ function buildLogistics(order: SourcingOrder, status: OrderStatus) {
     agentName: workflow?.routeType === "customer-forwarder"
       ? `Agent client ${forwarderHubLabel ?? destination}`
       : !usesInternalReceptionAddress
-        ? "Livraison directe AliExpress"
+        ? "Livraison directe AfriPay"
       : order.shippingMethod === "sea"
         ? "Equipe logistique maritime"
         : order.shippingMethod === "freight"
