@@ -332,11 +332,17 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const storefrontSellerLocation = "Réseau logistique AfriPay";
   const parsedLotCbm = Number(product.lotCbm.replace(",", "."));
   const lotLabel = Number.isFinite(parsedLotCbm) && parsedLotCbm > 0 ? `${product.lotCbm} m3` : "Volume à confirmer";
-  const characteristics = [
+  const explicitAttributes = product.specs
+    .filter((entry) => entry.label.trim().length > 0 && entry.value.trim().length > 0 && !isWeakLogisticsText(entry.value))
+    .map((entry) => ({
+      label: entry.label.trim(),
+      value: entry.value.trim(),
+    }));
+  const fallbackCharacteristics = [
     { label: "Type", value: findSpecValue(/type|model|modele|style|material|matiere/i) ?? inferredType },
     { label: "Référence", value: referenceCode },
     { label: "Connexion", value: findSpecValue(/connexion|connection|interface|plug|prise|port/i) ?? inferredConnection },
-    { label: "Capteur", value: findSpecValue(/capteur|sensor|feature|fonction|function|light|display/i) ?? inferredSensor },
+    { label: "Fonction", value: findSpecValue(/capteur|sensor|feature|fonction|function|light|display/i) ?? inferredSensor },
     { label: "Dimensions", value: dimensionsLabel },
     { label: "Emballage", value: packagingLabel },
     { label: "Poids", value: weightLabel },
@@ -344,6 +350,12 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     { label: "Support", value: !isWeakLogisticsText(product.responseTime) ? product.responseTime : "Support logistique AfriPay+" },
     { label: "Volume", value: lotLabel },
   ];
+  const characteristics = [...new Map(
+    [...explicitAttributes, ...fallbackCharacteristics]
+      .filter((entry) => entry.label.trim().length > 0 && entry.value.trim().length > 0)
+      .map((entry) => [entry.label.trim().toLowerCase(), entry]),
+  ).values()].slice(0, 16);
+  const visibleSidebarAttributes = explicitAttributes.slice(0, 6);
   const paymentMethods = [
     {
       label: "PayPal",
@@ -1003,6 +1015,20 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                                 );
                               })}
                             </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {product.variantGroups.length === 0 && visibleSidebarAttributes.length > 0 ? (
+                    <div className="border-b border-[#efefef] pb-4">
+                      <div className="text-[14px] font-semibold text-[#191919]">Attributs produit</div>
+                      <div className="mt-3 grid gap-2">
+                        {visibleSidebarAttributes.map((attribute) => (
+                          <div key={`${attribute.label}-${attribute.value}`} className="rounded-[8px] border border-[#ececec] bg-[#fafafa] px-3 py-2.5">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8b7a6d]">{attribute.label}</div>
+                            <div className="mt-1 text-[13px] font-medium leading-5 text-[#241b15]">{attribute.value}</div>
                           </div>
                         ))}
                       </div>
