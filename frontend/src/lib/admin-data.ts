@@ -525,6 +525,28 @@ export type AdminOrderRecord = {
   parcelHref: string;
 };
 
+function buildAdminOrderMergeKey(order: Pick<AdminOrderRecord, "id" | "orderNumber">) {
+  const orderNumber = typeof order.orderNumber === "string" ? order.orderNumber.trim() : "";
+  const id = typeof order.id === "string" ? order.id.trim() : "";
+
+  return orderNumber || id;
+}
+
+function mergeAdminOrders(localOrders: AdminOrderRecord[], proxiedOrders: AdminOrderRecord[]) {
+  const merged = new Map<string, AdminOrderRecord>();
+
+  for (const order of proxiedOrders) {
+    merged.set(buildAdminOrderMergeKey(order), order);
+  }
+
+  for (const order of localOrders) {
+    merged.set(buildAdminOrderMergeKey(order), order);
+  }
+
+  return [...merged.values()]
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
 export type AdminImportRequestStatus = "En attente" | "En traitement" | "Complété" | "Rejeté";
 
 export type AdminImportRequest = {
@@ -789,20 +811,8 @@ export async function getAdminRecentOrders(limit = 5) {
 }
 
 export async function getAdminOrders(options?: { preferProxy?: boolean }): Promise<AdminOrderRecord[]> {
-  if (options?.preferProxy !== false && hasExternalAdminApi()) {
-    try {
-      const proxiedOrders = await fetchAdminOrdersFromApi();
-      if (proxiedOrders) {
-        return proxiedOrders;
-      }
-    } catch {
-      // Fall back to the local store when the backend API is unreachable.
-    }
-  }
-
   const orders = await getSourcingOrders();
-
-  return [...orders]
+  const localOrders = [...orders]
     .sort((left: AdminSourcingOrder, right: AdminSourcingOrder) => right.createdAt.localeCompare(left.createdAt))
     .map((order: AdminSourcingOrder) => ({
       id: order.id,
@@ -823,6 +833,19 @@ export async function getAdminOrders(options?: { preferProxy?: boolean }): Promi
       href: `/admin/orders/${encodeURIComponent(order.id)}`,
       parcelHref: `/admin/orders/${encodeURIComponent(order.id)}/parcel`,
     }));
+
+  if (options?.preferProxy !== false && hasExternalAdminApi()) {
+    try {
+      const proxiedOrders = await fetchAdminOrdersFromApi();
+      if (proxiedOrders) {
+        return mergeAdminOrders(localOrders, proxiedOrders);
+      }
+    } catch {
+      // Fall back to the local store when the backend API is unreachable.
+    }
+  }
+
+  return localOrders;
 }
 
 export async function getAdminUsersOverview(): Promise<AdminUserRecord[]> {
@@ -944,6 +967,13 @@ export async function getAdminUserDetail(userId: string): Promise<AdminUserDetai
 }
 
 export async function getAdminOrderById(orderId: string) {
+  const orders = await getSourcingOrders();
+  const localOrder = orders.find((order: AdminSourcingOrder) => order.id === orderId || order.orderNumber === orderId) ?? null;
+
+  if (localOrder) {
+    return localOrder;
+  }
+
   if (hasExternalAdminApi()) {
     try {
       const proxiedOrder = await fetchAdminOrderByIdFromApi(orderId);
@@ -955,8 +985,7 @@ export async function getAdminOrderById(orderId: string) {
     }
   }
 
-  const orders = await getSourcingOrders();
-  return orders.find((order: AdminSourcingOrder) => order.id === orderId || order.orderNumber === orderId) ?? null;
+  return null;
 }
 
 export async function getAdminOrderParcelSnapshot(order: SourcingOrder): Promise<AdminOrderParcelSnapshot> {
