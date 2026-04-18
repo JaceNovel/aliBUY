@@ -393,6 +393,7 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
   const [isImporting, setIsImporting] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isDeletingImported, setIsDeletingImported] = useState(false);
+  const [isReenrichingImported, setIsReenrichingImported] = useState(false);
   const [buyerItemBusy, setBuyerItemBusy] = useState<{ id: string | null; action: "sync" | "refresh" | "delete" | null }>({ id: null, action: null });
   const [purchaseOrderBusy, setPurchaseOrderBusy] = useState<{ id: string | null; action: "pay" | "refresh" | "cancel" | null }>({ id: null, action: null });
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -685,6 +686,40 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
     }
 
     setFeedback("Article reenrichi avec les donnees source les plus recentes.");
+    refresh();
+  };
+
+  const reenrichAllImportedItems = async () => {
+    if (initialDashboard.importedProducts.length === 0) {
+      return;
+    }
+
+    if (!window.confirm(`Reenrichir les ${initialDashboard.importedProducts.length} article(s) importes pour recuperer les variantes et donnees source a jour ?`)) {
+      return;
+    }
+
+    setIsReenrichingImported(true);
+    setFeedback(null);
+    setErrorMessage(null);
+
+    const response = await fetchAdminSourcing(`${adminApiBasePath}/import/reenrich`, {
+      method: "POST",
+    });
+    const payload = await response.json().catch(() => null) as { message?: string; updatedCount?: number; failedCount?: number } | null;
+    setIsReenrichingImported(false);
+
+    if (!response.ok) {
+      setErrorMessage(payload?.message ?? "Reenrichissement global impossible.");
+      return;
+    }
+
+    const updatedCount = Number(payload?.updatedCount ?? 0);
+    const failedCount = Number(payload?.failedCount ?? 0);
+    setFeedback(
+      failedCount > 0
+        ? `Reenrichissement global termine: ${updatedCount} mis a jour, ${failedCount} en echec.`
+        : `Reenrichissement global termine: ${updatedCount} article(s) mis a jour.`,
+    );
     refresh();
   };
 
@@ -1145,12 +1180,16 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <button type="button" onClick={() => setSelectedImportedProductIds(allImportedSelected ? [] : allImportedProductIds)} disabled={initialDashboard.importedProducts.length === 0 || isDeletingImported} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#d6dbe6] bg-white px-4 text-[13px] font-semibold text-[#344054] transition hover:border-[#1d4f91] hover:text-[#1d4f91] disabled:opacity-60">
+            <button type="button" onClick={() => setSelectedImportedProductIds(allImportedSelected ? [] : allImportedProductIds)} disabled={initialDashboard.importedProducts.length === 0 || isDeletingImported || isReenrichingImported} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#d6dbe6] bg-white px-4 text-[13px] font-semibold text-[#344054] transition hover:border-[#1d4f91] hover:text-[#1d4f91] disabled:opacity-60">
               {allImportedSelected ? "Tout deselectionner" : "Tout selectionner"}
             </button>
             <button type="button" onClick={publishSelection} disabled={isPublishing || selectedImportedProductIds.length === 0} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] bg-[#1d4f91] px-4 text-[13px] font-semibold text-white transition hover:bg-[#173d71] disabled:opacity-60">
               {isPublishing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               Publier la selection
+            </button>
+            <button type="button" onClick={reenrichAllImportedItems} disabled={isReenrichingImported || initialDashboard.importedProducts.length === 0 || isDeletingImported} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#d6dbe6] bg-white px-4 text-[13px] font-semibold text-[#344054] transition hover:border-[#1d4f91] hover:text-[#1d4f91] disabled:opacity-60">
+              {isReenrichingImported ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+              Reenrichir tout
             </button>
             <button type="button" onClick={deleteSelectedImportedItems} disabled={isDeletingImported || selectedImportedProductIds.length === 0} className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[#f3d1d1] bg-[#fff7f7] px-4 text-[13px] font-semibold text-[#b42318] transition hover:bg-[#fff1f1] disabled:opacity-60">
               {isDeletingImported ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}

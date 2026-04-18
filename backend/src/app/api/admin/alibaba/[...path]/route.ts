@@ -8,8 +8,48 @@ type RouteContext = {
   params: Promise<{ path: string[] }>;
 };
 
+async function handleLocalAlibabaAdminRoute(request: Request, path: string[]) {
+  const normalizedPath = path.map((segment) => segment.trim()).filter(Boolean);
+
+  try {
+    if (request.method.toUpperCase() === "POST" && normalizedPath.length === 2 && normalizedPath[0] === "import" && normalizedPath[1] === "reenrich") {
+      const { reenrichAllImportedProducts } = await import("@/lib/alibaba-operations-service");
+      const result = await reenrichAllImportedProducts();
+      return NextResponse.json(result);
+    }
+
+    if (request.method.toUpperCase() === "POST" && normalizedPath.length === 3 && normalizedPath[0] === "import" && normalizedPath[2] === "reenrich") {
+      const importedProductId = normalizedPath[1];
+      const { reenrichImportedProduct } = await import("@/lib/alibaba-operations-service");
+      const product = await reenrichImportedProduct(importedProductId);
+      return NextResponse.json({
+        message: "Article reenrichi avec les donnees source les plus recentes.",
+        product,
+      });
+    }
+  } catch (error) {
+    return NextResponse.json({
+      message: error instanceof Error ? error.message : "Reenrichissement impossible.",
+    }, { status: 500 });
+  }
+
+  return null;
+}
+
 async function proxyAdminAlibaba(request: Request, context: RouteContext) {
+  const { path } = await context.params;
+
   if (!API_URL) {
+    const adminAccess = await getCurrentAdminAccess().catch(() => null);
+    if (!adminAccess) {
+      return NextResponse.json({ message: "Connexion admin requise." }, { status: 401 });
+    }
+
+    const localResponse = await handleLocalAlibabaAdminRoute(request, path);
+    if (localResponse) {
+      return localResponse;
+    }
+
     return NextResponse.json({ message: "Backend Laravel non configure pour le flux fournisseur." }, { status: 503 });
   }
 
@@ -19,7 +59,6 @@ async function proxyAdminAlibaba(request: Request, context: RouteContext) {
   }
 
   const requestUrl = new URL(request.url);
-  const { path } = await context.params;
   const upstreamPath = `/api/admin/alibaba/${path.join("/")}${requestUrl.search}`;
   const method = request.method.toUpperCase();
   const contentType = request.headers.get("content-type")?.trim();
