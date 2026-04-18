@@ -191,6 +191,26 @@ type AlibabaIcbuCategoryNode = {
   childIds: string[];
 };
 
+type AlibabaIcbuCategoryAttributeValueDefinition = {
+  attributeValueId?: string;
+  attributeValueName: string;
+};
+
+type AlibabaIcbuCategoryAttributeDefinition = {
+  attributeId?: string;
+  attributeName: string;
+  required: boolean;
+  supportMultiValue: boolean;
+  supportCustomValue: boolean;
+  values: AlibabaIcbuCategoryAttributeValueDefinition[];
+};
+
+type AlibabaIcbuCategoryAttributesPayload = {
+  categoryAttributes: AlibabaIcbuCategoryAttributeDefinition[];
+  saleAttributes: AlibabaIcbuCategoryAttributeDefinition[];
+  rawData?: Record<string, unknown> | null;
+};
+
 export type AlibabaResolvedCategoryInfo = {
   categoryId: string;
   title: string;
@@ -301,6 +321,7 @@ export type AlibabaLogisticsTracking = {
 };
 
 const alibabaIcbuCategoryNodeCache = new Map<string, Promise<AlibabaIcbuCategoryNode | null>>();
+const alibabaIcbuCategoryAttributeCache = new Map<string, Promise<AlibabaIcbuCategoryAttributesPayload | null>>();
 
 function normalizeBaseUrl(value: string) {
   return value.replace(/\/+$/, "").replace(/\/rest$/, "");
@@ -1661,6 +1682,175 @@ function extractAlibabaCategoryIdFromPayload(value: unknown, depth = 0): string 
   return undefined;
 }
 
+function normalizeAlibabaIcbuCategoryAttributeDefinitions(value: unknown): AlibabaIcbuCategoryAttributeDefinition[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!isRecord(entry)) {
+      return [] as AlibabaIcbuCategoryAttributeDefinition[];
+    }
+
+    const attributeName = getStringValue(entry.attribute_name)
+      ?? getStringValue(entry.attributeName)
+      ?? getStringValue(entry.name);
+    if (!attributeName) {
+      return [] as AlibabaIcbuCategoryAttributeDefinition[];
+    }
+
+    const rawValueList = Array.isArray(entry.attribute_value_list) ? entry.attribute_value_list : [];
+    const values = rawValueList.flatMap((candidate) => {
+      if (!isRecord(candidate)) {
+        return [] as AlibabaIcbuCategoryAttributeValueDefinition[];
+      }
+
+      const attributeValueName = getStringValue(candidate.attribute_value_name)
+        ?? getStringValue(candidate.attributeValueName)
+        ?? getStringValue(candidate.value_name)
+        ?? getStringValue(candidate.valueName)
+        ?? getStringValue(candidate.name)
+        ?? getStringValue(candidate.text);
+      if (!attributeValueName) {
+        return [] as AlibabaIcbuCategoryAttributeValueDefinition[];
+      }
+
+      return [{
+        attributeValueId: getStringValue(candidate.attribute_value_id)
+          ?? getStringValue(candidate.attributeValueId)
+          ?? getStringValue(candidate.id),
+        attributeValueName,
+      } satisfies AlibabaIcbuCategoryAttributeValueDefinition];
+    });
+
+    return [{
+      attributeId: getStringValue(entry.attribute_id) ?? getStringValue(entry.attributeId) ?? getStringValue(entry.id),
+      attributeName,
+      required: isTruthyAlibabaFlag(entry.required),
+      supportMultiValue: isTruthyAlibabaFlag(entry.support_multi_value),
+      supportCustomValue: isTruthyAlibabaFlag(entry.support_custom_value),
+      values: uniqueStrings(values.map((candidate) => candidate.attributeValueName)).map((attributeValueName) => values.find((candidate) => candidate.attributeValueName === attributeValueName)!).filter(Boolean),
+    } satisfies AlibabaIcbuCategoryAttributeDefinition];
+  });
+}
+
+function mergeAlibabaSpecs(baseSpecs: ProductCatalogItem["specs"], definitions: AlibabaIcbuCategoryAttributeDefinition[]) {
+  const specs = new Map(baseSpecs.map((spec) => [spec.label.trim().toLowerCase(), spec]));
+
+  definitions.forEach((definition) => {
+    const key = definition.attributeName.trim().toLowerCase();
+    if (!key) {
+      return;
+    }
+
+    const existing = specs.get(key);
+    if (existing && existing.value.trim().length > 0 && existing.value.trim() !== "-") {
+      return;
+    }
+
+    const renderedValue = definition.values.length > 0
+      ? definition.values.map((value) => value.attributeValueName).join(", ")
+      : definition.supportCustomValue
+        ? "Valeur personnalisable"
+        : definition.required
+          ? "Obligatoire"
+          : "Selon categorie";
+
+    specs.set(key, {
+      label: definition.attributeName,
+      value: renderedValue,
+    });
+  });
+
+  return [...specs.values()];
+}
+
+function buildAlibabaVariantGroupsFromAttributeDefinitions(definitions: AlibabaIcbuCategoryAttributeDefinition[]) {
+  return definitions
+    .map((definition) => ({
+      label: definition.attributeName,
+      values: uniqueStrings(definition.values.map((value) => value.attributeValueName).filter(Boolean)),
+    }))
+    .filter((group) => group.values.length > 1);
+}
+
+function mergeAlibabaVariantGroups(...groupSets: ProductCatalogItem["variantGroups"][]) {
+  const groups = new Map<string, string[]>();
+
+  groupSets.forEach((entries) => {
+    entries.forEach((group) => {
+      const label = group.label.trim();
+      if (!label) {
+        return;
+      }
+
+      const values = groups.get(label) ?? [];
+      group.values.forEach((value) => {
+        if (!values.includes(value)) {
+          values.push(value);
+        }
+      });
+      groups.set(label, values);
+    });
+  });
+
+  return [...groups.entries()]
+    .map(([label, values]) => ({ label, values }))
+    .filter((group) => group.values.length > 1);
+}
+
+async function getAlibabaIcbuCategoryAttributes(input: {
+  categoryId?: string | number;
+  rawPayload?: unknown;
+}): Promise<AlibabaIcbuCategoryAttributesPayload | null> {
+  const categoryId = String(input.categoryId ?? extractAlibabaCategoryIdFromPayload(input.rawPayload) ?? "").trim();
+  if (!/^\d+$/.test(categoryId) || categoryId === "0") {
+    return null;
+  }
+
+  const cached = alibabaIcbuCategoryAttributeCache.get(categoryId);
+  if (cached) {
+    return cached;
+  }
+
+  const pending = (async () => {
+    const credentials = await resolveAlibabaCredentialsForLiveCall();
+    if (!credentials || isAliExpressCredentials(credentials)) {
+      return null;
+    }
+
+    const result = await callAlibabaEndpoint("/alibaba/icbu/category/attribute/get/v2", {
+      category_id: categoryId,
+    }, {
+      credentials,
+      method: "GET",
+    });
+
+    if (!result.ok) {
+      return null;
+    }
+
+    const response = isRecord(result.responseBody) ? result.responseBody : null;
+    const data = response && isRecord(response.data)
+      ? response.data
+      : response && isRecord(response.result) && isRecord(response.result.data)
+        ? response.result.data
+        : null;
+    if (!data) {
+      return null;
+    }
+
+    return {
+      categoryAttributes: normalizeAlibabaIcbuCategoryAttributeDefinitions(data.category_attributes),
+      saleAttributes: normalizeAlibabaIcbuCategoryAttributeDefinitions(data.sale_attributes),
+      rawData: data,
+    } satisfies AlibabaIcbuCategoryAttributesPayload;
+  })().catch(() => null);
+
+  alibabaIcbuCategoryAttributeCache.set(categoryId, pending);
+  return pending;
+}
+
 async function fetchAlibabaIcbuCategoryNode(catId: string, credentials?: AlibabaCredentials | null): Promise<AlibabaIcbuCategoryNode | null> {
   const normalizedId = catId.trim();
   if (!/^\d+$/.test(normalizedId) || normalizedId === "0") {
@@ -2398,6 +2588,8 @@ function extractVariantPairsFromAttribute(value: unknown, fallbackLabel?: string
     ?? fallbackLabel;
   const directValue = getStringValue(record.attribute_value)
     ?? getStringValue(record.attributeValue)
+    ?? getStringValue(record.attribute_value_name)
+    ?? getStringValue(record.attributeValueName)
     ?? getStringValue(record.attr_value)
     ?? getStringValue(record.attrValue)
     ?? getStringValue(record.attr_value_desc)
@@ -2417,6 +2609,8 @@ function extractVariantPairsFromAttribute(value: unknown, fallbackLabel?: string
     "attributes",
     "attribute_list",
     "attributeList",
+    "attribute_value_list",
+    "attributeValueList",
     "attribute_values",
     "attributeValues",
     "sku_attributes",
@@ -3010,7 +3204,7 @@ export async function fetchAlibabaProductSnapshotWithDebug(input: {
   }
 
   debug.resolvedRemoteMode = "icbu_product";
-  return { product: enrichAlibabaSearchProduct(mapped, detailRecord), debug };
+  return { product: await enrichAlibabaSearchProduct(mapped, detailRecord), debug };
 }
 
 export async function getAlibabaIcbuProduct(input: {
@@ -3082,7 +3276,7 @@ async function getAlibabaIcbuWholesaleProduct(input: {
   });
 }
 
-function enrichAlibabaSearchProduct(product: AlibabaSearchProduct, detailRecord: Record<string, unknown> | null): AlibabaSearchProduct {
+async function enrichAlibabaSearchProduct(product: AlibabaSearchProduct, detailRecord: Record<string, unknown> | null): Promise<AlibabaSearchProduct> {
   if (!detailRecord) {
     return product;
   }
@@ -3135,9 +3329,26 @@ function enrichAlibabaSearchProduct(product: AlibabaSearchProduct, detailRecord:
   });
   const images = extractImagesFromAlibabaRecord(detailRecord);
   const variantGroups = extractAlibabaVariantGroups(detailRecord);
+  const categoryAttributes = await getAlibabaIcbuCategoryAttributes({ rawPayload: detailRecord }).catch(() => null);
+  const mergedVariantGroups = mergeAlibabaVariantGroups(
+    variantGroups.length > 0 ? variantGroups : product.variantGroups,
+    buildAlibabaVariantGroupsFromAttributeDefinitions(categoryAttributes?.saleAttributes ?? []),
+  );
+  const mergedSpecs = mergeAlibabaSpecs(product.specs ?? [], [
+    ...(categoryAttributes?.categoryAttributes ?? []),
+    ...(categoryAttributes?.saleAttributes ?? []),
+  ]);
   const mergedPayload = product.rawPayload && typeof product.rawPayload === "object" && !Array.isArray(product.rawPayload)
-    ? { ...(product.rawPayload as Record<string, unknown>), detail: detailRecord }
-    : { search: product.rawPayload, detail: detailRecord };
+    ? {
+        ...(product.rawPayload as Record<string, unknown>),
+        detail: detailRecord,
+        ...(categoryAttributes?.rawData ? { icbu_category_attributes: categoryAttributes.rawData } : {}),
+      }
+    : {
+        search: product.rawPayload,
+        detail: detailRecord,
+        ...(categoryAttributes?.rawData ? { icbu_category_attributes: categoryAttributes.rawData } : {}),
+      };
 
   return {
     ...product,
@@ -3149,7 +3360,7 @@ function enrichAlibabaSearchProduct(product: AlibabaSearchProduct, detailRecord:
     minUsd: priceBounds.min ?? product.minUsd,
     maxUsd: priceBounds.max ?? product.maxUsd,
     moq,
-    variantGroups: variantGroups.length > 0 ? variantGroups : product.variantGroups,
+    variantGroups: mergedVariantGroups.length > 0 ? mergedVariantGroups : product.variantGroups,
     tiers: detailPriceData.tiers.length > 0
       ? detailPriceData.tiers.map((tier) => ({
           quantityLabel: tier.quantityLabel,
@@ -3157,6 +3368,7 @@ function enrichAlibabaSearchProduct(product: AlibabaSearchProduct, detailRecord:
           note: tier.note,
         }))
       : product.tiers,
+    specs: mergedSpecs,
     moqVerified: moqInfo.verified,
     weightVerified: typeof weightGrams === "number" && weightGrams > 0,
     priceVerified: detailPriceData.verified || product.priceVerified === true,
@@ -3173,7 +3385,7 @@ async function enrichAlibabaSearchProducts(products: AlibabaSearchProduct[], cre
   return Promise.all(products.map(async (product) => {
     try {
       const detailRecord = await fetchAlibabaProductDetail(product.sourceProductId, resolvedCredentials);
-      return enrichAlibabaSearchProduct(product, detailRecord);
+      return await enrichAlibabaSearchProduct(product, detailRecord);
     } catch {
       return product;
     }

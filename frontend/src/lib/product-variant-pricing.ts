@@ -218,6 +218,8 @@ function extractVariantPairsFromAttribute(value: unknown, fallbackLabel?: string
     ?? fallbackLabel;
   const directValue = getStringValue(record.attribute_value)
     ?? getStringValue(record.attributeValue)
+    ?? getStringValue(record.attribute_value_name)
+    ?? getStringValue(record.attributeValueName)
     ?? getStringValue(record.attr_value)
     ?? getStringValue(record.attrValue)
     ?? getStringValue(record.attr_value_desc)
@@ -245,6 +247,8 @@ function extractVariantPairsFromAttribute(value: unknown, fallbackLabel?: string
     "attributes",
     "attribute_list",
     "attributeList",
+    "attribute_value_list",
+    "attributeValueList",
     "attribute_values",
     "attributeValues",
     "sku_attributes",
