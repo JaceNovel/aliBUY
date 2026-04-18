@@ -185,9 +185,9 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
 
       if (skipReason === "missing_credentials") {
         return {
-          message: "Le lancement fournisseur est ignore parce que les identifiants fournisseur ne sont pas configures pour l'automatisation Alibaba.",
-          href: "/admin/alibaba-sourcing",
-          label: "Ouvrir le cockpit fournisseur",
+          message: "Le lancement fournisseur est ignore parce qu'aucun compte fournisseur connecte n'est disponible et qu'aucune variable serveur ALIEXPRESS_OPEN_PLATFORM_APP_KEY / ALIEXPRESS_OPEN_PLATFORM_APP_SECRET n'est definie cote frontend.",
+          href: "/admin/alibaba-sourcing/accounts",
+          label: "Ouvrir Comptes partenaires",
           external: false,
         };
       }
@@ -200,7 +200,7 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
 
       return {
         message: "Le lancement fournisseur a ete ignore pour cette commande. Verifiez le mapping article et la configuration fournisseur avant de relancer.",
-        href: "/admin/alibaba-sourcing",
+        href: "/admin/alibaba-sourcing/accounts",
         label: "Ouvrir le cockpit fournisseur",
         external: false,
       };
