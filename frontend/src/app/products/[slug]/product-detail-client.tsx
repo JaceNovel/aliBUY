@@ -159,6 +159,11 @@ function isDescriptionStillNoisy(value: string) {
   return cssTokenCount >= 2 || braceCount >= 4;
 }
 
+function isTechnicalDescriptionLine(value: string) {
+  const normalized = value.trim().toLowerCase();
+  return /get product description|produit charge via|loaded via|import afripay|selection verifiee afripay|catalogue afripay|api alibaba|api aliexpress|sku ds exploitable/.test(normalized);
+}
+
 function buildDescriptionParagraphs(description?: string, fallbackOverview: string[] = []) {
   const normalizedDescription = typeof description === "string" ? description.trim() : "";
 
@@ -179,14 +184,22 @@ function buildDescriptionParagraphs(description?: string, fallbackOverview: stri
     const paragraphs = plainText
       .split(/\n{2,}|\n(?=-\s)/)
       .map((entry) => entry.replace(/\s+/g, " ").trim())
-      .filter((entry) => entry.length > 0 && !isDescriptionStillNoisy(entry));
+      .filter((entry) => entry.length > 0 && !isDescriptionStillNoisy(entry) && !isTechnicalDescriptionLine(entry));
 
     if (paragraphs.length > 0) {
       return paragraphs;
     }
   }
 
-  return fallbackOverview.filter((entry) => entry.trim().length > 0);
+  const cleanedFallback = fallbackOverview
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0 && !isTechnicalDescriptionLine(entry));
+
+  if (cleanedFallback.length > 0) {
+    return cleanedFallback;
+  }
+
+  return ["Consultez la fiche technique ci-dessous pour retrouver les principales caractéristiques du produit."];
 }
 
 export function ProductDetailClient({ product, relatedProducts, initialIsFavorite }: ProductDetailClientProps) {

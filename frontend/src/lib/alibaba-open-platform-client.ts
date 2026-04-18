@@ -1734,6 +1734,35 @@ function normalizeAlibabaIcbuCategoryAttributeDefinitions(value: unknown): Aliba
   });
 }
 
+function isAlibabaIcbuCategoryAttributeResponseSuccessful(response: Record<string, unknown> | null) {
+  if (!response) {
+    return false;
+  }
+
+  const statusCodes = [
+    getStringValue(response.success),
+    getStringValue(response.code),
+    getStringValue(response.result_code),
+  ].filter(Boolean).map((value) => value!.trim().toLowerCase());
+
+  const msgCode = getStringValue(response.msg_code)?.trim().toUpperCase();
+  const message = getStringValue(response.message)?.trim().toLowerCase() ?? "";
+
+  if (msgCode && !["0", "00", "200", "SUCCESS", "TRUE"].includes(msgCode)) {
+    return false;
+  }
+
+  if (message && /(not exist|invalid|error|failed)/.test(message) && message !== "success") {
+    return false;
+  }
+
+  if (statusCodes.length === 0) {
+    return true;
+  }
+
+  return statusCodes.some((code) => ["0", "00", "200", "success", "true", "1"].includes(code));
+}
+
 function mergeAlibabaSpecs(baseSpecs: ProductCatalogItem["specs"], definitions: AlibabaIcbuCategoryAttributeDefinition[]) {
   const specs = new Map(baseSpecs.map((spec) => [spec.label.trim().toLowerCase(), spec]));
 
@@ -1831,6 +1860,10 @@ async function getAlibabaIcbuCategoryAttributes(input: {
     }
 
     const response = isRecord(result.responseBody) ? result.responseBody : null;
+    if (!isAlibabaIcbuCategoryAttributeResponseSuccessful(response)) {
+      return null;
+    }
+
     const data = response && isRecord(response.data)
       ? response.data
       : response && isRecord(response.result) && isRecord(response.result.data)
