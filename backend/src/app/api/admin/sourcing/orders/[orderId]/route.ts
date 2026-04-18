@@ -9,6 +9,19 @@ type RouteContext = {
   params: Promise<{ orderId: string }>;
 };
 
+function resolveSourcingBackendBaseUrl(request: Request) {
+  if (API_URL) {
+    return API_URL;
+  }
+
+  const hostname = new URL(request.url).hostname.toLowerCase();
+  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0") {
+    return "";
+  }
+
+  return "https://api.afripay.space";
+}
+
 export async function PATCH(request: Request, context: RouteContext) {
   const adminAccess = await getCurrentAdminAccess().catch(() => null);
   if (!adminAccess) {
@@ -17,9 +30,10 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const { orderId } = await context.params;
   const payload = await request.json().catch(() => null);
+  const backendBaseUrl = resolveSourcingBackendBaseUrl(request);
 
-  if (API_URL) {
-    const response = await fetch(`${API_URL}/api/admin/sourcing/orders/${encodeURIComponent(orderId)}`, {
+  if (backendBaseUrl) {
+    const response = await fetch(`${backendBaseUrl}/api/admin/sourcing/orders/${encodeURIComponent(orderId)}`, {
       method: "PATCH",
       headers: await buildServerForwardHeaders({
         accept: request.headers.get("accept")?.trim() || "application/json",

@@ -185,7 +185,7 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
 
       if (skipReason === "missing_credentials") {
         return {
-          message: "Le lancement fournisseur est ignore parce qu'aucun compte fournisseur connecte n'est disponible et qu'aucune variable serveur ALIEXPRESS_OPEN_PLATFORM_APP_KEY / ALIEXPRESS_OPEN_PLATFORM_APP_SECRET n'est definie cote frontend.",
+          message: "Le lancement fournisseur est ignore parce qu'aucun compte Alibaba fournisseur connecte n'est disponible et qu'aucun identifiant Alibaba Open Platform n'est defini cote frontend. Alias acceptes par le serveur: ALIBABA_OPEN_PLATFORM_APP_KEY / ALIBABA_OPEN_PLATFORM_APP_SECRET ou les anciens noms ALIEXPRESS_OPEN_PLATFORM_APP_KEY / ALIEXPRESS_OPEN_PLATFORM_APP_SECRET.",
           href: "/admin/alibaba-sourcing/accounts",
           label: "Ouvrir Comptes partenaires",
           external: false,
