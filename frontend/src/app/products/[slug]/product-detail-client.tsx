@@ -1153,7 +1153,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                           setActiveImage(index);
                         }}
                         className={[
-                          "relative h-[74px] w-[74px] overflow-hidden rounded-[18px] border bg-white transition",
+                          "relative h-[74px] w-[74px] shrink-0 overflow-hidden rounded-[18px] border bg-white transition",
                           isActive ? "border-[#111827] shadow-[0_16px_28px_rgba(15,23,42,0.14)]" : "border-[#e5e7eb] hover:border-[#ff8a3d]",
                         ].join(" ")}
                       >
@@ -1167,7 +1167,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                       data-active={activeMedia === "video" ? "true" : "false"}
                       onClick={() => setActiveMedia("video")}
                       className={[
-                        "relative h-[74px] w-[74px] overflow-hidden rounded-[18px] border bg-[#161820] transition",
+                        "relative h-[74px] w-[74px] shrink-0 overflow-hidden rounded-[18px] border bg-[#161820] transition",
                         activeMedia === "video" ? "border-[#111827] shadow-[0_16px_28px_rgba(15,23,42,0.14)]" : "border-[#e5e7eb] hover:border-[#ff8a3d]",
                       ].join(" ")}
                     >
@@ -1368,7 +1368,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                         setActiveImage(index);
                       }}
                       className={[
-                        "relative h-[76px] w-[76px] overflow-hidden rounded-[18px] border bg-white transition",
+                        "relative h-[76px] w-[76px] shrink-0 overflow-hidden rounded-[18px] border bg-white transition",
                         isActive ? "border-[#101828] shadow-[0_16px_32px_rgba(15,23,42,0.14)]" : "border-[#e5e7eb] hover:border-[#ff8a3d] hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)]",
                       ].join(" ")}
                     >
@@ -1382,7 +1382,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     data-active={activeMedia === "video" ? "true" : "false"}
                     onClick={() => setActiveMedia("video")}
                     className={[
-                      "relative h-[76px] w-[76px] overflow-hidden rounded-[18px] border bg-[#161820] transition",
+                      "relative h-[76px] w-[76px] shrink-0 overflow-hidden rounded-[18px] border bg-[#161820] transition",
                       activeMedia === "video" ? "border-[#101828] shadow-[0_16px_32px_rgba(15,23,42,0.14)]" : "border-[#e5e7eb] hover:border-[#ff8a3d] hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)]",
                     ].join(" ")}
                   >
