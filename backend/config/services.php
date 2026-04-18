@@ -70,6 +70,11 @@ return [
         'xof_per_eur' => env('PAYPAL_XOF_PER_EUR', 655.957),
     ],
 
+    'ebay' => [
+        'notification_endpoint' => env('EBAY_NOTIFICATION_ENDPOINT', 'https://api.afripay.space/api/ebay/webhook'),
+        'verification_token' => env('EBAY_VERIFICATION_TOKEN'),
+    ],
+
     'email_automation' => [
         'enabled' => env('EMAIL_AUTOMATION_ENABLED', true),
     ],

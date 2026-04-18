@@ -6,6 +6,7 @@ use App\Http\Controllers\AccountSecurityController;
 use App\Http\Controllers\AccountSettingsController;
 use App\Http\Controllers\AdminDiagnosticsController;
 use App\Http\Controllers\AlibabaAdminController;
+use App\Http\Controllers\EbayWebhookController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\FavoriteController;
@@ -35,6 +36,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/test/ping', [HealthController::class, 'ping']);
 Route::get('/health', [HealthController::class, 'legacy']);
+Route::get('/ebay/webhook', [EbayWebhookController::class, 'challenge']);
+Route::post('/ebay/webhook', [EbayWebhookController::class, 'notify']);
 Route::get('/docs', [PartnerDocsController::class, 'show']);
 Route::get('/search-suggestions', [SearchSuggestionController::class, 'index']);
 Route::get('/pricing-context', [PricingContextController::class, 'show']);
