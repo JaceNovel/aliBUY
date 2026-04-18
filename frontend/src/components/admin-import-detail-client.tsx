@@ -620,7 +620,7 @@ export function AdminImportDetailClient({ request }: AdminImportDetailClientProp
         <section className="rounded-[18px] border border-[#dcdfe4] bg-white p-5 shadow-[0_2px_10px_rgba(16,24,40,0.04)] sm:p-7">
           <h2 className="text-[22px] font-bold tracking-[-0.04em] text-black">Video bank et Eco Buyer sourcing APIs</h2>
           <div className="mt-3 text-[13px] leading-6 text-[#667085]">
-            Cette couche regroupe la gestion video produit et les endpoints Buyer/Eco pour pousser un catalogue partenaire, faire du discovery, recuperer la data produit AliExpress et importer vers des channels stores.
+            Cette couche regroupe la gestion video produit et les endpoints Buyer/Eco pour pousser un catalogue partenaire, faire du discovery, recuperer la data produit AfriPay et importer vers des channels stores.
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">

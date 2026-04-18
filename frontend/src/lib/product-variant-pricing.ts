@@ -114,6 +114,23 @@ function normalizeVariantValue(value: string) {
   return normalizeVariantText(value);
 }
 
+function collectObjectNodes(value: unknown, depth = 0): Array<Record<string, unknown>> {
+  if (depth > 6 || value == null) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => collectObjectNodes(entry, depth + 1));
+  }
+
+  if (typeof value !== "object") {
+    return [];
+  }
+
+  const record = value as Record<string, unknown>;
+  return [record, ...Object.values(record).flatMap((entry) => collectObjectNodes(entry, depth + 1))];
+}
+
 function isVariantLabelCandidate(value: string) {
   return value.length > 0 && !/^(sku|sku code|sku id|item id|product id|price|price range|min price|max price|moq|quantity|qty|unit|inventory|stock|weight|image|picture|photo|video|url|link|currency|lead time|model|model number)$/i.test(value);
 }
@@ -187,8 +204,12 @@ function extractVariantPairsFromAttribute(value: unknown, fallbackLabel?: string
     ?? getStringValue(record.attrNameDesc)
     ?? getStringValue(record.spec_name)
     ?? getStringValue(record.specName)
+    ?? getStringValue(record.sku_property_name)
+    ?? getStringValue(record.skuPropertyName)
     ?? getStringValue(record.prop_name)
     ?? getStringValue(record.propName)
+    ?? getStringValue(record.property_name)
+    ?? getStringValue(record.propertyName)
     ?? getStringValue(record.sale_attribute_name)
     ?? getStringValue(record.saleAttributeName)
     ?? getStringValue(record.label)
@@ -201,6 +222,14 @@ function extractVariantPairsFromAttribute(value: unknown, fallbackLabel?: string
     ?? getStringValue(record.attrValue)
     ?? getStringValue(record.attr_value_desc)
     ?? getStringValue(record.attrValueDesc)
+    ?? getStringValue(record.property_value_definition_name)
+    ?? getStringValue(record.propertyValueDefinitionName)
+    ?? getStringValue(record.property_value_name)
+    ?? getStringValue(record.propertyValueName)
+    ?? getStringValue(record.sku_property_value)
+    ?? getStringValue(record.skuPropertyValue)
+    ?? getStringValue(record.sku_property_value_tips)
+    ?? getStringValue(record.skuPropertyValueTips)
     ?? getStringValue(record.value_name)
     ?? getStringValue(record.valueName)
     ?? getStringValue(record.option_name)
@@ -222,6 +251,10 @@ function extractVariantPairsFromAttribute(value: unknown, fallbackLabel?: string
     "skuAttributes",
     "sku_attr_list",
     "skuAttrList",
+    "ae_sku_property_dtos",
+    "aeSkuPropertyDtos",
+    "sku_properties",
+    "skuProperties",
     "spec_attrs",
     "specAttributes",
     "props",
@@ -290,10 +323,112 @@ function buildPriceSummary(minUsd: number, maxUsd?: number): ProductPriceSummary
   };
 }
 
-function extractVariantSelectionFromSkuRecord(record: Record<string, unknown>) {
+function buildVariantValueLookup(rawPayload: unknown) {
+  const lookup = new Map<string, { label: string; value: string; image?: string }>();
+
+  for (const node of collectObjectNodes(rawPayload)) {
+    const valueId = getStringValue(node.propertyValueId)
+      ?? getStringValue(node.property_value_id)
+      ?? getStringValue(node.skuPropertyValue)
+      ?? getStringValue(node.sku_property_value)
+      ?? getStringValue(node.valueId)
+      ?? getStringValue(node.value_id)
+      ?? getStringValue(node.id);
+    const valueLabel = getStringValue(node.propertyValueDisplayName)
+      ?? getStringValue(node.property_value_display_name)
+      ?? getStringValue(node.skuPropertyValueTips)
+      ?? getStringValue(node.sku_property_value_tips)
+      ?? getStringValue(node.propertyValueDefinitionName)
+      ?? getStringValue(node.property_value_definition_name)
+      ?? getStringValue(node.propertyValueName)
+      ?? getStringValue(node.property_value_name)
+      ?? getStringValue(node.name);
+    const propertyLabel = getStringValue(node.skuPropertyName)
+      ?? getStringValue(node.sku_property_name)
+      ?? getStringValue(node.propertyName)
+      ?? getStringValue(node.property_name)
+      ?? getStringValue(node.attributeName)
+      ?? getStringValue(node.attribute_name)
+      ?? getStringValue(node.name);
+
+    if (!valueId || !valueLabel) {
+      continue;
+    }
+
+    lookup.set(valueId, {
+      label: propertyLabel ?? "Option",
+      value: valueLabel,
+      image: getStringValue(node.skuPropertyImagePath)
+        ?? getStringValue(node.sku_property_image_path)
+        ?? getStringValue(node.imagePath)
+        ?? getStringValue(node.image_path),
+    });
+  }
+
+  return lookup;
+}
+
+function extractVariantPairsFromPropertyMap(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [] as Array<{ label: string; value: string }>;
+  }
+
+  return Object.entries(value as Record<string, unknown>).flatMap(([label, entryValue]) => {
+    const parsedValue = getStringValue(entryValue);
+    const pair = toVariantPair(label, parsedValue);
+    return pair ? [pair] : [];
+  });
+}
+
+function extractVariantSelectionFromSkuRecord(
+  record: Record<string, unknown>,
+  variantValueLookup?: Map<string, { label: string; value: string; image?: string }>,
+) {
   const pairs = Object.entries(record)
-    .filter(([key]) => /(sale|attr|spec|variant|prop)/i.test(key))
-    .flatMap(([, value]) => extractVariantPairsFromAttribute(value));
+    .filter(([key]) => /(sale|attr|spec|variant|prop|color|size|model|bundle|material|style|plug)/i.test(key))
+    .flatMap(([key, value]) => {
+      if (key === "sku_properties" || key === "skuProperties") {
+        return extractVariantPairsFromPropertyMap(value);
+      }
+
+      return extractVariantPairsFromAttribute(value);
+    });
+
+  const rawSelectionText = getStringValue(record.skuAttr)
+    ?? getStringValue(record.sku_attr)
+    ?? getStringValue(record.attr)
+    ?? getStringValue(record.attr_path)
+    ?? getStringValue(record.skuPropIds)
+    ?? getStringValue(record.sku_prop_ids)
+    ?? getStringValue(record.skuPropertyIds)
+    ?? getStringValue(record.sku_property_ids);
+  if (rawSelectionText && variantValueLookup) {
+    for (const segment of rawSelectionText.split(/[;,#]/g).map((entry) => entry.trim()).filter(Boolean)) {
+      const [, rawValueId] = segment.split(":");
+      const valueId = rawValueId?.trim() ?? segment;
+      const matched = variantValueLookup.get(valueId);
+      if (matched) {
+        pairs.push({ label: matched.label, value: matched.value });
+      }
+    }
+  }
+
+  const explicitPairs = [
+    ["Color", getStringValue(record.color)],
+    ["Size", getStringValue(record.size)],
+    ["Model", getStringValue(record.model)],
+    ["Bundle", getStringValue(record.bundle)],
+    ["Material", getStringValue(record.material)],
+    ["Style", getStringValue(record.style)],
+    ["Plug Type", getStringValue(record.plug_type) ?? getStringValue(record.plugType)],
+  ] as const;
+
+  explicitPairs.forEach(([label, value]) => {
+    const pair = toVariantPair(label, value);
+    if (pair) {
+      pairs.push(pair);
+    }
+  });
 
   return normalizeSelection(Object.fromEntries(pairs.map((pair) => [pair.label, pair.value])));
 }
@@ -407,6 +542,7 @@ function extractPriceRulesFromRecord(record: Record<string, unknown>, depth = 0)
 export function extractAlibabaVariantPricing(rawPayload: unknown): ProductVariantPrice[] {
   const deduped = new Map<string, ProductVariantPrice>();
   const visited = new Set<object>();
+  const variantValueLookup = buildVariantValueLookup(rawPayload);
 
   const visit = (value: unknown, depth = 0) => {
     if (depth > 5 || value == null) {
@@ -444,7 +580,7 @@ export function extractAlibabaVariantPricing(rawPayload: unknown): ProductVarian
       }
 
       const skuRecord = sku as Record<string, unknown>;
-      const selections = extractVariantSelectionFromSkuRecord(skuRecord);
+      const selections = extractVariantSelectionFromSkuRecord(skuRecord, variantValueLookup);
       if (Object.keys(selections).length === 0) {
         return;
       }
@@ -521,6 +657,7 @@ export function extractAlibabaVariantPricing(rawPayload: unknown): ProductVarian
 export function extractAlibabaVariantSkus(rawPayload: unknown): ProductVariantSku[] {
   const deduped = new Map<string, ProductVariantSku>();
   const visited = new Set<object>();
+  const variantValueLookup = buildVariantValueLookup(rawPayload);
 
   const visit = (value: unknown, depth = 0) => {
     if (depth > 5 || value == null) {
@@ -558,7 +695,7 @@ export function extractAlibabaVariantSkus(rawPayload: unknown): ProductVariantSk
       }
 
       const skuRecord = sku as Record<string, unknown>;
-      const selections = extractVariantSelectionFromSkuRecord(skuRecord);
+      const selections = extractVariantSelectionFromSkuRecord(skuRecord, variantValueLookup);
       const skuId = getStringValue(skuRecord.sku_id) ?? getStringValue(skuRecord.skuId);
       if (!skuId || Object.keys(selections).length === 0) {
         return;

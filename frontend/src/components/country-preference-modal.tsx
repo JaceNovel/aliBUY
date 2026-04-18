@@ -57,7 +57,7 @@ export function CountryPreferenceModal({ countryCode, currencyCode }: CountryPre
       return "Pour ce pays, AfriPay utilisera automatiquement ses adresses internes air ou mer pour le sourcing groupé.";
     }
 
-    return "Pour ce pays, les commandes compatibles partent directement vers l'adresse client quand AliExpress dessert la destination.";
+    return "Pour ce pays, les commandes compatibles partent directement vers l'adresse client quand AfriPay dessert la destination.";
   }, [selectedCountry]);
 
   const handleCountryChange = (nextCountry: string) => {

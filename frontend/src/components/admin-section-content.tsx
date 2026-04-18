@@ -97,7 +97,7 @@ export async function AdminSectionContent({ slug, pricing }: { slug: string; pri
     case "categories": {
       const categories = await getCatalogCategories();
       summaryValue = `${categories.length} categories synchronisees`;
-      columns = ["Categorie", "Chemin AliExpress", "Produits", "Action"];
+      columns = ["Categorie", "Chemin AfriPay", "Produits", "Action"];
       rows = categories.map((category) => ({
         key: category.slug,
         values: [category.title, category.sourcePathLabel, String(category.productCount), "Ouvrir"],

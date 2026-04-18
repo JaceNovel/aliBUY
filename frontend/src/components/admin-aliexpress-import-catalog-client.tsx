@@ -1132,7 +1132,7 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
             </div>
           </>
         ) : (
-          <div className="mt-5 rounded-[18px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Lance une recherche pour afficher les resultats Alibaba previsualises.</div>
+          <div className="mt-5 rounded-[18px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Lance une recherche pour afficher les resultats AfriPay previsualises.</div>
 
         )}
       </section>
@@ -1270,7 +1270,7 @@ export function AdminAlibabaImportCatalogClient({ initialDashboard, adminApiBase
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#1d4f91]">Lots fournisseur</div>
-            <h2 className="mt-2 text-[24px] font-black tracking-[-0.05em] text-[#101828]">Paiement, fret et tracking Alibaba</h2>
+            <h2 className="mt-2 text-[24px] font-black tracking-[-0.05em] text-[#101828]">Paiement, fret et tracking AfriPay</h2>
           </div>
           <div className="rounded-[14px] bg-[#eef4ff] px-4 py-2 text-[13px] font-semibold text-[#1d4f91]">{formatCount(initialDashboard.purchaseOrders.length)} lot(s)</div>
         </div>

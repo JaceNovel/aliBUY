@@ -94,7 +94,7 @@ export function AdminModePromotionsClient({ initialConfig, productOptions }: { i
       flashRushSlugs: takeSlugs(0, 6),
       finalDropSlugs: takeSlugs(6, 6),
     }));
-    setFeedback("Sélections remplies avec les produits AliExpress publiés les moins chers.");
+    setFeedback("Selections remplies avec les produits AfriPay publies les moins chers.");
   };
 
   const saveConfig = async () => {
@@ -144,7 +144,7 @@ export function AdminModePromotionsClient({ initialConfig, productOptions }: { i
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={fillWithCheapAliExpressProducts} className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] border border-[#d0d5dd] bg-white px-4 text-[14px] font-semibold text-[#101828] transition hover:border-[#f84557] hover:text-[#f84557]">
               <Sparkles className="h-4 w-4" />
-              Auto-remplir avec les petits prix AliExpress
+              Auto-remplir avec les petits prix AfriPay
             </button>
             <button type="button" onClick={saveConfig} disabled={isSaving} className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] bg-[#f84557] px-4 text-[14px] font-semibold text-white shadow-[0_10px_18px_rgba(248,69,87,0.18)] transition hover:bg-[#ea3248] disabled:cursor-not-allowed disabled:opacity-70">
               <Save className="h-4 w-4" />

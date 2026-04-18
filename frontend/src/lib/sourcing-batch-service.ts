@@ -210,7 +210,7 @@ async function notifyOrderPayUrlRequired(previousOrder: SourcingOrder, nextOrder
     userId: nextOrder.userId,
     orderId: nextOrder.id,
     orderLabel: nextOrder.orderNumber,
-    text: `Votre commande ${nextOrder.orderNumber} requiert une reprise manuelle de paiement fournisseur. Un lien de paiement Alibaba est disponible dans l'administration pour finaliser l'achat fournisseur.`,
+    text: `Votre commande ${nextOrder.orderNumber} requiert une reprise manuelle de paiement fournisseur. Un lien de paiement AfriPay est disponible dans l'administration pour finaliser l'achat fournisseur.`,
   });
 
   return persistOrderNotificationState(nextOrder, {

@@ -180,6 +180,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const [isFavorite, setIsFavorite] = useState(initialIsFavorite ?? false);
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+  const [validationDialog, setValidationDialog] = useState<{ title: string; message: string } | null>(null);
   const [isCartAnimating, setIsCartAnimating] = useState(false);
   const [cartToastVisible, setCartToastVisible] = useState(false);
   const [orderQuantity, setOrderQuantity] = useState(1);
@@ -568,6 +569,9 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       }, 1800);
     });
   };
+  const openValidationDialog = (title: string, message: string) => {
+    setValidationDialog({ title, message });
+  };
   const addSelectionToCart = () => {
     if (!canSubmitOrder) {
       return;
@@ -581,12 +585,18 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   };
   const validateSelectionBeforeOrder = () => {
     if (missingVariantGroups.length > 0) {
-      triggerShareFeedback(`Choisissez d'abord : ${missingVariantGroups.map((group) => group.label).join(", ")}.`);
+      openValidationDialog(
+        "Options requises",
+        `Choisissez d'abord : ${missingVariantGroups.map((group) => group.label).join(", ")}.`,
+      );
       return false;
     }
 
     if (orderQuantity < effectiveMoq) {
-      triggerShareFeedback(`Le minimum de commande pour cet article est ${effectiveMoq}. Veuillez augmenter la quantité.`);
+      openValidationDialog(
+        "Quantité insuffisante",
+        `Le minimum de commande pour cet article est ${effectiveMoq}. Veuillez augmenter la quantité.`,
+      );
       return false;
     }
 
@@ -1188,6 +1198,35 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
           initialReviews={product.reviews}
         />
       </div>
+
+      {validationDialog ? (
+        <div className="fixed inset-0 z-[190] flex items-center justify-center bg-black/28 px-4">
+          <div className="w-full max-w-[360px] rounded-[16px] border border-[#f1d5bf] bg-white p-5 shadow-[0_28px_60px_rgba(17,24,39,0.24)]">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#ff6a00]">Validation</div>
+                <div className="mt-2 text-[20px] font-black tracking-[-0.04em] text-[#221813]">{validationDialog.title}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setValidationDialog(null)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-[#e8e1da] bg-white text-[#6c5c50] transition hover:border-[#ff6a00] hover:text-[#ff6a00]"
+                aria-label="Fermer la fenêtre"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="mt-3 text-[14px] leading-6 text-[#5f5145]">{validationDialog.message}</p>
+            <button
+              type="button"
+              onClick={() => setValidationDialog(null)}
+              className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-[12px] bg-[#ff6a00] px-4 text-[14px] font-bold text-white transition hover:bg-[#e55f00]"
+            >
+              Compris
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {isImageLightboxOpen ? (
         <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/88 p-3 sm:p-6">

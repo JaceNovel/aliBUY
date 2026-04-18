@@ -7,11 +7,13 @@ export function normalizeStorefrontText(value?: string | null): string {
 
   return value
     .trim()
-    .replace(/Fiche minimale importee depuis la recherche DS/gi, "Fiche verifiee AfriPay+")
-    .replace(/Recherche\s*DS/gi, "Selection AfriPay+")
-    .replace(/AliExpress\s*DS/gi, "AfriPay+")
-    .replace(/AliExpress/gi, "AfriPay+")
-    .replace(/search fallback/gi, "catalogue AfriPay+");
+    .replace(/Fiche minimale importee depuis la recherche DS/gi, "Fiche verifiee AfriPay")
+    .replace(/Recherche\s*DS/gi, "Selection AfriPay")
+    .replace(/AliExpress\s*DS/gi, "AfriPay")
+    .replace(/Alibaba\.com/gi, "AfriPay")
+    .replace(/Alibaba/gi, "AfriPay")
+    .replace(/AliExpress/gi, "AfriPay")
+    .replace(/search fallback/gi, "catalogue AfriPay");
 }
 
 export function normalizeStorefrontBadge(value?: string | null): string | undefined {

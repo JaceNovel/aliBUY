@@ -3373,7 +3373,7 @@ function mapAlibabaSearchResultToProduct(raw: Record<string, unknown>, query: st
   const overview = uniqueStrings([
     getStringValue(raw.description) ?? "",
     getStringValue(raw.brief) ?? "",
-    `Import Alibaba live pour ${title}.`,
+    `Import AfriPay live pour ${title}.`,
     `Recherche source: ${query}.`,
   ]).slice(0, 4);
   const supplierCompanyId = getStringValue(raw.supplier_company_id)
@@ -3480,9 +3480,9 @@ function mapAlibabaIcbuProductToProduct(raw: Record<string, unknown>, query: str
   }));
   const overview = uniqueStrings([
     getStringValue(basicInfo.description) ?? "",
-    getStringValue(categoryInfo.category_name) ? `Categorie Alibaba: ${getStringValue(categoryInfo.category_name)}` : "",
+    getStringValue(categoryInfo.category_name) ? `Categorie AfriPay: ${getStringValue(categoryInfo.category_name)}` : "",
     getStringValue(basicInfo.model_number) ? `Modele: ${getStringValue(basicInfo.model_number)}` : "",
-    `Import Alibaba ICBU pour ${title}.`,
+    `Import AfriPay ICBU pour ${title}.`,
   ]).slice(0, 4);
   const extractedWeightGrams = extractWeightGrams(raw);
   const verifiedWeightGrams = resolveCoherentItemWeightGrams(
@@ -3591,7 +3591,7 @@ async function searchAlibabaIcbuProducts(input: {
           responseBody: result.responseBody,
           products: [] as AlibabaSearchProduct[],
           errorMessage: message
-            ? `La recherche catalogue Alibaba ICBU a echoue: ${message}`
+            ? `La recherche catalogue AfriPay ICBU a echoue: ${message}`
             : "La recherche catalogue fournisseur ICBU a echoue.",
         };
       }
@@ -4806,8 +4806,8 @@ async function searchAliExpressProducts(input: {
             responseBody: searchResult.responseBody,
             products: [],
             errorMessage: apiErrorMsg
-              ? `AliExpress DS: ${apiErrorMsg}`
-              : "Recherche AliExpress DS impossible.",
+              ? `AfriPay: ${apiErrorMsg}`
+              : "Recherche AfriPay impossible.",
           };
 
           continue;
@@ -5713,7 +5713,7 @@ export async function previewAliExpressDsTextSearch(input: {
       pageSize,
       requestId,
       errorCode: apiError ? getStringValue(apiError.code) : undefined,
-      errorMessage: errorMessage ? `AliExpress DS: ${errorMessage}` : "Recherche AliExpress DS impossible.",
+      errorMessage: errorMessage ? `AfriPay: ${errorMessage}` : "Recherche AfriPay impossible.",
     };
   }
 

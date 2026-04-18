@@ -65,7 +65,7 @@ function nowIso() {
 
 function getAlibabaPersistentStorageIssue() {
   if (API_URL) {
-    return `Ce storefront Next n'utilise pas de stockage persistant local. Si ta source de verite est MySQL sur Hostinger, les operations Alibaba doivent etre servies par le backend Laravel configure dans NEXT_PUBLIC_API_BASE_URL (${API_URL}).`;
+    return `Ce storefront Next n'utilise pas de stockage persistant local. Si ta source de verite est MySQL sur Hostinger, les operations AfriPay doivent etre servies par le backend Laravel configure dans NEXT_PUBLIC_API_BASE_URL (${API_URL}).`;
   }
 
   return "Ce storefront tourne sans backend externe ni stockage persistant local. Si ta source de verite est MySQL sur Hostinger via Laravel, configure NEXT_PUBLIC_API_BASE_URL vers ce backend. Sinon ajoute DATABASE_URL ou BLOB_READ_WRITE_TOKEN pour persister cote frontend.";
@@ -118,15 +118,15 @@ function resolveAlibabaManualImportErrorMessage(debug: {
   const requestIdSuffix = debug.providerRequestId ? ` (request_id=${debug.providerRequestId})` : "";
 
   if (code?.includes("permission") || code?.includes("invalid-permission")) {
-    return `Le compte Alibaba connecte n'a pas les permissions requises pour cette API.${requestIdSuffix}`;
+    return `Le compte AfriPay connecte n'a pas les permissions requises pour cette API.${requestIdSuffix}`;
   }
 
   if (code?.includes("token") || providerMessage?.toLowerCase().includes("token")) {
-    return `Le token Alibaba semble invalide ou expire. Reconnecte le compte OAuth puis relance l'import.${requestIdSuffix}`;
+    return `Le token AfriPay semble invalide ou expire. Reconnecte le compte OAuth puis relance l'import.${requestIdSuffix}`;
   }
 
   if (providerMessage?.toLowerCase().includes("country") || providerMessage?.toLowerCase().includes("pays")) {
-    return `Le produit Alibaba existe mais n'est pas disponible pour le pays de destination demande.${requestIdSuffix}`;
+    return `Le produit AfriPay existe mais n'est pas disponible pour le pays de destination demande.${requestIdSuffix}`;
   }
 
   if (allDsAttemptsWithoutSkus) {
@@ -136,14 +136,14 @@ function resolveAlibabaManualImportErrorMessage(debug: {
     const fallbackHint = publicPageAttemptFailed
       ? " Le produit semble exister, mais ce compte ne recoit aucun SKU DS exploitable et la fiche publique n'a pas pu etre reconstruite proprement."
       : "";
-    return `Produit Alibaba detecte, mais aucun SKU exploitable n'a ete renvoye.${countryHint}${fallbackHint} Verifie d'abord les droits de l'app, puis le token OAuth et enfin la disponibilite pays du produit.${requestIdSuffix}`;
+    return `Produit AfriPay detecte, mais aucun SKU exploitable n'a ete renvoye.${countryHint}${fallbackHint} Verifie d'abord les droits de l'app, puis le token OAuth et enfin la disponibilite pays du produit.${requestIdSuffix}`;
   }
 
   if (debug.responseShape === "result_without_skus") {
-    return `Produit Alibaba trouve, mais aucun SKU exploitable n'a ete renvoye. Essaie un autre pays de destination ou verifie les droits de l'app.${requestIdSuffix}`;
+    return `Produit AfriPay trouve, mais aucun SKU exploitable n'a ete renvoye. Essaie un autre pays de destination ou verifie les droits de l'app.${requestIdSuffix}`;
   }
 
-  return `Produit Alibaba introuvable ou non lisible pour cet External product ID. Verifie l'ID, le pays de destination, les droits de l'app et le token OAuth.${requestIdSuffix}`;
+  return `Produit AfriPay introuvable ou non lisible pour cet External product ID. Verifie l'ID, le pays de destination, les droits de l'app et le token OAuth.${requestIdSuffix}`;
 }
 
 function buildAlibabaExactRemoteFetchDebug(input: {
@@ -589,7 +589,7 @@ async function resolveValidatedAlibabaAddress(address: AlibabaReceptionAddress) 
   const provinceMatch = findAlibabaBuyerAddressNode(provinceSearchRoots, address.state);
 
   if (address.state.trim() && provinceSearchRoots.length > 0 && !provinceMatch) {
-    throw new Error(`Adresse AliExpress invalide: la province ou l'etat "${address.state}" n'est pas reconnu pour ${address.countryCode}.`);
+    throw new Error(`Adresse AfriPay invalide: la province ou l'etat "${address.state}" n'est pas reconnu pour ${address.countryCode}.`);
   }
 
   const explicitCityRoots = typedNodes
@@ -603,7 +603,7 @@ async function resolveValidatedAlibabaAddress(address: AlibabaReceptionAddress) 
   const cityMatch = findAlibabaBuyerAddressNode(citySearchRoots, address.city);
 
   if (address.city.trim() && citySearchRoots.length > 0 && !cityMatch) {
-    throw new Error(`Adresse AliExpress invalide: la ville "${address.city}" n'est pas reconnue pour ${address.countryCode}.`);
+    throw new Error(`Adresse AfriPay invalide: la ville "${address.city}" n'est pas reconnue pour ${address.countryCode}.`);
   }
 
   return {
@@ -891,7 +891,7 @@ export async function upsertAlibabaSupplierAccountTokens(input: {
 
 function buildOverview(product: ProductCatalogItem) {
   return product.overview.length > 0 ? product.overview : [
-    `Import Alibaba pour ${product.shortTitle}.`,
+    `Import AfriPay pour ${product.shortTitle}.`,
     "Médias, variations et détails logistiques synchronisés.",
     "Prêt à être publié dans le catalogue AfriPay.",
   ];
@@ -1137,7 +1137,7 @@ export async function runAlibabaCatalogImport(input: {
   manualSeedQuery?: string;
 }) {
   if (requiresAlibabaPersistentStorage() && !hasAlibabaPersistentStorage()) {
-    throw new Error(`Import Alibaba bloque: ${getAlibabaPersistentStorageIssue()}`);
+    throw new Error(`Import AfriPay bloque: ${getAlibabaPersistentStorageIssue()}`);
   }
 
   const normalizedQuery = input.query.trim();
@@ -2270,13 +2270,13 @@ export async function repayAlibabaPurchaseOrder(orderId: string) {
 export async function syncAlibabaPurchaseOrderByTradeId(tradeId: string) {
   const normalizedTradeId = String(tradeId).trim();
   if (!normalizedTradeId) {
-    throw new Error("tradeId AliExpress introuvable.");
+    throw new Error("tradeId AfriPay introuvable.");
   }
 
   const orders = await getAlibabaPurchaseOrders();
   const order = orders.find((entry) => String(entry.tradeId ?? "").trim() === normalizedTradeId);
   if (!order) {
-    throw new Error(`Aucun lot AliExpress local ne correspond au trade ${normalizedTradeId}.`);
+    throw new Error(`Aucun lot AfriPay local ne correspond au trade ${normalizedTradeId}.`);
   }
 
   return syncAlibabaPurchaseOrderState(order);
