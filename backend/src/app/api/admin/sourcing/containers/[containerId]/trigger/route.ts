@@ -16,10 +16,10 @@ export async function POST(_request: Request, context: RouteContext) {
   const { containerId } = await context.params;
 
   try {
-    const container = await triggerSeaContainerShipment(containerId);
+    const result = await triggerSeaContainerShipment(containerId);
     return NextResponse.json({
       message: "Conteneur maritime declenche.",
-      container,
+      ...result,
     });
   } catch (error) {
     return NextResponse.json({

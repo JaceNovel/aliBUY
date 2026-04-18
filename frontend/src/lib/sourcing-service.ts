@@ -1,6 +1,7 @@
 import {
   formatFcfa,
   getSourcingOrderMeta,
+  isSourcingOrderClientPaid,
   resolveSourcingDeliveryPlan,
   type SourcingCheckoutInput,
   type SourcingOrder,
@@ -338,8 +339,14 @@ export async function triggerSeaContainerShipment(containerId: string) {
   };
   await saveSourcingSeaContainer(nextContainer);
 
-  const orders: SourcingOrder[] = await getSourcingOrders();
-  for (const order of orders.filter((entry: SourcingOrder) => entry.containerId === containerId)) {
+  const containerOrders: SourcingOrder[] = (await getSourcingOrders()).filter((entry: SourcingOrder) => entry.containerId === containerId);
+  const paidOrders = containerOrders.filter((order: SourcingOrder) => isSourcingOrderClientPaid(order));
+
+  if (paidOrders.length === 0) {
+    throw new Error("Aucune commande payee dans ce conteneur. Marquez au moins une commande comme payee avant de declencher l'expedition.");
+  }
+
+  for (const order of paidOrders) {
     await saveSourcingOrder({
       ...order,
       status: "shipment_triggered",
@@ -347,5 +354,9 @@ export async function triggerSeaContainerShipment(containerId: string) {
     });
   }
 
-  return nextContainer;
+  return {
+    container: nextContainer,
+    triggeredOrderCount: paidOrders.length,
+    skippedUnpaidOrderCount: Math.max(containerOrders.length - paidOrders.length, 0),
+  };
 }

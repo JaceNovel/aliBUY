@@ -339,7 +339,9 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
       return;
     }
 
-    setFeedback("Conteneur maritime déclenché. Les commandes de ce conteneur passent en statut Transport lance.");
+    const triggeredCount = Number(payload?.triggeredOrderCount ?? 0);
+    const skippedUnpaidCount = Number(payload?.skippedUnpaidOrderCount ?? 0);
+    setFeedback(`Conteneur maritime déclenché. ${triggeredCount} commande(s) payée(s) passent en statut Transport lancé.${skippedUnpaidCount > 0 ? ` ${skippedUnpaidCount} commande(s) impayée(s) ignorée(s).` : ""}`);
     startTransition(() => {
       router.refresh();
     });
