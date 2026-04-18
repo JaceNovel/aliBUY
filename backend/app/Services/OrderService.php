@@ -237,6 +237,7 @@ class OrderService
             ? $order->payments->sortByDesc('id')->first()
             : $order->payments()->latest()->first();
         $meta = is_array($order->meta) ? $order->meta : [];
+        $meta['manychat'] = $this->resolveEffectiveManyChatMeta($order, $meta);
         $pricing = is_array($meta['pricing'] ?? null) ? $meta['pricing'] : [];
         $items = collect($order->items ?? [])->map(fn (array $item) => [
             'slug' => $item['slug'] ?? null,
@@ -419,9 +420,26 @@ class OrderService
                 'paidTagId' => $paidTagId,
             ], fn ($value) => $value !== null && $value !== '');
             $order->forceFill(['meta' => $meta])->save();
+        } elseif (isset($meta['manychat'])) {
+            unset($meta['manychat']);
+            $order->forceFill(['meta' => $meta])->save();
         }
 
         return ['order' => $this->transformOrder($order->fresh('payments'))];
+    }
+
+    protected function resolveEffectiveManyChatMeta(Order $order, array $meta): array
+    {
+        $manychat = is_array($meta['manychat'] ?? null) ? $meta['manychat'] : [];
+        $settings = is_array($order->user?->settings) ? $order->user->settings : [];
+
+        return array_filter([
+            ...$manychat,
+            'subscriberId' => $this->normalizeOptionalString($manychat['subscriberId'] ?? $settings['manychatSubscriberId'] ?? null),
+            'flowId' => $this->normalizeOptionalString($manychat['flowId'] ?? $settings['manychatFlowId'] ?? null),
+            'paidTagId' => $this->normalizeOptionalString($manychat['paidTagId'] ?? $settings['manychatPaidTagId'] ?? null),
+            'connectedWhatsapp' => $this->normalizeOptionalString($manychat['connectedWhatsapp'] ?? $settings['connectedWhatsapp'] ?? null),
+        ], fn ($value) => $value !== null && $value !== '');
     }
 
     protected function sendAdminManyChatUpdate(Order $order): array
