@@ -11,7 +11,9 @@ import {
   formatSourcingAmount,
   getSourcingAlibabaPayUrls,
   getSourcingAlibabaPostPaymentAutomationState,
+  getSourcingOrderBatchMode,
   getSourcingOrderMeta,
+  isSourcingOrderClientPaid,
   isSourcingOrderEligibleForSupplierPayment,
   type SourcingOrder,
   type SourcingOrderStatus,
@@ -115,12 +117,68 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
   const alibabaAutomation = useMemo(() => getSourcingAlibabaPostPaymentAutomationState(order), [order]);
   const payUrls = useMemo(() => getSourcingAlibabaPayUrls(order), [order]);
   const canLaunchSupplierPayment = useMemo(() => isSourcingOrderEligibleForSupplierPayment(order), [order]);
+  const batchMode = useMemo(() => getSourcingOrderBatchMode(order), [order]);
+  const isClientPaid = useMemo(() => isSourcingOrderClientPaid(order), [order]);
   const workflow = meta.workflow;
   const deliveryProfile = meta.deliveryProfile;
   const whatsappLinked = Boolean(meta.manychat?.subscriberId);
   const whatsappSyncDate = meta.manychat?.logisticsLastSentAt;
   const whatsappPhone = normalizeWhatsappPhone(order.customerPhone);
   const whatsappFallbackHref = whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(buildWhatsappLogisticsMessage(order))}` : null;
+  const supplierLaunchHelp = useMemo(() => {
+    if (canLaunchSupplierPayment) {
+      return null;
+    }
+
+    if (payUrls.length > 0) {
+      return {
+        message: "Cette commande a deja genere un lien de paiement fournisseur. Reprenez le paiement avec le lien ci-dessous.",
+        href: payUrls[0],
+        label: "Ouvrir le lien de paiement",
+        external: true,
+      };
+    }
+
+    if (!isClientPaid) {
+      return {
+        message: "Le bouton n'apparait pas parce que la commande client n'est pas encore marquee comme payee.",
+      };
+    }
+
+    if (batchMode === "sea") {
+      return {
+        message: "Cette commande est routee en lot mer. Le lancement se fait depuis le panneau Groupes prets, pas directement sur cette fiche.",
+        href: "/admin/alibaba-sourcing/lots",
+        label: "Ouvrir Groupes prets",
+        external: false,
+      };
+    }
+
+    if (batchMode === "air") {
+      return {
+        message: "Cette commande est routee en lot avion. Le lancement se fait depuis le panneau Groupes prets, pas directement sur cette fiche.",
+        href: "/admin/alibaba-sourcing/lots",
+        label: "Ouvrir Groupes prets",
+        external: false,
+      };
+    }
+
+    if (order.supplierOrderStatus !== "created") {
+      return {
+        message: `Le bouton n'apparait pas parce que l'etat fournisseur actuel est \"${order.supplierOrderStatus}\" et non \"created\".`,
+      };
+    }
+
+    if (order.alibabaTradeIds.length === 0) {
+      return {
+        message: "Le bouton n'apparait pas parce qu'aucun trade fournisseur n'est encore rattache a cette commande.",
+      };
+    }
+
+    return {
+      message: "Le lancement fournisseur n'est pas disponible pour l'instant sur cette commande.",
+    };
+  }, [batchMode, canLaunchSupplierPayment, isClientPaid, order.alibabaTradeIds.length, order.supplierOrderStatus, payUrls]);
 
   const submitPatch = async (payload: Record<string, unknown>) => {
     setFeedback(null);
@@ -586,6 +644,26 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
             ))}
           </div>
         )}
+
+        {!canLaunchSupplierPayment && supplierLaunchHelp ? (
+          <div className="mt-4 rounded-[16px] border border-[#ffe1cc] bg-[#fff7f1] px-4 py-4 text-[13px] text-[#8a4b16]">
+            <div className="font-semibold">Pourquoi le bouton n'apparait pas</div>
+            <div className="mt-1 leading-6">{supplierLaunchHelp.message}</div>
+            {supplierLaunchHelp.href ? (
+              supplierLaunchHelp.external ? (
+                <Link href={supplierLaunchHelp.href} target="_blank" className="mt-3 inline-flex items-center gap-2 font-semibold text-[#d85300] transition hover:opacity-80">
+                  {supplierLaunchHelp.label}
+                  <ExternalLink className="h-4 w-4" />
+                </Link>
+              ) : (
+                <Link href={supplierLaunchHelp.href} className="mt-3 inline-flex items-center gap-2 font-semibold text-[#d85300] transition hover:opacity-80">
+                  {supplierLaunchHelp.label}
+                  <ExternalLink className="h-4 w-4" />
+                </Link>
+              )
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       <section className="rounded-[20px] border border-[#e6eaf0] bg-white px-5 py-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">

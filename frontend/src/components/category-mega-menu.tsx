@@ -122,7 +122,7 @@ export function CategoryMegaMenu({
     title: category.title,
     icon: resolveCategoryIcon(category.slug, category.title),
   }));
-  const categoryProducts: CategoryProduct[] = activeCategory?.products.slice(0, 5).map((product) => ({
+  const categoryProducts: CategoryProduct[] = activeCategory?.products.slice(0, 8).map((product) => ({
     slug: product.slug,
     title: product.shortTitle,
     image: product.image,

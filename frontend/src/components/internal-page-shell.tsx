@@ -13,6 +13,7 @@ import { SearchSuggestionInput } from "@/components/search-suggestion-input";
 import { SiteFooter } from "@/components/site-footer";
 import { SupportMenu } from "@/components/support-menu";
 import { UnavailableLink } from "@/components/unavailable-link";
+import { getCategoryProducts } from "@/lib/api";
 import { getCatalogCategories } from "@/lib/catalog-category-service";
 import { getMessages } from "@/lib/messages";
 import { SITE_LOGO_PATH, SITE_NAME } from "@/lib/site-config";
@@ -38,21 +39,55 @@ const MOBILE_NAV_SHORTCUTS: ReadonlyArray<{ label: string; href: string }> = [
   { label: "Commandes", href: "/orders" },
 ];
 
+const MEGA_MENU_PREVIEW_LIMIT = 8;
+
 export async function InternalPageShell({ pricing, children }: InternalPageShellProps) {
   const [categories, user] = await Promise.all([
     getCatalogCategories(),
     getCurrentUser(),
   ]);
   const messages = getMessages(pricing.languageCode);
-  const megaMenuCategories: CategoryMegaMenuCategory[] = categories.slice(0, 9).map((category) => ({
-    slug: category.slug,
-    title: category.title,
-    href: category.href,
-    products: category.products.slice(0, 5).map((product) => ({
+  const megaMenuCategories: CategoryMegaMenuCategory[] = await Promise.all(categories.slice(0, 9).map(async (category) => {
+    const localPreview = category.products.slice(0, MEGA_MENU_PREVIEW_LIMIT).map((product) => ({
       slug: product.slug,
       shortTitle: product.shortTitle,
       image: product.image,
-    })),
+    }));
+
+    if (localPreview.length >= MEGA_MENU_PREVIEW_LIMIT) {
+      return {
+        slug: category.slug,
+        title: category.title,
+        href: category.href,
+        products: localPreview,
+      };
+    }
+
+    try {
+      const livePreview = await getCategoryProducts(category.slug, 1, MEGA_MENU_PREVIEW_LIMIT);
+      const mergedPreview = [...new Map([
+        ...localPreview.map((product) => [product.slug, product] as const),
+        ...livePreview.items.map((product) => [product.slug, {
+          slug: product.slug,
+          shortTitle: product.title,
+          image: product.image,
+        }] as const),
+      ]).values()].slice(0, MEGA_MENU_PREVIEW_LIMIT);
+
+      return {
+        slug: category.slug,
+        title: category.title,
+        href: category.href,
+        products: mergedPreview,
+      };
+    } catch {
+      return {
+        slug: category.slug,
+        title: category.title,
+        href: category.href,
+        products: localPreview,
+      };
+    }
   }));
 
   return (
