@@ -1,6 +1,7 @@
 import { API_URL, buildApiUrl } from "@/lib/api";
 import { getAlibabaImportedProducts } from "@/lib/alibaba-operations-store";
 import { deriveVariantGroupsFromPricing, deriveVariantGroupsFromSkus, extractAlibabaVariantPricing, extractAlibabaVariantSkus } from "@/lib/product-variant-pricing";
+import { resolveProductPriceSummaryUsd } from "@/lib/product-variant-pricing";
 import { resolveCoherentItemWeightGrams, resolveCoherentPackageDimensionsCm } from "@/lib/product-weight";
 import { type ProductCatalogItem } from "@/lib/products-data";
 
@@ -99,6 +100,86 @@ function buildRichGallery(input: { image?: string; gallery?: string[]; rawPayloa
   return [...new Set(candidates)];
 }
 
+function normalizeCatalogTiers(value: unknown): ProductCatalogItem["tiers"] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      return [] as ProductCatalogItem["tiers"];
+    }
+
+    const candidate = entry as Record<string, unknown>;
+    const quantityLabel = typeof candidate.quantityLabel === "string" && candidate.quantityLabel.trim()
+      ? candidate.quantityLabel.trim()
+      : "";
+    const priceUsd = typeof candidate.priceUsd === "number" && Number.isFinite(candidate.priceUsd) && candidate.priceUsd > 0
+      ? candidate.priceUsd
+      : 0;
+
+    if (!quantityLabel || priceUsd <= 0) {
+      return [] as ProductCatalogItem["tiers"];
+    }
+
+    return [{
+      quantityLabel,
+      priceUsd,
+      ...(typeof candidate.note === "string" && candidate.note.trim() ? { note: candidate.note.trim() } : {}),
+    }];
+  });
+}
+
+function resolveRemoteCatalogPricing(candidate: Record<string, unknown>, moq: number) {
+  const rawPayload = candidate.rawPayload ?? candidate;
+  const variantPricing: NonNullable<ProductCatalogItem["variantPricing"]> = Array.isArray(candidate.variantPricing)
+    ? candidate.variantPricing as NonNullable<ProductCatalogItem["variantPricing"]>
+    : extractAlibabaVariantPricing(rawPayload);
+  const variantSkus: NonNullable<ProductCatalogItem["variantSkus"]> = Array.isArray(candidate.variantSkus)
+    ? candidate.variantSkus as NonNullable<ProductCatalogItem["variantSkus"]>
+    : extractAlibabaVariantSkus(rawPayload);
+  const variantGroups = Array.isArray(candidate.variantGroups)
+    ? candidate.variantGroups as ProductCatalogItem["variantGroups"]
+    : [];
+  const tiers = normalizeCatalogTiers(candidate.tiers);
+  const derivedVariantGroupsFromPricing = deriveVariantGroupsFromPricing(variantPricing);
+  const derivedVariantGroupsFromSkus = deriveVariantGroupsFromSkus(variantSkus);
+  const providedMinUsd = typeof candidate.minUsd === "number" && Number.isFinite(candidate.minUsd) && candidate.minUsd > 0
+    ? candidate.minUsd
+    : undefined;
+  const providedMaxUsd = typeof candidate.maxUsd === "number" && Number.isFinite(candidate.maxUsd) && candidate.maxUsd > 0
+    ? candidate.maxUsd
+    : undefined;
+  const summary = resolveProductPriceSummaryUsd({
+    tiers,
+    variantPricing,
+    minUsd: providedMinUsd,
+    maxUsd: providedMaxUsd,
+    moq,
+  }, {
+    quantity: Math.max(1, moq),
+  });
+  const minUsd = summary.minUsd > 0 ? summary.minUsd : providedMinUsd ?? 0;
+  const maxUsd = typeof summary.maxUsd === "number" && summary.maxUsd > minUsd
+    ? summary.maxUsd
+    : (typeof providedMaxUsd === "number" && providedMaxUsd > minUsd ? providedMaxUsd : undefined);
+
+  return {
+    minUsd,
+    maxUsd,
+    tiers: tiers.length > 0
+      ? tiers
+      : (minUsd > 0 ? [{ quantityLabel: `${Math.max(1, moq)}+`, priceUsd: minUsd }] : []),
+    variantPricing,
+    variantSkus,
+    variantGroups: variantGroups.length > 0
+      ? variantGroups
+      : (derivedVariantGroupsFromPricing.length > 0
+        ? derivedVariantGroupsFromPricing
+        : derivedVariantGroupsFromSkus),
+  };
+}
+
 async function fetchRemoteCatalogProducts() {
   if (!API_URL) {
     return null;
@@ -132,15 +213,13 @@ async function fetchRemoteCatalogProducts() {
       const slug = typeof candidate.slug === "string" && candidate.slug.trim() ? candidate.slug.trim() : "";
       const title = typeof candidate.title === "string" && candidate.title.trim() ? candidate.title.trim() : slug;
       const image = typeof candidate.image === "string" ? candidate.image.trim() : "";
-      const minUsd = typeof candidate.minUsd === "number" && Number.isFinite(candidate.minUsd) ? candidate.minUsd : 0;
-
       if (!slug || !title || !image) {
         return [] as ProductCatalogItem[];
       }
 
-      const maxUsd = typeof candidate.maxUsd === "number" && Number.isFinite(candidate.maxUsd) ? candidate.maxUsd : undefined;
       const moq = typeof candidate.moq === "number" && Number.isFinite(candidate.moq) && candidate.moq > 0 ? candidate.moq : 1;
       const unit = typeof candidate.unit === "string" && candidate.unit.trim() ? candidate.unit.trim() : "piece";
+      const pricing = resolveRemoteCatalogPricing(candidate, moq);
       const shortTitle = typeof candidate.shortTitle === "string" && candidate.shortTitle.trim() ? candidate.shortTitle.trim() : title;
       const query = typeof candidate.query === "string" && candidate.query.trim() ? candidate.query.trim() : undefined;
       const keywords = Array.isArray(candidate.keywords)
@@ -200,8 +279,8 @@ async function fetchRemoteCatalogProducts() {
         packageDimensionsCm,
         itemWeightGrams,
         lotCbm,
-        minUsd,
-        maxUsd,
+        minUsd: pricing.minUsd,
+        maxUsd: pricing.maxUsd,
         moq,
         moqVerified: typeof candidate.moqVerified === "boolean" ? candidate.moqVerified : false,
         weightVerified: typeof candidate.weightVerified === "boolean" ? candidate.weightVerified : false,
@@ -222,10 +301,10 @@ async function fetchRemoteCatalogProducts() {
         overview: Array.isArray(candidate.overview)
           ? candidate.overview.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
           : [title],
-        variantGroups: Array.isArray(candidate.variantGroups) ? candidate.variantGroups as ProductCatalogItem["variantGroups"] : [],
-        variantPricing: Array.isArray(candidate.variantPricing) ? candidate.variantPricing as ProductCatalogItem["variantPricing"] : [],
-        variantSkus: Array.isArray(candidate.variantSkus) ? candidate.variantSkus as ProductCatalogItem["variantSkus"] : [],
-        tiers: Array.isArray(candidate.tiers) ? candidate.tiers as ProductCatalogItem["tiers"] : [{ quantityLabel: `${moq}+`, priceUsd: minUsd }],
+        variantGroups: pricing.variantGroups,
+        variantPricing: pricing.variantPricing,
+        variantSkus: pricing.variantSkus,
+        tiers: pricing.tiers,
         specs,
         rawPayload: candidate.rawPayload ?? candidate,
       } satisfies ProductCatalogItem];
@@ -313,6 +392,8 @@ async function fetchRemoteCatalogProductDetail(slug: string) {
       rawPayload: candidate.rawPayload ?? candidate,
     });
 
+    const pricing = resolveRemoteCatalogPricing(candidate, moq);
+
     return {
       slug,
       title,
@@ -323,8 +404,8 @@ async function fetchRemoteCatalogProductDetail(slug: string) {
       videoUrl: typeof candidate.videoUrl === "string" && candidate.videoUrl.trim() ? candidate.videoUrl.trim() : undefined,
       videoPoster: typeof candidate.videoPoster === "string" && candidate.videoPoster.trim() ? candidate.videoPoster.trim() : undefined,
       badge: typeof candidate.badge === "string" && candidate.badge.trim() ? candidate.badge.trim() : undefined,
-      minUsd: typeof candidate.minUsd === "number" && Number.isFinite(candidate.minUsd) ? candidate.minUsd : 0,
-      maxUsd: typeof candidate.maxUsd === "number" && Number.isFinite(candidate.maxUsd) ? candidate.maxUsd : undefined,
+      minUsd: pricing.minUsd,
+      maxUsd: pricing.maxUsd,
       moq,
       moqVerified: typeof candidate.moqVerified === "boolean" ? candidate.moqVerified : false,
       weightVerified: typeof candidate.weightVerified === "boolean" ? candidate.weightVerified : undefined,
@@ -345,10 +426,10 @@ async function fetchRemoteCatalogProductDetail(slug: string) {
       overview: Array.isArray(candidate.overview)
         ? candidate.overview.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
         : [],
-      variantGroups: Array.isArray(candidate.variantGroups) ? candidate.variantGroups as ProductCatalogItem["variantGroups"] : [],
-      variantPricing: Array.isArray(candidate.variantPricing) ? candidate.variantPricing as ProductCatalogItem["variantPricing"] : [],
-      variantSkus: Array.isArray(candidate.variantSkus) ? candidate.variantSkus as ProductCatalogItem["variantSkus"] : [],
-      tiers: Array.isArray(candidate.tiers) ? candidate.tiers as ProductCatalogItem["tiers"] : [{ quantityLabel: "1+", priceUsd: typeof candidate.minUsd === "number" ? candidate.minUsd : 0 }],
+      variantGroups: pricing.variantGroups,
+      variantPricing: pricing.variantPricing,
+      variantSkus: pricing.variantSkus,
+      tiers: pricing.tiers,
       specs,
       keywords,
       sourceUrl: typeof candidate.sourceUrl === "string" && candidate.sourceUrl.trim() ? candidate.sourceUrl.trim() : undefined,
