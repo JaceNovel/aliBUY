@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, BadgeDollarSign, ChevronDown, ChevronRight, ChevronUp, CreditCard, Heart, Minus, Play, Plus, Share2, ShieldCheck, ShoppingCart, Star, X } from "lucide-react";
+import { ArrowLeft, BadgeDollarSign, ChevronDown, ChevronRight, ChevronUp, CreditCard, Heart, Minus, Play, Plus, Search, Share2, ShieldCheck, ShoppingCart, Star, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
@@ -164,6 +164,38 @@ function isTechnicalDescriptionLine(value: string) {
   return /get product description|produit charge via|loaded via|import afripay|selection verifiee afripay|catalogue afripay|api alibaba|api aliexpress|sku ds exploitable/.test(normalized);
 }
 
+function isLikelyImageCaptionNoise(value: string) {
+  const normalized = value.trim();
+  const lowerCased = normalized.toLowerCase();
+  const alphaOnly = normalized.replace(/[^a-zA-Z]/g, "");
+  const uppercaseOnly = normalized.replace(/[^A-Z]/g, "");
+  const uppercaseRatio = alphaOnly.length > 0 ? uppercaseOnly.length / alphaOnly.length : 0;
+  const words = normalized.split(/\s+/).filter(Boolean);
+  const shortWordRatio = words.length > 0 ? words.filter((word) => word.length <= 3).length / words.length : 0;
+
+  return uppercaseRatio >= 0.38
+    || (words.length >= 10 && shortWordRatio >= 0.45 && !/[.!?]/.test(normalized))
+    || /readily solved this year|different from the previous year|to give you more choices|surprises outdoor|mountains|new year christmas|lucky blind boxes|rose pink|baja red|brownish|spend gray|cream apricot/i.test(lowerCased);
+}
+
+function isUsefulDescriptionParagraph(value: string) {
+  const normalized = value.trim();
+  if (normalized.length < 28) {
+    return false;
+  }
+
+  if (isDescriptionStillNoisy(normalized) || isTechnicalDescriptionLine(normalized) || isLikelyImageCaptionNoise(normalized)) {
+    return false;
+  }
+
+  const letters = normalized.match(/[a-zA-ZÀ-ÿ]/g) ?? [];
+  if (letters.length < 18) {
+    return false;
+  }
+
+  return true;
+}
+
 function buildDescriptionParagraphs(description?: string, fallbackOverview: string[] = []) {
   const normalizedDescription = typeof description === "string" ? description.trim() : "";
 
@@ -184,7 +216,7 @@ function buildDescriptionParagraphs(description?: string, fallbackOverview: stri
     const paragraphs = plainText
       .split(/\n{2,}|\n(?=-\s)/)
       .map((entry) => entry.replace(/\s+/g, " ").trim())
-      .filter((entry) => entry.length > 0 && !isDescriptionStillNoisy(entry) && !isTechnicalDescriptionLine(entry));
+      .filter((entry) => isUsefulDescriptionParagraph(entry));
 
     if (paragraphs.length > 0) {
       return paragraphs;
@@ -193,7 +225,7 @@ function buildDescriptionParagraphs(description?: string, fallbackOverview: stri
 
   const cleanedFallback = fallbackOverview
     .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0 && !isTechnicalDescriptionLine(entry));
+    .filter((entry) => entry.length > 0 && !isTechnicalDescriptionLine(entry) && !isLikelyImageCaptionNoise(entry));
 
   if (cleanedFallback.length > 0) {
     return cleanedFallback;
@@ -354,6 +386,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const cartAnimationTimeoutRef = useRef<number | null>(null);
   const cartToastTimeoutRef = useRef<number | null>(null);
   const desktopMediaRailRef = useRef<HTMLDivElement | null>(null);
+  const characteristicsSectionRef = useRef<HTMLElement | null>(null);
   const descriptionParagraphs = buildDescriptionParagraphs(product.description, product.overview);
   const languageCode = resolveProductLanguageCode(product.locale);
   const isEnglish = languageCode === "en";
@@ -737,6 +770,24 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const selectedSkuPreviewImage = selectedVariantSku?.image
     ? (selectedVariantSku.image.startsWith("//") ? `https:${selectedVariantSku.image}` : selectedVariantSku.image)
     : product.gallery[activeImage] ?? product.gallery[0] ?? "";
+  const resolveVariantOptionImage = (groupLabel: string, value: string) => {
+    const normalizedGroupLabel = normalizeAttributeTranslationKey(groupLabel);
+    const matchedSku = (product.variantSkus ?? []).find((sku) => {
+      return Object.entries(sku.selections ?? {}).some(([label, entryValue]) => {
+        return normalizeAttributeTranslationKey(label) === normalizedGroupLabel && String(entryValue).trim() === value;
+      });
+    });
+
+    if (!matchedSku?.image) {
+      return null;
+    }
+
+    return matchedSku.image.startsWith("//") ? `https:${matchedSku.image}` : matchedSku.image;
+  };
+  const desktopColorOptionLimit = 6;
+  const scrollToCharacteristics = () => {
+    characteristicsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const updateOrderQuantity = (delta: number) => {
     setOrderQuantity((current) => Math.max(1, current + delta));
@@ -851,6 +902,12 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const validateSelectionBeforeOrder = () => {
     if (missingVariantGroups.length > 0) {
       openOptionsPanel();
+      openValidationDialog(
+        uiText.optionsRequiredTitle,
+        isEnglish
+          ? `Please select: ${missingVariantGroups.map((group) => formatAttributeLabel(group.label)).join(", ")}.`
+          : `Veuillez choisir : ${missingVariantGroups.map((group) => formatAttributeLabel(group.label)).join(", ")}.`,
+      );
       return false;
     }
 
@@ -1032,7 +1089,254 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   return (
     <>
       <div className="mx-auto max-w-[1430px] space-y-6 pb-28 sm:space-y-8 sm:pb-12">
-        <section className="overflow-hidden rounded-[8px] border border-[#eceff3] bg-white p-3 shadow-[0_16px_44px_rgba(17,24,39,0.08)] sm:p-4">
+        <section className="hidden overflow-hidden rounded-[30px] border border-[#e8edf3] bg-[linear-gradient(180deg,#ffffff_0%,#fcfdff_100%)] p-6 shadow-[0_26px_70px_rgba(15,23,42,0.08)] xl:block">
+          <div className="rounded-[24px] border border-[#dce9f9] bg-[linear-gradient(135deg,#eff6ff_0%,#eef7ff_42%,#f8fbff_100%)] px-6 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
+            <div className="flex items-start justify-between gap-6">
+              <div className="min-w-0">
+                <div className="flex items-center gap-3 text-[13px] text-[#334155]">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-white text-[28px] font-black text-[#ff6a00] shadow-[0_12px_28px_rgba(15,23,42,0.08)]">90</div>
+                  <div className="min-w-0">
+                    <div className="truncate text-[24px] font-black tracking-[-0.05em] text-[#0f172a]">{storefrontSellerName}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-medium text-[#334155]">
+                      <span>{product.supplierLocation || storefrontSellerLocation}</span>
+                      <span>•</span>
+                      <span>{Math.max(product.yearsInBusiness, 4)} ans sur AfriPay</span>
+                      <span>•</span>
+                      <span>Fabricant vérifié</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-[14px] text-[#1e293b]">
+                  <span><span className="font-black">4.7/5</span> · avis vérifiés</span>
+                  <span>Taux de réachat: <span className="font-bold">23%</span></span>
+                  <span>Réponse: <span className="font-bold">≤ 2h</span></span>
+                  <span>Livraison à l'heure: <span className="font-bold">97%</span></span>
+                </div>
+              </div>
+              <div className="rounded-[16px] border border-[#d7e6fb] bg-white px-4 py-2 text-[13px] font-bold text-[#2563eb] shadow-[0_10px_24px_rgba(37,99,235,0.08)]">Verified</div>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-6 xl:grid-cols-[88px_minmax(0,1fr)_420px]">
+            <div className="flex flex-col items-center gap-3">
+              {hasScrollableMediaRail ? (
+                <button
+                  type="button"
+                  onClick={() => scrollDesktopMediaRail("up")}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#e5e7eb] bg-white text-[#0f172a] shadow-[0_14px_28px_rgba(15,23,42,0.08)] transition hover:-translate-y-0.5 hover:border-[#ff8a3d]"
+                  aria-label="Défiler vers le haut"
+                >
+                  <ChevronUp className="h-4.5 w-4.5" />
+                </button>
+              ) : null}
+
+              <div className="w-full rounded-[28px] bg-[#f7f8fb] px-2 py-3">
+                <div ref={desktopMediaRailRef} className="flex max-h-[560px] w-full flex-col items-center gap-3 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {product.gallery.map((image, index) => {
+                    const isActive = activeMedia === "photo" && activeImage === index;
+
+                    return (
+                      <button
+                        key={`${image}-desktop-hero-${index}`}
+                        type="button"
+                        data-active={isActive ? "true" : "false"}
+                        onClick={() => {
+                          setActiveMedia("photo");
+                          setActiveImage(index);
+                        }}
+                        className={[
+                          "relative h-[74px] w-[74px] overflow-hidden rounded-[18px] border bg-white transition",
+                          isActive ? "border-[#111827] shadow-[0_16px_28px_rgba(15,23,42,0.14)]" : "border-[#e5e7eb] hover:border-[#ff8a3d]",
+                        ].join(" ")}
+                      >
+                        <Image src={image} alt={`${product.shortTitle} aperçu ${index + 1}`} fill sizes="74px" className="object-cover" />
+                      </button>
+                    );
+                  })}
+                  {product.videoUrl ? (
+                    <button
+                      type="button"
+                      data-active={activeMedia === "video" ? "true" : "false"}
+                      onClick={() => setActiveMedia("video")}
+                      className={[
+                        "relative h-[74px] w-[74px] overflow-hidden rounded-[18px] border bg-[#161820] transition",
+                        activeMedia === "video" ? "border-[#111827] shadow-[0_16px_28px_rgba(15,23,42,0.14)]" : "border-[#e5e7eb] hover:border-[#ff8a3d]",
+                      ].join(" ")}
+                    >
+                      {product.videoPoster ? <Image src={product.videoPoster} alt={`${product.shortTitle} vidéo`} fill sizes="74px" className="object-cover opacity-70" /> : null}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#111827] shadow-[0_12px_24px_rgba(0,0,0,0.18)]">
+                          <Play className="ml-0.5 h-4 w-4 fill-current" />
+                        </div>
+                      </div>
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              {hasScrollableMediaRail ? (
+                <button
+                  type="button"
+                  onClick={() => scrollDesktopMediaRail("down")}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#e5e7eb] bg-white text-[#0f172a] shadow-[0_14px_28px_rgba(15,23,42,0.08)] transition hover:translate-y-0.5 hover:border-[#ff8a3d]"
+                  aria-label="Défiler vers le bas"
+                >
+                  <ChevronDown className="h-4.5 w-4.5" />
+                </button>
+              ) : null}
+            </div>
+
+            <div className="min-w-0">
+              <div className="relative overflow-hidden rounded-[30px] bg-[#f6f7fb] px-8 py-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                <div className="absolute right-5 top-5 z-20 flex flex-col gap-4">
+                  <button type="button" onClick={toggleFavorite} className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-white text-[#111827] shadow-[0_14px_30px_rgba(15,23,42,0.12)] transition hover:-translate-y-0.5">
+                    <Heart className={["h-5 w-5", isFavorite ? "fill-current text-[#ea580c]" : ""].join(" ")} />
+                  </button>
+                  <button type="button" onClick={openImageLightbox} className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-white text-[#111827] shadow-[0_14px_30px_rgba(15,23,42,0.12)] transition hover:-translate-y-0.5">
+                    <Search className="h-5 w-5" />
+                  </button>
+                  <button type="button" onClick={shareProduct} className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-white text-[#111827] shadow-[0_14px_30px_rgba(15,23,42,0.12)] transition hover:-translate-y-0.5">
+                    <Share2 className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {activeMedia === "photo" && product.gallery.length > 1 ? (
+                  <>
+                    <button type="button" onClick={goToPreviousImage} className="absolute left-5 top-1/2 z-20 inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white text-[#111827] shadow-[0_14px_30px_rgba(15,23,42,0.12)] transition hover:-translate-x-0.5">
+                      <ChevronRight className="h-5 w-5 rotate-180" />
+                    </button>
+                    <button type="button" onClick={goToNextImage} className="absolute right-24 top-1/2 z-20 inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white text-[#111827] shadow-[0_14px_30px_rgba(15,23,42,0.12)] transition hover:translate-x-0.5">
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+                  </>
+                ) : null}
+
+                <div className="relative aspect-[1/1] w-full">
+                  {activeMedia === "video" && product.videoUrl ? (
+                    <video controls poster={product.videoPoster} className="h-full w-full rounded-[22px] object-contain" src={product.videoUrl} />
+                  ) : (
+                    <button type="button" onClick={openImageLightbox} className="relative h-full w-full cursor-zoom-in">
+                      <Image src={product.gallery[activeImage] ?? product.gallery[0]} alt={product.title} fill sizes="(min-width: 1280px) 58vw, 100vw" className="object-contain" priority />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-5 flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setActiveMedia("photo")}
+                  className={["rounded-[14px] px-5 py-2.5 text-[15px] font-semibold transition", activeMedia === "photo" ? "bg-white text-[#111827] shadow-[0_12px_24px_rgba(15,23,42,0.1)] ring-1 ring-[#e5e7eb]" : "text-[#667085] hover:text-[#111827]"] .join(" ")}
+                >
+                  Photos
+                </button>
+                {product.videoUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => setActiveMedia("video")}
+                    className={["rounded-[14px] px-5 py-2.5 text-[15px] font-semibold transition", activeMedia === "video" ? "bg-white text-[#111827] shadow-[0_12px_24px_rgba(15,23,42,0.1)] ring-1 ring-[#e5e7eb]" : "text-[#667085] hover:text-[#111827]"] .join(" ")}
+                  >
+                    Vidéo
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={scrollToCharacteristics}
+                  className="rounded-[14px] px-5 py-2.5 text-[15px] font-semibold text-[#667085] transition hover:bg-white hover:text-[#111827] hover:shadow-[0_12px_24px_rgba(15,23,42,0.1)] hover:ring-1 hover:ring-[#e5e7eb]"
+                >
+                  Attributs
+                </button>
+              </div>
+            </div>
+
+            <aside className="rounded-[28px] border border-[#eceff3] bg-white px-6 py-6 shadow-[0_22px_56px_rgba(15,23,42,0.08)]">
+              <div className="rounded-[20px] border border-[#e5e7eb] bg-[#fcfcfd] px-4 py-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-[13px] font-semibold text-[#667085]">Prix de l'échantillon</div>
+                    <div className="mt-1 text-[28px] font-black tracking-[-0.05em] text-[#101828]">{formatMoney(displayUnitPrice > 0 ? displayUnitPrice : displayPriceSummary.minUsd)}</div>
+                  </div>
+                  <button type="button" onClick={openOptionsPanel} className="inline-flex h-12 items-center justify-center rounded-full border border-[#111827] px-6 text-[14px] font-semibold text-[#111827] transition hover:bg-[#111827] hover:text-white">Obtenir</button>
+                </div>
+              </div>
+
+              <div className="mt-7 border-t border-[#edf1f5] pt-7">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="text-[18px] font-black tracking-[-0.04em] text-[#101828]">Options</div>
+                  <button type="button" onClick={openOptionsPanel} className="text-[15px] font-semibold text-[#0f172a] underline underline-offset-4">Sélectionner</button>
+                </div>
+
+                {product.variantGroups.map((group) => {
+                  const isColorGroup = isColorAttributeLabel(group.label);
+                  const visibleValues = isColorGroup ? group.values.slice(0, desktopColorOptionLimit) : group.values;
+                  const remainingCount = isColorGroup ? Math.max(0, group.values.length - desktopColorOptionLimit) : 0;
+
+                  return (
+                    <div key={`${group.label}-desktop-inline`} className="mt-6">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-[16px] font-bold text-[#111827]">{formatAttributeLabel(group.label)}: <span className="font-medium">{formatAttributeValue(resolveVariantGroupSelection(group, true) || uiText.choose, group.label)}</span></div>
+                        {normalizeAttributeTranslationKey(group.label) === "size" ? <button type="button" onClick={openOptionsPanel} className="text-[13px] font-semibold text-[#475467] underline underline-offset-4">Guide des tailles</button> : null}
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        {visibleValues.map((value) => {
+                          const isSelected = selectedVariants[group.label] === value;
+                          const previewImage = resolveVariantOptionImage(group.label, value);
+
+                          if (isColorGroup && previewImage) {
+                            return (
+                              <button
+                                key={`${group.label}-desktop-value-${value}`}
+                                type="button"
+                                onClick={() => handleVariantPreviewSelection(group, value)}
+                                className={[
+                                  "relative h-[60px] w-[60px] overflow-hidden rounded-[16px] border bg-[#f8fafc] transition",
+                                  isSelected ? "border-[#111827] shadow-[0_16px_26px_rgba(15,23,42,0.16)]" : "border-[#e5e7eb] hover:border-[#ff8a3d]",
+                                ].join(" ")}
+                              >
+                                <Image src={previewImage} alt={`${formatAttributeLabel(group.label)} ${formatAttributeValue(value, group.label)}`} fill sizes="60px" className="object-cover" />
+                              </button>
+                            );
+                          }
+
+                          return (
+                            <button
+                              key={`${group.label}-desktop-pill-${value}`}
+                              type="button"
+                              onClick={() => handleVariantPreviewSelection(group, value)}
+                              className={[
+                                "inline-flex min-w-[42px] items-center justify-center rounded-[12px] border px-4 py-2.5 text-[15px] font-semibold transition",
+                                isSelected ? "border-[#111827] bg-white text-[#111827] shadow-[0_12px_22px_rgba(15,23,42,0.12)]" : "border-[#e5e7eb] bg-[#f8fafc] text-[#111827] hover:border-[#ff8a3d]",
+                              ].join(" ")}
+                            >
+                              {formatAttributeValue(value, group.label)}
+                            </button>
+                          );
+                        })}
+
+                        {remainingCount > 0 ? (
+                          <button type="button" onClick={openOptionsPanel} className="inline-flex h-[60px] min-w-[60px] items-center justify-center rounded-[16px] border border-[#e5e7eb] bg-[#f3f4f6] px-3 text-[20px] font-semibold text-[#475467] transition hover:border-[#ff8a3d]">+{remainingCount}</button>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-8 border-t border-[#edf1f5] pt-7">
+                <div className="text-[18px] font-black tracking-[-0.04em] text-[#101828]">Expédition</div>
+                <p className="mt-3 text-[15px] leading-7 text-[#475467]">Frais de livraison et date de livraison à négocier. Contactez le fournisseur.</p>
+              </div>
+
+              <div className="mt-8 grid grid-cols-2 gap-4">
+                <button type="button" onClick={handlePrimaryBuyNow} className="inline-flex h-14 items-center justify-center rounded-full bg-[#ea580c] px-6 text-[16px] font-bold text-white shadow-[0_18px_34px_rgba(234,88,12,0.28)] transition hover:bg-[#d65200]">Envoyer demande</button>
+                <button type="button" onClick={handlePrimaryAddToCart} className="inline-flex h-14 items-center justify-center rounded-full border border-[#111827] bg-white px-6 text-[16px] font-semibold text-[#111827] transition hover:bg-[#f8fafc]">Discuter ici</button>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section className="overflow-hidden rounded-[8px] border border-[#eceff3] bg-white p-3 shadow-[0_16px_44px_rgba(17,24,39,0.08)] sm:p-4 xl:hidden">
           <div className="hidden flex-wrap items-center gap-2 text-[12px] text-[#666] sm:flex">
             <Link href="/" className="transition hover:text-[#191919]">Accueil</Link>
             <ChevronRight className="h-3.5 w-3.5" />
@@ -1407,7 +1711,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-6">
-            <article className="rounded-[8px] border border-[#eceff3] bg-white p-6 shadow-[0_10px_28px_rgba(17,24,39,0.05)]">
+            <article ref={characteristicsSectionRef} className="rounded-[8px] border border-[#eceff3] bg-white p-6 shadow-[0_10px_28px_rgba(17,24,39,0.05)]">
               <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#907e70]">Description</div>
               <h2 className="mt-3 text-[24px] font-bold text-[#221813] sm:text-[28px]">Présentation détaillée</h2>
               <div className="mt-6 grid gap-4">

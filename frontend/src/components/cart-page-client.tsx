@@ -588,30 +588,39 @@ export function CartPageClient({ currencyCode, locale, languageCode, initialCoun
             {shareFeedback ? <div className="mt-3 rounded-[14px] bg-[#f8fafc] px-4 py-3 text-[13px] font-medium text-[#475467]">{shareFeedback}</div> : null}
           </div>
         </div>
-        <div className="mt-4 rounded-[16px] border border-[#d8e5fb] bg-[linear-gradient(135deg,#eef6ff_0%,#ffffff_100%)] px-4 py-4 shadow-[0_10px_24px_rgba(29,79,145,0.08)] sm:hidden">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#1d4f91] ring-1 ring-[#d8e5fb]">
+        <div className="mt-4 overflow-hidden rounded-[24px] border border-[#dbe7f6] bg-[linear-gradient(180deg,#f8fbff_0%,#ffffff_100%)] shadow-[0_16px_36px_rgba(29,79,145,0.08)] sm:hidden">
+          <div className="px-4 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#1d4f91] ring-1 ring-[#dbe7f6] shadow-[0_8px_16px_rgba(29,79,145,0.06)]">
                 <Share2 className="h-3.5 w-3.5" />
                 Partage panier
               </div>
-              <div className="mt-3 text-[15px] font-bold text-[#1f2937] sm:text-[17px]">Un tiers peut ouvrir ce panier et le valider pour vous</div>
-              <div className="mt-1 text-[12px] leading-5 text-[#50637d] sm:text-[13px] sm:leading-6">Partagez ce panier avec un proche ou un client. Le lien ouvre les articles déjà préparés, puis la personne peut confirmer et payer la commande depuis son compte.</div>
+              <button
+                type="button"
+                onClick={shareCart}
+                disabled={isSharing || !isAuthenticated}
+                className={[
+                  "inline-flex h-10 shrink-0 items-center justify-center rounded-full px-4 text-[13px] font-semibold text-white transition",
+                  sharePulse ? "bg-[#ff4d4f] shadow-[0_14px_30px_rgba(255,77,79,0.24)]" : "bg-[#f80632] hover:bg-[#db042c]",
+                ].join(" ")}
+              >
+                {isAuthenticated ? (isSharing ? "Préparation..." : "Partager") : "Connexion requise"}
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={shareCart}
-              disabled={isSharing || !isAuthenticated}
-              className={[
-                "inline-flex h-10 shrink-0 items-center justify-center rounded-full px-4 text-[13px] font-semibold text-white transition",
-                sharePulse ? "bg-[#ff4d4f] shadow-[0_14px_30px_rgba(255,77,79,0.24)]" : "bg-[#f80632] hover:bg-[#db042c]",
-              ].join(" ")}
-            >
-              {isAuthenticated ? (isSharing ? "Préparation..." : "Partager") : "Connexion requise"}
-            </button>
+
+            <div className="mt-4 rounded-[20px] bg-white px-4 py-4 ring-1 ring-[#e7eef8]">
+              <div className="text-[20px] font-black leading-[1.15] tracking-[-0.05em] text-[#1f2937]">Un proche peut valider ce panier pour vous</div>
+              <div className="mt-2 text-[13px] leading-6 text-[#5d6b82]">Envoyez un lien prêt à l'emploi. La personne ouvre le panier, confirme les articles et finalise le paiement depuis son compte.</div>
+
+              <div className="mt-4 rounded-[18px] border border-[#dbe7f6] bg-[#f8fbff] px-3 py-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6b7a90]">Message joint</div>
+                <input value={shareMessage} onChange={(event) => setShareMessage(event.target.value)} placeholder="Ex: peux-tu valider ce panier pour moi ?" className="mt-2 h-11 w-full rounded-[14px] border border-[#d8e5fb] bg-white px-4 text-[14px] text-[#111827] outline-none placeholder:text-[#98a2b3] focus:border-[#1d4f91]" />
+              </div>
+
+              {!isAuthenticated ? <div className="mt-4 rounded-[16px] bg-[#fff1f3] px-4 py-3 text-[12px] font-semibold text-[#d92d20] ring-1 ring-[#ffd5db]">Connectez-vous pour générer un lien de partage.</div> : null}
+              {shareFeedback ? <div className="mt-4 rounded-[16px] bg-[#f8fafc] px-4 py-3 text-[13px] font-medium text-[#475467] ring-1 ring-[#e4e7ec]">{shareFeedback}</div> : null}
+            </div>
           </div>
-          <input value={shareMessage} onChange={(event) => setShareMessage(event.target.value)} placeholder="Ex: peux-tu valider ce panier pour moi ?" className="mt-3 h-10 w-full rounded-[14px] border border-[#d8e5fb] bg-white px-4 text-[13px] text-[#111827] outline-none placeholder:text-[#98a2b3] focus:border-[#1d4f91]" />
-          {shareFeedback ? <div className="mt-3 rounded-[14px] bg-white px-4 py-3 text-[13px] font-medium text-[#475467] ring-1 ring-[#e4e7ec]">{shareFeedback}</div> : null}
         </div>
         <div className="mt-5 overflow-hidden rounded-[14px] border border-[#84c4ff] bg-white shadow-[0_12px_28px_rgba(47,103,246,0.12)]">
           <div className="flex items-center justify-between gap-3 rounded-t-[14px] bg-[linear-gradient(90deg,#30a3ff_0%,#2f67f6_100%)] px-4 py-3 text-white">
