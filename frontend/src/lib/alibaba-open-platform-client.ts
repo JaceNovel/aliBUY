@@ -1974,6 +1974,117 @@ export async function resolveAlibabaIcbuCategoryInfo(input: {
   };
 }
 
+
+  function extractAlibabaSpecEntries(...sources: Array<unknown>): ProductCatalogItem["specs"] {
+    const specs = new Map<string, ProductCatalogItem["specs"][number]>();
+
+    const addSpec = (label: string | null | undefined, value: string | null | undefined) => {
+      const normalizedLabel = label?.trim();
+      const normalizedValue = value?.trim();
+      if (!normalizedLabel || !normalizedValue) {
+        return;
+      }
+
+      const key = normalizedLabel.toLowerCase();
+      const existing = specs.get(key);
+      if (!existing) {
+        specs.set(key, { label: normalizedLabel, value: normalizedValue });
+        return;
+      }
+
+      if (existing.value === normalizedValue) {
+        return;
+      }
+
+      const mergedValue = uniqueStrings([
+        ...existing.value.split(/\s*[,;|]\s*/g).map((entry) => entry.trim()).filter(Boolean),
+        normalizedValue,
+      ]).join(", ");
+      specs.set(key, { label: existing.label, value: mergedValue });
+    };
+
+    const visit = (value: unknown, inheritedLabel?: string, depth = 0) => {
+      if (depth > 6 || value == null) {
+        return;
+      }
+
+      if (Array.isArray(value)) {
+        value.forEach((entry) => visit(entry, inheritedLabel, depth + 1));
+        return;
+      }
+
+      if (!isRecord(value)) {
+        if (typeof value === "string" && inheritedLabel) {
+          addSpec(inheritedLabel, value);
+        }
+        return;
+      }
+
+      const label = getStringValue(value.name)
+        ?? getStringValue(value.attribute_name)
+        ?? getStringValue(value.attributeName)
+        ?? getStringValue(value.attr_name)
+        ?? getStringValue(value.attrName)
+        ?? getStringValue(value.label)
+        ?? getStringValue(value.title)
+        ?? inheritedLabel;
+
+      const directValue = getStringValue(value.value)
+        ?? getStringValue(value.attribute_value)
+        ?? getStringValue(value.attributeValue)
+        ?? getStringValue(value.attr_value)
+        ?? getStringValue(value.attrValue)
+        ?? getStringValue(value.display_value)
+        ?? getStringValue(value.displayValue)
+        ?? getStringValue(value.text);
+
+      if (label && directValue) {
+        addSpec(label, directValue);
+      }
+
+      const rawValues = Array.isArray(value.values) ? value.values : [];
+      if (label && rawValues.length > 0) {
+        const nestedValues = uniqueStrings(rawValues.flatMap((entry) => {
+          if (!isRecord(entry)) {
+            return typeof entry === "string" ? [entry] : [];
+          }
+
+          return [
+            getStringValue(entry.value) ?? "",
+            getStringValue(entry.attribute_value_name) ?? "",
+            getStringValue(entry.attributeValueName) ?? "",
+            getStringValue(entry.name) ?? "",
+            getStringValue(entry.text) ?? "",
+          ].filter(Boolean);
+        }));
+
+        if (nestedValues.length > 0) {
+          addSpec(label, nestedValues.join(", "));
+        }
+      }
+
+      const nestedCollections = [
+        value.attributes,
+        value.key_attributes,
+        value.keyattributes,
+        value.attribute_list,
+        value.attributeList,
+        value.attribute_value_list,
+        value.attributeValueList,
+        value.values,
+        value.items,
+        value.data,
+        value.result_data,
+        value.resultData,
+        value.result,
+      ];
+
+      nestedCollections.forEach((entry) => visit(entry, label, depth + 1));
+    };
+
+    sources.forEach((source) => visit(source));
+    return [...specs.values()];
+  }
 function getNumberValue(...candidates: unknown[]) {
   for (const candidate of candidates) {
     if (typeof candidate === "number" && Number.isFinite(candidate)) {
@@ -3363,11 +3474,21 @@ async function enrichAlibabaSearchProduct(product: AlibabaSearchProduct, detailR
   const images = extractImagesFromAlibabaRecord(detailRecord);
   const variantGroups = extractAlibabaVariantGroups(detailRecord);
   const categoryAttributes = await getAlibabaIcbuCategoryAttributes({ rawPayload: detailRecord }).catch(() => null);
+  const detailSpecs = extractAlibabaSpecEntries(
+    detailRecord.attributes,
+    detailRecord.key_attributes,
+    detailRecord.keyattributes,
+    detailRecord.eco_buyer_keyattributes,
+    detailRecord.eco_buyer_description,
+  );
   const mergedVariantGroups = mergeAlibabaVariantGroups(
     variantGroups.length > 0 ? variantGroups : product.variantGroups,
     buildAlibabaVariantGroupsFromAttributeDefinitions(categoryAttributes?.saleAttributes ?? []),
   );
-  const mergedSpecs = mergeAlibabaSpecs(product.specs ?? [], [
+  const mergedSpecs = mergeAlibabaSpecs([
+    ...(product.specs ?? []),
+    ...detailSpecs,
+  ], [
     ...(categoryAttributes?.categoryAttributes ?? []),
     ...(categoryAttributes?.saleAttributes ?? []),
   ]);
@@ -3609,12 +3730,7 @@ function mapAlibabaSearchResultToProduct(raw: Record<string, unknown>, query: st
     ?? getStringValue(raw.supplier_country)
     ?? "CN";
   const keywords = uniqueStrings(query.split(/[\s,;]+/g).map((entry) => entry.trim().toLowerCase()).filter(Boolean));
-  const specs = Array.isArray(raw.attributes)
-    ? (raw.attributes as Array<Record<string, unknown>>).slice(0, 8).map((attribute, index) => ({
-        label: getStringValue(attribute.attribute_name) ?? getStringValue(attribute.name) ?? `Spec ${index + 1}`,
-        value: getStringValue(attribute.attribute_value) ?? getStringValue(attribute.value) ?? "-",
-      }))
-    : [];
+  const specs = extractAlibabaSpecEntries(raw.attributes, raw.key_attributes, raw.keyattributes).slice(0, 8);
   const overview = uniqueStrings([
     getStringValue(raw.description) ?? "",
     getStringValue(raw.brief) ?? "",
