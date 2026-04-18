@@ -163,6 +163,49 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
       };
     }
 
+    if (order.supplierOrderStatus === "skipped") {
+      const supplierPayload = order.supplierOrderPayload && typeof order.supplierOrderPayload === "object"
+        ? order.supplierOrderPayload as Record<string, unknown>
+        : null;
+      const skipReason = typeof supplierPayload?.reason === "string" ? supplierPayload.reason.trim() : "";
+      const missingSlugs = Array.isArray(supplierPayload?.missingSlugs)
+        ? supplierPayload.missingSlugs.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+        : [];
+
+      if (skipReason === "missing_mapping") {
+        return {
+          message: missingSlugs.length > 0
+            ? `Le lancement fournisseur est ignore parce que certains articles n'ont pas encore de mapping fournisseur: ${missingSlugs.join(", ")}.`
+            : "Le lancement fournisseur est ignore parce qu'au moins un article de cette commande n'a pas encore de mapping fournisseur.",
+          href: "/admin/alibaba-sourcing",
+          label: "Ouvrir le cockpit fournisseur",
+          external: false,
+        };
+      }
+
+      if (skipReason === "missing_credentials") {
+        return {
+          message: "Le lancement fournisseur est ignore parce que les identifiants fournisseur ne sont pas configures pour l'automatisation Alibaba.",
+          href: "/admin/alibaba-sourcing",
+          label: "Ouvrir le cockpit fournisseur",
+          external: false,
+        };
+      }
+
+      if (skipReason === "freight_not_verified") {
+        return {
+          message: "Le lancement fournisseur a ete saute parce que la verification fret n'a pas pu etre validee pour cette commande.",
+        };
+      }
+
+      return {
+        message: "Le lancement fournisseur a ete ignore pour cette commande. Verifiez le mapping article et la configuration fournisseur avant de relancer.",
+        href: "/admin/alibaba-sourcing",
+        label: "Ouvrir le cockpit fournisseur",
+        external: false,
+      };
+    }
+
     if (order.supplierOrderStatus !== "created") {
       return {
         message: `Le bouton n'apparait pas parce que l'etat fournisseur actuel est \"${order.supplierOrderStatus}\" et non \"created\".`,
