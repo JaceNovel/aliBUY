@@ -100,15 +100,16 @@ export type AlibabaSourcingQuote = {
 };
 
 export const LIGHTWEIGHT_MINIMUM_WEIGHT_GRAMS = 1000;
+export const MAX_EFFECTIVE_PRODUCT_MOQ = 5;
 
 export function getEffectiveProductMoq(moq: number | undefined, itemWeightGrams: number | undefined) {
   const normalizedMoq = Number.isFinite(moq) && typeof moq === "number" && moq > 0 ? Math.max(1, Math.ceil(moq)) : 1;
 
   if (typeof itemWeightGrams !== "number" || !Number.isFinite(itemWeightGrams) || itemWeightGrams <= 0 || itemWeightGrams >= LIGHTWEIGHT_MINIMUM_WEIGHT_GRAMS) {
-    return normalizedMoq;
+    return Math.min(MAX_EFFECTIVE_PRODUCT_MOQ, normalizedMoq);
   }
 
-  return Math.max(normalizedMoq, Math.ceil(LIGHTWEIGHT_MINIMUM_WEIGHT_GRAMS / itemWeightGrams));
+  return Math.min(MAX_EFFECTIVE_PRODUCT_MOQ, Math.max(normalizedMoq, Math.ceil(LIGHTWEIGHT_MINIMUM_WEIGHT_GRAMS / itemWeightGrams)));
 }
 
 export function isSeaShippingEligible(totalWeightKg: number, totalCbm: number, settings: Pick<SourcingSettings, "seaMinimumWeightKg" | "seaMinimumCbm">) {

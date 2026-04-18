@@ -2,6 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 
+import { getEffectiveProductMoq } from "@/lib/alibaba-sourcing";
 import { getCatalogCategoryBySlug, getCatalogCategories } from "@/lib/catalog-category-service";
 import { findSimilarCatalogProducts, getCatalogProducts, searchCatalogProducts } from "@/lib/catalog-service";
 import { hasConfiguredDatabaseUrl, prisma } from "@/lib/prisma";
@@ -24,6 +25,8 @@ const PRODUCT_FEED_SELECT = {
   minUsd: true,
   maxUsd: true,
   moq: true,
+  moqVerified: true,
+  itemWeightGrams: true,
   unit: true,
 } as const;
 
@@ -35,6 +38,8 @@ type ProductFeedRow = {
   minUsd: number;
   maxUsd?: number | null;
   moq: number;
+  moqVerified?: boolean | null;
+  itemWeightGrams?: number | null;
   unit: string;
 };
 
@@ -71,6 +76,8 @@ export type ProductFeedItem = {
   minUsd: number;
   maxUsd?: number;
   moq: number;
+  moqVerified?: boolean;
+  itemWeightGrams?: number;
   unit: string;
 };
 
@@ -162,6 +169,8 @@ function toProductFeedItem(product: {
   minUsd: number;
   maxUsd?: number | null;
   moq: number;
+  moqVerified?: boolean | null;
+  itemWeightGrams?: number | null;
   unit: string;
 }): ProductFeedItem {
   return {
@@ -171,7 +180,9 @@ function toProductFeedItem(product: {
     badge: product.badge ?? undefined,
     minUsd: product.minUsd,
     maxUsd: product.maxUsd ?? undefined,
-    moq: product.moq,
+    moq: getEffectiveProductMoq(product.moq, typeof product.itemWeightGrams === "number" ? product.itemWeightGrams : undefined),
+    moqVerified: product.moqVerified ?? undefined,
+    itemWeightGrams: typeof product.itemWeightGrams === "number" ? product.itemWeightGrams : undefined,
     unit: product.unit,
   };
 }
@@ -274,6 +285,8 @@ function buildFallbackPage(options: {
     minUsd: number;
     maxUsd?: number | null;
     moq: number;
+    moqVerified?: boolean;
+    itemWeightGrams?: number;
     unit: string;
   }>;
   page: number;
@@ -346,6 +359,8 @@ async function getTrigramSearchProductsFeedPage(options: {
       "minUsd",
       "maxUsd",
       "moq",
+      "moqVerified",
+      "itemWeightGrams",
       "unit"
     FROM "AlibabaImportedProductRecord"
     WHERE "publishedToSite" = true

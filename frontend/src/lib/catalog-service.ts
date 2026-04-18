@@ -616,6 +616,13 @@ export async function getCatalogProducts(options?: { fresh?: boolean }): Promise
 export async function getCatalogProductBySlug(slug: string) {
   const remoteDetail = await fetchRemoteCatalogProductDetail(slug);
   if (remoteDetail) {
+    const catalogProducts = await readCatalogProductsSource();
+    const catalogProduct = catalogProducts.find((product) => product.slug === slug);
+
+    if (catalogProduct) {
+      return mergeCatalogProducts([remoteDetail], [catalogProduct])[0] ?? remoteDetail;
+    }
+
     return remoteDetail;
   }
 

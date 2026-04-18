@@ -34,6 +34,8 @@ export type ProductFeedItem = {
   minUsd: number;
   maxUsd?: number;
   moq: number;
+  moqVerified?: boolean;
+  itemWeightGrams?: number;
   unit: string;
 };
 

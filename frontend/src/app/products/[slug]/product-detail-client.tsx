@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
 import { PaymentMethodIcon } from "@/components/payment-method-icon";
+import { getEffectiveProductMoq } from "@/lib/alibaba-sourcing";
 import { getStorefrontMoqDisplay } from "@/lib/product-moq";
 import { CURRENCY_CONFIG, type CurrencyCode } from "@/lib/pricing-options";
 import { resolveProductPriceSummaryUsd, resolveProductUnitPriceUsd, resolveVariantSku } from "@/lib/product-variant-pricing";
@@ -181,7 +182,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
   const [isCartAnimating, setIsCartAnimating] = useState(false);
   const [cartToastVisible, setCartToastVisible] = useState(false);
-  const [orderQuantity, setOrderQuantity] = useState(Math.max(product.moq, 1));
+  const [orderQuantity, setOrderQuantity] = useState(1);
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
   const [countdownNow, setCountdownNow] = useState(() => Date.now());
   const touchStartXRef = useRef<number | null>(null);
@@ -450,14 +451,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     { label: "m", value: countdownMinutes },
     { label: "s", value: countdownSeconds },
   ];
-  const moqDisplay = getStorefrontMoqDisplay(product);
-  const variantSummary = product.variantGroups.length > 0 ? `${product.variantGroups.length} option${product.variantGroups.length > 1 ? "s" : ""}` : "Aucune";
-  const offerMetrics = [
-    { label: "Ventes", value: product.soldLabel },
-    { label: moqDisplay.label, value: moqDisplay.value },
-    { label: "Variantes", value: variantSummary },
-    { label: "Personnalisation", value: product.customizationLabel },
-  ];
+  const effectiveMoq = getEffectiveProductMoq(product.moq, product.itemWeightGrams);
   const supplierMetrics = [
     { label: "Transactions", value: product.soldLabel || "Commandes vérifiées" },
     { label: "Implantation", value: storefrontSellerLocation },
@@ -491,7 +485,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   ];
 
   const updateOrderQuantity = (delta: number) => {
-    setOrderQuantity((current) => Math.max(product.moq, current + delta));
+    setOrderQuantity((current) => Math.max(1, current + delta));
   };
   const handleVariantPreviewSelection = (group: DetailVariantGroup, value: string) => {
     setSelectedVariants((current) => ({ ...current, [group.label]: value }));
@@ -588,6 +582,11 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const validateSelectionBeforeOrder = () => {
     if (missingVariantGroups.length > 0) {
       triggerShareFeedback(`Choisissez d'abord : ${missingVariantGroups.map((group) => group.label).join(", ")}.`);
+      return false;
+    }
+
+    if (orderQuantity < effectiveMoq) {
+      triggerShareFeedback(`Le minimum de commande pour cet article est ${effectiveMoq}. Veuillez augmenter la quantité.`);
       return false;
     }
 
@@ -940,14 +939,6 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                 <ChevronRight className="h-4 w-4" />
               </div>
 
-              <div className="mt-5 max-w-[620px] grid gap-2 sm:grid-cols-2">
-                {offerMetrics.map((metric) => (
-                  <div key={metric.label} className="rounded-[8px] border border-[#ededed] bg-[#fafafa] px-3 py-3">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#888]">{metric.label}</div>
-                    <div className="mt-1 text-[14px] font-semibold text-[#241b15]">{metric.value}</div>
-                  </div>
-                ))}
-              </div>
             </div>
 
             <aside className="order-4 xl:sticky xl:top-4 xl:self-start">
@@ -1011,7 +1002,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                   <div className="border-t border-[#efefef] pt-4">
                     <div className="text-[14px] font-semibold text-[#191919]">Quantité</div>
                     <div className="mt-3 flex items-center gap-3">
-                      <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= product.moq} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] bg-[#f5f5f5] text-[#55473b] transition hover:bg-[#ebebeb] disabled:cursor-not-allowed disabled:opacity-40">
+                      <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= 1} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] bg-[#f5f5f5] text-[#55473b] transition hover:bg-[#ebebeb] disabled:cursor-not-allowed disabled:opacity-40">
                         <Minus className="h-4 w-4" />
                       </button>
                       <div className="min-w-[24px] text-center text-[20px] font-semibold tracking-[-0.04em] text-[#1e1712]">{orderQuantity}</div>
@@ -1019,7 +1010,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                         <Plus className="h-4 w-4" />
                       </button>
                     </div>
-                    <div className="mt-2 text-[12px] text-[#6c5c50]">{product.moqVerified ? `Minimum ${product.moq} pièce${product.moq > 1 ? "s" : ""}` : "Minimum à confirmer"}</div>
+                    <div className="mt-2 text-[12px] text-[#6c5c50]">{product.moqVerified ? `Minimum ${effectiveMoq} pièce${effectiveMoq > 1 ? "s" : ""}` : "Minimum à confirmer"}</div>
                     {selectedVariantSku?.skuCode || typeof selectedVariantSku?.inventory === "number" ? (
                       <div className="mt-3 rounded-[12px] border border-[#ececec] bg-[#fafafa] px-3 py-3 text-[12px] text-[#5f5145]">
                         {selectedVariantSku?.skuCode ? <div>SKU: <span className="font-semibold text-[#221813]">{selectedVariantSku.skuCode}</span></div> : null}

@@ -1,3 +1,5 @@
+import { getEffectiveProductMoq } from "@/lib/alibaba-sourcing";
+
 type MappableTier = {
   minimumQuantity?: number;
   quantityLabel?: string;
@@ -263,9 +265,10 @@ export function getStorefrontMoqDisplay(input: {
   moq?: number;
   moqVerified?: boolean;
   unit?: string;
+  itemWeightGrams?: number;
 }): StorefrontMoqDisplay {
   const quantity = typeof input.moq === "number" && Number.isFinite(input.moq) && input.moq > 0
-    ? Math.round(input.moq)
+    ? getEffectiveProductMoq(input.moq, input.itemWeightGrams)
     : undefined;
 
   if (!input.moqVerified || !quantity) {
