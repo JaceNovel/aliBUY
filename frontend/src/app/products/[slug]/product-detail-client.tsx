@@ -762,6 +762,10 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     { label: "Niveau de vérification", value: verificationLabel },
   ];
   const hasScrollableMediaRail = product.gallery.length + (product.videoUrl ? 1 : 0) > 5;
+  const desktopMediaThumbSize = 74;
+  const desktopMediaThumbGap = 12;
+  const desktopVisibleMediaCount = 5;
+  const desktopMediaViewportHeight = (desktopMediaThumbSize * desktopVisibleMediaCount) + (desktopMediaThumbGap * (desktopVisibleMediaCount - 1));
   const optionSummaryLabel = selectedOptionSummary.length > 0
     ? selectedOptionSummary.join(" • ")
     : missingVariantGroups.length > 0
@@ -800,7 +804,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     }
 
     desktopMediaRailRef.current.scrollBy({
-      top: direction === "down" ? 220 : -220,
+      top: direction === "down" ? desktopMediaThumbSize + desktopMediaThumbGap : -(desktopMediaThumbSize + desktopMediaThumbGap),
       behavior: "smooth",
     });
   };
@@ -1131,7 +1135,11 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
               ) : null}
 
               <div className="w-full rounded-[28px] bg-[#f7f8fb] px-2 py-3">
-                <div ref={desktopMediaRailRef} className="flex max-h-[404px] w-full flex-col items-center gap-3 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div
+                  ref={desktopMediaRailRef}
+                  className="flex w-full flex-col items-center gap-3 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  style={{ height: `${desktopMediaViewportHeight}px` }}
+                >
                   {product.gallery.map((image, index) => {
                     const isActive = activeMedia === "photo" && activeImage === index;
 
