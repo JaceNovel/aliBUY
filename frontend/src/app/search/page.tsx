@@ -12,13 +12,57 @@ import { SITE_NAME, SITE_URL } from "@/lib/site-config";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export const metadata: Metadata = {
-  title: `Recherche | ${SITE_NAME}`,
-  description: "Resultats de recherche produit AfriPay avec repli vers des articles similaires.",
-  alternates: {
-    canonical: `${SITE_URL}/search`,
-  },
-};
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}): Promise<Metadata> {
+  const { q = "" } = await searchParams;
+  const query = q.trim();
+
+  if (!query) {
+    return {
+      title: `Recherche | ${SITE_NAME}`,
+      description: "Resultats de recherche produit AfriPay avec repli vers des articles similaires.",
+      alternates: {
+        canonical: `${SITE_URL}/search`,
+      },
+      openGraph: {
+        title: `Recherche | ${SITE_NAME}`,
+        description: "Resultats de recherche produit AfriPay avec repli vers des articles similaires.",
+        url: `${SITE_URL}/search`,
+      },
+      twitter: {
+        card: "summary",
+        title: `Recherche | ${SITE_NAME}`,
+        description: "Resultats de recherche produit AfriPay avec repli vers des articles similaires.",
+      },
+    };
+  }
+
+  const encodedQuery = encodeURIComponent(query);
+  const title = `Resultats pour \"${query}\" | ${SITE_NAME}`;
+  const description = `Resultats de recherche AfriPay pour \"${query}\" avec repli vers des articles similaires si necessaire.`;
+  const canonical = `${SITE_URL}/search?q=${encodedQuery}`;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonical,
+    },
+    twitter: {
+      card: "summary",
+      title,
+      description,
+    },
+  };
+}
 
 export default async function SearchPage({
   searchParams,

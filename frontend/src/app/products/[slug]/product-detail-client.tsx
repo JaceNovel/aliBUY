@@ -139,11 +139,31 @@ function decodeHtmlEntities(value: string) {
     .replace(/&gt;/gi, ">");
 }
 
+function stripDescriptionCssNoise(value: string) {
+  return value
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/#detail_decorate_root[\s\S]*?(?=<body|<div|<p|<img|<table|$)/gi, " ")
+    .replace(/[#.][a-z0-9_-]+\s*\{[^{}]*\}/gi, " ")
+    .replace(/[a-z-]+\s*:\s*[^;{}]+;?/gi, (match) => {
+      const normalized = match.trim().toLowerCase();
+      return /^(color|font|margin|padding|border|width|height|overflow|position|left|right|top|bottom|min-|max-|box-sizing|display|vertical-align|line-height|white-space)/.test(normalized)
+        ? " "
+        : match;
+    })
+    .replace(/#detail_decorate_root|\.magic-\d+/gi, " ");
+}
+
+function isDescriptionStillNoisy(value: string) {
+  const cssTokenCount = (value.match(/#detail_decorate_root|\.magic-\d+|margin-bottom|font-size|border-bottom|overflow:hidden|box-sizing/g) ?? []).length;
+  const braceCount = (value.match(/[{}]/g) ?? []).length;
+  return cssTokenCount >= 2 || braceCount >= 4;
+}
+
 function buildDescriptionParagraphs(description?: string, fallbackOverview: string[] = []) {
   const normalizedDescription = typeof description === "string" ? description.trim() : "";
 
   if (normalizedDescription) {
-    const plainText = decodeHtmlEntities(normalizedDescription)
+    const plainText = stripDescriptionCssNoise(decodeHtmlEntities(normalizedDescription))
       .replace(/<\s*br\s*\/?>/gi, "\n")
       .replace(/<\/(p|div|li|h[1-6])>/gi, "\n")
       .replace(/<li>/gi, "- ")
@@ -151,6 +171,7 @@ function buildDescriptionParagraphs(description?: string, fallbackOverview: stri
       .replace(/\r/g, "")
       .replace(/\t/g, " ")
       .replace(/\u00a0/g, " ")
+      .replace(/[{}]/g, " ")
       .replace(/\n{3,}/g, "\n\n")
       .replace(/[ ]{2,}/g, " ")
       .trim();
@@ -158,7 +179,7 @@ function buildDescriptionParagraphs(description?: string, fallbackOverview: stri
     const paragraphs = plainText
       .split(/\n{2,}|\n(?=-\s)/)
       .map((entry) => entry.replace(/\s+/g, " ").trim())
-      .filter((entry) => entry.length > 0);
+      .filter((entry) => entry.length > 0 && !isDescriptionStillNoisy(entry));
 
     if (paragraphs.length > 0) {
       return paragraphs;
