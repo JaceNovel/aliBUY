@@ -300,6 +300,17 @@ export async function updateAdminSourcingOrder(orderId: string, payload: unknown
       break;
     }
 
+    case "mark-client-paid": {
+      nextOrder = await persistOrder({
+        ...currentOrder,
+        paymentStatus: "paid",
+        monerooPaymentStatus: currentOrder.monerooPaymentStatus ?? "manual_admin_paid",
+        paidAt: currentOrder.paidAt ?? nowIso(),
+        updatedAt: nowIso(),
+      });
+      break;
+    }
+
     case "set-relay-point": {
       nextOrder = await applyMetaUpdate(currentOrder, {
         workflow: mergeWorkflowPreservingProofs(currentOrder, {

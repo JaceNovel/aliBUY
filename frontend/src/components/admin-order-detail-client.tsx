@@ -354,6 +354,23 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
   return (
     <div className="space-y-5">
       {feedback ? <div className="rounded-[18px] bg-[#fff8ee] px-4 py-4 text-[13px] font-semibold text-[#8a4b16]">{feedback}</div> : null}
+      {!isClientPaid ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[18px] bg-[#fff8ee] px-4 py-4 text-[13px] font-semibold text-[#8a4b16]">
+          <div>Cette commande client n&apos;est pas encore marquee comme payee.</div>
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm("Confirmer que le paiement client a bien ete recu pour cette commande ?")) {
+                void submitPatch({ action: "mark-client-paid" });
+              }
+            }}
+            disabled={isPending}
+            className="inline-flex h-10 items-center justify-center rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            Marquer payee
+          </button>
+        </div>
+      ) : null}
 
       <section className="grid gap-4 xl:grid-cols-[0.96fr_1.04fr]">
         <article className="rounded-[20px] border border-[#e6eaf0] bg-white px-5 py-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
