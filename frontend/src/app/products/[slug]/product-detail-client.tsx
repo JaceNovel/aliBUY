@@ -977,7 +977,7 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
                   {product.variantGroups.length > 0 ? (
                     <div className="border-b border-[#efefef] pb-4">
-                      <div className="text-[14px] font-semibold text-[#191919]">Variantes</div>
+                      <div className="text-[14px] font-semibold text-[#191919]">Attributs de vente</div>
                       <div className="mt-3 space-y-4">
                         {product.variantGroups.map((group) => (
                           <div key={group.label}>
@@ -1024,14 +1024,14 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                     {selectedVariantSku?.skuCode || typeof selectedVariantSku?.inventory === "number" ? (
                       <div className="mt-3 rounded-[12px] border border-[#ececec] bg-[#fafafa] px-3 py-3 text-[12px] text-[#5f5145]">
                         {selectedVariantSku?.skuCode ? <div>SKU: <span className="font-semibold text-[#221813]">{selectedVariantSku.skuCode}</span></div> : null}
-                        {typeof selectedVariantSku?.inventory === "number" ? <div>Stock variante: <span className="font-semibold text-[#221813]">{selectedVariantSku.inventory}</span></div> : null}
+                        {typeof selectedVariantSku?.inventory === "number" ? <div>Stock attribut: <span className="font-semibold text-[#221813]">{selectedVariantSku.inventory}</span></div> : null}
                       </div>
                     ) : null}
                   </div>
 
                   {missingVariantGroups.length > 0 ? (
                     <div className="rounded-[12px] border border-[#f2d0b1] bg-[#fff5ea] px-4 py-3 text-[13px] font-medium text-[#d15f12]">
-                      Options à choisir : {missingVariantGroups.map((group) => group.label).join(", ")}
+                      Attributs à choisir : {missingVariantGroups.map((group) => group.label).join(", ")}
                     </div>
                   ) : null}
                   <div className="grid gap-3">

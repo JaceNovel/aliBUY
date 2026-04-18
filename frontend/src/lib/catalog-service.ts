@@ -632,6 +632,8 @@ export async function getCatalogProductBySlug(slug: string) {
     return null;
   }
 
+  const needsAttributeRecovery = product.variantGroups.length === 0 && (product.variantSkus?.length ?? 0) === 0;
+
   const hasDimensions = Boolean(
     product.packageDimensionsCm
     && product.packageDimensionsCm.lengthCm > 0
@@ -639,7 +641,7 @@ export async function getCatalogProductBySlug(slug: string) {
     && product.packageDimensionsCm.heightCm > 0,
   );
   const hasWeight = product.itemWeightGrams > 0;
-  if (hasDimensions && hasWeight) {
+  if (hasDimensions && hasWeight && !needsAttributeRecovery) {
     return product;
   }
 
@@ -652,7 +654,8 @@ export async function getCatalogProductBySlug(slug: string) {
   try {
     const { reenrichImportedProduct } = await import("@/lib/alibaba-operations-service");
     const reenrichedProduct = await reenrichImportedProduct(importedProduct.id);
-    return toCatalogProduct(reenrichedProduct);
+    const normalizedReenrichedProduct = toCatalogProduct(reenrichedProduct);
+    return mergeCatalogProducts([normalizedReenrichedProduct], [product])[0] ?? normalizedReenrichedProduct;
   } catch {
     return product;
   }
