@@ -119,6 +119,12 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
   const canLaunchSupplierPayment = useMemo(() => isSourcingOrderEligibleForSupplierPayment(order), [order]);
   const batchMode = useMemo(() => getSourcingOrderBatchMode(order), [order]);
   const isClientPaid = useMemo(() => isSourcingOrderClientPaid(order), [order]);
+  const canRepairSupplierOrder = useMemo(() => {
+    return isClientPaid
+      && !canLaunchSupplierPayment
+      && payUrls.length === 0
+      && (order.supplierOrderStatus === "skipped" || order.supplierOrderStatus === "failed" || order.supplierOrderStatus === "not_created");
+  }, [canLaunchSupplierPayment, isClientPaid, order.supplierOrderStatus, payUrls.length]);
   const workflow = meta.workflow;
   const deliveryProfile = meta.deliveryProfile;
   const whatsappLinked = Boolean(meta.manychat?.subscriberId);
@@ -616,6 +622,16 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
               Lancer DS maintenant
             </button>
           ) : null}
+          {canRepairSupplierOrder ? (
+            <button
+              type="button"
+              onClick={() => void submitPatch({ action: "repair-supplier-order" })}
+              disabled={isPending}
+              className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              Reprendre la création DS
+            </button>
+          ) : null}
           {!canLaunchSupplierPayment && payUrls.length > 0 ? (
             <Link href={payUrls[0]} target="_blank" className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] border border-[#ffd6bf] bg-[#fff6f0] px-5 text-[14px] font-semibold text-[#d85300] transition hover:opacity-80">
               Ouvrir le lien de paiement
@@ -724,6 +740,16 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
                 className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-70"
               >
                 Lancer DS ici
+              </button>
+            ) : null}
+            {canRepairSupplierOrder ? (
+              <button
+                type="button"
+                onClick={() => void submitPatch({ action: "repair-supplier-order" })}
+                disabled={isPending}
+                className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                Reprendre DS
               </button>
             ) : null}
             {parcelState.parcelHref ? (
