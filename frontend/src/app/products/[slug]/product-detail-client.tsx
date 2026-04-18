@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, BadgeDollarSign, ChevronRight, CreditCard, Heart, Minus, Play, Plus, Share2, ShieldCheck, ShoppingCart, Star, X } from "lucide-react";
+import { ArrowLeft, BadgeDollarSign, ChevronDown, ChevronRight, ChevronUp, CreditCard, Heart, Minus, Play, Plus, Share2, ShieldCheck, ShoppingCart, Star, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
@@ -202,6 +202,135 @@ function buildDescriptionParagraphs(description?: string, fallbackOverview: stri
   return ["Consultez la fiche technique ci-dessous pour retrouver les principales caractéristiques du produit."];
 }
 
+type ProductLanguageCode = "fr" | "en";
+
+const ATTRIBUTE_LABEL_TRANSLATIONS: Record<string, { fr: string; en: string }> = {
+  color: { fr: "Couleur", en: "Color" },
+  colour: { fr: "Couleur", en: "Color" },
+  size: { fr: "Taille", en: "Size" },
+  type: { fr: "Type", en: "Type" },
+  reference: { fr: "Reference", en: "Reference" },
+  connexion: { fr: "Connexion", en: "Connection" },
+  connection: { fr: "Connexion", en: "Connection" },
+  fonction: { fr: "Fonction", en: "Function" },
+  function: { fr: "Fonction", en: "Function" },
+  dimensions: { fr: "Dimensions", en: "Dimensions" },
+  emballage: { fr: "Emballage", en: "Packaging" },
+  packaging: { fr: "Emballage", en: "Packaging" },
+  poids: { fr: "Poids", en: "Weight" },
+  weight: { fr: "Poids", en: "Weight" },
+  usage: { fr: "Usage", en: "Use" },
+  support: { fr: "Support", en: "Support" },
+  volume: { fr: "Volume", en: "Volume" },
+};
+
+const FRENCH_ATTRIBUTE_VALUE_TRANSLATIONS: Record<string, string> = {
+  pink: "Rose",
+  khaki: "Kaki",
+  black: "Noir",
+  brown: "Marron",
+  orange: "Orange",
+  navy: "Bleu marine",
+  "dark gray": "Gris fonce",
+  champagne: "Champagne",
+  blue: "Bleu",
+  gray: "Gris",
+  beige: "Beige",
+  "light green": "Vert clair",
+  "dark brown": "Marron fonce",
+  "dark blue": "Bleu fonce",
+  burgundy: "Bordeaux",
+  "dark green": "Vert fonce",
+  "light blue": "Bleu clair",
+  red: "Rouge",
+  purple: "Violet",
+  white: "Blanc",
+  green: "Vert",
+  "light gray": "Gris clair",
+  mint: "Menthe",
+};
+
+const COLOR_SWATCH_STYLES: Record<string, { background: string; borderColor?: string }> = {
+  pink: { background: "#ec4899" },
+  khaki: { background: "#b7a27a" },
+  black: { background: "#111827" },
+  brown: { background: "#7c4a2d" },
+  orange: { background: "#f97316" },
+  navy: { background: "#1e3a8a" },
+  "dark gray": { background: "#4b5563" },
+  champagne: { background: "#e7c78f" },
+  blue: { background: "#2563eb" },
+  gray: { background: "#9ca3af" },
+  beige: { background: "#e5d3b3" },
+  "light green": { background: "#8dd7a7" },
+  "dark brown": { background: "#5b3a29" },
+  "dark blue": { background: "#1d4ed8" },
+  burgundy: { background: "#7f1d1d" },
+  "dark green": { background: "#166534" },
+  "light blue": { background: "#7dd3fc" },
+  red: { background: "#dc2626" },
+  purple: { background: "#7c3aed" },
+  white: { background: "#ffffff", borderColor: "#d0d5dd" },
+  green: { background: "#16a34a" },
+  "light gray": { background: "#d1d5db" },
+  mint: { background: "#99f6e4" },
+};
+
+function resolveProductLanguageCode(locale: string): ProductLanguageCode {
+  return locale.toLowerCase().startsWith("en") ? "en" : "fr";
+}
+
+function normalizeAttributeTranslationKey(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function normalizeSizeDisplayValue(value: string) {
+  return value
+    .replace(/\bxs\b/gi, "XS")
+    .replace(/\bs\b/gi, "S")
+    .replace(/\bm\b/gi, "M")
+    .replace(/\bl\b/gi, "L")
+    .replace(/\bxl\b/gi, "XL")
+    .replace(/\bxxl\b/gi, "XXL")
+    .replace(/(\d+)\s*xl\b/gi, "$1 XL")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function translateAttributeLabel(label: string, languageCode: ProductLanguageCode) {
+  const key = normalizeAttributeTranslationKey(label);
+  return ATTRIBUTE_LABEL_TRANSLATIONS[key]?.[languageCode] ?? label;
+}
+
+function translateAttributeValue(value: string, languageCode: ProductLanguageCode, label?: string) {
+  const normalizedLabel = label ? normalizeAttributeTranslationKey(label) : "";
+  const normalizedValue = value.trim();
+
+  if (normalizedLabel === "size") {
+    return normalizeSizeDisplayValue(normalizedValue);
+  }
+
+  if (languageCode === "fr" && (normalizedLabel === "color" || normalizedLabel === "colour")) {
+    return FRENCH_ATTRIBUTE_VALUE_TRANSLATIONS[normalizeAttributeTranslationKey(normalizedValue)] ?? normalizedValue;
+  }
+
+  return normalizedValue;
+}
+
+function isColorAttributeLabel(label: string) {
+  const normalizedLabel = normalizeAttributeTranslationKey(label);
+  return normalizedLabel === "color" || normalizedLabel === "colour";
+}
+
+function getColorSwatchStyle(value: string) {
+  const key = normalizeAttributeTranslationKey(value);
+  return COLOR_SWATCH_STYLES[key] ?? null;
+}
+
 export function ProductDetailClient({ product, relatedProducts, initialIsFavorite }: ProductDetailClientProps) {
   const selectedCurrency = CURRENCY_CONFIG[(product.currencyCode as CurrencyCode)] ?? CURRENCY_CONFIG.USD;
   const freeShippingThresholdUsd = 20000 / CURRENCY_CONFIG.XOF.rateFromUsd;
@@ -217,13 +346,74 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   const [validationDialog, setValidationDialog] = useState<{ title: string; message: string } | null>(null);
   const [isCartAnimating, setIsCartAnimating] = useState(false);
   const [cartToastVisible, setCartToastVisible] = useState(false);
+  const [isOptionsPanelOpen, setIsOptionsPanelOpen] = useState(false);
   const [orderQuantity, setOrderQuantity] = useState(1);
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
   const [countdownNow, setCountdownNow] = useState(() => Date.now());
   const touchStartXRef = useRef<number | null>(null);
   const cartAnimationTimeoutRef = useRef<number | null>(null);
   const cartToastTimeoutRef = useRef<number | null>(null);
+  const desktopMediaRailRef = useRef<HTMLDivElement | null>(null);
   const descriptionParagraphs = buildDescriptionParagraphs(product.description, product.overview);
+  const languageCode = resolveProductLanguageCode(product.locale);
+  const isEnglish = languageCode === "en";
+  const uiText = isEnglish
+    ? {
+        seller: "Seller",
+        protection: "Protection",
+        protectionHint: "Payment, tracking, proof.",
+        options: "Options",
+        details: "Details",
+        choose: "Select",
+        quantity: "Qty",
+        minimum: "Min.",
+        minimumUnknown: "Min. on request",
+        stock: "Stock",
+        requiredOptions: "Required options",
+        chooseFirst: "Select:",
+        quantityLow: "Quantity too low",
+        minimumOrder: "Minimum order is",
+        buyNow: "Buy",
+        addToCart: "Cart",
+        optionsRequiredTitle: "Options required",
+        optionsEntry: "Options & attributes",
+        optionsHint: "Open the selector",
+        selected: "Selected",
+        notSelected: "Choose options",
+        subtotal: "Subtotal",
+        updateOptions: "Update options",
+        close: "Close",
+        selectionPanelTitle: "Select options and quantity",
+        minimumShort: "MOQ",
+      }
+    : {
+        seller: "Vendeur",
+        protection: "Protection",
+        protectionHint: "Paiement, suivi, preuve.",
+        options: "Options",
+        details: "Details",
+        choose: "A choisir",
+        quantity: "Qte",
+        minimum: "Min.",
+        minimumUnknown: "Min. a confirmer",
+        stock: "Stock",
+        requiredOptions: "Options requises",
+        chooseFirst: "Choisir :",
+        quantityLow: "Quantite insuffisante",
+        minimumOrder: "Le minimum est de",
+        buyNow: "Acheter",
+        addToCart: "Panier",
+        optionsRequiredTitle: "Options requises",
+        optionsEntry: "Options et attributs",
+        optionsHint: "Ouvrir le selecteur",
+        selected: "Choisi",
+        notSelected: "Choisir les options",
+        subtotal: "Sous-total",
+        updateOptions: "Modifier les options",
+        close: "Fermer",
+        selectionPanelTitle: "Selectionnez les options et la quantite",
+        minimumShort: "MOQ",
+      };
 
   useEffect(() => {
     router.prefetch("/cart");
@@ -390,6 +580,14 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
       .map((entry) => [entry.label.trim().toLowerCase(), entry]),
   ).values()].slice(0, 16);
   const visibleSidebarAttributes = explicitAttributes.slice(0, 6);
+  const formatAttributeLabel = (label: string) => translateAttributeLabel(label, languageCode);
+  const formatAttributeValue = (value: string, label?: string) => translateAttributeValue(value, languageCode, label);
+  const selectedOptionSummary = product.variantGroups
+    .map((group) => {
+      const value = resolveVariantGroupSelection(group);
+      return value ? `${formatAttributeLabel(group.label)}: ${formatAttributeValue(value, group.label)}` : null;
+    })
+    .filter((entry): entry is string => Boolean(entry));
   const paymentMethods = [
     {
       label: "PayPal",
@@ -530,9 +728,30 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
     { label: "Risque douane", value: "Évalué au panier selon le mode choisi" },
     { label: "Niveau de vérification", value: verificationLabel },
   ];
+  const hasScrollableMediaRail = product.gallery.length + (product.videoUrl ? 1 : 0) > 5;
+  const optionSummaryLabel = selectedOptionSummary.length > 0
+    ? selectedOptionSummary.join(" • ")
+    : missingVariantGroups.length > 0
+      ? `${uiText.chooseFirst} ${missingVariantGroups.map((group) => formatAttributeLabel(group.label)).join(", ")}`
+      : uiText.notSelected;
+  const selectedSkuPreviewImage = selectedVariantSku?.image
+    ? (selectedVariantSku.image.startsWith("//") ? `https:${selectedVariantSku.image}` : selectedVariantSku.image)
+    : product.gallery[activeImage] ?? product.gallery[0] ?? "";
 
   const updateOrderQuantity = (delta: number) => {
     setOrderQuantity((current) => Math.max(1, current + delta));
+  };
+  const openOptionsPanel = () => setIsOptionsPanelOpen(true);
+  const closeOptionsPanel = () => setIsOptionsPanelOpen(false);
+  const scrollDesktopMediaRail = (direction: "up" | "down") => {
+    if (!desktopMediaRailRef.current) {
+      return;
+    }
+
+    desktopMediaRailRef.current.scrollBy({
+      top: direction === "down" ? 220 : -220,
+      behavior: "smooth",
+    });
   };
   const handleVariantPreviewSelection = (group: DetailVariantGroup, value: string) => {
     setSelectedVariants((current) => ({ ...current, [group.label]: value }));
@@ -631,22 +850,52 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
   };
   const validateSelectionBeforeOrder = () => {
     if (missingVariantGroups.length > 0) {
-      openValidationDialog(
-        "Options requises",
-        `Choisissez d'abord : ${missingVariantGroups.map((group) => group.label).join(", ")}.`,
-      );
+      openOptionsPanel();
       return false;
     }
 
     if (orderQuantity < effectiveMoq) {
+      openOptionsPanel();
       openValidationDialog(
-        "Quantité insuffisante",
-        `Le minimum de commande pour cet article est ${effectiveMoq}. Veuillez augmenter la quantité.`,
+        uiText.quantityLow,
+        isEnglish
+          ? `Minimum order for this item is ${effectiveMoq}. Please increase the quantity.`
+          : `Le minimum de commande pour cet article est ${effectiveMoq}. Veuillez augmenter la quantite.`,
       );
       return false;
     }
 
     return true;
+
+  useEffect(() => {
+    if (!isOptionsPanelOpen) {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOptionsPanelOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOptionsPanelOpen]);
+
+  useEffect(() => {
+    if (!desktopMediaRailRef.current) {
+      return;
+    }
+
+    const activeThumb = desktopMediaRailRef.current.querySelector<HTMLButtonElement>('[data-active="true"]');
+    activeThumb?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [activeImage, activeMedia]);
   };
   const handlePrimaryBuyNow = () => {
     if (!validateSelectionBeforeOrder()) {
@@ -792,43 +1041,72 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
             <span className="max-w-[280px] truncate text-[#191919]">{product.shortTitle}</span>
           </div>
 
-          <div className="mt-0 grid gap-5 sm:mt-4 xl:grid-cols-[72px_minmax(0,500px)_minmax(0,1fr)_316px]">
-            <div className="order-2 hidden gap-2 overflow-x-auto pb-1 xl:order-1 xl:flex xl:flex-col xl:overflow-visible xl:pb-0">
-              {product.gallery.map((image, index) => {
-                const isActive = activeMedia === "photo" && activeImage === index;
-
-                return (
-                  <button
-                    key={`${image}-${index}`}
-                    type="button"
-                    onClick={() => {
-                      setActiveMedia("photo");
-                      setActiveImage(index);
-                    }}
-                    className={[
-                      "relative h-[62px] min-w-[62px] overflow-hidden rounded-[8px] border bg-white transition xl:h-[62px] xl:min-w-[62px]",
-                      isActive ? "border-[#ff6a00] shadow-[0_10px_24px_rgba(255,106,0,0.18)]" : "border-[#e5e5e5] hover:border-[#999]",
-                    ].join(" ")}
-                  >
-                    <Image src={image} alt={`${product.shortTitle} aperçu ${index + 1}`} fill sizes="64px" className="object-cover" />
-                  </button>
-                );
-              })}
-              {product.videoUrl ? (
+          <div className="mt-0 grid gap-5 sm:mt-4 xl:grid-cols-[84px_minmax(0,500px)_minmax(0,1fr)_316px]">
+            <div className="order-2 hidden xl:order-1 xl:flex xl:flex-col xl:items-center xl:gap-3">
+              {hasScrollableMediaRail ? (
                 <button
                   type="button"
-                  onClick={() => setActiveMedia("video")}
-                  className={[
-                    "relative h-[62px] min-w-[62px] overflow-hidden rounded-[8px] border bg-[#161820] transition xl:h-[62px] xl:min-w-[62px]",
-                    activeMedia === "video" ? "border-[#ff6a00] shadow-[0_10px_24px_rgba(255,106,0,0.18)]" : "border-[#e5e5e5] hover:border-[#999]",
-                  ].join(" ")}
+                  onClick={() => scrollDesktopMediaRail("up")}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#e6e9ef] bg-white text-[#1f2937] shadow-[0_12px_28px_rgba(15,23,42,0.08)] transition hover:-translate-y-0.5 hover:border-[#ff8a3d]"
+                  aria-label={isEnglish ? "Scroll thumbnails up" : "Defiler les miniatures vers le haut"}
                 >
-                  {product.videoPoster ? <Image src={product.videoPoster} alt={`${product.shortTitle} vidéo`} fill sizes="96px" className="object-cover opacity-70" /> : null}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-white text-[#151515]">
-                      <Play className="ml-0.5 h-4.5 w-4.5 fill-current" />
+                  <ChevronUp className="h-4.5 w-4.5" />
+                </button>
+              ) : null}
+
+              <div
+                ref={desktopMediaRailRef}
+                className="flex max-h-[560px] w-full flex-col items-center gap-2 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                {product.gallery.map((image, index) => {
+                  const isActive = activeMedia === "photo" && activeImage === index;
+
+                  return (
+                    <button
+                      key={`${image}-${index}`}
+                      type="button"
+                      data-active={isActive ? "true" : "false"}
+                      onClick={() => {
+                        setActiveMedia("photo");
+                        setActiveImage(index);
+                      }}
+                      className={[
+                        "relative h-[76px] w-[76px] overflow-hidden rounded-[18px] border bg-white transition",
+                        isActive ? "border-[#101828] shadow-[0_16px_32px_rgba(15,23,42,0.14)]" : "border-[#e5e7eb] hover:border-[#ff8a3d] hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)]",
+                      ].join(" ")}
+                    >
+                      <Image src={image} alt={`${product.shortTitle} aperçu ${index + 1}`} fill sizes="76px" className="object-cover" />
+                    </button>
+                  );
+                })}
+                {product.videoUrl ? (
+                  <button
+                    type="button"
+                    data-active={activeMedia === "video" ? "true" : "false"}
+                    onClick={() => setActiveMedia("video")}
+                    className={[
+                      "relative h-[76px] w-[76px] overflow-hidden rounded-[18px] border bg-[#161820] transition",
+                      activeMedia === "video" ? "border-[#101828] shadow-[0_16px_32px_rgba(15,23,42,0.14)]" : "border-[#e5e7eb] hover:border-[#ff8a3d] hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)]",
+                    ].join(" ")}
+                  >
+                    {product.videoPoster ? <Image src={product.videoPoster} alt={`${product.shortTitle} vidéo`} fill sizes="76px" className="object-cover opacity-70" /> : null}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#151515] shadow-[0_10px_20px_rgba(0,0,0,0.15)]">
+                        <Play className="ml-0.5 h-4.5 w-4.5 fill-current" />
+                      </div>
                     </div>
-                  </div>
+                  </button>
+                ) : null}
+              </div>
+
+              {hasScrollableMediaRail ? (
+                <button
+                  type="button"
+                  onClick={() => scrollDesktopMediaRail("down")}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#e6e9ef] bg-white text-[#1f2937] shadow-[0_12px_28px_rgba(15,23,42,0.08)] transition hover:translate-y-0.5 hover:border-[#ff8a3d]"
+                  aria-label={isEnglish ? "Scroll thumbnails down" : "Defiler les miniatures vers le bas"}
+                >
+                  <ChevronDown className="h-4.5 w-4.5" />
                 </button>
               ) : null}
             </div>
@@ -925,6 +1203,50 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
                   </div>
                 ) : null}
 
+                <div className="absolute inset-x-0 bottom-0 z-20 sm:hidden">
+                  <div className="mx-3 mb-3 overflow-hidden rounded-[24px] border border-white/70 bg-white/82 p-2 shadow-[0_18px_40px_rgba(15,23,42,0.16)] backdrop-blur-md">
+                    <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      {product.gallery.map((image, index) => {
+                        const isActive = activeMedia === "photo" && activeImage === index;
+
+                        return (
+                          <button
+                            key={`${image}-mobile-${index}`}
+                            type="button"
+                            onClick={() => {
+                              setActiveMedia("photo");
+                              setActiveImage(index);
+                            }}
+                            className={[
+                              "relative h-[66px] min-w-[66px] overflow-hidden rounded-[18px] border bg-white transition",
+                              isActive ? "border-[#101828] shadow-[0_12px_24px_rgba(15,23,42,0.18)]" : "border-transparent opacity-80",
+                            ].join(" ")}
+                          >
+                            <Image src={image} alt={`${product.shortTitle} aperçu mobile ${index + 1}`} fill sizes="66px" className="object-cover" />
+                          </button>
+                        );
+                      })}
+                      {product.videoUrl ? (
+                        <button
+                          type="button"
+                          onClick={() => setActiveMedia("video")}
+                          className={[
+                            "relative h-[66px] min-w-[66px] overflow-hidden rounded-[18px] border bg-[#161820] transition",
+                            activeMedia === "video" ? "border-[#101828] shadow-[0_12px_24px_rgba(15,23,42,0.18)]" : "border-transparent opacity-85",
+                          ].join(" ")}
+                        >
+                          {product.videoPoster ? <Image src={product.videoPoster} alt={`${product.shortTitle} vidéo mobile`} fill sizes="66px" className="object-cover opacity-70" /> : null}
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#151515] shadow-[0_8px_20px_rgba(0,0,0,0.15)]">
+                              <Play className="ml-0.5 h-4 w-4 fill-current" />
+                            </div>
+                          </div>
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
                 {activeMedia === "photo" && product.gallery.length > 1 ? (
                   <>
                     <button type="button" onClick={goToPreviousImage} className="absolute left-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-[8px] border border-[#d9d9d9] bg-white text-[#1b1b1b] transition hover:border-[#191919] sm:inline-flex" aria-label="Image précédente">
@@ -999,121 +1321,67 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
 
             <aside className="order-4 xl:sticky xl:top-4 xl:self-start">
               <div className="overflow-hidden rounded-[8px] border border-[#eceff3] bg-white shadow-[0_16px_44px_rgba(17,24,39,0.08)]">
-                <div className="border-b border-[#ececec] px-5 py-5">
+                <div className="border-b border-[#ececec] px-4 py-3.5">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-[14px] text-[#191919]">
-                      <span className="font-semibold">Vendu par</span>{" "}
+                    <div className="text-[12px] text-[#191919] sm:text-[13px]">
+                      <span className="font-semibold">{uiText.seller}</span>{" "}
                       <span className="truncate text-[#444]">{storefrontSellerName}</span>
                     </div>
                     <ChevronRight className="h-4 w-4 text-[#666]" />
                   </div>
                 </div>
 
-                <div className="space-y-4 px-5 py-4">
-                  <div className="space-y-3 border-b border-[#efefef] pb-4">
+                <div className="space-y-3 px-4 py-3.5">
+                  <div className="space-y-2 border-b border-[#efefef] pb-3">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-[#4caf50]">✓</div>
                       <div>
-                        <div className="text-[14px] font-semibold text-[#191919]">Retour et securite</div>
-                        <div className="mt-1 text-[13px] text-[#666]">Paiement traçable, suivi client et preuve logistique regroupés.</div>
+                        <div className="text-[13px] font-semibold text-[#191919]">{uiText.protection}</div>
+                        <div className="mt-0.5 text-[11px] text-[#666] sm:text-[12px]">{uiText.protectionHint}</div>
                       </div>
                       <ChevronRight className="ml-auto mt-0.5 h-4 w-4 text-[#888]" />
                     </div>
                   </div>
 
-                  {product.variantGroups.length > 0 ? (
-                    <div className="border-b border-[#efefef] pb-4">
-                      <div className="text-[14px] font-semibold text-[#191919]">Attributs de vente</div>
-                      <div className="mt-3 space-y-4">
-                        {product.variantGroups.map((group) => (
-                          <div key={group.label}>
-                            <div className="text-[14px] font-semibold text-[#221813]">
-                              {group.label}: <span className="uppercase">{resolveVariantGroupSelection(group, true) || "A choisir"}</span>
-                            </div>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {group.values.map((value) => {
-                                const isSelected = selectedVariants[group.label] === value;
-
-                                return (
-                                  <button
-                                    key={`${group.label}-${value}`}
-                                    type="button"
-                                    onClick={() => handleVariantPreviewSelection(group, value)}
-                                    className={[
-                                      "min-w-[76px] rounded-[8px] border bg-white px-3 py-2 text-[13px] font-medium transition",
-                                      isSelected ? "border-[#ff6a00] bg-[#fff7ef] text-[#191919]" : "border-[#dcdcdc] text-[#241b15] hover:border-[#999]",
-                                    ].join(" ")}
-                                  >
-                                    {value}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
+                  <button
+                    type="button"
+                    onClick={openOptionsPanel}
+                    className="group flex w-full items-start justify-between rounded-[20px] border border-[#e6eaf0] bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-4 text-left shadow-[0_16px_32px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:border-[#ff8a3d] hover:shadow-[0_22px_40px_rgba(15,23,42,0.10)]"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#8a6f5a]">{uiText.optionsEntry}</div>
+                      <div className="mt-2 line-clamp-2 text-[14px] font-semibold text-[#221813]">{optionSummaryLabel}</div>
+                      <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[#6b7280]">
+                        <span className="rounded-full bg-white px-2.5 py-1 ring-1 ring-[#e5e7eb]">{uiText.minimumShort} {effectiveMoq}</span>
+                        <span className="rounded-full bg-white px-2.5 py-1 ring-1 ring-[#e5e7eb]">{uiText.quantity} {orderQuantity}</span>
+                        {typeof selectedVariantSku?.inventory === "number" ? <span className="rounded-full bg-white px-2.5 py-1 ring-1 ring-[#e5e7eb]">{uiText.stock} {selectedVariantSku.inventory}</span> : null}
                       </div>
                     </div>
-                  ) : null}
-
-                  {product.variantGroups.length === 0 && visibleSidebarAttributes.length > 0 ? (
-                    <div className="border-b border-[#efefef] pb-4">
-                      <div className="text-[14px] font-semibold text-[#191919]">Attributs produit</div>
-                      <div className="mt-3 grid gap-2">
-                        {visibleSidebarAttributes.map((attribute) => (
-                          <div key={`${attribute.label}-${attribute.value}`} className="rounded-[8px] border border-[#ececec] bg-[#fafafa] px-3 py-2.5">
-                            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8b7a6d]">{attribute.label}</div>
-                            <div className="mt-1 text-[13px] font-medium leading-5 text-[#241b15]">{attribute.value}</div>
-                          </div>
-                        ))}
-                      </div>
+                    <div className="ml-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#111827] ring-1 ring-[#e5e7eb] transition group-hover:bg-[#111827] group-hover:text-white">
+                      <ChevronRight className="h-4.5 w-4.5" />
                     </div>
-                  ) : null}
+                  </button>
 
-                  <div className="border-t border-[#efefef] pt-4">
-                    <div className="text-[14px] font-semibold text-[#191919]">Quantité</div>
-                    <div className="mt-3 flex items-center gap-3">
-                      <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= 1} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] bg-[#f5f5f5] text-[#55473b] transition hover:bg-[#ebebeb] disabled:cursor-not-allowed disabled:opacity-40">
-                        <Minus className="h-4 w-4" />
-                      </button>
-                      <div className="min-w-[24px] text-center text-[20px] font-semibold tracking-[-0.04em] text-[#1e1712]">{orderQuantity}</div>
-                      <button type="button" onClick={() => updateOrderQuantity(1)} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] bg-[#f5f5f5] text-[#55473b] transition hover:bg-[#ebebeb]">
-                        <Plus className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <div className="mt-2 text-[12px] text-[#6c5c50]">{product.moqVerified ? `Minimum ${effectiveMoq} pièce${effectiveMoq > 1 ? "s" : ""}` : "Minimum à confirmer"}</div>
-                    {selectedVariantSku?.skuCode || typeof selectedVariantSku?.inventory === "number" ? (
-                      <div className="mt-3 rounded-[12px] border border-[#ececec] bg-[#fafafa] px-3 py-3 text-[12px] text-[#5f5145]">
-                        {selectedVariantSku?.skuCode ? <div>SKU: <span className="font-semibold text-[#221813]">{selectedVariantSku.skuCode}</span></div> : null}
-                        {typeof selectedVariantSku?.inventory === "number" ? <div>Stock attribut: <span className="font-semibold text-[#221813]">{selectedVariantSku.inventory}</span></div> : null}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  {missingVariantGroups.length > 0 ? (
-                    <div className="rounded-[12px] border border-[#f2d0b1] bg-[#fff5ea] px-4 py-3 text-[13px] font-medium text-[#d15f12]">
-                      Attributs à choisir : {missingVariantGroups.map((group) => group.label).join(", ")}
-                    </div>
-                  ) : null}
                   <div className="grid gap-3">
                     <button
                       type="button"
                       onClick={handlePrimaryBuyNow}
                       disabled={totalSelectedQuantity <= 0}
-                        className="inline-flex h-14 items-center justify-center gap-3 rounded-[8px] bg-[#f05a00] px-6 text-[17px] font-bold text-white transition hover:bg-[#d94f00] disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#f05a00] px-5 text-[15px] font-bold text-white transition hover:bg-[#d94f00] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <ShoppingCart className="h-4.5 w-4.5" />
-                      Acheter maintenant
+                      {uiText.buyNow}
                     </button>
                     <button
                       type="button"
                       onClick={handlePrimaryAddToCart}
                       disabled={totalSelectedQuantity <= 0}
                       className={[
-                        "inline-flex h-14 items-center justify-center rounded-[8px] border border-[#1f1f1f] bg-white px-6 text-[17px] font-semibold text-[#221813] transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:border-[#d9d0c8] disabled:text-[#aaa29a]",
+                        "inline-flex h-11 items-center justify-center rounded-[8px] border border-[#1f1f1f] bg-white px-5 text-[15px] font-semibold text-[#221813] transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:border-[#d9d0c8] disabled:text-[#aaa29a]",
                         isCartAnimating ? "animate-[cartButtonPulse_680ms_ease-out]" : "",
                       ].join(" ")}
                     >
-                      Ajouter au panier
+                      {uiText.addToCart}
                     </button>
                   </div>
 
@@ -1284,6 +1552,183 @@ export function ProductDetailClient({ product, relatedProducts, initialIsFavorit
             >
               Compris
             </button>
+          </div>
+        </div>
+      ) : null}
+
+      {isOptionsPanelOpen ? (
+        <div className="fixed inset-0 z-[185] bg-[#0f172a]/46 backdrop-blur-[2px]" onClick={closeOptionsPanel}>
+          <div
+            className="absolute bottom-0 right-0 top-auto flex h-[88vh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_32px_80px_rgba(15,23,42,0.28)] sm:max-w-[520px] sm:rounded-none sm:rounded-l-[32px] sm:top-0 sm:h-full"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="border-b border-[#edf1f5] px-5 py-5 sm:px-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-[26px] font-black tracking-[-0.05em] text-[#101828]">{uiText.selectionPanelTitle}</div>
+                  <div className="mt-2 text-[13px] text-[#667085]">{product.shortTitle}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeOptionsPanel}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#e6e9ef] bg-white text-[#344054] transition hover:border-[#ff8a3d] hover:text-[#ff6a00]"
+                  aria-label={uiText.close}
+                >
+                  <X className="h-4.5 w-4.5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
+              {selectedSkuPreviewImage ? (
+                <section className="overflow-hidden rounded-[28px] border border-[#e6eaf0] bg-[linear-gradient(180deg,#f8fafc_0%,#ffffff_100%)] shadow-[0_18px_36px_rgba(15,23,42,0.08)]">
+                  <div className="relative aspect-[1.05/1] bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f6_52%,#e5ebf3_100%)]">
+                    <Image
+                      src={selectedSkuPreviewImage}
+                      alt={selectedVariantSku?.skuCode ? `SKU ${selectedVariantSku.skuCode}` : product.shortTitle}
+                      fill
+                      sizes="(max-width: 640px) 100vw, 420px"
+                      className="object-contain p-6"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-3 border-t border-[#edf1f5] px-4 py-3">
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8b7a6d]">{uiText.selected}</div>
+                      <div className="mt-1 text-[14px] font-semibold text-[#101828] line-clamp-2">{optionSummaryLabel}</div>
+                    </div>
+                    {selectedVariantSku?.skuCode ? <div className="rounded-full bg-white px-3 py-1.5 text-[12px] font-semibold text-[#344054] ring-1 ring-[#eaecf0]">SKU {selectedVariantSku.skuCode}</div> : null}
+                  </div>
+                </section>
+              ) : null}
+
+              {product.variantGroups.length > 0 ? (
+                <div className="space-y-5">
+                  {product.variantGroups.map((group) => (
+                    <section key={group.label} className="space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-[15px] font-bold text-[#101828]">{formatAttributeLabel(group.label)}</div>
+                        <div className="text-[13px] font-semibold text-[#475467]">{formatAttributeValue(resolveVariantGroupSelection(group, true) || uiText.choose, group.label)}</div>
+                      </div>
+                      <div className="flex flex-wrap gap-2.5">
+                        {group.values.map((value) => {
+                          const isSelected = selectedVariants[group.label] === value;
+                          const swatchStyle = isColorAttributeLabel(group.label) ? getColorSwatchStyle(value) : null;
+
+                          return (
+                            <button
+                              key={`${group.label}-panel-${value}`}
+                              type="button"
+                              onClick={() => handleVariantPreviewSelection(group, value)}
+                              className={[
+                                "min-w-[68px] rounded-[18px] border px-3.5 py-2.5 text-[13px] font-semibold transition",
+                                isSelected
+                                  ? "border-[#111827] bg-[#111827] text-white shadow-[0_12px_22px_rgba(17,24,39,0.18)]"
+                                  : "border-[#e5e7eb] bg-[#f8fafc] text-[#111827] hover:border-[#ff8a3d] hover:bg-white",
+                              ].join(" ")}
+                            >
+                              <span className="flex items-center gap-2">
+                                {swatchStyle ? (
+                                  <span
+                                    className="inline-flex h-5 w-5 shrink-0 rounded-full ring-1"
+                                    style={{
+                                      background: swatchStyle.background,
+                                      boxShadow: `inset 0 0 0 1px ${swatchStyle.borderColor ?? "rgba(255,255,255,0.16)"}`,
+                                      borderColor: swatchStyle.borderColor ?? "transparent",
+                                    }}
+                                  />
+                                ) : null}
+                                <span>{formatAttributeValue(value, group.label)}</span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              ) : visibleSidebarAttributes.length > 0 ? (
+                <section className="space-y-3">
+                  <div className="text-[15px] font-bold text-[#101828]">{uiText.optionsEntry}</div>
+                  <div className="grid gap-2">
+                    {visibleSidebarAttributes.map((attribute) => (
+                      <div key={`${attribute.label}-${attribute.value}-panel`} className="rounded-[18px] border border-[#eaecf0] bg-[#f8fafc] px-4 py-3">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8b7a6d]">{formatAttributeLabel(attribute.label)}</div>
+                        <div className="mt-1.5 text-[14px] font-semibold text-[#101828]">{formatAttributeValue(attribute.value, attribute.label)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
+              <section className="rounded-[22px] border border-[#eaecf0] bg-[#fcfcfd] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[15px] font-bold text-[#101828]">{uiText.quantity}</div>
+                    <div className="mt-1 text-[12px] text-[#667085]">{product.moqVerified ? `${uiText.minimumShort} ${effectiveMoq}` : uiText.minimumUnknown}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => updateOrderQuantity(-1)} disabled={orderQuantity <= 1} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d0d5dd] bg-white text-[#475467] transition hover:border-[#ff8a3d] hover:text-[#ff6a00] disabled:opacity-40">
+                      <Minus className="h-4 w-4" />
+                    </button>
+                    <div className="min-w-[28px] text-center text-[20px] font-black tracking-[-0.04em] text-[#101828]">{orderQuantity}</div>
+                    <button type="button" onClick={() => updateOrderQuantity(1)} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d0d5dd] bg-white text-[#475467] transition hover:border-[#ff8a3d] hover:text-[#ff6a00]">
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+                {selectedVariantSku?.skuCode || typeof selectedVariantSku?.inventory === "number" ? (
+                  <div className="mt-4 flex flex-wrap gap-2 text-[12px] text-[#475467]">
+                    {selectedVariantSku?.skuCode ? <span className="rounded-full bg-white px-3 py-1.5 ring-1 ring-[#eaecf0]">SKU {selectedVariantSku.skuCode}</span> : null}
+                    {typeof selectedVariantSku?.inventory === "number" ? <span className="rounded-full bg-white px-3 py-1.5 ring-1 ring-[#eaecf0]">{uiText.stock} {selectedVariantSku.inventory}</span> : null}
+                  </div>
+                ) : null}
+              </section>
+            </div>
+
+            <div className="border-t border-[#edf1f5] bg-white px-5 py-4 shadow-[0_-14px_32px_rgba(15,23,42,0.06)] sm:px-6">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#8b7a6d]">{uiText.subtotal}</div>
+                  <div className="mt-1 text-[28px] font-black tracking-[-0.05em] text-[#101828]">{hasSubtotalRange ? `${formatMoney(subtotalRange.minUsd)} - ${formatMoney(subtotalRange.maxUsd)}` : formatMoney(subtotal)}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeOptionsPanel}
+                  className="hidden h-11 items-center justify-center rounded-full border border-[#d0d5dd] px-5 text-[13px] font-semibold text-[#344054] transition hover:border-[#ff8a3d] hover:text-[#ff6a00] sm:inline-flex"
+                >
+                  {uiText.close}
+                </button>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!validateSelectionBeforeOrder()) {
+                      return;
+                    }
+                    closeOptionsPanel();
+                    addSelectionToCart();
+                  }}
+                  className="inline-flex h-12 items-center justify-center rounded-full border border-[#111827] bg-white px-5 text-[14px] font-semibold text-[#111827] transition hover:bg-[#f8fafc]"
+                >
+                  {uiText.addToCart}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!validateSelectionBeforeOrder()) {
+                      return;
+                    }
+                    closeOptionsPanel();
+                    proceedToCheckout();
+                  }}
+                  className="inline-flex h-12 items-center justify-center rounded-full bg-[#ea580c] px-5 text-[14px] font-bold text-white transition hover:bg-[#d74f00]"
+                >
+                  {uiText.buyNow}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
