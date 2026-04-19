@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { LoaderCircle, Save, Search, Trash2, WandSparkles } from "lucide-react";
+import { LoaderCircle, Save, Trash2, WandSparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -47,15 +47,6 @@ type FreeDealAdminConfig = {
   createdAt: string;
 };
 
-type FreeDealImportResponse = {
-  config?: FreeDealAdminConfig;
-  message?: string;
-  warningMessage?: string;
-  purgedCount?: number;
-  importedCount?: number;
-  targetImportCount?: number;
-};
-
 function formatSlugList(value: string[]) {
   return value.join(", ");
 }
@@ -94,9 +85,8 @@ export function AdminFreeDealsClient({
   const router = useRouter();
   const [config, setConfig] = useState(initialConfig);
   const [productSlugsText, setProductSlugsText] = useState(formatSlugList(initialConfig.productSlugs));
-  const [importForm, setImportForm] = useState({ query: "", limit: 18, maxUsd: 5, resetImportedProducts: false, provider: "alibaba" });
+  const [autoCheapForm, setAutoCheapForm] = useState({ limit: 100, maxUsd: 5 });
   const [isSaving, setIsSaving] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
   const selectedSlugs = useMemo(() => parseSlugList(productSlugsText), [productSlugsText]);
@@ -143,67 +133,13 @@ export function AdminFreeDealsClient({
 
   const fillWithCheapProducts = () => {
     const slugs = [...productOptions]
+      .filter((product) => product.minUsd <= autoCheapForm.maxUsd)
       .sort((left, right) => left.minUsd - right.minUsd)
-      .slice(0, Math.max(config.itemLimit * 3, config.itemLimit))
+      .slice(0, Math.max(1, Math.min(100, autoCheapForm.limit)))
       .map((product) => product.slug);
 
     syncSelectedSlugs(slugs);
-    setFeedback("Selection remplie avec les produits publies les moins chers.");
-  };
-
-  const importFreeDealProducts = async () => {
-    if (!importForm.query.trim()) {
-      setFeedback("Saisis une recherche fournisseur pour importer des produits gratuits.");
-      return;
-    }
-
-    setIsImporting(true);
-    setFeedback(null);
-
-    try {
-      const response = await fetch("/api/admin/free-deals", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(importForm),
-      });
-      let payload: FreeDealImportResponse | null = null;
-      const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-
-      if (contentType.includes("application/json")) {
-        payload = await response.json().catch(() => null) as FreeDealImportResponse | null;
-      } else {
-        const rawPayload = await response.text().catch(() => "");
-        if (rawPayload.trim()) {
-          payload = { message: rawPayload.slice(0, 240) };
-        }
-      }
-
-      if (!response.ok || !payload?.config) {
-        const message = typeof payload?.message === "string" && payload.message.trim().length > 0
-          ? payload.message
-          : `Import fournisseur impossible pour l'offre gratuite (HTTP ${response.status}).`;
-        setFeedback(message);
-        return;
-      }
-
-      const nextConfig = payload.config;
-      setConfig(nextConfig);
-      setProductSlugsText(formatSlugList(nextConfig.productSlugs));
-      setFeedback(
-        payload?.warningMessage
-          || (typeof payload?.purgedCount === "number" && payload.purgedCount > 0
-            ? `Catalogue purge puis import termine: ${payload.purgedCount} ancien(s) article(s) supprime(s), ${payload?.importedCount ?? 0}/${payload?.targetImportCount ?? importForm.limit} produits republies.`
-            : undefined)
-          || `Import terminé: ${payload?.importedCount ?? 0}/${payload?.targetImportCount ?? importForm.limit} produits publiés et rattachés à la page gratuite.`,
-      );
-      router.refresh();
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : "Import fournisseur impossible pour l'offre gratuite.");
-    } finally {
-      setIsImporting(false);
-    }
+    setFeedback(`Selection automatique terminee: ${slugs.length} article(s) les moins chers retenus, limitee a ${Math.max(1, Math.min(100, autoCheapForm.limit))}.`);
   };
 
   const saveConfig = async () => {
@@ -274,10 +210,10 @@ export function AdminFreeDealsClient({
         <article className="rounded-[22px] border border-[#e7ebf1] bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Import dédié</div>
-              <h2 className="mt-2 text-[24px] font-black tracking-[-0.05em] text-[#101828]">Importer directement pour l’offre gratuite</h2>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a00]">Selection automatique</div>
+              <h2 className="mt-2 text-[24px] font-black tracking-[-0.05em] text-[#101828]">Remplir la campagne avec Auto cheap</h2>
               <p className="mt-2 text-[14px] leading-7 text-[#667085]">
-                Cette recherche publie automatiquement les produits sur le site et ne rattache a la campagne que les articles les moins chers, cibles sous 5 USD.
+                L'offre Articles gratuits ne passe plus par l'import manuel ici. Auto cheap prend les articles deja publies les moins chers et remplit la campagne avec un maximum de 100 produits distincts.
               </p>
             </div>
             <button type="button" onClick={fillWithCheapProducts} className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] border border-[#d0d5dd] px-4 text-[14px] font-semibold text-[#101828] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
@@ -286,24 +222,15 @@ export function AdminFreeDealsClient({
             </button>
           </div>
 
-          <div className="mt-5 grid gap-4 md:grid-cols-[1fr_120px_140px_auto]">
+          <div className="mt-5 grid gap-4 md:grid-cols-[160px_160px_auto]">
             <label className="space-y-2 text-[13px] font-semibold text-[#344054]">
-              <span>Recherche fournisseur</span>
-              <input
-                value={importForm.query}
-                onChange={(event) => setImportForm((current) => ({ ...current, query: event.target.value }))}
-                placeholder="Lien Alibaba ou product_id"
-                className="h-12 w-full rounded-[14px] border border-[#dfe3ea] px-4 text-[14px] outline-none focus:border-[#ff6a00]"
-              />
-            </label>
-            <label className="space-y-2 text-[13px] font-semibold text-[#344054]">
-              <span>Nombre</span>
+              <span>Nombre max</span>
               <input
                 type="number"
                 min={1}
-                max={60}
-                value={importForm.limit}
-                onChange={(event) => setImportForm((current) => ({ ...current, limit: Number(event.target.value) || 12 }))}
+                max={100}
+                value={autoCheapForm.limit}
+                onChange={(event) => setAutoCheapForm((current) => ({ ...current, limit: Math.max(1, Math.min(100, Number(event.target.value) || 100)) }))}
                 className="h-12 w-full rounded-[14px] border border-[#dfe3ea] px-4 text-[14px] outline-none focus:border-[#ff6a00]"
               />
             </label>
@@ -313,32 +240,15 @@ export function AdminFreeDealsClient({
                 type="number"
                 min={0.2}
                 step={0.1}
-                value={importForm.maxUsd}
-                onChange={(event) => setImportForm((current) => ({ ...current, maxUsd: Number(event.target.value) || 5 }))}
+                value={autoCheapForm.maxUsd}
+                onChange={(event) => setAutoCheapForm((current) => ({ ...current, maxUsd: Number(event.target.value) || 5 }))}
                 className="h-12 w-full rounded-[14px] border border-[#dfe3ea] px-4 text-[14px] outline-none focus:border-[#ff6a00]"
               />
             </label>
-            <div className="flex items-end">
-              <button
-                type="button"
-                onClick={importFreeDealProducts}
-                disabled={isImporting}
-                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {isImporting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                {isImporting ? "Import..." : "Importer"}
-              </button>
+            <div className="flex items-end text-[13px] text-[#667085]">
+              La selection automatique choisit les produits deja publies les moins chers et s'arrete a 100 maximum.
             </div>
           </div>
-          <label className="mt-4 inline-flex items-center gap-3 text-[13px] font-semibold text-[#344054]">
-            <input
-              checked={importForm.resetImportedProducts}
-              onChange={(event) => setImportForm((current) => ({ ...current, resetImportedProducts: event.target.checked }))}
-              type="checkbox"
-              className="h-4 w-4 rounded border-[#dfe3ea] text-[#ff6a00]"
-            />
-            Vider les anciens imports avant de recharger l&apos;offre gratuite
-          </label>
 
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             {[
@@ -445,7 +355,7 @@ export function AdminFreeDealsClient({
         <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {importCandidates.map((product) => {
             const isSelected = selectedSlugSet.has(product.slug);
-            const isCheapEnough = product.minUsd <= importForm.maxUsd;
+            const isCheapEnough = product.minUsd <= autoCheapForm.maxUsd;
 
             return (
               <article key={product.id} className="overflow-hidden rounded-[22px] border border-[#eef2f6] bg-white shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
