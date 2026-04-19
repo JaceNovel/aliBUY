@@ -86,7 +86,7 @@ class FreeDealController extends Controller
             $message = trim($exception->getMessage());
             $normalizedMessage = strtolower($message);
             if (str_contains($normalizedMessage, 'api path') || str_contains($normalizedMessage, 'specified api path')) {
-                $message = "Recherche Alibaba par mot-cle indisponible: le compte Open Platform refuse le chemin API de recherche. Colle plutot un lien produit Alibaba ou son product_id dans le champ de recherche, puis relance l'import.";
+                $message = "Import Articles gratuits impossible avec une recherche par mot-cle: ce compte Open Platform n'autorise pas l'API de recherche Alibaba. Colle directement un lien produit Alibaba ou un product_id exact dans le champ, puis relance l'import.";
             }
 
             return response()->json([
