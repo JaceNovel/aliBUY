@@ -8,7 +8,9 @@ import type {
   PartnerWithdrawalsResponse,
 } from "@/types/partner-dashboard";
 
-export const API_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "").trim().replace(/\/$/, "");
+const DEFAULT_API_URL = "https://api.afripay.space";
+
+export const API_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? DEFAULT_API_URL).trim().replace(/\/$/, "");
 
 function inferServerFallbackApiUrl() {
   const normalizedSiteUrl = SITE_URL.replace(/\/$/, "");
