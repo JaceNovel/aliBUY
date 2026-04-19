@@ -94,7 +94,7 @@ export function AdminFreeDealsClient({
   const router = useRouter();
   const [config, setConfig] = useState(initialConfig);
   const [productSlugsText, setProductSlugsText] = useState(formatSlugList(initialConfig.productSlugs));
-  const [importForm, setImportForm] = useState({ query: "", limit: 18, maxUsd: 5, resetImportedProducts: false });
+  const [importForm, setImportForm] = useState({ query: "", limit: 18, maxUsd: 5, resetImportedProducts: false, provider: "alibaba" });
   const [isSaving, setIsSaving] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);

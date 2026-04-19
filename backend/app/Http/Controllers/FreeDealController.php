@@ -77,6 +77,7 @@ class FreeDealController extends Controller
         try {
             $import = $this->alibabaAdmin->import([
                 ...$payload,
+                'provider' => 'alibaba',
                 'autoPublish' => true,
                 'campaignMode' => 'free-deal',
                 'limit' => max(1, (int) ($payload['limit'] ?? 18)),
