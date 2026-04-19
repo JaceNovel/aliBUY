@@ -41,10 +41,6 @@ export function SharedCartClaimClient({
 
     replaceItems(cartItems);
     setSharedCartContext(sharedContext);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("afripay_cart_v1", JSON.stringify(cartItems));
-      window.localStorage.setItem("afripay_cart_shared_v1", JSON.stringify(sharedContext));
-    }
 
     redirectTimerRef.current = window.setTimeout(() => {
       router.replace("/cart");

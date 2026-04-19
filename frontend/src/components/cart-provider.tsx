@@ -96,13 +96,34 @@ function mergeCartItems(items: CartStateItem[]) {
   return [...merged.values()].filter((item) => item.slug && item.quantity > 0);
 }
 
+function getFallbackCartStorageKeys(storageKey: string) {
+  return [
+    buildScopedStorageKey(CART_STORAGE_KEY, "guest"),
+    CART_STORAGE_KEY,
+  ].filter((key) => key !== storageKey);
+}
+
+function getFallbackSharedCartStorageKeys(storageKey: string) {
+  return [
+    buildScopedStorageKey(SHARED_CART_STORAGE_KEY, "guest"),
+    SHARED_CART_STORAGE_KEY,
+  ].filter((key) => key !== storageKey);
+}
+
 function readBestCartItemsFromStorage(storageKey: string) {
   const scopedItems = readCartItemsFromStorage(storageKey);
-  const legacyItems = storageKey === CART_STORAGE_KEY ? [] : readCartItemsFromStorage(CART_STORAGE_KEY);
-  const guestStorageKey = buildScopedStorageKey(CART_STORAGE_KEY, "guest");
-  const guestItems = storageKey === guestStorageKey ? [] : readCartItemsFromStorage(guestStorageKey);
+  if (scopedItems.length > 0) {
+    return mergeCartItems(scopedItems);
+  }
 
-  return mergeCartItems([...scopedItems, ...legacyItems, ...guestItems]);
+  for (const fallbackKey of getFallbackCartStorageKeys(storageKey)) {
+    const fallbackItems = readCartItemsFromStorage(fallbackKey);
+    if (fallbackItems.length > 0) {
+      return mergeCartItems(fallbackItems);
+    }
+  }
+
+  return [];
 }
 
 function readSharedCartContextFromStorage(storageKey: string): SharedCartImportContext | null {
@@ -120,9 +141,19 @@ function readSharedCartContextFromStorage(storageKey: string): SharedCartImportC
 }
 
 function readBestSharedCartContextFromStorage(storageKey: string) {
-  return readSharedCartContextFromStorage(storageKey)
-    ?? (storageKey === SHARED_CART_STORAGE_KEY ? null : readSharedCartContextFromStorage(SHARED_CART_STORAGE_KEY))
-    ?? (storageKey === buildScopedStorageKey(SHARED_CART_STORAGE_KEY, "guest") ? null : readSharedCartContextFromStorage(buildScopedStorageKey(SHARED_CART_STORAGE_KEY, "guest")));
+  const scopedContext = readSharedCartContextFromStorage(storageKey);
+  if (scopedContext) {
+    return scopedContext;
+  }
+
+  for (const fallbackKey of getFallbackSharedCartStorageKeys(storageKey)) {
+    const fallbackContext = readSharedCartContextFromStorage(fallbackKey);
+    if (fallbackContext) {
+      return fallbackContext;
+    }
+  }
+
+  return null;
 }
 
 function parseVariantSelection(value: unknown): VariantSelection | undefined {
@@ -235,6 +266,34 @@ function writeCachedQuote(cacheKey: string, quote: AlibabaSourcingQuote & { sett
   }
 }
 
+function removeCartStorageFamily() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  for (const key of Object.keys(window.localStorage)) {
+    if (key === CART_STORAGE_KEY || key.startsWith(`${CART_STORAGE_KEY}:`) || key === SHARED_CART_STORAGE_KEY || key.startsWith(`${SHARED_CART_STORAGE_KEY}:`)) {
+      window.localStorage.removeItem(key);
+    }
+  }
+
+  for (const key of Object.keys(window.sessionStorage)) {
+    if (key.startsWith(`${CART_QUOTE_CACHE_KEY}:`)) {
+      window.sessionStorage.removeItem(key);
+    }
+  }
+}
+
+function cleanupFallbackCartStorage(storageKey: string, sharedCartStorageKey: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  for (const key of [...getFallbackCartStorageKeys(storageKey), ...getFallbackSharedCartStorageKeys(sharedCartStorageKey)]) {
+    window.localStorage.removeItem(key);
+  }
+}
+
 export function CartProvider({ children, ownerScope = "guest" }: { children: React.ReactNode; ownerScope?: string | null }) {
   const cartStorageKey = ownerScope ? buildScopedStorageKey(CART_STORAGE_KEY, ownerScope) : null;
   const sharedCartStorageKey = ownerScope ? buildScopedStorageKey(SHARED_CART_STORAGE_KEY, ownerScope) : null;
@@ -255,8 +314,13 @@ export function CartProvider({ children, ownerScope = "guest" }: { children: Rea
       return;
     }
 
-    setItems(readBestCartItemsFromStorage(cartStorageKey));
-    setSharedCartContextState(readBestSharedCartContextFromStorage(sharedCartStorageKey));
+    const nextItems = readBestCartItemsFromStorage(cartStorageKey);
+    const nextSharedCartContext = readBestSharedCartContextFromStorage(sharedCartStorageKey);
+    setItems(nextItems);
+    setSharedCartContextState(nextSharedCartContext);
+    if (nextItems.length > 0 || nextSharedCartContext) {
+      cleanupFallbackCartStorage(cartStorageKey, sharedCartStorageKey);
+    }
     setHydratedStorageKey(cartStorageKey);
   }, [cartStorageKey, sharedCartStorageKey]);
 
@@ -368,11 +432,11 @@ export function CartProvider({ children, ownerScope = "guest" }: { children: Rea
       setItems((current) => current.filter((item) => buildCartItemKey(item.slug, item.selectedVariants) !== cartKey));
     },
     replaceItems(nextItems) {
-      setItems(nextItems.map((item) => ({
+      setItems(mergeCartItems(nextItems.map((item) => ({
         slug: item.slug,
         quantity: item.quantity,
         selectedVariants: normalizeVariantSelection(item.selectedVariants),
-      })));
+      }))));
     },
     setSharedCartContext(context) {
       setSharedCartContextState(context);
@@ -381,6 +445,7 @@ export function CartProvider({ children, ownerScope = "guest" }: { children: Rea
       setSharedCartContextState(null);
     },
     clearCart() {
+      removeCartStorageFamily();
       setItems([]);
       setSharedCartContextState(null);
     },
