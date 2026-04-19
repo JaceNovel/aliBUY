@@ -1506,6 +1506,18 @@ class AlibabaAdminService
             } catch (Throwable) {
             }
 
+            try {
+                $remote = $this->fetchRemote([
+                    ...$input,
+                    'query' => $query,
+                    'provider' => 'alibaba',
+                ]);
+                if (is_array($remote['product'] ?? null)) {
+                    array_unshift($sources, $remote['product']);
+                }
+            } catch (Throwable) {
+            }
+
             return $sources;
         }
 

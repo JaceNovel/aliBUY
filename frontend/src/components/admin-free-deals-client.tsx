@@ -292,7 +292,7 @@ export function AdminFreeDealsClient({
               <input
                 value={importForm.query}
                 onChange={(event) => setImportForm((current) => ({ ...current, query: event.target.value }))}
-                placeholder="Ex: écouteurs, coques, petit accessoire"
+                placeholder="Lien Alibaba ou product_id"
                 className="h-12 w-full rounded-[14px] border border-[#dfe3ea] px-4 text-[14px] outline-none focus:border-[#ff6a00]"
               />
             </label>

@@ -1351,7 +1351,38 @@ class AliExpressOpenPlatformService
         $product = $this->mapAlibabaBuyerDescriptionToProduct($result['responseBody'], $identifier, $supplementalData, $categoryId);
 
         if (! $result['ok'] || ! $this->isSuccessfulOperation($result['responseBody']) || $product === null) {
-            throw new RuntimeException($this->extractOperationMessage($result['responseBody']) ?? 'Produit fournisseur introuvable via eco/buyer/product/description.');
+            $icbuProduct = $this->fetchAlibabaIcbuProductDetail($account, $sourceProductId);
+            $product = $icbuProduct !== []
+                ? $this->mapAlibabaIcbuProductToImportProduct($account, $sourceProductId, $identifier, $icbuProduct, $destinationCountry)
+                : null;
+
+            if ($product === null) {
+                throw new RuntimeException($this->extractOperationMessage($result['responseBody']) ?? 'Produit fournisseur introuvable via eco/buyer/product/description.');
+            }
+
+            return [
+                'account' => $account,
+                'payload' => [
+                    'ok' => true,
+                    'endpoint' => '/icbu/product/get',
+                    'sourceProductId' => $product['sourceProductId'],
+                    'product' => $product,
+                    'debug' => [
+                        'externalProductId' => $product['sourceProductId'],
+                        'resolvedRemoteMode' => 'alibaba_icbu_product_get',
+                        'fallbackUsed' => true,
+                        'providerRequestId' => null,
+                        'responseShape' => 'icbu_product_get',
+                        'attempts' => [[
+                            'endpoint' => '/eco/buyer/product/description',
+                            'ok' => $result['ok'],
+                            'status' => $result['status'] ?? null,
+                            'providerMessage' => $this->extractOperationMessage($result['responseBody']),
+                            'mappingStatus' => 'fallback_to_icbu',
+                        ]],
+                    ],
+                ],
+            ];
         }
 
         return [
@@ -1377,6 +1408,41 @@ class AliExpressOpenPlatformService
                 ],
             ],
         ];
+    }
+
+    private function mapAlibabaIcbuProductToImportProduct(array $account, string $sourceProductId, string $query, array $icbuProduct, string $destinationCountry): ?array
+    {
+        $title = $this->getString($icbuProduct['subject'] ?? null) ?? ('Produit fournisseur '.$sourceProductId);
+        $images = is_array($icbuProduct['main_image']['images'] ?? null)
+            ? array_values(array_filter(array_map(fn ($item) => is_array($item) ? $this->getString($item['url'] ?? null) : $this->getString($item), $icbuProduct['main_image']['images'])))
+            : [];
+        $categoryId = $this->getString($icbuProduct['category_id'] ?? $icbuProduct['categoryId'] ?? null);
+        $record = [
+            'product_id' => $sourceProductId,
+            'title' => $title,
+            'description' => $this->getString($icbuProduct['description'] ?? null) ?? $title,
+            'main_image' => $images[0] ?? null,
+            'images' => $images,
+            'category_id' => $categoryId,
+            'wholesale_trade' => is_array($icbuProduct['wholesale_trade'] ?? null) ? $icbuProduct['wholesale_trade'] : [],
+            'price' => $this->nullableFloat($icbuProduct['sourcing_trade']['fob_min_price'] ?? $icbuProduct['wholesale_trade']['price'] ?? null) ?? 0,
+            'min_order_quantity' => $this->toInt($icbuProduct['sourcing_trade']['min_order_quantity_sourcing'] ?? $icbuProduct['wholesale_trade']['min_order_quantity'] ?? 1),
+        ];
+
+        $supplementalData = [
+            'categoryInfo' => $this->fetchAlibabaIcbuCategoryInfo($account, $categoryId),
+            'icbuProduct' => $icbuProduct,
+            'icbuInventory' => $this->fetchAlibabaIcbuProductInventory($account, $sourceProductId),
+            'icbuScore' => $this->fetchAlibabaIcbuProductScore($account, $sourceProductId),
+            'icbuTypeAvailability' => $this->fetchAlibabaIcbuProductTypeAvailability($account, $categoryId),
+            'icbuSchema' => $this->fetchAlibabaIcbuProductSchemaSummary($account, $categoryId),
+            'icbuStatusV2' => $this->fetchAlibabaIcbuProductStatusV2($account, $sourceProductId),
+            'icbuVideo' => $this->fetchAlibabaIcbuVideoRecord($account, $icbuProduct),
+            'warehouseSummary' => $this->queryAlibabaWarehouses($account, $sourceProductId, $destinationCountry),
+            'ggsWarehouseSummary' => $this->queryAlibabaGgsWarehouses($account, $sourceProductId),
+        ];
+
+        return $this->mapAlibabaBuyerDescriptionToProduct(['result_data' => $record], $query, $supplementalData, $categoryId);
     }
 
     private function extractAlibabaBuyerProductItems($responseBody): array

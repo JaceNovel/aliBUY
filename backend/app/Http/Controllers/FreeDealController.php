@@ -86,7 +86,7 @@ class FreeDealController extends Controller
             $message = trim($exception->getMessage());
             $normalizedMessage = strtolower($message);
             if (str_contains($normalizedMessage, 'api path') || str_contains($normalizedMessage, 'specified api path')) {
-                $message = "Import fournisseur indisponible: le compte Open Platform utilise un chemin API refuse par Alibaba/AliExpress. Verifie la base API du compte fournisseur, puis relance l'import. Tu peux aussi ajouter des articles deja publies depuis la liste de selection.";
+                $message = "Recherche Alibaba par mot-cle indisponible: le compte Open Platform refuse le chemin API de recherche. Colle plutot un lien produit Alibaba ou son product_id dans le champ de recherche, puis relance l'import.";
             }
 
             return response()->json([
