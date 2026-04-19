@@ -1520,6 +1520,7 @@ class AlibabaAdminService
         $title = $this->stringOrFallback($source['title'] ?? $source['shortTitle'] ?? null, 'Produit fournisseur');
         $shortTitle = $this->stringOrFallback($source['shortTitle'] ?? null, $title);
         $rawPayload = is_array($source['rawPayload'] ?? null) ? $source['rawPayload'] : $source;
+        $dispatchLocation = $this->resolveDispatchLocation($source, $rawPayload);
         $rawGallery = $this->extractRawMediaGallery($rawPayload);
         $gallery = $this->normalizeGallery([
             $source['gallery'] ?? null,
@@ -1576,6 +1577,7 @@ class AlibabaAdminService
             'soldLabel' => $this->stringOrFallback($source['soldLabel'] ?? null, 'Best seller'),
             'customizationLabel' => $this->stringOrFallback($source['customizationLabel'] ?? null, 'Personnalisation disponible'),
             'shippingLabel' => $this->stringOrFallback($source['shippingLabel'] ?? null, 'Expedition internationale'),
+            'dispatchLocation' => $dispatchLocation,
             'chinaLocalFreightFcfa' => $this->nullableInt($source['chinaLocalFreightFcfa'] ?? null),
             'chinaLocalFreightLabel' => $this->stringOrNull($source['chinaLocalFreightLabel'] ?? null),
             'overview' => $this->normalizeStringArray($source['overview'] ?? null),
@@ -1600,6 +1602,7 @@ class AlibabaAdminService
     {
         $resolvedCategory = $this->resolveCatalogCategoryData($item);
         $rawPayload = is_array($item['rawPayload'] ?? null) ? $item['rawPayload'] : $item;
+        $dispatchLocation = $this->resolveDispatchLocation($item, $rawPayload);
         $rawGallery = $this->extractRawMediaGallery($rawPayload);
         $gallery = $this->normalizeGallery([
             $item['gallery'] ?? null,
@@ -1626,6 +1629,7 @@ class AlibabaAdminService
             'soldLabel' => $item['soldLabel'] ?? 'Best seller',
             'customizationLabel' => $item['customizationLabel'] ?? 'Personnalisation disponible',
             'shippingLabel' => $item['shippingLabel'] ?? 'Expedition internationale',
+            'dispatchLocation' => $dispatchLocation,
             'chinaLocalFreightFcfa' => $item['chinaLocalFreightFcfa'] ?? null,
             'chinaLocalFreightLabel' => $item['chinaLocalFreightLabel'] ?? null,
             'overview' => $item['overview'] ?? [],
@@ -1740,6 +1744,8 @@ class AlibabaAdminService
 
     private function toPreviewProductFromImported(array $product): array
     {
+        $rawPayload = is_array($product['rawPayload'] ?? null) ? $product['rawPayload'] : $product;
+
         return [
             'sourceProductId' => (string) ($product['sourceProductId'] ?? $product['id'] ?? ''),
             'shortTitle' => (string) ($product['shortTitle'] ?? $product['title'] ?? 'Produit fournisseur'),
@@ -1770,17 +1776,19 @@ class AlibabaAdminService
             'soldLabel' => $product['soldLabel'] ?? null,
             'customizationLabel' => $product['customizationLabel'] ?? null,
             'shippingLabel' => $product['shippingLabel'] ?? null,
+            'dispatchLocation' => $this->resolveDispatchLocation($product, $rawPayload),
             'overview' => $product['overview'] ?? [],
             'variantPricing' => $product['variantPricing'] ?? [],
             'tiers' => $product['tiers'] ?? [],
             'specs' => $product['specs'] ?? [],
-            'rawPayload' => $product['rawPayload'] ?? $product,
+            'rawPayload' => $rawPayload,
         ];
     }
 
     private function toPreviewProductFromCatalogProduct(Product $product): array
     {
         $metadata = is_array($product->metadata) ? $product->metadata : [];
+        $rawPayload = is_array($metadata['rawPayload'] ?? null) ? $metadata['rawPayload'] : $metadata;
 
         return [
             'sourceProductId' => (string) ($product->source_product_id ?: $product->slug),
@@ -1812,12 +1820,39 @@ class AlibabaAdminService
             'soldLabel' => $metadata['soldLabel'] ?? null,
             'customizationLabel' => $metadata['customizationLabel'] ?? null,
             'shippingLabel' => $metadata['shippingLabel'] ?? null,
+            'dispatchLocation' => $this->resolveDispatchLocation($metadata, $rawPayload),
             'overview' => $metadata['overview'] ?? [],
             'variantPricing' => $metadata['variantPricing'] ?? [],
             'tiers' => $metadata['tiers'] ?? [],
             'specs' => $metadata['specs'] ?? [],
-            'rawPayload' => $metadata,
+            'rawPayload' => $rawPayload,
         ];
+    }
+
+    private function resolveDispatchLocation(array $item, array $rawPayload = []): string
+    {
+        $candidates = [
+            $item['dispatchLocation'] ?? null,
+            $item['dispatch_location'] ?? null,
+            $item['shipping_from'] ?? null,
+            $rawPayload['shipping_from'] ?? null,
+        ];
+
+        $detail = is_array($rawPayload['detail'] ?? null) ? $rawPayload['detail'] : null;
+        if (is_array($detail)) {
+            $candidates[] = $detail['shipping_from'] ?? null;
+            $candidates[] = $detail['dispatchLocation'] ?? null;
+            $candidates[] = $detail['dispatch_location'] ?? null;
+        }
+
+        foreach ($candidates as $candidate) {
+            $value = strtoupper(trim((string) $candidate));
+            if ($value !== '' && preg_match('/^[A-Z]{2,3}$/', $value) === 1) {
+                return $value;
+            }
+        }
+
+        return 'CN';
     }
 
     private function extractSourceProductId(string $value): string
