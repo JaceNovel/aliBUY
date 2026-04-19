@@ -11,7 +11,6 @@ import {
   formatSourcingAmount,
   getSourcingAlibabaPayUrls,
   getSourcingAlibabaPostPaymentAutomationState,
-  getSourcingOrderBatchMode,
   getSourcingOrderMeta,
   isSourcingOrderClientPaid,
   isSourcingOrderEligibleForSupplierPayment,
@@ -28,8 +27,6 @@ type AdminOrderDetailClientProps = {
 };
 
 const statusOptions = [
-  { value: "air_batch_pending", label: "En attente lot avion" },
-  { value: "sea_batch_pending", label: "En attente lot maritime" },
   { value: "supplier_payment_requested", label: "Paiement achat lance" },
   { value: "supplier_payment_failed", label: "Paiement achat a reprendre" },
   { value: "supplier_paid_partial", label: "Paiement achat partiel" },
@@ -117,7 +114,6 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
   const alibabaAutomation = useMemo(() => getSourcingAlibabaPostPaymentAutomationState(order), [order]);
   const payUrls = useMemo(() => getSourcingAlibabaPayUrls(order), [order]);
   const canLaunchSupplierPayment = useMemo(() => isSourcingOrderEligibleForSupplierPayment(order), [order]);
-  const batchMode = useMemo(() => getSourcingOrderBatchMode(order), [order]);
   const isClientPaid = useMemo(() => isSourcingOrderClientPaid(order), [order]);
   const canRepairSupplierOrder = useMemo(() => {
     return isClientPaid
@@ -148,24 +144,6 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
     if (!isClientPaid) {
       return {
         message: "Le bouton n'apparait pas parce que la commande client n'est pas encore marquee comme payee.",
-      };
-    }
-
-    if (batchMode === "sea") {
-      return {
-        message: "Cette commande est routee en lot mer. Le lancement se fait depuis le panneau Groupes prets, pas directement sur cette fiche.",
-        href: "/admin/alibaba-sourcing/lots",
-        label: "Ouvrir Groupes prets",
-        external: false,
-      };
-    }
-
-    if (batchMode === "air") {
-      return {
-        message: "Cette commande est routee en lot avion. Le lancement se fait depuis le panneau Groupes prets, pas directement sur cette fiche.",
-        href: "/admin/alibaba-sourcing/lots",
-        label: "Ouvrir Groupes prets",
-        external: false,
       };
     }
 
@@ -227,7 +205,7 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
     return {
       message: "Le lancement fournisseur n'est pas disponible pour l'instant sur cette commande.",
     };
-  }, [batchMode, canLaunchSupplierPayment, isClientPaid, order.alibabaTradeIds.length, order.supplierOrderStatus, payUrls]);
+  }, [canLaunchSupplierPayment, isClientPaid, order.alibabaTradeIds.length, order.supplierOrderStatus, payUrls]);
 
   const submitPatch = async (payload: Record<string, unknown>) => {
     setFeedback(null);

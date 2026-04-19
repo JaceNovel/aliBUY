@@ -89,15 +89,20 @@ class FreeDealController extends Controller
             ->filter()
             ->values()
             ->all();
+        $currentConfig = $this->freeDeals->adminConfig();
+        $nextSlugs = count($slugs) > 0
+            ? array_values(array_unique([...($currentConfig['productSlugs'] ?? []), ...$slugs]))
+            : ($currentConfig['productSlugs'] ?? []);
         $config = $this->freeDeals->saveAdminConfig([
-            'productSlugs' => $slugs,
+            'productSlugs' => $nextSlugs,
         ]);
 
         return response()->json([
             ...$import,
             'config' => $config,
             'importedCount' => count($import['products'] ?? []),
-            'freeDealProductSlugs' => $slugs,
+            'freeDealProductSlugs' => $nextSlugs,
+            'newFreeDealProductSlugs' => $slugs,
         ]);
     }
 }

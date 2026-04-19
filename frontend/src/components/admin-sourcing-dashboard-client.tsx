@@ -73,7 +73,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
   const eligibleOrders = useMemo(() => initialDashboard.orders.filter((order) => isSourcingOrderEligibleForSupplierPayment(order)), [initialDashboard.orders]);
   const airBatchOrders = useMemo(() => eligibleOrders.filter((order) => getSourcingOrderBatchMode(order) === "air"), [eligibleOrders]);
   const seaBatchOrders = useMemo(() => eligibleOrders.filter((order) => getSourcingOrderBatchMode(order) === "sea"), [eligibleOrders]);
-  const blockedPaidOrders = useMemo(() => paidOrders.filter((order) => !isSourcingOrderEligibleForSupplierPayment(order) && getSourcingOrderBatchMode(order) !== null), [paidOrders]);
+  const blockedPaidOrders = useMemo(() => paidOrders.filter((order) => !isSourcingOrderEligibleForSupplierPayment(order)), [paidOrders]);
   const blockedAirOrders = useMemo(() => blockedPaidOrders.filter((order) => getSourcingOrderBatchMode(order) === "air"), [blockedPaidOrders]);
   const blockedSeaOrders = useMemo(() => blockedPaidOrders.filter((order) => getSourcingOrderBatchMode(order) === "sea"), [blockedPaidOrders]);
   const paidAirWeight = useMemo(() => Number(paidAirOrders.reduce((total, order) => total + order.totalWeightKg, 0).toFixed(3)), [paidAirOrders]);
@@ -349,11 +349,9 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
 
   const filterOptions = useMemo(() => [
     { key: "all" as DashboardFilter, label: "Tout voir", count: initialDashboard.orders.length },
-    { key: "air" as DashboardFilter, label: "File avion", count: paidAirOrders.length },
-    { key: "sea" as DashboardFilter, label: "File mer", count: paidSeaOrders.length },
     { key: "blocked" as DashboardFilter, label: "Blocages", count: blockedPaidOrders.length },
-    { key: "ready-containers" as DashboardFilter, label: "Conteneurs prets", count: readyContainers.length },
-  ], [blockedPaidOrders.length, initialDashboard.orders.length, paidAirOrders.length, paidSeaOrders.length, readyContainers.length]);
+    { key: "ready-containers" as DashboardFilter, label: "Anciens conteneurs", count: readyContainers.length },
+  ], [blockedPaidOrders.length, initialDashboard.orders.length, readyContainers.length]);
 
   const filteredOrders = useMemo(() => {
     switch (activeFilter) {
@@ -412,15 +410,15 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
       <section className="rounded-[24px] border border-[#e6eaf0] bg-[linear-gradient(135deg,#fff5ef_0%,#ffffff_45%,#eef5ff_100%)] px-5 py-6 shadow-[0_8px_22px_rgba(17,24,39,0.05)] sm:px-7">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-[860px]">
-            <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a3d]">Lots d'achat</div>
-            <h1 className="mt-2 text-[32px] font-black tracking-[-0.05em] text-[#1f2937]">Pilotage des lots, blocages et conteneurs</h1>
-            <p className="mt-3 text-[14px] leading-7 text-[#667085]">Cette page est reservee au lancement des lots fournisseur, a la reprise des commandes bloquees et au declenchement des conteneurs maritimes. Les reglages avances sont replies plus bas pour garder l'espace de travail propre.</p>
+            <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ff6a3d]">Commandes fournisseur</div>
+            <h1 className="mt-2 text-[32px] font-black tracking-[-0.05em] text-[#1f2937]">Suivi des commandes payees</h1>
+            <p className="mt-3 text-[14px] leading-7 text-[#667085]">Le groupage avion, mer et conteneur est desactive. Chaque lancement fournisseur se fait maintenant depuis la fiche detail de la commande payee.</p>
             {feedback ? <div className="mt-4 rounded-[16px] bg-white px-4 py-3 text-[13px] font-semibold text-[#1f2937] shadow-[0_8px_18px_rgba(17,24,39,0.05)]">{feedback}</div> : null}
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 xl:min-w-[300px]">
-            <Link href="/admin/alibaba-sourcing/lots" className="inline-flex h-12 items-center justify-center gap-2 rounded-[16px] bg-[#ff6a00] px-5 text-[14px] font-semibold text-white transition hover:bg-[#e55e00]">
-              Revenir aux groupes prets
+            <Link href="/admin/orders" className="inline-flex h-12 items-center justify-center gap-2 rounded-[16px] bg-[#ff6a00] px-5 text-[14px] font-semibold text-white transition hover:bg-[#e55e00]">
+              Ouvrir les commandes
               <ArrowUpRight className="h-4 w-4" />
             </Link>
             <Link href="/admin/alibaba-sourcing" className="inline-flex h-12 items-center justify-center gap-2 rounded-[16px] border border-[#dbe2ea] bg-white px-5 text-[14px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00]">
@@ -433,10 +431,10 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "Avion payable", value: `${paidAirOrders.length} cmd`, hint: `${airBatchOrders.length} lancables · ${paidAirWeight.toFixed(3)} kg`, icon: Truck, accent: "bg-[#eef4ff] text-[#2f67f6]" },
-          { label: "Mer payable", value: `${paidSeaOrders.length} cmd`, hint: `${seaBatchOrders.length} lancables · ${paidSeaCbm.toFixed(4)} CBM`, icon: Ship, accent: "bg-[#eafaf0] text-[#16a34a]" },
+          { label: "Commandes payees", value: `${paidOrders.length} cmd`, hint: "A lancer depuis la fiche detail", icon: Truck, accent: "bg-[#eef4ff] text-[#2f67f6]" },
+          { label: "Fournisseur lancable", value: `${eligibleOrders.length} cmd`, hint: "Bouton disponible en detail commande", icon: Ship, accent: "bg-[#eafaf0] text-[#16a34a]" },
           { label: "Blocages", value: String(blockedPaidOrders.length), hint: blockedPaidOrders.length > 0 ? "Commandes a reprendre" : "Aucun blocage", icon: Percent, accent: "bg-[#fff1e8] text-[#ff6a00]" },
-          { label: "Conteneurs mer", value: String(activeContainers.length), hint: `${readyContainers.length} pret(s) · ${shippedContainers.length} expedie(s)`, icon: Calculator, accent: "bg-[#f5efff] text-[#7c3aed]" },
+          { label: "Anciens conteneurs", value: String(activeContainers.length), hint: "Lecture seule", icon: Calculator, accent: "bg-[#f5efff] text-[#7c3aed]" },
         ].map((card) => {
           const Icon = card.icon;
 
@@ -457,12 +455,10 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#98a2b3]">Actions rapides</div>
-            <div className="mt-1 text-[18px] font-black tracking-[-0.04em] text-[#1f2937]">Lancer, filtrer et verifier les lots</div>
+            <div className="mt-1 text-[18px] font-black tracking-[-0.04em] text-[#1f2937]">Suivre les commandes et ouvrir les fiches detail</div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => launchBatch("air")} disabled={isPending || paidAirOrders.length === 0} className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">Lancer lot avion</button>
-            <button type="button" onClick={() => launchBatch("sea")} disabled={isPending || paidSeaOrders.length === 0} className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#0f766e] px-4 text-[13px] font-semibold text-white transition hover:bg-[#115e59] disabled:cursor-not-allowed disabled:opacity-60">Lancer lot mer</button>
-            {readyContainers[0] ? <button type="button" onClick={() => triggerContainer(readyContainers[0].id)} disabled={isPending} className="inline-flex h-11 items-center justify-center rounded-[14px] border border-[#d7dce5] bg-white px-4 text-[13px] font-semibold text-[#1f2937] transition hover:border-[#ff6a00] hover:text-[#ff6a00] disabled:cursor-not-allowed disabled:opacity-60">Declencher 1 conteneur pret</button> : null}
+          <div className="rounded-[14px] bg-[#f8fafc] px-4 py-3 text-[13px] font-semibold text-[#475467] ring-1 ring-[#edf1f6]">
+            Les lancements par lot avion, lot mer et conteneur sont desactives. Ouvrez une commande payee pour lancer son fournisseur.
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
@@ -484,66 +480,8 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-2">
-        <article className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Batch avion</div>
-              <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Regroupement achat a 2 kg</div>
-              <div className="mt-2 text-[13px] leading-6 text-[#667085]">Les commandes payées restent en file d&apos;attente jusqu&apos;au lancement admin. Le lot peut aussi être déclenché avant le seuil.</div>
-              {blockedAirOrders.length > 0 ? <div className="mt-2 text-[12px] font-semibold text-[#b54708]">{blockedAirOrders.length} commande(s) payée(s) avion sont bloquées avant le lot.</div> : null}
-            </div>
-            <button type="button" onClick={() => launchBatch("air")} disabled={isPending || paidAirOrders.length === 0} className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">
-              {airBatchWeight >= AIR_BATCH_TARGET_KG ? "Lancer le lot" : "Lancer quand même"}
-            </button>
-          </div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Poids cumulé</div>
-              <div className="mt-1 text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{paidAirWeight.toFixed(3)} kg</div>
-              <div className="mt-1 text-[12px] text-[#667085]">{airBatchWeight.toFixed(3)} kg lançables</div>
-            </div>
-            <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Seuil</div>
-              <div className="mt-1 text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{AIR_BATCH_TARGET_KG.toFixed(0)} kg</div>
-            </div>
-            <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Commandes</div>
-              <div className="mt-1 text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{paidAirOrders.length}</div>
-              <div className="mt-1 text-[12px] text-[#667085]">{airBatchOrders.length} lançables</div>
-            </div>
-          </div>
-        </article>
-
-        <article className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Batch maritime</div>
-              <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Regroupement achat a 1 CBM</div>
-              <div className="mt-2 text-[13px] leading-6 text-[#667085]">Inclut les commandes mer et toutes les commandes de la campagne articles gratuits, forcées en maritime.</div>
-              {blockedSeaOrders.length > 0 ? <div className="mt-2 text-[12px] font-semibold text-[#b54708]">{blockedSeaOrders.length} commande(s) payée(s) mer sont bloquées avant le lot.</div> : null}
-            </div>
-            <button type="button" onClick={() => launchBatch("sea")} disabled={isPending || paidSeaOrders.length === 0} className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#111827] px-5 text-[14px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">
-              {seaBatchCbm >= SEA_BATCH_TARGET_CBM ? "Lancer le lot" : "Lancer quand même"}
-            </button>
-          </div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Volume cumulé</div>
-              <div className="mt-1 text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{paidSeaCbm.toFixed(4)} CBM</div>
-              <div className="mt-1 text-[12px] text-[#667085]">{seaBatchCbm.toFixed(4)} CBM lançables</div>
-            </div>
-            <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Seuil</div>
-              <div className="mt-1 text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{SEA_BATCH_TARGET_CBM.toFixed(0)} CBM</div>
-            </div>
-            <div className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#98a2b3]">Commandes</div>
-              <div className="mt-1 text-[22px] font-black tracking-[-0.05em] text-[#1f2937]">{paidSeaOrders.length}</div>
-              <div className="mt-1 text-[12px] text-[#667085]">{seaBatchOrders.length} lançables</div>
-            </div>
-          </div>
-        </article>
+      <section className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 text-[13px] leading-6 text-[#667085] shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
+        Le groupage fournisseur est coupe. Les commandes restent visibles ici pour diagnostic, mais le lancement fournisseur se fait uniquement depuis la fiche detail de chaque commande payee.
       </section>
 
       {filteredBlockedPaidOrders.length > 0 ? (
@@ -556,7 +494,6 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
           </div>
           <div className="mt-5 grid gap-3">
             {filteredBlockedPaidOrders.map((order) => {
-              const batchMode = getSourcingOrderBatchMode(order);
               const blockedReason = getBlockedReason(order);
 
               return (
@@ -565,7 +502,7 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <Link href={`/admin/orders/${encodeURIComponent(order.id)}`} className="text-[16px] font-semibold text-[#1f2937] transition hover:text-[#ff6a00]">{order.orderNumber}</Link>
-                        <span className="rounded-full bg-[#fff7ed] px-2.5 py-1 text-[11px] font-semibold text-[#c2410c]">{batchMode === "air" ? "Lot avion" : "Lot mer"}</span>
+                        <span className="rounded-full bg-[#fff7ed] px-2.5 py-1 text-[11px] font-semibold text-[#c2410c]">Detail commande</span>
                       </div>
                       <div className="mt-1 text-[13px] text-[#667085]">{order.customerName} · {order.totalWeightKg.toFixed(3)} kg · {order.totalVolumeCbm.toFixed(4)} CBM</div>
                       <div className="mt-3 rounded-[14px] bg-[#fffaf6] px-3 py-3 text-[13px] text-[#8a5a33] ring-1 ring-[#f7ddca]">
@@ -590,8 +527,8 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
 
       <section className="grid gap-4 xl:grid-cols-[0.82fr_1.18fr]">
         <article className="rounded-[20px] border border-[#e6eaf0] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
-          <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Conteneurs mer</div>
-          <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Groupage et déclenchement</div>
+          <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#ff6a5b]">Ancien groupage mer</div>
+          <div className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#1f2937]">Lecture seule</div>
           <div className="mt-4 space-y-3">
             {filteredContainers.length === 0 ? (
               <div className="rounded-[16px] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#667085]">Aucun conteneur n&apos;est encore alimenté pour ce filtre.</div>
@@ -615,9 +552,9 @@ export function AdminSourcingDashboardClient({ initialDashboard }: AdminSourcing
                             : "En cours de remplissage avant declenchement."}
                       </div>
                     </div>
-                    <button type="button" onClick={() => triggerContainer(container.id)} disabled={isPending || container.status === "shipped"} className="inline-flex h-10 items-center justify-center rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60">
-                      {container.status === "shipped" ? "Deja declenche" : "Declencher"}
-                    </button>
+                    <div className="rounded-[12px] bg-[#f8fafc] px-3 py-2 text-[12px] font-semibold text-[#667085] ring-1 ring-[#edf1f6]">
+                      Declenchement desactive
+                    </div>
                   </div>
                   <div className="mt-4 h-3 overflow-hidden rounded-full bg-[#edf1f6]">
                     <div className="h-full rounded-full bg-[linear-gradient(90deg,#2f67f6_0%,#61a7ff_100%)]" style={{ width: `${container.fillPercent}%` }} />

@@ -1465,6 +1465,18 @@ export async function runAlibabaCatalogImport(input: {
       await saveAlibabaImportedProducts(importedProducts);
     }
 
+    let freeDealProductSlugs: string[] | undefined;
+    if ((input.campaignMode ?? "standard") === "free-deal") {
+      const importedSlugs = importedProducts.map((product) => product.slug).filter(Boolean);
+      const { getFreeDealConfig, saveFreeDealConfig } = await import("@/lib/free-deal-store");
+      const currentFreeDealConfig = await getFreeDealConfig();
+      const nextSlugs = importedSlugs.length > 0
+        ? Array.from(new Set([...currentFreeDealConfig.productSlugs, ...importedSlugs]))
+        : currentFreeDealConfig.productSlugs;
+      const nextFreeDealConfig = await saveFreeDealConfig({ productSlugs: nextSlugs });
+      freeDealProductSlugs = nextFreeDealConfig.productSlugs;
+    }
+
     const warningMessage = importedProducts.length < job.limit
       ? `Import partiel: ${importedProducts.length}/${job.limit} importes.${skippedMissingRequiredDataCount > 0 ? ` Rejets donnees fournisseur: ${skippedMissingRequiredDataCount}.` : ""}${rejectedReasonCounts.price > 0 ? ` Prix incoherent: ${rejectedReasonCounts.price}.` : ""}${rejectedReasonCounts.moq > 0 ? ` MOQ non verifie: ${rejectedReasonCounts.moq}.` : ""}${rejectedReasonCounts.weight > 0 ? ` Poids non exploitable: ${rejectedReasonCounts.weight}.` : ""}${rejectedReasonCounts.dimensions > 0 ? ` Dimensions colis manquantes: ${rejectedReasonCounts.dimensions}.` : ""}${rejectedReasonCounts.variants > 0 ? ` Variantes DS non exploitables: ${rejectedReasonCounts.variants}.` : ""}${skippedExistingCount > 0 ? ` Deja importes ignores: ${skippedExistingCount}.` : ""}`
       : undefined;
@@ -1491,6 +1503,7 @@ export async function runAlibabaCatalogImport(input: {
         skippedMissingRequiredDataCount,
         rejectedReasonCounts,
         warningMessage,
+        freeDealProductSlugs,
         debug: searchResult.debug,
       },
     });
@@ -1506,6 +1519,7 @@ export async function runAlibabaCatalogImport(input: {
       skippedMissingRequiredDataCount,
       rejectedReasonCounts,
       warningMessage,
+      freeDealProductSlugs,
     };
   } catch (error) {
     const failedJob: AlibabaImportJob = {

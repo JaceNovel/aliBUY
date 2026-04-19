@@ -983,23 +983,6 @@ export function getSourcingAlibabaPostPaymentAutomationState(order: Pick<Sourcin
 }
 
 export function getSourcingOrderBatchMode(order: Pick<SourcingOrder, "shippingMethod" | "supplierOrderPayload">): SourcingBatchMode | null {
-  const meta = getSourcingOrderMeta(order);
-  if (meta.freeDeal) {
-    return "sea";
-  }
-
-  if (!meta.deliveryProfile?.usesInternalReceptionAddress) {
-    return null;
-  }
-
-  if (order.shippingMethod === "air") {
-    return "air";
-  }
-
-  if (order.shippingMethod === "sea") {
-    return "sea";
-  }
-
   return null;
 }
 

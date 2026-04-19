@@ -1,6 +1,5 @@
 import {
   formatFcfa,
-  getSourcingOrderMeta,
   isSourcingOrderClientPaid,
   resolveSourcingDeliveryPlan,
   type SourcingCheckoutInput,
@@ -11,9 +10,8 @@ import {
 } from "@/lib/alibaba-sourcing";
 import { createAlibabaSourcingQuote, getAlibabaSourcingCatalogPreview } from "@/lib/alibaba-sourcing-server";
 import { getSharedCartByToken, markSharedCartOrdered } from "@/lib/cart-share-store";
-import { createAlibabaSupplierOrders, verifyAlibabaSupplierFreight } from "@/lib/alibaba-open-platform-client";
 import { consumePromoCode, validatePromoCodeForAmount } from "@/lib/promo-codes-store";
-import { createAlibabaIntegrationLog, createSourcingIds, getAlibabaCatalogMappings, getSourcingOrders, getSourcingSeaContainers, getSourcingSettings, saveSourcingOrder, saveSourcingSeaContainer, saveSourcingSettings } from "@/lib/sourcing-store";
+import { createAlibabaIntegrationLog, createSourcingIds, getSourcingOrders, getSourcingSeaContainers, getSourcingSettings, saveSourcingOrder, saveSourcingSeaContainer, saveSourcingSettings } from "@/lib/sourcing-store";
 
 function nowIso() {
   return new Date().toISOString();
@@ -173,7 +171,7 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
     totalPriceFcfa: finalTotalPriceFcfa,
     totalWeightKg: quote.totalWeightKg,
     totalVolumeCbm: quote.totalCbm,
-    status: input.shippingMethod === "sea" ? "grouped_sea" : "checkout_created",
+    status: "checkout_created",
     freightStatus: "not_requested",
     supplierOrderStatus: "not_created",
     paymentStatus: "unpaid",
@@ -228,16 +226,6 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
       : undefined,
   });
 
-  if (input.shippingMethod === "sea") {
-    const container = await assignOrderToSeaContainer(order, settings);
-    order = {
-      ...order,
-      containerId: container.id,
-      status: container.status === "ready_to_ship" ? "ready_to_ship" : "grouped_sea",
-      updatedAt: nowIso(),
-    };
-  }
-
   await saveSourcingOrder(order);
 
   if (promoAdjustment) {
@@ -250,51 +238,6 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
       claimerUserId: persistedUserId ?? "guest",
       claimerDisplayName: input.payerDisplayName || input.customerName,
       orderId: order.id,
-    });
-  }
-
-  const mappings = await getAlibabaCatalogMappings();
-  try {
-    const freightVerification = await verifyAlibabaSupplierFreight(order, mappings);
-    order = {
-      ...order,
-      freightStatus: freightVerification.freightStatus,
-      freightPayload: freightVerification.freightPayload,
-      updatedAt: nowIso(),
-    };
-    await saveSourcingOrder(order);
-
-    const supplierOrders = await createAlibabaSupplierOrders(order, mappings, freightVerification);
-    const currentMeta = getSourcingOrderMeta(order);
-    order = withSourcingOrderMeta({
-      ...order,
-      supplierOrderStatus: supplierOrders.supplierOrderStatus,
-      alibabaTradeIds: supplierOrders.alibabaTradeIds,
-      supplierOrderPayload: supplierOrders.supplierOrderPayload,
-      status: order.status,
-      updatedAt: nowIso(),
-    }, currentMeta);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "supplier_automation_failed";
-    const currentMeta = getSourcingOrderMeta(order);
-    order = withSourcingOrderMeta({
-      ...order,
-      freightStatus: "failed",
-      supplierOrderStatus: "failed",
-      supplierOrderPayload: { error: message },
-      updatedAt: nowIso(),
-    }, currentMeta);
-
-    await createAlibabaIntegrationLog({
-      orderId: order.id,
-      action: "supplier-automation",
-      endpoint: "internal",
-      status: "failed",
-      requestBody: {
-        orderNumber: order.orderNumber,
-        shippingMethod: order.shippingMethod,
-      },
-      responseBody: { message },
     });
   }
 
@@ -320,43 +263,5 @@ export async function createCheckoutOrder(input: SourcingCheckoutInput) {
 }
 
 export async function triggerSeaContainerShipment(containerId: string) {
-  const containers: SourcingSeaContainer[] = await getSourcingSeaContainers();
-  const container = containers.find((entry: SourcingSeaContainer) => entry.id === containerId);
-
-  if (!container) {
-    throw new Error("Conteneur introuvable.");
-  }
-
-  if (container.status === "shipped") {
-    throw new Error("Ce conteneur maritime a deja ete declenche.");
-  }
-
-  const nextContainer: SourcingSeaContainer = {
-    ...container,
-    status: "shipped",
-    shipmentTriggeredAt: nowIso(),
-    updatedAt: nowIso(),
-  };
-  await saveSourcingSeaContainer(nextContainer);
-
-  const containerOrders: SourcingOrder[] = (await getSourcingOrders()).filter((entry: SourcingOrder) => entry.containerId === containerId);
-  const paidOrders = containerOrders.filter((order: SourcingOrder) => isSourcingOrderClientPaid(order));
-
-  if (paidOrders.length === 0) {
-    throw new Error("Aucune commande payee dans ce conteneur. Marquez au moins une commande comme payee avant de declencher l'expedition.");
-  }
-
-  for (const order of paidOrders) {
-    await saveSourcingOrder({
-      ...order,
-      status: "shipment_triggered",
-      updatedAt: nowIso(),
-    });
-  }
-
-  return {
-    container: nextContainer,
-    triggeredOrderCount: paidOrders.length,
-    skippedUnpaidOrderCount: Math.max(containerOrders.length - paidOrders.length, 0),
-  };
+  throw new Error("Le groupage maritime est desactive. Lancez chaque commande payee depuis sa fiche detail.");
 }

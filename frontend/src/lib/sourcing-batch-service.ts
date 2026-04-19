@@ -394,36 +394,5 @@ export async function launchSourcingSupplierPaymentForOrder(orderId: string, tri
 }
 
 export async function launchSourcingSupplierPaymentBatch(mode: SourcingBatchMode) {
-  const orders: SourcingOrder[] = await getSourcingOrders();
-  const eligibleOrders: SourcingOrder[] = orders
-    .filter((order: SourcingOrder) => isSourcingOrderEligibleForSupplierPayment(order) && getSourcingOrderBatchMode(order) === mode)
-    .sort((left: SourcingOrder, right: SourcingOrder) => left.createdAt.localeCompare(right.createdAt));
-
-  const processedOrders: SourcingOrder[] = [];
-  const failures: Array<{ orderId: string; message: string }> = [];
-
-  for (const order of eligibleOrders) {
-    try {
-      const automatedOrder = await runSourcingPostPaymentAutomation(order, mode === "air" ? "admin-air-batch" : "admin-sea-batch");
-      processedOrders.push(await notifyOrderPayUrlRequired(order, automatedOrder));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "supplier_batch_launch_failed";
-      failures.push({ orderId: order.id, message });
-      await createAlibabaIntegrationLog({
-        orderId: order.id,
-        action: "supplier-batch-launch",
-        endpoint: "internal",
-        status: "failed",
-        requestBody: { mode },
-        responseBody: { message },
-      });
-    }
-  }
-
-  return {
-    processedOrders,
-    processedCount: processedOrders.length,
-    failedCount: failures.length,
-    failures,
-  };
+  throw new Error("Le lancement par lot est desactive. Ouvrez la fiche detail d'une commande payee pour lancer son fournisseur.");
 }

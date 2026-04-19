@@ -433,15 +433,6 @@ class AlibabaAdminService
         $modePromotionsPath = base_path('data/site/mode-promotions.json');
 
         $freeDealReset = false;
-        if (File::exists($freeDealPath)) {
-            $payload = json_decode((string) File::get($freeDealPath), true);
-            if (is_array($payload)) {
-                $payload['productSlugs'] = [];
-                $payload['updatedAt'] = $this->nowIso();
-                File::put($freeDealPath, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES).PHP_EOL);
-                $freeDealReset = true;
-            }
-        }
 
         $modePromotionsReset = false;
         if (File::exists($modePromotionsPath)) {

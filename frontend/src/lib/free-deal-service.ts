@@ -11,7 +11,6 @@ import {
   withSourcingOrderMeta,
   type SourcingOrder,
 } from "@/lib/alibaba-sourcing";
-import { createAlibabaSupplierOrders, verifyAlibabaSupplierFreight } from "@/lib/alibaba-open-platform-client";
 import {
   getFreeDealConfig,
   getFreeDealFixedPriceFcfa,
@@ -21,7 +20,7 @@ import {
   type FreeDealConfig,
   type FreeDealVisitorIdentity,
 } from "@/lib/free-deal-store";
-import { createAlibabaIntegrationLog, getAlibabaCatalogMappings, saveSourcingOrder } from "@/lib/sourcing-store";
+import { saveSourcingOrder } from "@/lib/sourcing-store";
 
 export type FreeDealCheckoutCustomerInput = {
   customerName: string;
@@ -122,7 +121,7 @@ export async function createFreeDealOrder(input: {
     totalPriceFcfa: fixedPriceFcfa,
     totalWeightKg: sumNumbers(selectedProducts.map((product) => getProductSourcingMetrics(product).weightKg)),
     totalVolumeCbm: sumNumbers(selectedProducts.map((product) => getProductSourcingMetrics(product).volumeCbm)),
-    status: "grouped_sea",
+    status: "checkout_created",
     freightStatus: "not_requested",
     supplierOrderStatus: "not_created",
     paymentStatus: "unpaid",
@@ -172,50 +171,6 @@ export async function createFreeDealOrder(input: {
   });
 
   await saveSourcingOrder(order);
-
-  const mappings = await getAlibabaCatalogMappings();
-  try {
-    const freightVerification = await verifyAlibabaSupplierFreight(order, mappings);
-    order = {
-      ...order,
-      freightStatus: freightVerification.freightStatus,
-      freightPayload: freightVerification.freightPayload,
-      updatedAt: nowIso(),
-    };
-    await saveSourcingOrder(order);
-
-    const supplierOrders = await createAlibabaSupplierOrders(order, mappings, freightVerification);
-    const currentMeta = getSourcingOrderMeta(order);
-    order = withSourcingOrderMeta({
-      ...order,
-      supplierOrderStatus: supplierOrders.supplierOrderStatus,
-      alibabaTradeIds: supplierOrders.alibabaTradeIds,
-      supplierOrderPayload: supplierOrders.supplierOrderPayload,
-      updatedAt: nowIso(),
-    }, currentMeta);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "free_deal_supplier_automation_failed";
-    const currentMeta = getSourcingOrderMeta(order);
-    order = withSourcingOrderMeta({
-      ...order,
-      freightStatus: "failed",
-      supplierOrderStatus: "failed",
-      supplierOrderPayload: { error: message },
-      updatedAt: nowIso(),
-    }, currentMeta);
-
-    await createAlibabaIntegrationLog({
-      orderId: order.id,
-      action: "free-deal-supplier-automation",
-      endpoint: "internal",
-      status: "failed",
-      requestBody: {
-        orderNumber: order.orderNumber,
-        shippingMethod: order.shippingMethod,
-      },
-      responseBody: { message },
-    });
-  }
 
   await saveSourcingOrder(order);
   return order;
