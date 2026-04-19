@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getCatalogProducts } from "@/lib/catalog-service";
+import { getCatalogCategories } from "@/lib/catalog-category-service";
 
 const defaultSearchSuggestions = [
   "souris sans fil",
@@ -32,12 +33,24 @@ export async function getCatalogSearchSuggestions(query: string, limit = 8) {
 }
 
 async function getFallbackSearchSuggestions(normalizedQuery: string, limit: number) {
-  const products = await getCatalogProducts();
+  const [products, categories] = await Promise.all([
+    getCatalogProducts(),
+    getCatalogCategories(),
+  ]);
   const suggestions = Array.from(
     new Set(
       [
         ...defaultSearchSuggestions,
-        ...products.flatMap((product) => [product.shortTitle, ...(product.keywords ?? [])]),
+        ...categories.flatMap((category) => [category.title, category.sourcePathLabel, ...category.queries]),
+        ...products.flatMap((product) => [
+          product.shortTitle,
+          product.title,
+          product.query ?? "",
+          product.supplierName,
+          product.categoryTitle ?? "",
+          ...(product.categoryPath ?? []),
+          ...(product.keywords ?? []),
+        ]),
       ].map((entry) => entry.trim()).filter(Boolean),
     ),
   );

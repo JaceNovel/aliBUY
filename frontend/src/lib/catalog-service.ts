@@ -685,7 +685,101 @@ function normalizeSearchText(value: string) {
 }
 
 function tokenizeSearchText(value: string) {
-  return normalizeSearchText(value).split(/\s+/).filter((token) => token.length >= 2);
+  const tokens = normalizeSearchText(value).split(/\s+/).filter((token) => token.length >= 2);
+  const synonyms: Record<string, string[]> = {
+    chaussure: ["shoe", "shoes", "sneaker", "sneakers", "footwear"],
+    chaussures: ["shoe", "shoes", "sneaker", "sneakers", "footwear"],
+    sac: ["bag", "bags", "backpack", "handbag", "wallet", "purse"],
+    sacs: ["bag", "bags", "backpack", "handbag", "wallet", "purse"],
+    telephone: ["phone", "phones", "smartphone", "mobile"],
+    telephones: ["phone", "phones", "smartphone", "mobile"],
+    accessoires: ["accessory", "accessories", "case", "cover", "charger", "usb"],
+    montre: ["watch", "watches"],
+    montres: ["watch", "watches"],
+    bijou: ["jewelry", "jewellery", "ring", "necklace", "bracelet"],
+    bijoux: ["jewelry", "jewellery", "ring", "necklace", "bracelet"],
+  };
+
+  return [...new Set(tokens.flatMap((token) => [token, ...(synonyms[token] ?? [])]))];
+}
+
+function collectProductSearchFields(product: ProductCatalogItem) {
+  return [
+    product.title,
+    product.shortTitle,
+    product.description ?? "",
+    product.slug,
+    product.query ?? "",
+    product.supplierName,
+    product.supplierCompanyId ?? "",
+    product.supplierLocation,
+    product.categorySlug ?? "",
+    product.categoryTitle ?? "",
+    ...(product.categoryPath ?? []),
+    ...(product.keywords ?? []),
+    ...product.overview,
+    product.badge ?? "",
+    ...product.specs.map((spec) => `${spec.label} ${spec.value}`),
+    ...product.variantGroups.flatMap((group) => [group.label, ...group.values]),
+    ...(product.variantSkus ?? []).flatMap((sku) => [
+      sku.skuId,
+      sku.skuCode ?? "",
+      ...Object.entries(sku.selections).flatMap(([label, value]) => [label, value]),
+    ]),
+  ].map((entry) => normalizeSearchText(entry)).filter(Boolean);
+}
+
+function getSearchWords(fields: string[]) {
+  return [...new Set(fields.flatMap((field) => field.split(/\s+/)).filter((word) => word.length >= 3))];
+}
+
+function isCloseSearchWord(token: string, word: string) {
+  if (word.includes(token) || token.includes(word)) {
+    return true;
+  }
+
+  if (token.length < 4 || word.length < 4) {
+    return false;
+  }
+
+  const prefixLength = Math.min(token.length, word.length, 4);
+  if (token.slice(0, prefixLength) === word.slice(0, prefixLength)) {
+    return true;
+  }
+
+  const distance = levenshteinDistance(token, word, token.length <= 5 ? 1 : 2);
+  return distance >= 0 && distance <= (token.length <= 5 ? 1 : 2);
+}
+
+function levenshteinDistance(left: string, right: string, maxDistance: number) {
+  if (Math.abs(left.length - right.length) > maxDistance) {
+    return -1;
+  }
+
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    const current = [leftIndex];
+    let rowMinimum = current[0];
+
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const substitutionCost = left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1;
+      const value = Math.min(
+        previous[rightIndex] + 1,
+        current[rightIndex - 1] + 1,
+        previous[rightIndex - 1] + substitutionCost,
+      );
+      current[rightIndex] = value;
+      rowMinimum = Math.min(rowMinimum, value);
+    }
+
+    if (rowMinimum > maxDistance) {
+      return -1;
+    }
+
+    previous = current;
+  }
+
+  return previous[right.length] ?? -1;
 }
 
 function scoreCatalogProduct(
@@ -697,8 +791,13 @@ function scoreCatalogProduct(
   const title = normalizeSearchText(product.title);
   const shortTitle = normalizeSearchText(product.shortTitle);
   const keywords = (product.keywords ?? []).map((keyword) => normalizeSearchText(keyword)).filter(Boolean);
-  const category = normalizeSearchText(product.specs.map((spec) => `${spec.label} ${spec.value}`).join(" "));
-  const haystacks = [title, shortTitle, ...keywords, category].filter(Boolean);
+  const supplier = normalizeSearchText([product.supplierName, product.supplierCompanyId ?? "", product.supplierLocation].join(" "));
+  const category = normalizeSearchText([product.categorySlug ?? "", product.categoryTitle ?? "", ...(product.categoryPath ?? [])].join(" "));
+  const specs = normalizeSearchText(product.specs.map((spec) => `${spec.label} ${spec.value}`).join(" "));
+  const variants = normalizeSearchText(product.variantGroups.flatMap((group) => [group.label, ...group.values]).join(" "));
+  const allFields = collectProductSearchFields(product);
+  const allWords = getSearchWords(allFields);
+  const haystacks = [title, shortTitle, ...keywords, supplier, category, specs, variants, ...allFields].filter(Boolean);
 
   let score = 0;
   let directMatch = false;
@@ -729,6 +828,21 @@ function scoreCatalogProduct(
     directMatch = true;
   }
 
+  if (supplier.includes(normalizedQuery)) {
+    score += 80;
+    directMatch = true;
+  }
+
+  if (category.includes(normalizedQuery)) {
+    score += 75;
+    directMatch = true;
+  }
+
+  if (haystacks.some((entry) => entry.includes(normalizedQuery))) {
+    score += 55;
+    directMatch = true;
+  }
+
   for (const token of queryTokens) {
     let tokenScore = 0;
 
@@ -738,7 +852,15 @@ function scoreCatalogProduct(
       tokenScore = 18;
     } else if (keywords.some((keyword) => keyword.includes(token))) {
       tokenScore = 14;
-    } else if (mode === "similar" && haystacks.some((entry) => entry.split(" ").some((word) => word.startsWith(token.slice(0, Math.min(token.length, 4)))))) {
+    } else if (supplier.includes(token)) {
+      tokenScore = 14;
+    } else if (category.includes(token)) {
+      tokenScore = 14;
+    } else if (specs.includes(token) || variants.includes(token)) {
+      tokenScore = 12;
+    } else if (haystacks.some((entry) => entry.includes(token))) {
+      tokenScore = 10;
+    } else if (mode === "similar" && allWords.some((word) => isCloseSearchWord(token, word))) {
       tokenScore = 8;
     }
 

@@ -48,6 +48,7 @@ type CartContextValue = {
 
 const CART_STORAGE_KEY = "afripay_cart_v1";
 const SHARED_CART_STORAGE_KEY = "afripay_cart_shared_v1";
+const CART_QUOTE_CACHE_KEY = "afripay_cart_quote_cache_v1";
 const CartContext = createContext<CartContextValue | null>(null);
 
 function buildScopedStorageKey(baseKey: string, ownerScope: string) {
@@ -75,6 +76,35 @@ function readCartItemsFromStorage(storageKey: string): CartStateItem[] {
   }
 }
 
+function mergeCartItems(items: CartStateItem[]) {
+  const merged = new Map<string, CartStateItem>();
+
+  for (const item of items) {
+    const normalized = {
+      slug: item.slug,
+      quantity: Math.max(1, Number.isFinite(item.quantity) ? Math.floor(item.quantity) : 1),
+      selectedVariants: normalizeVariantSelection(item.selectedVariants),
+    };
+    const cartKey = buildCartItemKey(normalized.slug, normalized.selectedVariants);
+    const existing = merged.get(cartKey);
+
+    merged.set(cartKey, existing
+      ? { ...existing, quantity: existing.quantity + normalized.quantity }
+      : normalized);
+  }
+
+  return [...merged.values()].filter((item) => item.slug && item.quantity > 0);
+}
+
+function readBestCartItemsFromStorage(storageKey: string) {
+  const scopedItems = readCartItemsFromStorage(storageKey);
+  const legacyItems = storageKey === CART_STORAGE_KEY ? [] : readCartItemsFromStorage(CART_STORAGE_KEY);
+  const guestStorageKey = buildScopedStorageKey(CART_STORAGE_KEY, "guest");
+  const guestItems = storageKey === guestStorageKey ? [] : readCartItemsFromStorage(guestStorageKey);
+
+  return mergeCartItems([...scopedItems, ...legacyItems, ...guestItems]);
+}
+
 function readSharedCartContextFromStorage(storageKey: string): SharedCartImportContext | null {
   const stored = window.localStorage.getItem(storageKey);
   if (!stored) {
@@ -87,6 +117,12 @@ function readSharedCartContextFromStorage(storageKey: string): SharedCartImportC
     window.localStorage.removeItem(storageKey);
     return null;
   }
+}
+
+function readBestSharedCartContextFromStorage(storageKey: string) {
+  return readSharedCartContextFromStorage(storageKey)
+    ?? (storageKey === SHARED_CART_STORAGE_KEY ? null : readSharedCartContextFromStorage(SHARED_CART_STORAGE_KEY))
+    ?? (storageKey === buildScopedStorageKey(SHARED_CART_STORAGE_KEY, "guest") ? null : readSharedCartContextFromStorage(buildScopedStorageKey(SHARED_CART_STORAGE_KEY, "guest")));
 }
 
 function parseVariantSelection(value: unknown): VariantSelection | undefined {
@@ -148,10 +184,67 @@ function normalizeSharedCartContext(value: unknown): SharedCartImportContext | n
   };
 }
 
+function buildCartQuoteCacheKey(items: CartStateItem[], options?: { disableFreeAir?: boolean; deliveryMode?: SourcingDeliveryMode; countryCode?: string }) {
+  const normalizedItems = items
+    .map((item) => ({
+      slug: item.slug,
+      quantity: item.quantity,
+      selectedVariants: normalizeVariantSelection(item.selectedVariants),
+    }))
+    .sort((left, right) => buildCartItemKey(left.slug, left.selectedVariants).localeCompare(buildCartItemKey(right.slug, right.selectedVariants)));
+
+  return JSON.stringify({
+    items: normalizedItems,
+    disableFreeAir: options?.disableFreeAir === true,
+    deliveryMode: options?.deliveryMode === "forwarder" ? "forwarder" : "direct",
+    countryCode: options?.countryCode ?? "",
+  });
+}
+
+function readCachedQuote(cacheKey: string) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.sessionStorage.getItem(`${CART_QUOTE_CACHE_KEY}:${cacheKey}`);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as (AlibabaSourcingQuote & { settings?: SourcingSettings }) | null;
+    if (!parsed || !Array.isArray(parsed.items) || !Array.isArray(parsed.shippingOptions)) {
+      return null;
+    }
+
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedQuote(cacheKey: string, quote: AlibabaSourcingQuote & { settings?: SourcingSettings }) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.sessionStorage.setItem(`${CART_QUOTE_CACHE_KEY}:${cacheKey}`, JSON.stringify(quote));
+  } catch {
+    // Ignore storage quota/privacy failures.
+  }
+}
+
 export function CartProvider({ children, ownerScope = "guest" }: { children: React.ReactNode; ownerScope?: string | null }) {
   const cartStorageKey = ownerScope ? buildScopedStorageKey(CART_STORAGE_KEY, ownerScope) : null;
   const sharedCartStorageKey = ownerScope ? buildScopedStorageKey(SHARED_CART_STORAGE_KEY, ownerScope) : null;
-  const [items, setItems] = useState<CartStateItem[]>([]);
+  const [items, setItems] = useState<CartStateItem[]>(() => {
+    if (typeof window === "undefined" || !ownerScope) {
+      return [];
+    }
+
+    return readBestCartItemsFromStorage(buildScopedStorageKey(CART_STORAGE_KEY, ownerScope));
+  });
   const [sharedCartContext, setSharedCartContextState] = useState<SharedCartImportContext | null>(null);
   const [hydratedStorageKey, setHydratedStorageKey] = useState<string | null>(null);
   const reminderTimerRef = useRef<number | null>(null);
@@ -162,8 +255,8 @@ export function CartProvider({ children, ownerScope = "guest" }: { children: Rea
       return;
     }
 
-    setItems(readCartItemsFromStorage(cartStorageKey));
-    setSharedCartContextState(readSharedCartContextFromStorage(sharedCartStorageKey));
+    setItems(readBestCartItemsFromStorage(cartStorageKey));
+    setSharedCartContextState(readBestSharedCartContextFromStorage(sharedCartStorageKey));
     setHydratedStorageKey(cartStorageKey);
   }, [cartStorageKey, sharedCartStorageKey]);
 
@@ -322,6 +415,15 @@ export function useCartQuote(options?: { disableFreeAir?: boolean; deliveryMode?
       return;
     }
 
+    const cacheKey = buildCartQuoteCacheKey(items, options);
+    const cachedQuote = readCachedQuote(cacheKey);
+    if (cachedQuote) {
+      setQuote(cachedQuote);
+      setSettings(cachedQuote.settings ?? null);
+      lastSuccessfulQuoteRef.current = cachedQuote;
+      lastSuccessfulSettingsRef.current = cachedQuote.settings ?? null;
+    }
+
     const controller = new AbortController();
 
     async function loadQuote() {
@@ -351,6 +453,7 @@ export function useCartQuote(options?: { disableFreeAir?: boolean; deliveryMode?
         setSettings(payload.settings ?? null);
         lastSuccessfulQuoteRef.current = payload;
         lastSuccessfulSettingsRef.current = payload.settings ?? null;
+        writeCachedQuote(cacheKey, payload);
       } catch {
         if (!controller.signal.aborted) {
           setQuote(lastSuccessfulQuoteRef.current);

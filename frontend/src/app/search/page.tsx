@@ -5,7 +5,9 @@ import type { Metadata } from "next";
 import { InternalPageShell } from "@/components/internal-page-shell";
 import { ProductsFeedClient } from "@/components/products/products-feed-client";
 import { getSearchProducts } from "@/lib/api";
+import { findSimilarCatalogProducts, searchCatalogProducts } from "@/lib/catalog-service";
 import { FREE_DEAL_ROUTE, isFreeDealSearchQuery } from "@/lib/free-deal-constants";
+import { buildCatalogFallbackProductFeedPage } from "@/lib/product-feed-fallback";
 import { getPricingContext } from "@/lib/pricing";
 import { SITE_NAME, SITE_URL } from "@/lib/site-config";
 
@@ -75,9 +77,9 @@ export default async function SearchPage({
   }
 
   const query = q.trim();
-  const [pricing, initialPage] = await Promise.all([
+  const [pricing, apiInitialPage] = await Promise.all([
     getPricingContext(),
-    query ? getSearchProducts(query) : Promise.resolve({
+    query ? getSearchProducts(query).catch(() => null) : Promise.resolve({
       items: [],
       page: 1,
       nextPage: null,
@@ -88,6 +90,26 @@ export default async function SearchPage({
       matchMode: "exact" as const,
     }),
   ]);
+  let initialPage = apiInitialPage;
+  if (query && (!initialPage || initialPage.items.length === 0)) {
+    const exactProducts = await searchCatalogProducts(query);
+    const products = exactProducts.length > 0 ? exactProducts : await findSimilarCatalogProducts(query);
+    initialPage = buildCatalogFallbackProductFeedPage({
+      products,
+      source: "search",
+      query,
+      matchMode: exactProducts.length > 0 ? "exact" : "similar",
+    });
+  }
+
+  if (!initialPage) {
+    initialPage = buildCatalogFallbackProductFeedPage({
+      products: [],
+      source: "search",
+      query,
+      matchMode: "exact",
+    });
+  }
   const isSimilarFallback = initialPage.matchMode === "similar" && initialPage.items.length > 0;
 
   return (

@@ -231,7 +231,7 @@ export default async function Home() {
           <div className="border-t border-black/6">
             <div className="py-3 text-[14px]">
               <div className="mb-3 sm:hidden">
-                <MobileCategoryStrip allLabel="Tous" categories={catalogCategories.map((category) => ({ label: category.title, href: category.href }))} />
+                <MobileCategoryStrip allLabel="Tous" categories={megaMenuCategories.map((category) => ({ label: category.title, href: category.href ?? `/categories/${encodeURIComponent(category.slug)}` }))} />
               </div>
 
               <nav className="mb-4 grid grid-cols-4 gap-3 sm:hidden">

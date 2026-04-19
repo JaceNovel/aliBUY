@@ -46,6 +46,22 @@ const CATEGORY_SORT_PRIORITY: Record<string, number> = {
   "vr-gaming": 10,
 };
 
+const CANONICAL_CATEGORY_FALLBACKS: Array<{ slug: string; title: string; path: string[] }> = [
+  { slug: "telephones-accessoires", title: "Telephones & accessoires", path: ["Electronique", "Telephones & accessoires"] },
+  { slug: "chaussures-sacs", title: "Chaussures & sacs", path: ["Mode", "Chaussures & sacs"] },
+  { slug: "vetements-chaussures", title: "Vetements & chaussures", path: ["Mode", "Vetements & chaussures"] },
+  { slug: "bijoux-accessoires", title: "Bijoux & accessoires", path: ["Mode", "Bijoux & accessoires"] },
+  { slug: "jewelry-accessories", title: "Bijoux & accessoires", path: ["Mode", "Bijoux & accessoires"] },
+  { slug: "fashion-accessories", title: "Mode & accessoires", path: ["Mode", "Mode & accessoires"] },
+  { slug: "electronique", title: "Electronique", path: ["Electronique"] },
+  { slug: "keyboard-mouse", title: "Claviers & souris", path: ["Informatique", "Claviers & souris"] },
+  { slug: "claviers-souris", title: "Claviers & souris", path: ["Informatique", "Claviers & souris"] },
+  { slug: "meubles", title: "Meubles", path: ["Maison", "Meubles"] },
+  { slug: "maison-jardin", title: "Maison & jardin", path: ["Maison & jardin"] },
+  { slug: "sports-leisure", title: "Sports & loisirs", path: ["Sports & loisirs"] },
+  { slug: "vr-gaming", title: "Realite virtuelle & gaming", path: ["Electronique", "Realite virtuelle & gaming"] },
+];
+
 function isNoiseCategoryTitle(value: string) {
   const normalized = value.trim().toLowerCase();
   return /^(usd|cny|eur|gbp|cad|aud|xof|fcfa|catalogue|autres produits|aliexpress|alibaba|general|misc|other|others)$/i.test(normalized);
@@ -82,6 +98,131 @@ function getCategorySortRank(slug: string) {
   return CATEGORY_SORT_PRIORITY[slug] ?? 999;
 }
 
+function normalizeCategoryLookupValue(value: string) {
+  return slugifyCategoryLabel(value).trim();
+}
+
+function getProductCategoryLookupValues(product: ProductCatalogItem) {
+  const inferredCategory = extractAlibabaCategoryInfo({
+    rawPayload: product.rawPayload,
+    query: product.query,
+    title: product.title,
+    keywords: product.keywords,
+    categoryTitle: product.categoryTitle?.trim(),
+    categoryPath: Array.isArray(product.categoryPath) ? product.categoryPath : undefined,
+  });
+  const haystack = [
+    inferredCategory.slug,
+    inferredCategory.title,
+    product.title,
+    product.shortTitle,
+    product.query ?? "",
+    product.categorySlug ?? "",
+    product.categoryTitle ?? "",
+    ...(product.categoryPath ?? []),
+    ...(product.keywords ?? []),
+  ].join(" ").toLowerCase();
+  const canonicalValues = [
+    /\b(phone|phones|telephone|telephones|smartphone|smartphones|iphone|android|mobile|mobiles|tablet|tablets|ipad|case|cases|cover|covers|charger|charging|usb|power\s*bank)\b/i.test(haystack)
+      ? ["telephones-accessoires", "Telephones & accessoires", "Electronique"]
+      : [],
+    /\b(shoe|shoes|sneaker|sneakers|boot|boots|sandals|slippers|footwear|chaussure|chaussures|backpack|handbag|wallet|purse|bag|bags|sac|sacs)\b/i.test(haystack)
+      ? ["chaussures-sacs", "Chaussures & sacs", "Mode"]
+      : [],
+    /\b(watch|watches|montre|montres|jewelry|jewellery|bijou|bijoux|ring|necklace|bracelet|earring|piercing)\b/i.test(haystack)
+      ? ["bijoux-accessoires", "jewelry-accessories", "Bijoux & accessoires"]
+      : [],
+  ].flat();
+
+  return new Set(
+    [
+      inferredCategory.slug,
+      inferredCategory.title,
+      product.categorySlug ?? "",
+      product.categoryTitle ?? "",
+      ...(product.categoryPath ?? []),
+      product.query ?? "",
+      ...canonicalValues,
+    ]
+      .flatMap((entry) => [entry, slugifyCategoryLabel(entry)])
+      .map((entry) => normalizeCategoryLookupValue(entry))
+      .filter(Boolean),
+  );
+}
+
+function getCategoryLookupValues(category: CatalogCategoryRecord) {
+  return new Set(
+    [
+      category.slug,
+      category.title,
+      category.sourcePathLabel,
+      ...category.sourcePath,
+      ...category.queries,
+    ]
+      .flatMap((entry) => [entry, slugifyCategoryLabel(entry)])
+      .map((entry) => normalizeCategoryLookupValue(entry))
+      .filter(Boolean),
+  );
+}
+
+function hasSharedLookupValue(left: Set<string>, right: Set<string>) {
+  for (const value of left) {
+    if (right.has(value)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function titleFromSlug(slug: string) {
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
+}
+
+async function buildCategoryFromSlugFallback(slug: string) {
+  const normalizedSlug = normalizeCategoryLookupValue(slug);
+  const canonical = CANONICAL_CATEGORY_FALLBACKS.find((entry) => normalizeCategoryLookupValue(entry.slug) === normalizedSlug);
+
+  if (!canonical && normalizedSlug === "") {
+    return null;
+  }
+
+  const title = canonical?.title ?? titleFromSlug(normalizedSlug);
+  const sourcePath = canonical?.path ?? [title];
+  const categoryLookupValues = new Set(
+    [normalizedSlug, title, ...sourcePath]
+      .flatMap((entry) => [entry, slugifyCategoryLabel(entry)])
+      .map((entry) => normalizeCategoryLookupValue(entry))
+      .filter(Boolean),
+  );
+  const products = (await getCatalogProducts({ fresh: true })).filter((product) => {
+    return hasSharedLookupValue(categoryLookupValues, getProductCategoryLookupValues(product));
+  });
+  const productCount = products.length;
+
+  if (!canonical && productCount === 0) {
+    return null;
+  }
+
+  return {
+    slug: canonical?.slug ?? normalizedSlug,
+    title,
+    description: buildCategoryDescription(title, sourcePath, productCount),
+    href: buildCategoryHref(canonical?.slug ?? normalizedSlug),
+    image: products[0]?.image,
+    productCount,
+    productSlugs: products.map((product) => product.slug),
+    sourcePath,
+    sourcePathLabel: sourcePath.join(" / "),
+    queries: [],
+    products,
+  } satisfies CatalogCategoryRecord;
+}
+
 function resolveCategoryProducts(category: CatalogCategoryRecord, products: ProductCatalogItem[]) {
   const productsBySlug = new Map(products.map((product) => [product.slug, product]));
   const explicitMatches = category.productSlugs.flatMap((slug) => {
@@ -89,22 +230,13 @@ function resolveCategoryProducts(category: CatalogCategoryRecord, products: Prod
     return product ? [product] : [];
   });
 
-  if (explicitMatches.length > 0) {
-    return dedupeProducts([...category.products, ...explicitMatches]);
-  }
+  const categoryLookupValues = getCategoryLookupValues(category);
 
   return dedupeProducts([
     ...category.products,
+    ...explicitMatches,
     ...products.filter((product) => {
-      const inferredCategory = extractAlibabaCategoryInfo({
-        rawPayload: product.rawPayload,
-        title: product.title,
-        keywords: product.keywords,
-      });
-
-      return inferredCategory.slug === category.slug
-        || slugifyCategoryLabel(inferredCategory.title) === category.slug
-        || slugifyCategoryLabel(category.title) === inferredCategory.slug;
+      return hasSharedLookupValue(categoryLookupValues, getProductCategoryLookupValues(product));
     }),
   ]);
 }
@@ -334,6 +466,13 @@ export const getCatalogCategories = cache(async function getCatalogCategories():
 
 export const getCatalogCategoryBySlug = cache(async function getCatalogCategoryBySlug(slug: string): Promise<CatalogCategoryRecord | null> {
   const categories = await getCatalogCategories();
-  const category = categories.find((entry) => entry.slug === slug) ?? null;
-  return category ? hydrateCategory(category) : null;
+  const normalizedSlug = normalizeCategoryLookupValue(slug);
+  const category = categories.find((entry) => {
+    if (entry.slug === slug || normalizeCategoryLookupValue(entry.slug) === normalizedSlug) {
+      return true;
+    }
+
+    return getCategoryLookupValues(entry).has(normalizedSlug);
+  }) ?? null;
+  return category ? hydrateCategory(category) : buildCategoryFromSlugFallback(slug);
 });

@@ -8,6 +8,7 @@ import { DeliveryAddressPopover } from "@/components/delivery-address-popover";
 import { HeaderActionGroup } from "@/components/header-action-group";
 import { LanguageSelectorPopover } from "@/components/language-selector-popover";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
+import { MobileCategoryStrip } from "@/components/mobile-category-strip";
 import { OrderProtectionMenu } from "@/components/order-protection-menu";
 import { SearchSuggestionInput } from "@/components/search-suggestion-input";
 import { SiteFooter } from "@/components/site-footer";
@@ -31,13 +32,6 @@ type InternalPageShellProps = {
   };
   children: React.ReactNode;
 };
-
-const MOBILE_NAV_SHORTCUTS: ReadonlyArray<{ label: string; href: string }> = [
-  { label: "Produits", href: "/products" },
-  { label: "Devis", href: "/quotes" },
-  { label: "Messages", href: "/messages" },
-  { label: "Commandes", href: "/orders" },
-];
 
 const MEGA_MENU_PREVIEW_LIMIT = 8;
 
@@ -139,17 +133,15 @@ export async function InternalPageShell({ pricing, children }: InternalPageShell
               </div>
             </form>
 
-            <nav className="grid grid-cols-4 gap-3 py-4">
-              {MOBILE_NAV_SHORTCUTS.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="inline-flex h-11 min-w-0 items-center justify-center rounded-[16px] bg-[#f8f3ed] px-2 text-center text-[12px] font-semibold text-[#2b221c] transition hover:text-[#ff6a00]"
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
+            <div className="py-4">
+              <MobileCategoryStrip
+                allLabel="Tous"
+                categories={megaMenuCategories.map((category) => ({
+                  label: category.title,
+                  href: category.href ?? `/categories/${encodeURIComponent(category.slug)}`,
+                }))}
+              />
+            </div>
 
           </div>
 

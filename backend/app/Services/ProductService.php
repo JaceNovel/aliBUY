@@ -579,13 +579,44 @@ class ProductService
         return [$this->resolveCategoryTitle($product)];
     }
 
+    protected function categoryLookupValues(Product $product, array $category): array
+    {
+        $metadata = is_array($product->metadata) ? $product->metadata : [];
+        $values = [
+            (string) ($category['slug'] ?? ''),
+            (string) ($category['title'] ?? ''),
+            (string) $product->category,
+            (string) ($metadata['categorySlug'] ?? ''),
+            (string) ($metadata['categoryTitle'] ?? ''),
+            (string) ($metadata['query'] ?? ''),
+            ...$this->resolveCategoryPath($product),
+            ...(is_array($category['path'] ?? null) ? $category['path'] : []),
+        ];
+
+        return collect($values)
+            ->filter(fn ($entry) => is_string($entry) && trim($entry) !== '')
+            ->flatMap(fn (string $entry) => [trim($entry), $this->slugifyCategoryLabel($entry)])
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
     protected function publishedProductsForResolvedCategory(string $slug)
     {
+        $normalizedSlug = $this->slugifyCategoryLabel($slug);
+
         return Product::query()
             ->where('is_published', true)
             ->latest()
             ->get()
-            ->filter(fn (Product $product) => $this->resolvePublicCategory($product)['slug'] === $slug)
+            ->filter(function (Product $product) use ($slug, $normalizedSlug) {
+                $category = $this->resolvePublicCategory($product);
+                $lookupValues = $this->categoryLookupValues($product, $category);
+
+                return in_array($slug, $lookupValues, true)
+                    || ($normalizedSlug !== '' && in_array($normalizedSlug, $lookupValues, true));
+            })
             ->values();
     }
 
@@ -665,9 +696,12 @@ class ProductService
         $shortTitle = $this->normalizeSearchText((string) ($metadata['shortTitle'] ?? ''));
         $description = $this->normalizeSearchText((string) ($product->description ?? ''));
         $slug = $this->normalizeSearchText((string) $product->slug);
+        $sourceQuery = $this->normalizeSearchText((string) ($metadata['query'] ?? ''));
+        $columnCategory = $this->normalizeSearchText((string) $product->category);
         $categoryTitle = $this->normalizeSearchText($this->resolveCategoryTitle($product));
         $categoryPath = $this->normalizeSearchText(implode(' ', $this->resolveCategoryPath($product)));
         $supplierName = $this->normalizeSearchText((string) ($product->supplier_name ?? ''));
+        $supplierLocation = $this->normalizeSearchText((string) ($product->supplier_location ?? ''));
         $keywords = collect($metadata['keywords'] ?? [])
             ->filter(fn ($entry) => is_string($entry) && trim($entry) !== '')
             ->map(fn (string $entry) => $this->normalizeSearchText($entry))
@@ -685,17 +719,36 @@ class ProductService
             ->filter()
             ->values()
             ->all();
+        $variants = collect($metadata['variantGroups'] ?? [])
+            ->filter(fn ($entry) => is_array($entry))
+            ->flatMap(function (array $entry) {
+                $label = isset($entry['label']) ? [(string) $entry['label']] : [];
+                $values = collect($entry['values'] ?? [])
+                    ->filter(fn ($value) => is_scalar($value))
+                    ->map(fn ($value) => (string) $value)
+                    ->all();
+
+                return [...$label, ...$values];
+            })
+            ->map(fn (string $entry) => $this->normalizeSearchText($entry))
+            ->filter()
+            ->values()
+            ->all();
 
         $combined = trim(implode(' ', array_filter([
             $title,
             $shortTitle,
             $description,
             $slug,
+            $sourceQuery,
+            $columnCategory,
             $categoryTitle,
             $categoryPath,
             $supplierName,
+            $supplierLocation,
             implode(' ', $keywords),
             implode(' ', $specs),
+            implode(' ', $variants),
         ])));
 
         if ($combined === '') {
@@ -725,6 +778,14 @@ class ProductService
             $score += 80;
         }
 
+        if (str_contains($supplierName, $normalizedQuery) || str_contains($supplierLocation, $normalizedQuery)) {
+            $score += 80;
+        }
+
+        if ($sourceQuery !== '' && str_contains($sourceQuery, $normalizedQuery)) {
+            $score += 80;
+        }
+
         if (str_contains($description, $normalizedQuery) || str_contains($slug, $normalizedQuery)) {
             $score += 70;
         }
@@ -735,6 +796,10 @@ class ProductService
 
         if (collect($specs)->contains(fn (string $entry) => str_contains($entry, $normalizedQuery))) {
             $score += 70;
+        }
+
+        if (collect($variants)->contains(fn (string $entry) => str_contains($entry, $normalizedQuery))) {
+            $score += 60;
         }
 
         foreach ($searchTerms as $term) {
@@ -753,7 +818,9 @@ class ProductService
                 $termScore = 18;
             } elseif (str_contains($categoryTitle, $term) || str_contains($categoryPath, $term)) {
                 $termScore = 18;
-            } elseif (str_contains($description, $term) || str_contains($supplierName, $term) || str_contains($slug, $term) || str_contains($combined, $term)) {
+            } elseif (collect($variants)->contains(fn (string $entry) => str_contains($entry, $term))) {
+                $termScore = 16;
+            } elseif (str_contains($sourceQuery, $term) || str_contains($description, $term) || str_contains($supplierName, $term) || str_contains($supplierLocation, $term) || str_contains($slug, $term) || str_contains($combined, $term)) {
                 $termScore = 12;
             }
 

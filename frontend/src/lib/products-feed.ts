@@ -490,7 +490,7 @@ export async function getCategoryProductsFeedPage(input: {
 
   if (canUseProductFeedDatabase()) {
     try {
-      return await getDatabaseFeedPage({
+      const databasePage = await getDatabaseFeedPage({
         page,
         pageSize,
         skip,
@@ -498,6 +498,10 @@ export async function getCategoryProductsFeedPage(input: {
         source: "category",
         category: normalizedCategory,
       });
+
+      if (databasePage.items.length > 0) {
+        return databasePage;
+      }
     } catch (error) {
       if (!isPrismaFallbackError(error)) {
         throw error;
