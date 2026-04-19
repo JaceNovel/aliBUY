@@ -6,6 +6,7 @@ use App\Services\AlibabaAdminService;
 use App\Services\FreeDealService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Throwable;
 
 class FreeDealController extends Controller
 {
@@ -73,12 +74,24 @@ class FreeDealController extends Controller
 
         $payload = $request->json()->all();
         $maxUsd = max(0.1, (float) ($payload['maxUsd'] ?? 5));
-        $import = $this->alibabaAdmin->import([
-            ...$payload,
-            'autoPublish' => true,
-            'campaignMode' => 'free-deal',
-            'limit' => max(1, (int) ($payload['limit'] ?? 18)),
-        ]);
+        try {
+            $import = $this->alibabaAdmin->import([
+                ...$payload,
+                'autoPublish' => true,
+                'campaignMode' => 'free-deal',
+                'limit' => max(1, (int) ($payload['limit'] ?? 18)),
+            ]);
+        } catch (Throwable $exception) {
+            $message = trim($exception->getMessage());
+            $normalizedMessage = strtolower($message);
+            if (str_contains($normalizedMessage, 'api path') || str_contains($normalizedMessage, 'specified api path')) {
+                $message = "Import fournisseur indisponible: le compte Open Platform utilise un chemin API refuse par Alibaba/AliExpress. Verifie la base API du compte fournisseur, puis relance l'import. Tu peux aussi ajouter des articles deja publies depuis la liste de selection.";
+            }
+
+            return response()->json([
+                'message' => $message !== '' ? $message : "Import fournisseur impossible pour l'offre gratuite.",
+            ], 422);
+        }
 
         $products = collect($import['products'] ?? [])
             ->filter(fn ($product) => is_array($product) && (float) ($product['minUsd'] ?? 0) > 0 && (float) ($product['minUsd'] ?? 0) <= $maxUsd)

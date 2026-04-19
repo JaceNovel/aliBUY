@@ -264,7 +264,8 @@ class AlibabaAdminService
             $existing = [];
         }
 
-        $sources = $this->resolveImportSources($input, $existing);
+        $fallbackNotice = null;
+        $sources = $this->resolveImportSources($input, $existing, $fallbackNotice);
         if ($sources === []) {
             throw new RuntimeException("Aucun produit exploitable n'a ete trouve pour cet import Laravel. Le flux live fournisseur n'est pas encore porte en PHP; fournis un prefetchedProduct ou pars d'un snapshot deja stocke.");
         }
@@ -317,6 +318,7 @@ class AlibabaAdminService
             'purgedCount' => $purgedCount,
             'skippedExistingCount' => $skippedExistingCount,
             'freeDealProductSlugs' => [],
+            ...(is_string($fallbackNotice) ? ['warningMessage' => $fallbackNotice] : []),
         ];
 
         $this->appendLog('catalog-import', 'internal/alibaba/import', 'success', $input, [
@@ -1478,7 +1480,7 @@ class AlibabaAdminService
         }, $accounts));
     }
 
-    private function resolveImportSources(array $input, array $existingImportedProducts): array
+    private function resolveImportSources(array $input, array $existingImportedProducts, ?string &$fallbackNotice = null): array
     {
         $prefetchedProduct = $input['prefetchedProduct'] ?? null;
         if (is_array($prefetchedProduct)) {
@@ -1507,11 +1509,59 @@ class AlibabaAdminService
             return $sources;
         }
 
-        return array_map(fn ($item) => $item['product'], $this->search([
-            'query' => $query,
-            'pageSize' => (int) ($input['limit'] ?? 20),
-            'pageIndex' => 1,
-        ])['products'] ?? []);
+        try {
+            return array_map(fn ($item) => $item['product'], $this->search([
+                'query' => $query,
+                'pageSize' => (int) ($input['limit'] ?? 20),
+                'pageIndex' => 1,
+            ])['products'] ?? []);
+        } catch (RuntimeException $exception) {
+            $fallbackSources = $this->resolveLocalImportSources($query, (int) ($input['limit'] ?? 20));
+            if ($fallbackSources !== [] && $this->isInvalidOpenPlatformPathError($exception->getMessage())) {
+                $fallbackNotice = "Le fournisseur live a refuse le chemin API configure. J'ai utilise les articles deja presents dans le catalogue/import backend qui correspondent a cette recherche.";
+                return $fallbackSources;
+            }
+
+            throw $exception;
+        }
+    }
+
+    private function resolveLocalImportSources(string $query, int $limit): array
+    {
+        $normalizedQuery = mb_strtolower(trim($query));
+        $matches = [];
+
+        foreach ($this->buildSearchPool() as $item) {
+            if (! is_array($item['product'] ?? null)) {
+                continue;
+            }
+
+            $haystack = mb_strtolower(implode(' ', array_filter([
+                $item['productId'] ?? '',
+                $item['title'] ?? '',
+                $item['itemUrl'] ?? '',
+                $item['categoryId'] ?? '',
+                $item['product']['title'] ?? '',
+                $item['product']['shortTitle'] ?? '',
+                $item['product']['supplierName'] ?? '',
+                implode(' ', array_map(fn ($keyword) => (string) $keyword, $item['product']['keywords'] ?? [])),
+            ])));
+
+            if ($normalizedQuery === '' || str_contains($haystack, $normalizedQuery)) {
+                $matches[] = $item['product'];
+            }
+        }
+
+        return array_slice($matches, 0, max(1, $limit));
+    }
+
+    private function isInvalidOpenPlatformPathError(string $message): bool
+    {
+        $normalized = mb_strtolower($message);
+
+        return str_contains($normalized, 'api path')
+            || str_contains($normalized, 'invalid path')
+            || str_contains($normalized, 'specified api path');
     }
 
     private function buildImportedProductRecord(array $source, array $input, string $timestamp): array
