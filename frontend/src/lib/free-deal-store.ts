@@ -1,6 +1,7 @@
 import "server-only";
 
 import { randomBytes, createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -116,6 +117,11 @@ function resolveSiteDir() {
     return path.join(os.tmpdir(), "afripay", "data", "site");
   }
 
+  const monorepoBackendSiteDir = path.resolve(process.cwd(), "..", "backend", "data", "site");
+  if (existsSync(monorepoBackendSiteDir)) {
+    return monorepoBackendSiteDir;
+  }
+
   return path.join(process.cwd(), "data", "site");
 }
 
@@ -126,7 +132,7 @@ const VISITS_PATH = path.join(SITE_DIR, "free-deal-referral-visits.json");
 const CONFIG_BLOB_PATHNAME = "site/free-deal-config.json";
 const CLAIMS_BLOB_PATHNAME = "site/free-deal-claims.json";
 const VISITS_BLOB_PATHNAME = "site/free-deal-referral-visits.json";
-const CONFIG_SEED_PATH = path.join(process.cwd(), "data", "site", "free-deal-config.json");
+const CONFIG_SEED_PATH = path.join(SITE_DIR, "free-deal-config.json");
 const DEFAULT_CONFIG_ID = "free-deal-default";
 const BLOB_ACCESS_MODE = getVercelBlobAccessMode();
 

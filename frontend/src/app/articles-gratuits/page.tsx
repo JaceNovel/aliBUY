@@ -93,7 +93,7 @@ export default async function FreeDealPage() {
   const ip = resolveRequestIp(headerStore);
   const userAgent = headerStore.get("user-agent");
   const remoteState = await loadFreeDealPageState(headerStore, cookieStore);
-  const [products, access, resolvedConfig, claimedProductSlugs] = remoteState
+  const [loadedProducts, access, resolvedConfig, claimedProductSlugs] = remoteState
     ? [remoteState.products, remoteState.access, remoteState.config, remoteState.claimedProductSlugs]
     : await Promise.all([
         getFreeDealProducts(config),
@@ -107,6 +107,9 @@ export default async function FreeDealPage() {
         Promise.resolve(config),
         getPurchasedFreeDealProductSlugs(),
       ]);
+  const products = loadedProducts.length === 0 && resolvedConfig.productSlugs.length > 0
+    ? await getFreeDealProducts(resolvedConfig)
+    : loadedProducts;
   const claimedSlugSet = new Set(claimedProductSlugs);
   const origin = resolveRequestOrigin(headerStore);
   const compareAtBase = Number((resolvedConfig.fixedPriceEur * resolvedConfig.compareAtMultiplier + resolvedConfig.compareAtExtraEur).toFixed(2));

@@ -1877,11 +1877,13 @@ class AliExpressOpenPlatformService
         $prepared = $this->prepareAccount($account, true);
         $account = $prepared['account'];
         $countryCode = strtoupper(trim((string) ($address['countryCode'] ?? env('ALIBABA_SHIP_TO_COUNTRY', 'CN'))));
-        $dispatchLocation = strtoupper(trim((string) ($product['dispatchLocation'] ?? $account['defaultDispatchLocation'] ?? env('ALIBABA_DISPATCH_LOCATION', 'CN'))));
         $sourceProductId = (string) ($product['sourceProductId'] ?? '');
         if ($sourceProductId === '') {
             throw new RuntimeException('product_id fournisseur manquant pour creer la commande BuyNow.');
         }
+
+        $dispatchCandidates = $this->resolveAlibabaDispatchLocationCandidates($product, $account, $countryCode, false, $sourceProductId);
+        $dispatchLocation = $dispatchCandidates[0] ?? 'CN';
 
         $skuId = $this->extractSkuIdFromVariantSkus($product['variantSkus'] ?? null)
             ?? $this->extractSkuId($product['rawPayload'] ?? null)
@@ -1918,6 +1920,27 @@ class AliExpressOpenPlatformService
             'enable_distribution_waybill' => 'false',
         ];
         $freightResult = $this->callRestEndpoint($account, '/shipping/freight/calculate', $freightPayload);
+
+        if ($this->shouldRetryAlibabaDispatchLocation($freightResult['responseBody'] ?? null)) {
+            foreach ($this->resolveAlibabaDispatchLocationCandidates($product, $account, $countryCode, true, $sourceProductId) as $candidate) {
+                if ($candidate === $dispatchLocation) {
+                    continue;
+                }
+
+                $retryPayload = $freightPayload;
+                $retryPayload['dispatch_location'] = $candidate;
+                $retryResult = $this->callRestEndpoint($account, '/shipping/freight/calculate', $retryPayload);
+
+                $dispatchLocation = $candidate;
+                $freightPayload = $retryPayload;
+                $freightResult = $retryResult;
+
+                if (! $this->shouldRetryAlibabaDispatchLocation($retryResult['responseBody'] ?? null)) {
+                    break;
+                }
+            }
+        }
+
         $carrierCode = $this->resolveAlibabaCarrierCode($freightResult['responseBody'])
             ?? $this->getString($account['defaultCarrierCode'] ?? null)
             ?? env('ALIBABA_DEFAULT_CARRIER_CODE', null);
@@ -1956,6 +1979,108 @@ class AliExpressOpenPlatformService
             'skuId' => $skuId,
             'skuAttr' => '',
         ];
+    }
+
+    private function resolveAlibabaDispatchLocationCandidates(array $product, array $account, string $countryCode, bool $includeLiveLookup, ?string $sourceProductId = null): array
+    {
+        $rawPayload = is_array($product['rawPayload'] ?? null) ? $product['rawPayload'] : [];
+        $candidates = [
+            $product['dispatchLocation'] ?? null,
+            $product['dispatch_location'] ?? null,
+            $rawPayload['dispatchLocation'] ?? null,
+            $rawPayload['dispatch_location'] ?? null,
+            $rawPayload['shipping_from'] ?? null,
+        ];
+
+        foreach ($this->extractAlibabaDispatchLocationsFromPayload($rawPayload) as $candidate) {
+            $candidates[] = $candidate;
+        }
+
+        if ($includeLiveLookup && $sourceProductId !== null && $sourceProductId !== '') {
+            foreach ($this->fetchAlibabaBuyerInventoryByOrigin($account, $sourceProductId, $countryCode) as $origin) {
+                if (! is_array($origin)) {
+                    continue;
+                }
+
+                $candidates[] = $origin['shippingFrom'] ?? null;
+            }
+        }
+
+        $candidates[] = $account['defaultDispatchLocation'] ?? null;
+        $candidates[] = env('ALIBABA_DISPATCH_LOCATION', 'CN');
+
+        $resolved = [];
+        foreach ($candidates as $candidate) {
+            $normalized = $this->normalizeAlibabaDispatchLocation($candidate);
+            if ($normalized === null || in_array($normalized, $resolved, true)) {
+                continue;
+            }
+
+            $resolved[] = $normalized;
+        }
+
+        return $resolved !== [] ? $resolved : ['CN'];
+    }
+
+    private function extractAlibabaDispatchLocationsFromPayload(array $rawPayload): array
+    {
+        $candidates = [];
+        $inventoryCollections = [
+            $rawPayload['alibabaInventoryByOrigin'] ?? null,
+            $rawPayload['inventoryByOrigin'] ?? null,
+            $rawPayload['description']['inventoryByOrigin'] ?? null,
+        ];
+
+        foreach ($inventoryCollections as $inventoryCollection) {
+            if (! is_array($inventoryCollection)) {
+                continue;
+            }
+
+            foreach ($inventoryCollection as $origin) {
+                if (! is_array($origin)) {
+                    continue;
+                }
+
+                $candidates[] = $origin['shippingFrom'] ?? null;
+                $candidates[] = $origin['shipping_from'] ?? null;
+            }
+        }
+
+        $description = is_array($rawPayload['description'] ?? null) ? $rawPayload['description'] : [];
+        $detail = is_array($rawPayload['detail'] ?? null) ? $rawPayload['detail'] : [];
+        $searchItem = is_array($rawPayload['searchItem'] ?? null) ? $rawPayload['searchItem'] : [];
+
+        $candidates[] = $description['shipping_from'] ?? null;
+        $candidates[] = $description['dispatch_location'] ?? null;
+        $candidates[] = $detail['shipping_from'] ?? null;
+        $candidates[] = $detail['dispatch_location'] ?? null;
+        $candidates[] = $searchItem['shipping_from'] ?? null;
+
+        return array_values(array_filter(array_map(fn ($candidate) => $this->normalizeAlibabaDispatchLocation($candidate), $candidates)));
+    }
+
+    private function normalizeAlibabaDispatchLocation($value): ?string
+    {
+        $normalized = strtoupper(trim((string) $value));
+        if ($normalized === '' || preg_match('/^[A-Z]{2,3}$/', $normalized) !== 1) {
+            return null;
+        }
+
+        return $normalized;
+    }
+
+    private function shouldRetryAlibabaDispatchLocation($responseBody): bool
+    {
+        $code = $this->extractOperationCode($responseBody);
+        if ($code === '10012') {
+            return true;
+        }
+
+        $message = strtolower(trim((string) ($this->extractOperationMessage($responseBody) ?? '')));
+
+        return $message !== ''
+            && str_contains($message, 'dispatch_location')
+            && (str_contains($message, '10012') || str_contains($message, '不能从当前指定') || str_contains($message, '国家发货'));
     }
 
     private function createAlibabaBuyNowOrder(array $account, array $buyNowPayload): array
