@@ -66,6 +66,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const googleTagId = "G-GHCKVT4EDS";
+  const bingUetTagId = "97240657";
   const primaryNavigation = [
     { name: "Tous les produits", url: `${SITE_URL}/products` },
     { name: "Categories", url: `${SITE_URL}/categories` },
@@ -137,6 +138,49 @@ export default async function RootLayout({
               function gtag(){dataLayer.push(arguments);}
               gtag('js', new Date());
               gtag('config', '${googleTagId}');
+            `,
+          }}
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function(w, d, t, u, o) {
+                w[u] = w[u] || [];
+                o.ts = (new Date()).getTime();
+                var n = d.createElement(t);
+                n.src = "https://bat.bing.net/bat.js?ti=" + o.ti + ("uetq" != u ? "&q=" + u : "");
+                n.async = 1;
+                n.onload = n.onreadystatechange = function() {
+                  var s = this.readyState;
+                  if (!s || s === "loaded" || s === "complete") {
+                    o.q = w[u];
+                    w[u] = new UET(o);
+                    w[u].push("pageLoad");
+                    n.onload = n.onreadystatechange = null;
+                  }
+                };
+                var i = d.getElementsByTagName(t)[0];
+                i.parentNode.insertBefore(n, i);
+              })(window, document, "script", "uetq", {
+                ti: "${bingUetTagId}",
+                enableAutoSpaTracking: true,
+              });
+            `,
+          }}
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.uetq = window.uetq || [];
+              window.uetq.push('consent', 'default', {
+                ad_storage: 'denied'
+              });
+              window.afriGrantBingConsent = function afriGrantBingConsent() {
+                window.uetq = window.uetq || [];
+                window.uetq.push('consent', 'update', {
+                  ad_storage: 'granted'
+                });
+              };
             `,
           }}
         />
