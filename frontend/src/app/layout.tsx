@@ -91,6 +91,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const googleTagId = "G-GHCKVT4EDS";
+  const googleAdsTagId = "AW-18105145531";
   const bingUetTagId = "97240657";
   const currentUser = await getCurrentUser().catch(() => null);
   const accountSettings = currentUser ? await getSyncedAccountSettings(currentUser).catch(() => null) : null;
@@ -172,6 +173,7 @@ export default async function RootLayout({
               function gtag(){dataLayer.push(arguments);}
               gtag('js', new Date());
               gtag('config', '${googleTagId}');
+              gtag('config', '${googleAdsTagId}');
             `,
           }}
         />
