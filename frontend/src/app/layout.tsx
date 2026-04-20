@@ -3,8 +3,10 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { CartProvider } from "@/components/cart-provider";
 import { ClerkCartProvider } from "@/components/clerk-cart-provider";
 import { DeferredGlobalWidgets } from "@/components/deferred-global-widgets";
+import { getSyncedAccountSettings } from "@/lib/account-settings";
 import { isClerkConfigured } from "@/lib/clerk-config";
 import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_LOGO_PATH, SITE_NAME, SITE_SHARE_IMAGE_PATH, SITE_URL } from "@/lib/site-config";
+import { getCurrentUser } from "@/lib/user-auth";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -60,6 +62,29 @@ export const viewport: Viewport = {
   themeColor: "#fa6400",
 };
 
+function normalizeBingEnhancedEmail(value: string | null | undefined) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function normalizeBingEnhancedPhone(value: string | null | undefined) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return "";
+  }
+
+  const hasLeadingPlus = trimmed.startsWith("+");
+  const digits = trimmed.replace(/\D+/g, "");
+  if (digits === "") {
+    return "";
+  }
+
+  return `${hasLeadingPlus ? "+" : ""}${digits}`;
+}
+
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -67,6 +92,15 @@ export default async function RootLayout({
 }>) {
   const googleTagId = "G-GHCKVT4EDS";
   const bingUetTagId = "97240657";
+  const currentUser = await getCurrentUser().catch(() => null);
+  const accountSettings = currentUser ? await getSyncedAccountSettings(currentUser).catch(() => null) : null;
+  const bingEnhancedEmail = normalizeBingEnhancedEmail(currentUser?.email);
+  const bingEnhancedPhone = normalizeBingEnhancedPhone(
+    accountSettings?.phone
+      ?? accountSettings?.connectedWhatsapp
+      ?? accountSettings?.twoFactorPhone
+      ?? "",
+  );
   const primaryNavigation = [
     { name: "Tous les produits", url: `${SITE_URL}/products` },
     { name: "Categories", url: `${SITE_URL}/categories` },
@@ -165,6 +199,17 @@ export default async function RootLayout({
                 ti: "${bingUetTagId}",
                 enableAutoSpaTracking: true,
               });
+            `,
+          }}
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.uetq = window.uetq || [];
+              window.uetq.push('set', { pid: {
+                em: ${JSON.stringify(bingEnhancedEmail)},
+                ph: ${JSON.stringify(bingEnhancedPhone)}
+              } });
             `,
           }}
         />
