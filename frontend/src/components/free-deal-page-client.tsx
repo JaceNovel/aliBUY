@@ -316,7 +316,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
       countryCode: normalizedCountryCode,
     }));
 
-    setLocationFeedback(`Adresse detectee: ${geocoded.displayName || [geocoded.city, geocoded.countryLabel].filter(Boolean).join(", ")}`);
+    setLocationFeedback(`Adresse detectee: ${geocoded.displayName || [geocoded.city, geocoded.countryLabel].filter(Boolean).join(", ")}. Le code postal et l'appartement sont facultatifs.`);
   };
 
   const handleUseCurrentPosition = () => {
@@ -825,8 +825,8 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
                 { key: "city", label: "Ville", placeholder: "Lome" },
                 { key: "state", label: "Region / Etat", placeholder: "Maritime" },
                 { key: "addressLine1", label: "Adresse", placeholder: "Rue, quartier, repere" },
-                { key: "addressLine2", label: "Complement", placeholder: "Batiment, etage..." },
-                { key: "postalCode", label: "Code postal", placeholder: "75001" },
+                { key: "addressLine2", label: "Appartement / complement (optionnel)", placeholder: "Batiment, etage..." },
+                { key: "postalCode", label: "Code postal (optionnel)", placeholder: "75001" },
               ].map((field) => (
                 <label key={field.key} className={field.key === "addressLine1" ? "space-y-1.5 text-[12px] font-semibold text-[#344054] md:col-span-2" : "space-y-1.5 text-[12px] font-semibold text-[#344054]"}>
                   <span>{field.label}</span>
@@ -860,6 +860,9 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
                     <div className="text-[13px] font-semibold text-[#111827]">Position actuelle</div>
                     <div className="text-[12px] leading-5 text-[#667085]">
                       Disponible pour Togo, Côte d'Ivoire, Bénin, Burkina Faso et Ghana.
+                    </div>
+                    <div className="text-[12px] leading-5 text-[#667085]">
+                      Le code postal et l'appartement peuvent rester vides.
                     </div>
                   </div>
                   <button
