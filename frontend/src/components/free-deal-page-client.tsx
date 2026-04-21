@@ -2,11 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Check, Copy, Gift, LoaderCircle, MapPin, ShoppingCart, Sparkles, Trash2, Truck } from "lucide-react";
+import { Check, Copy, Gift, LoaderCircle, LocateFixed, MapPin, ShoppingCart, Sparkles, Trash2, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
-import { buildApiUrl } from "@/lib/api";
+import { buildApiUrl, buildLocalUrl } from "@/lib/api";
+import { canonicalizeCountryCode, resolveGeocodedCountryCode } from "@/lib/country-utils";
+import { DELIVERY_COUNTRY_OPTIONS, type CountryCode } from "@/lib/pricing-options";
 
 type FreeDealCard = {
   slug: string;
@@ -68,6 +70,17 @@ type ManyChatCheckoutContext = {
   manychatPaidTagId?: string;
 };
 
+type ReverseGeocodeResponse = {
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  countryCode?: string;
+  countryLabel?: string;
+  displayName?: string;
+};
+
 const INITIAL_FORM_STATE: CustomerFormState = {
   customerName: "",
   customerEmail: "",
@@ -81,6 +94,7 @@ const INITIAL_FORM_STATE: CustomerFormState = {
 };
 
 const FREE_DEAL_CART_STORAGE_KEY = "afripay_free_deal_cart_v1";
+const FREE_DEAL_LOCATION_COUNTRIES: CountryCode[] = ["TG", "CI", "BJ", "BF", "GH"];
 
 export function FreeDealPageClient({ config, access, initialCustomer, products }: FreeDealPageClientProps) {
   const { items: standardCartItems, clearCart } = useCart();
@@ -94,6 +108,8 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [manychatContext, setManychatContext] = useState<ManyChatCheckoutContext>({});
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationFeedback, setLocationFeedback] = useState<string | null>(null);
 
   const isSelectable = access.status === "eligible" || access.status === "unlocked";
   const purchasedSlugSet = useMemo(
@@ -177,6 +193,8 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
   }, [selectedSlugs]);
 
   const totalCartSlots = config.itemLimit;
+  const selectedCountryCode = canonicalizeCountryCode(formState.countryCode, initialCustomer.countryCode || "TG") as CountryCode;
+  const canUseCurrentPosition = FREE_DEAL_LOCATION_COUNTRIES.includes(selectedCountryCode);
   const addressSummary = [formState.addressLine1, formState.addressLine2, `${formState.city}${formState.state ? `, ${formState.state}` : ""}`, formState.postalCode, formState.countryCode]
     .filter(Boolean)
     .join(" · ");
@@ -248,10 +266,89 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
   };
 
   const handleFieldChange = (key: keyof CustomerFormState, value: string) => {
+    if (key === "countryCode") {
+      setLocationFeedback(null);
+    }
+
     setFormState((current) => ({
       ...current,
       [key]: value,
     }));
+  };
+
+  const hydrateAddressFromCoordinates = async (latitude: number, longitude: number) => {
+    const response = await fetch(buildLocalUrl("/api/location/reverse-geocode"), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ latitude, longitude }),
+    });
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok || !payload) {
+      throw new Error(payload?.message || "Impossible de remplir l'adresse depuis cette position.");
+    }
+
+    const geocoded = payload as ReverseGeocodeResponse;
+    const normalizedCountryCode = resolveGeocodedCountryCode({
+      countryCode: geocoded.countryCode,
+      countryLabel: geocoded.countryLabel,
+      displayName: geocoded.displayName,
+      city: geocoded.city,
+      state: geocoded.state,
+      addressLine1: geocoded.addressLine1,
+      coordinates: { latitude, longitude },
+      fallbackCountryCode: selectedCountryCode,
+    }) as CountryCode;
+
+    if (!FREE_DEAL_LOCATION_COUNTRIES.includes(normalizedCountryCode)) {
+      throw new Error("La position actuelle n'est prise en charge que pour le Togo, la Côte d'Ivoire, le Bénin, le Burkina Faso et le Ghana.");
+    }
+
+    setFormState((current) => ({
+      ...current,
+      addressLine1: geocoded.addressLine1 || geocoded.displayName || current.addressLine1,
+      addressLine2: geocoded.addressLine2 || current.addressLine2,
+      city: geocoded.city || current.city,
+      state: geocoded.state || geocoded.city || current.state,
+      postalCode: geocoded.postalCode || current.postalCode,
+      countryCode: normalizedCountryCode,
+    }));
+
+    setLocationFeedback(`Adresse detectee: ${geocoded.displayName || [geocoded.city, geocoded.countryLabel].filter(Boolean).join(", ")}`);
+  };
+
+  const handleUseCurrentPosition = () => {
+    if (!canUseCurrentPosition) {
+      setLocationFeedback("La position actuelle est disponible pour le Togo, la Côte d'Ivoire, le Bénin, le Burkina Faso et le Ghana.");
+      return;
+    }
+
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocationFeedback("La geolocalisation n'est pas disponible sur cet appareil.");
+      return;
+    }
+
+    setIsLocating(true);
+    setLocationFeedback(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        void hydrateAddressFromCoordinates(position.coords.latitude, position.coords.longitude)
+          .catch((error) => {
+            setLocationFeedback(error instanceof Error ? error.message : "Impossible d'utiliser votre position actuelle.");
+          })
+          .finally(() => {
+            setIsLocating(false);
+          });
+      },
+      () => {
+        setIsLocating(false);
+        setLocationFeedback("Impossible d'acceder a votre position exacte.");
+      },
+      { enableHighAccuracy: true, timeout: 12000 },
+    );
   };
 
   const copyShareLink = async () => {
@@ -725,7 +822,6 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
                 { key: "customerName", label: "Nom complet", placeholder: "Ex: Awa Traore" },
                 { key: "customerEmail", label: "Email", placeholder: "client@email.com" },
                 { key: "customerPhone", label: "Telephone", placeholder: "+228 ..." },
-                { key: "countryCode", label: "Pays code", placeholder: "FR, TG, BJ..." },
                 { key: "city", label: "Ville", placeholder: "Lome" },
                 { key: "state", label: "Region / Etat", placeholder: "Maritime" },
                 { key: "addressLine1", label: "Adresse", placeholder: "Rue, quartier, repere" },
@@ -742,6 +838,42 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
                   />
                 </label>
               ))}
+
+              <label className="space-y-1.5 text-[12px] font-semibold text-[#344054]">
+                <span>Pays</span>
+                <select
+                  value={selectedCountryCode}
+                  onChange={(event) => handleFieldChange("countryCode", event.target.value)}
+                  className="h-11 w-full rounded-[14px] border border-[#d0d5dd] bg-white px-4 text-[13px] text-[#111827] outline-none transition focus:border-[#ff4f2a]"
+                >
+                  {DELIVERY_COUNTRY_OPTIONS.map((country) => (
+                    <option key={country.code} value={country.code}>
+                      {country.flagEmoji} {country.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="space-y-2 rounded-[16px] border border-[#e4e7ec] bg-[#f8fafc] px-4 py-3 md:col-span-2">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="text-[13px] font-semibold text-[#111827]">Position actuelle</div>
+                    <div className="text-[12px] leading-5 text-[#667085]">
+                      Disponible pour Togo, Côte d'Ivoire, Bénin, Burkina Faso et Ghana.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleUseCurrentPosition}
+                    disabled={isLocating || !canUseCurrentPosition}
+                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-[#ffd1bf] bg-[#fff4ed] px-4 text-[13px] font-semibold text-[#ff4f2a] transition hover:bg-[#ffeadd] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                  >
+                    {isLocating ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+                    {isLocating ? "Localisation..." : "Ma position actuelle"}
+                  </button>
+                </div>
+                {locationFeedback ? <div className="text-[12px] text-[#475467]">{locationFeedback}</div> : null}
+              </div>
             </div>
           ) : null}
 
