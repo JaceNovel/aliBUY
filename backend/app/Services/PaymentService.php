@@ -285,8 +285,12 @@ class PaymentService
         $description = 'Paiement commande sourcing '.$order->order_number;
 
         if ($freeDeal !== null) {
-            $amount = (float) ($freeDeal['fixedPriceEur'] ?? 10);
-            $currency = 'EUR';
+            $amount = $provider === 'paypal'
+                ? (float) ($freeDeal['fixedPriceEur'] ?? 10)
+                : (float) ($freeDeal['fixedPriceFcfa'] ?? $order->total_price);
+            $currency = $provider === 'paypal'
+                ? 'EUR'
+                : ($order->payment_currency ?? 'XOF');
             $returnUrl = rtrim((string) config('services.frontend.url'), '/').'/articles-gratuits/paiement?orderId='.$order->id.'&provider='.$provider;
             $cancelUrl = rtrim((string) config('services.frontend.url'), '/').'/articles-gratuits';
             $description = 'Paiement lot articles gratuits '.$order->order_number;

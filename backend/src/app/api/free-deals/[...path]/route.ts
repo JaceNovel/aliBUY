@@ -177,8 +177,8 @@ async function handleCheckout(request: Request) {
   }
 
   const payment = await initializeMonerooPayment({
-    amount: config.fixedPriceEur,
-    currency: "EUR",
+    amount: order.totalPriceFcfa,
+    currency: "XOF",
     description: `Paiement lot articles gratuits ${order.orderNumber}`,
     return_url: returnUrl,
     customer: {
