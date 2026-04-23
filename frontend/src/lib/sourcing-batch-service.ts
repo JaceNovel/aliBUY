@@ -356,6 +356,11 @@ export async function repairBlockedSourcingOrderForSupplierPayment(orderId: stri
       },
     });
 
+    if (isSourcingOrderEligibleForSupplierPayment(nextOrder)) {
+      const automatedOrder = await runSourcingPostPaymentAutomation(nextOrder, "admin-repair");
+      return notifyOrderPayUrlRequired(order, automatedOrder);
+    }
+
     return syncSourcingOrderForDeferredSupplierPayment(nextOrder, "admin-repair");
   } catch (error) {
     const message = error instanceof Error ? error.message : "supplier_preparation_repair_failed";

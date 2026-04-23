@@ -226,7 +226,7 @@ function buildManyChatLogisticsUpdateForStatus(status: SourcingOrderStatus) {
   }
 }
 
-export async function runSourcingPostPaymentAutomation(order: SourcingOrder, trigger: "moneroo-verify" | "moneroo-webhook" | "admin-order-manual" | "admin-air-batch" | "admin-sea-batch" | "aliexpress-webhook") {
+export async function runSourcingPostPaymentAutomation(order: SourcingOrder, trigger: "moneroo-verify" | "moneroo-webhook" | "admin-order-manual" | "admin-air-batch" | "admin-sea-batch" | "admin-repair" | "aliexpress-webhook") {
   if (order.paymentStatus !== "paid" || order.alibabaTradeIds.length === 0) {
     return order;
   }
@@ -247,7 +247,11 @@ export async function runSourcingPostPaymentAutomation(order: SourcingOrder, tri
     };
 
     try {
-      const shouldRequestPayment = previous?.paymentResultStatus !== "paid" && previous?.paymentResultStatus !== "pending" && !previous?.payUrl;
+      const adminRetryRequested = trigger === "admin-order-manual" || trigger === "admin-repair";
+      const hadPreviousFailure = previous?.paymentRequestStatus === "failed" || previous?.paymentResultStatus === "failed";
+      const shouldRequestPayment = previous?.paymentResultStatus !== "paid"
+        && previous?.paymentResultStatus !== "pending"
+        && (!previous?.payUrl || (adminRetryRequested && hadPreviousFailure));
 
       if (shouldRequestPayment) {
         const paymentRequest = await createAlibabaDropshippingPayment({ tradeId });
