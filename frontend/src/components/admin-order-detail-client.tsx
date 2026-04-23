@@ -401,7 +401,7 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
             Preuves de livraison vers l&apos;agent
           </div>
           <div className="mt-4 space-y-3">
-            {workflow?.proofs.length ? workflow.proofs.map((proof) => (
+            {workflow?.proofs?.length ? workflow.proofs.map((proof) => (
               <div key={proof.id} className="rounded-[16px] bg-[#fafbfd] px-4 py-4 ring-1 ring-[#edf1f6]">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-[14px] font-semibold text-[#1f2937]">{proof.title}</div>
