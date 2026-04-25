@@ -317,11 +317,6 @@ class PaymentService
             ],
         ];
 
-        $methods = config('services.moneroo.methods', []);
-        if (is_array($methods) && $methods !== []) {
-            $payload['methods'] = $methods;
-        }
-
         return $payload;
     }
 

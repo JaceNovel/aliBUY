@@ -6,7 +6,6 @@ import { Check, Copy, Gift, LoaderCircle, LocateFixed, MapPin, ShoppingCart, Spa
 import { useEffect, useMemo, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
-import { buildApiUrl, buildLocalUrl } from "@/lib/api";
 import { canonicalizeCountryCode, resolveGeocodedCountryCode } from "@/lib/country-utils";
 import { DELIVERY_COUNTRY_OPTIONS, type CountryCode } from "@/lib/pricing-options";
 
@@ -429,7 +428,7 @@ export function FreeDealPageClient({ config, access, initialCustomer, products }
         return;
       }
 
-      const paymentResponse = await fetch(buildApiUrl("/api/payments/init"), {
+      const paymentResponse = await fetch("/api/payments/init", {
         method: "POST",
         credentials: "include",
         headers: {
