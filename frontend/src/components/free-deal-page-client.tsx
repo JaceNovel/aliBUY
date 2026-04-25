@@ -6,6 +6,7 @@ import { Check, Copy, Gift, LoaderCircle, LocateFixed, MapPin, ShoppingCart, Spa
 import { useEffect, useMemo, useState } from "react";
 
 import { useCart } from "@/components/cart-provider";
+import { buildLocalUrl } from "@/lib/api";
 import { canonicalizeCountryCode, resolveGeocodedCountryCode } from "@/lib/country-utils";
 import { DELIVERY_COUNTRY_OPTIONS, type CountryCode } from "@/lib/pricing-options";
 
