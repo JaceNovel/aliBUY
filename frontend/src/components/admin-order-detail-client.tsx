@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { CheckCheck, ExternalLink, MessageCircle, PackageCheck, Save, ShieldCheck, Trash2, Truck } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -24,6 +24,7 @@ type AdminOrderDetailClientProps = {
   currencyCode: string;
   locale: string;
   defaultCourierName?: string;
+  displayNumber?: number;
 };
 
 const statusOptions = [
@@ -59,7 +60,51 @@ function buildWhatsappLogisticsMessage(order: SourcingOrder) {
   return lines.join("\n");
 }
 
-export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, currencyCode, locale, defaultCourierName }: AdminOrderDetailClientProps) {
+function formatAdminPaymentLabel(status?: string) {
+  switch (status) {
+    case "paid":
+      return "Payé";
+    case "failed":
+      return "Échec";
+    case "pending":
+      return "En attente";
+    case "initialized":
+      return "Initialisé";
+    case "cancelled":
+      return "Annulé";
+    default:
+      return status && status.trim() ? status : "-";
+  }
+}
+
+function formatAdminOrderStatus(status: string, paymentStatus?: string) {
+  if (paymentStatus === "failed") {
+    return "Échec";
+  }
+
+  switch (status) {
+    case "completed":
+      return "Terminée";
+    case "relay_ready":
+      return "Point relais disponible";
+    case "delivered_to_agent":
+      return "Livrée à l'agent";
+    case "shipment_triggered":
+      return "Transport lancé";
+    case "supplier_paid":
+      return "Achat réglé";
+    case "checkout_created":
+      return paymentStatus === "paid" ? "Payée" : "Créée";
+    default:
+      return status;
+  }
+}
+
+function formatAdminText(value?: string | null) {
+  return value && value.trim() ? value : "—";
+}
+
+export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, currencyCode, locale, defaultCourierName, displayNumber }: AdminOrderDetailClientProps) {
   const router = useRouter();
   const initialMeta = getSourcingOrderMeta(initialOrder);
   const initialWorkflow = initialMeta.workflow;
@@ -91,26 +136,6 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
   const parcelPhotoInputRef = useRef<HTMLInputElement | null>(null);
   const meta = useMemo(() => getSourcingOrderMeta(order), [order]);
 
-  useEffect(() => {
-    setParcelState(parcelSnapshot);
-    setParcelNote(parcelSnapshot.manualNote ?? "");
-  }, [parcelSnapshot]);
-
-  useEffect(() => {
-    setManychatSubscriberId(meta.manychat?.subscriberId ?? "");
-    setManychatFlowId(meta.manychat?.flowId ?? "");
-    setManychatPaidTagId(meta.manychat?.paidTagId ?? "");
-    setManualFulfillmentEnabled(meta.manualFulfillment?.enabled === true || meta.deliveryProfile?.unsupportedCountry === true);
-    setManualFulfillmentStatusLabel(meta.manualFulfillment?.statusLabel ?? "");
-    setManualFulfillmentCheckpointLabel(meta.manualFulfillment?.checkpointLabel ?? "");
-    setManualFulfillmentCheckpointNote(meta.manualFulfillment?.checkpointNote ?? "");
-    setManualFulfillmentAgentName(meta.manualFulfillment?.agentName ?? getAfripayCourierFallbackName(defaultCourierName));
-    setManualFulfillmentAgentPhone(meta.manualFulfillment?.agentPhone ?? getAfripayCourierFallbackPhone(undefined));
-    setManualFulfillmentEtaLabel(meta.manualFulfillment?.etaLabel ?? "");
-    setRelayPointAddress(meta.workflow?.relayPointAddress ?? "");
-    setRelayPointLabel(meta.workflow?.relayPointLabel ?? "");
-  }, [defaultCourierName, meta]);
-
   const alibabaAutomation = useMemo(() => getSourcingAlibabaPostPaymentAutomationState(order), [order]);
   const payUrls = useMemo(() => getSourcingAlibabaPayUrls(order), [order]);
   const canLaunchSupplierPayment = useMemo(() => isSourcingOrderEligibleForSupplierPayment(order), [order]);
@@ -127,6 +152,9 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
   const whatsappSyncDate = meta.manychat?.logisticsLastSentAt;
   const whatsappPhone = normalizeWhatsappPhone(order.customerPhone);
   const whatsappFallbackHref = whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(buildWhatsappLogisticsMessage(order))}` : null;
+  const orderStatusLabel = formatAdminOrderStatus(order.status, order.paymentStatus);
+  const paymentStatusLabel = formatAdminPaymentLabel(order.paymentStatus);
+  const formattedTotal = formatSourcingAmount(order.totalPriceFcfa, { currencyCode, locale });
   const supplierLaunchHelp = useMemo(() => {
     if (canLaunchSupplierPayment) {
       return null;
@@ -205,7 +233,7 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
     return {
       message: "Le lancement fournisseur n'est pas disponible pour l'instant sur cette commande.",
     };
-  }, [canLaunchSupplierPayment, isClientPaid, order.alibabaTradeIds.length, order.supplierOrderStatus, payUrls]);
+  }, [canLaunchSupplierPayment, isClientPaid, order.alibabaTradeIds.length, order.supplierOrderPayload, order.supplierOrderStatus, payUrls]);
 
   const submitPatch = async (payload: Record<string, unknown>) => {
     setFeedback(null);
@@ -332,23 +360,80 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
   return (
     <div className="space-y-5">
       {feedback ? <div className="rounded-[18px] bg-[#fff8ee] px-4 py-4 text-[13px] font-semibold text-[#8a4b16]">{feedback}</div> : null}
-      {!isClientPaid ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[18px] bg-[#fff8ee] px-4 py-4 text-[13px] font-semibold text-[#8a4b16]">
-          <div>Cette commande client n&apos;est pas encore marquee comme payee.</div>
+
+      <section className="rounded-[24px] border border-[#e3e8ef] bg-white px-5 py-5 shadow-[0_12px_32px_rgba(15,23,42,0.05)]">
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="space-y-3 text-[15px] text-[#344054]">
+            <div><span className="text-[#8da0bd]">Référence:</span> <span className="font-semibold text-[#101828]">{order.orderNumber}</span></div>
+            <div><span className="text-[#8da0bd]">Statut:</span> <span className="font-semibold text-[#101828]">{orderStatusLabel}</span></div>
+            <div><span className="text-[#8da0bd]">Paiement:</span> <span className="font-semibold text-[#101828]">{order.paymentStatus || "failed"}</span></div>
+            <div><span className="text-[#8da0bd]">Montant:</span> <span className="font-semibold text-[#101828]">{formattedTotal}</span></div>
+            <div><span className="text-[#8da0bd]">Créée:</span> <span className="font-semibold text-[#101828]">{order.createdAt}</span></div>
+          </div>
+          <div className="space-y-3 text-[15px] text-[#344054]">
+            <div><span className="text-[#8da0bd]">Client:</span> <span className="font-semibold text-[#101828]">{formatAdminText(order.customerName)}</span></div>
+            <div><span className="text-[#8da0bd]">Email:</span> <span className="font-semibold text-[#101828]">{formatAdminText(order.customerEmail)}</span></div>
+            <div><span className="text-[#8da0bd]">Téléphone:</span> <span className="font-semibold text-[#101828]">{formatAdminText(order.customerPhone)}</span></div>
+            <div><span className="text-[#8da0bd]">Pays:</span> <span className="font-semibold text-[#101828]">{formatAdminText(order.countryCode)}</span></div>
+            <div><span className="text-[#8da0bd]">Ville:</span> <span className="font-semibold text-[#101828]">{formatAdminText(order.city)}</span></div>
+            <div><span className="text-[#8da0bd]">Adresse:</span> <span className="font-semibold text-[#101828]">{formatAdminText([order.addressLine1, order.addressLine2].filter(Boolean).join(", "))}</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-[24px] border border-[#e3e8ef] bg-white px-5 py-5 shadow-[0_12px_32px_rgba(15,23,42,0.05)]">
+        <div className="text-[18px] font-bold text-[#1f2937]">Paiement</div>
+        <div className="mt-4 flex flex-wrap items-center gap-3 text-[15px] text-[#344054]">
+          <span>Statut actuel: {paymentStatusLabel}</span>
           <button
             type="button"
             onClick={() => {
-              if (window.confirm("Confirmer que le paiement client a bien ete recu pour cette commande ?")) {
+              if (window.confirm(`Confirmer le paiement de la commande #${displayNumber ?? order.orderNumber} ?`)) {
                 void submitPatch({ action: "mark-client-paid" });
               }
             }}
             disabled={isPending}
-            className="inline-flex h-10 items-center justify-center rounded-[12px] bg-[#111827] px-4 text-[13px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-70"
+            className="inline-flex h-10 items-center justify-center rounded-[14px] bg-[#06b26b] px-4 text-[13px] font-semibold text-white transition hover:bg-[#04995b] disabled:cursor-not-allowed disabled:opacity-70"
           >
-            Marquer payee
+            Marquer payé
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm(`Marquer la commande #${displayNumber ?? order.orderNumber} en échec de paiement ?`)) {
+                void submitPatch({ action: "mark-client-failed" });
+              }
+            }}
+            disabled={isPending}
+            className="inline-flex h-10 items-center justify-center rounded-[14px] bg-[#ff1744] px-4 text-[13px] font-semibold text-white transition hover:bg-[#e4143d] disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            Marquer échec
           </button>
         </div>
-      ) : null}
+      </section>
+
+      <section className="rounded-[24px] border border-[#e3e8ef] bg-white px-5 py-5 shadow-[0_12px_32px_rgba(15,23,42,0.05)]">
+        <div className="text-[18px] font-bold text-[#1f2937]">Remboursement</div>
+        <div className="mt-6 grid gap-6 lg:grid-cols-3">
+          <div>
+            <div className="text-[15px] text-[#8da0bd]">Payé</div>
+            <div className="mt-1 text-[30px] font-black tracking-[-0.04em] text-[#101828]">{formattedTotal}</div>
+            <div className="mt-3 text-[15px] text-[#8da0bd]">Statut: none</div>
+          </div>
+          <div>
+            <div className="text-[15px] text-[#8da0bd]">Déjà remboursé</div>
+            <div className="mt-1 text-[30px] font-black tracking-[-0.04em] text-[#101828]">0 FCFA</div>
+          </div>
+          <div>
+            <div className="text-[15px] text-[#8da0bd]">Reste remboursable</div>
+            <div className="mt-1 text-[30px] font-black tracking-[-0.04em] text-[#101828]">{formattedTotal}</div>
+          </div>
+        </div>
+        <div className="mt-8">
+          <div className="text-[13px] font-bold uppercase tracking-[0.08em] text-[#475467]">Historique</div>
+          <div className="mt-3 text-[15px] text-[#667085]">Aucun remboursement.</div>
+        </div>
+      </section>
 
       <section className="grid gap-4 xl:grid-cols-[0.96fr_1.04fr]">
         <article className="rounded-[20px] border border-[#e6eaf0] bg-white px-5 py-5 shadow-[0_8px_22px_rgba(17,24,39,0.05)]">
@@ -701,7 +786,7 @@ export function AdminOrderDetailClient({ order: initialOrder, parcelSnapshot, cu
 
         {!canLaunchSupplierPayment && supplierLaunchHelp ? (
           <div className="mt-4 rounded-[16px] border border-[#ffe1cc] bg-[#fff7f1] px-4 py-4 text-[13px] text-[#8a4b16]">
-            <div className="font-semibold">Pourquoi le bouton n'apparait pas</div>
+            <div className="font-semibold">Pourquoi le bouton n&apos;apparait pas</div>
             <div className="mt-1 leading-6">{supplierLaunchHelp.message}</div>
             {supplierLaunchHelp.href ? (
               supplierLaunchHelp.external ? (

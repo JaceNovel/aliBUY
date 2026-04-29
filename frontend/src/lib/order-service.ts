@@ -74,6 +74,22 @@ function isOrderRecord(value: unknown): value is OrderRecord {
     && Boolean(candidate.logistics && typeof candidate.logistics === "object");
 }
 
+function mergeOrderRecords(remoteOrders: OrderRecord[], localOrders: OrderRecord[]) {
+  const merged = new Map<string, OrderRecord>();
+
+  for (const order of remoteOrders) {
+    merged.set(order.id, order);
+  }
+
+  for (const order of localOrders) {
+    if (!merged.has(order.id)) {
+      merged.set(order.id, order);
+    }
+  }
+
+  return [...merged.values()].sort((left, right) => right.dateValue.localeCompare(left.dateValue) || right.timeValue.localeCompare(left.timeValue));
+}
+
 function resolveThirdPartyCartNotice(order: SourcingOrder, user: AuthenticatedUser) {
   const meta = getSourcingOrderMeta(order);
   if (!meta.paymentContext?.createdFromSharedCart) {
@@ -467,25 +483,26 @@ async function mapRemoteOrderRecord(order: RemoteOrderRecord, user: Authenticate
 }
 
 export async function getUserOrderRecords(user: AuthenticatedUser, options?: { preferProxy?: boolean }) {
+  const localOrders: Awaited<ReturnType<typeof getUserSourcingOrders>> = await getUserSourcingOrders({ userId: user.id, email: user.email });
+  const localRecords: OrderRecord[] = await Promise.all(localOrders.map((order: SourcingOrder) => mapOrderRecord(order, user)));
+
   if (options?.preferProxy !== false && hasExternalOrdersApi()) {
     try {
       const proxiedOrders = await fetchUserOrderRecordsFromApi();
       if (proxiedOrders) {
         if (proxiedOrders.every((order) => isOrderRecord(order))) {
-          return proxiedOrders;
+          return mergeOrderRecords(proxiedOrders, localRecords);
         }
 
         const mappedOrders = await Promise.all(proxiedOrders.map((order) => mapRemoteOrderRecord(order as RemoteOrderRecord, user)));
-        return mappedOrders;
+        return mergeOrderRecords(mappedOrders, localRecords);
       }
     } catch {
       // Fall back to the local store when the backend API is unreachable.
     }
   }
 
-  const orders: Awaited<ReturnType<typeof getUserSourcingOrders>> = await getUserSourcingOrders({ userId: user.id, email: user.email });
-  const records: OrderRecord[] = await Promise.all(orders.map((order: SourcingOrder) => mapOrderRecord(order, user)));
-  return records.sort((left: OrderRecord, right: OrderRecord) => right.dateValue.localeCompare(left.dateValue) || right.timeValue.localeCompare(left.timeValue));
+  return localRecords.sort((left: OrderRecord, right: OrderRecord) => right.dateValue.localeCompare(left.dateValue) || right.timeValue.localeCompare(left.timeValue));
 }
 
 export async function getUserOrderRecordById(user: AuthenticatedUser, orderId?: string | null) {

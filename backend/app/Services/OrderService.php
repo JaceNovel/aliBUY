@@ -298,6 +298,8 @@ class OrderService
 
         return match ($action) {
             'update-status' => $this->updateAdminStatus($order, $payload),
+            'mark-client-paid' => $this->markAdminClientPayment($order, 'paid'),
+            'mark-client-failed' => $this->markAdminClientPayment($order, 'failed'),
             'set-relay-point' => $this->setAdminRelayPoint($order, $payload),
             'update-manual-fulfillment' => $this->updateAdminManualFulfillment($order, $payload),
             'update-manychat-link' => $this->updateAdminManyChatLink($order, $payload),
@@ -364,6 +366,29 @@ class OrderService
             'status' => $status,
             'meta' => $meta,
         ])->save();
+
+        return ['order' => $this->transformOrder($order->fresh('payments'))];
+    }
+
+    protected function markAdminClientPayment(Order $order, string $paymentStatus): array
+    {
+        if (! in_array($paymentStatus, ['paid', 'failed'], true)) {
+            throw ValidationException::withMessages([
+                'paymentStatus' => ['Statut de paiement admin invalide.'],
+            ]);
+        }
+
+        $order->forceFill([
+            'payment_status' => $paymentStatus,
+        ])->save();
+
+        $latestPayment = $order->payments()->latest('id')->first();
+        if ($latestPayment) {
+            $latestPayment->forceFill([
+                'status' => $paymentStatus,
+                'verified_at' => $paymentStatus === 'paid' ? now() : null,
+            ])->save();
+        }
 
         return ['order' => $this->transformOrder($order->fresh('payments'))];
     }

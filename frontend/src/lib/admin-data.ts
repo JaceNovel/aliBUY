@@ -232,6 +232,7 @@ function normalizeAdminOrderFromApi(order: unknown): AdminOrderRecord | null {
     orderNumber,
     documentNumber: orderNumber,
     pdfExportsCount: 0,
+    displayNumber: 0,
     customerName: typeof order.customerName === "string" ? order.customerName : "Client",
     customerEmail: typeof order.customerEmail === "string" ? order.customerEmail : "",
     customerPhone: typeof order.customerPhone === "string" ? order.customerPhone : "",
@@ -243,6 +244,7 @@ function normalizeAdminOrderFromApi(order: unknown): AdminOrderRecord | null {
     addressLine: [order.addressLine1, order.addressLine2, order.city, order.state, order.postalCode]
       .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
       .join(", "),
+    totalPriceFcfa: Number.isFinite(totalPriceFcfa) ? totalPriceFcfa : 0,
     totalUsd: convertFcfaToUsd(Number.isFinite(totalPriceFcfa) ? totalPriceFcfa : 0),
     createdAt: typeof order.createdAt === "string" ? order.createdAt : new Date(0).toISOString(),
     href: `/admin/orders/${encodeURIComponent(id)}`,
@@ -510,6 +512,7 @@ export type AdminOrderRecord = {
   orderNumber: string;
   documentNumber: string;
   pdfExportsCount: number;
+  displayNumber: number;
   customerName: string;
   customerEmail: string;
   customerPhone: string;
@@ -519,6 +522,7 @@ export type AdminOrderRecord = {
   status: string;
   countryCode: string;
   addressLine: string;
+  totalPriceFcfa: number;
   totalUsd: number;
   createdAt: string;
   href: string;
@@ -544,7 +548,11 @@ function mergeAdminOrders(localOrders: AdminOrderRecord[], proxiedOrders: AdminO
   }
 
   return [...merged.values()]
-    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    .map((order, index, collection) => ({
+      ...order,
+      displayNumber: collection.length - index,
+    }));
 }
 
 export type AdminImportRequestStatus = "En attente" | "En traitement" | "Complété" | "Rejeté";
@@ -814,11 +822,12 @@ export async function getAdminOrders(options?: { preferProxy?: boolean }): Promi
   const orders = await getSourcingOrders();
   const localOrders = [...orders]
     .sort((left: AdminSourcingOrder, right: AdminSourcingOrder) => right.createdAt.localeCompare(left.createdAt))
-    .map((order: AdminSourcingOrder) => ({
+    .map((order: AdminSourcingOrder, index, collection) => ({
       id: order.id,
       orderNumber: order.orderNumber,
       documentNumber: getDeliveryNoteDocumentNumber(order),
       pdfExportsCount: getDeliveryNoteExportHistory(order).length,
+      displayNumber: collection.length - index,
       customerName: order.customerName,
       customerEmail: order.customerEmail,
       customerPhone: order.customerPhone,
@@ -828,6 +837,7 @@ export async function getAdminOrders(options?: { preferProxy?: boolean }): Promi
       status: order.status,
       countryCode: order.countryCode,
       addressLine: [order.addressLine1, order.addressLine2, `${order.city}, ${order.state}`, order.postalCode].filter(Boolean).join(", "),
+      totalPriceFcfa: order.totalPriceFcfa,
       totalUsd: convertFcfaToUsd(order.totalPriceFcfa),
       createdAt: order.createdAt,
       href: `/admin/orders/${encodeURIComponent(order.id)}`,

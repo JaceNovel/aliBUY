@@ -169,17 +169,29 @@ function resolveCountryCodeFromCoordinates(coordinates?: GeoCoordinates | null) 
     return undefined;
   }
 
+  const matches: Array<{ countryCode: string; area: number }> = [];
+
   for (const [countryCode, boundsList] of Object.entries(COUNTRY_COORDINATE_BOUNDS)) {
     if (!Array.isArray(boundsList)) {
       continue;
     }
 
-    if (boundsList.some((bounds) => latitude >= bounds.minLatitude
-      && latitude <= bounds.maxLatitude
-      && longitude >= bounds.minLongitude
-      && longitude <= bounds.maxLongitude)) {
-      return countryCode;
+    for (const bounds of boundsList) {
+      if (latitude >= bounds.minLatitude
+        && latitude <= bounds.maxLatitude
+        && longitude >= bounds.minLongitude
+        && longitude <= bounds.maxLongitude) {
+        matches.push({
+          countryCode,
+          area: (bounds.maxLatitude - bounds.minLatitude) * (bounds.maxLongitude - bounds.minLongitude),
+        });
+      }
     }
+  }
+
+  if (matches.length > 0) {
+    matches.sort((left, right) => left.area - right.area);
+    return matches[0]?.countryCode;
   }
 
   return undefined;

@@ -1,7 +1,6 @@
 import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { maybeProxyToBackend } from "@/lib/backend-route-proxy";
 import { FREE_DEAL_DEVICE_COOKIE } from "@/lib/free-deal-constants";
 import { createFreeDealOrder, isFreeDealOrder, resolveRequestIp } from "@/lib/free-deal-service";
 import { getFreeDealAccessState, getFreeDealConfig, getFreeDealProducts, getPurchasedFreeDealProductSlugs } from "@/lib/free-deal-store";
@@ -297,11 +296,6 @@ export async function GET(request: Request, context: RouteContext) {
   const routeKey = getRouteKey(params.path);
 
   if (routeKey === "state") {
-    const proxied = await maybeProxyToBackend(request, "/api/free-deals/state");
-    if (proxied) {
-      return proxied;
-    }
-
     try {
       return await handleState();
     } catch (error) {
@@ -317,11 +311,6 @@ export async function POST(request: Request, context: RouteContext) {
   const routeKey = getRouteKey(params.path);
 
   if (routeKey === "checkout") {
-    const proxied = await maybeProxyToBackend(request, "/api/free-deals/checkout");
-    if (proxied) {
-      return proxied;
-    }
-
     try {
       return await handleCheckout(request);
     } catch (error) {
@@ -330,11 +319,6 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   if (routeKey === "verify-payment") {
-    const proxied = await maybeProxyToBackend(request, "/api/free-deals/verify-payment");
-    if (proxied) {
-      return proxied;
-    }
-
     try {
       return await handleVerifyPayment(request);
     } catch (error) {

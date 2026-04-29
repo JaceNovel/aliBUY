@@ -311,6 +311,16 @@ export async function updateAdminSourcingOrder(orderId: string, payload: unknown
       break;
     }
 
+    case "mark-client-failed": {
+      nextOrder = await persistOrder({
+        ...currentOrder,
+        paymentStatus: "failed",
+        monerooPaymentStatus: "manual_admin_failed",
+        updatedAt: nowIso(),
+      });
+      break;
+    }
+
     case "set-relay-point": {
       nextOrder = await applyMetaUpdate(currentOrder, {
         workflow: mergeWorkflowPreservingProofs(currentOrder, {
