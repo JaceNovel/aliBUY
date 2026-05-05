@@ -1,6 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { maybeProxyToBackend } from "@/lib/backend-route-proxy";
 import { FREE_DEAL_DEVICE_COOKIE } from "@/lib/free-deal-constants";
 import { createFreeDealOrder, isFreeDealOrder, resolveRequestIp } from "@/lib/free-deal-service";
 import { getFreeDealAccessState, getFreeDealConfig, getFreeDealProducts, getPurchasedFreeDealProductSlugs } from "@/lib/free-deal-store";
@@ -292,6 +293,11 @@ async function handleVerifyPayment(request: Request) {
 }
 
 export async function GET(request: Request, context: RouteContext) {
+  const proxiedResponse = await maybeProxyToBackend(request);
+  if (proxiedResponse) {
+    return proxiedResponse;
+  }
+
   const params = await context.params;
   const routeKey = getRouteKey(params.path);
 
@@ -307,6 +313,11 @@ export async function GET(request: Request, context: RouteContext) {
 }
 
 export async function POST(request: Request, context: RouteContext) {
+  const proxiedResponse = await maybeProxyToBackend(request);
+  if (proxiedResponse) {
+    return proxiedResponse;
+  }
+
   const params = await context.params;
   const routeKey = getRouteKey(params.path);
 

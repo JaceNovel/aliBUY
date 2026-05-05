@@ -4,7 +4,6 @@ import { cookies, headers } from "next/headers";
 
 import { FreeDealPageClient } from "@/components/free-deal-page-client";
 import { InternalPageShell } from "@/components/internal-page-shell";
-import { buildApiUrl } from "@/lib/api";
 import { getUserDefaultAddress } from "@/lib/customer-data-store";
 import { FREE_DEAL_DEVICE_COOKIE } from "@/lib/free-deal-constants";
 import { resolveRequestIp, resolveRequestOrigin } from "@/lib/free-deal-service";
@@ -60,9 +59,9 @@ function buildForwardHeaders(headerStore: Headers, cookieStore: Awaited<ReturnTy
   return forwarded;
 }
 
-async function loadFreeDealPageState(headerStore: Headers, cookieStore: Awaited<ReturnType<typeof cookies>>) {
+async function loadFreeDealPageState(origin: string, headerStore: Headers, cookieStore: Awaited<ReturnType<typeof cookies>>) {
   try {
-    const response = await fetch(buildApiUrl("/api/free-deals/state"), {
+    const response = await fetch(new URL("/api/free-deals/state", origin), {
       cache: "no-store",
       headers: buildForwardHeaders(headerStore, cookieStore),
     });
@@ -92,7 +91,8 @@ export default async function FreeDealPage() {
   const deviceId = cookieStore.get(FREE_DEAL_DEVICE_COOKIE)?.value ?? undefined;
   const ip = resolveRequestIp(headerStore);
   const userAgent = headerStore.get("user-agent");
-  const remoteState = await loadFreeDealPageState(headerStore, cookieStore);
+  const origin = resolveRequestOrigin(headerStore);
+  const remoteState = await loadFreeDealPageState(origin, headerStore, cookieStore);
   const [loadedProducts, access, resolvedConfig, claimedProductSlugs] = remoteState
     ? [remoteState.products, remoteState.access, remoteState.config, remoteState.claimedProductSlugs]
     : await Promise.all([
@@ -111,7 +111,6 @@ export default async function FreeDealPage() {
     ? await getFreeDealProducts(resolvedConfig)
     : loadedProducts;
   const claimedSlugSet = new Set(claimedProductSlugs);
-  const origin = resolveRequestOrigin(headerStore);
   const compareAtBase = Number((resolvedConfig.fixedPriceEur * resolvedConfig.compareAtMultiplier + resolvedConfig.compareAtExtraEur).toFixed(2));
   const fixedPriceLabel = pricing.formatPrice(convertCurrencyAmountToUsd(resolvedConfig.fixedPriceEur, CURRENCY_CONFIG.EUR.rateFromUsd));
   const compareAtLabel = pricing.formatPrice(convertCurrencyAmountToUsd(compareAtBase, CURRENCY_CONFIG.EUR.rateFromUsd));
